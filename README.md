@@ -34,10 +34,12 @@ npm run dev
 | `make lint`    | Run ESLint                                        |
 | `make build`   | Type-check and build the app for production        |
 | `make run`     | Build, then serve the production build locally     |
+| `make dev-workflow` | Lint, test, and build — the full non-interactive check (no server started) |
 | `make clean`   | Remove `node_modules` and `dist`                    |
 
 Each target installs dependencies automatically if needed, so `make test`, `make lint`, `make build`,
-and `make run` all work from a clean checkout.
+and `make run` all work from a clean checkout. `make dev-workflow` is the target to run for an
+end-to-end check (e.g. from an agent or pre-push hook) since it doesn't start a long-running server.
 
 ## Project structure
 

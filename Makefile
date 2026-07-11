@@ -1,4 +1,4 @@
-.PHONY: install test build run lint clean
+.PHONY: install test build run lint clean dev-workflow
 
 NODE_MODULES := node_modules/.install-stamp
 
@@ -19,6 +19,10 @@ build: install
 
 run: build
 	npm run preview
+
+# Non-interactive check an agent can run end-to-end: lint, test, and build,
+# without starting a long-running server.
+dev-workflow: lint test build
 
 clean:
 	rm -rf node_modules dist
