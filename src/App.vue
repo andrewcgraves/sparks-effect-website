@@ -1,9 +1,10 @@
 <script setup lang="ts">
+import IsochroneForm from './IsochroneForm.vue'
 </script>
 
 <template>
   <main>
     <h1>Sparks Effect</h1>
-    <p>Isochrone map frontend — under construction.</p>
+    <IsochroneForm />
   </main>
 </template>
