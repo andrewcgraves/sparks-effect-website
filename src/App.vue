@@ -1,4 +1,10 @@
 <script setup lang="ts">
+import { onMounted } from 'vue'
+import { trackPageView } from './analytics/index'
+
+onMounted(() => {
+  trackPageView('/')
+})
 </script>
 
 <template>
