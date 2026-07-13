@@ -14,7 +14,6 @@ import {
   ISOCHRONE_BOUNDS_CORNERS,
   ISOCHRONE_CENTER,
 } from '../fixtures/isochrone'
-import type { IsochroneRequest } from '../api/isochrone'
 import type { Route, Station } from '../api/scenarios'
 
 const { mockAddSource, mockAddLayer, mockFitBounds, mockOn, mockRemove, mockResize } = vi.hoisted(
@@ -47,16 +46,11 @@ vi.mock('maplibre-gl', () => ({
   }),
 }))
 
-vi.mock('../api/isochrone', () => ({
-  fetchIsochrone: vi.fn(),
-}))
-
 vi.mock('../api/scenarios', () => ({
   fetchScenarioRoutes: vi.fn(),
   fetchScenarioStations: vi.fn(),
 }))
 
-import { fetchIsochrone } from '../api/isochrone'
 import { fetchScenarioRoutes, fetchScenarioStations } from '../api/scenarios'
 
 const stubRoute: Route = {
@@ -86,26 +80,11 @@ async function triggerMapLoad() {
 describe('MapView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(fetchIsochrone).mockResolvedValue(staticIsochroneResponse)
     vi.mocked(fetchScenarioRoutes).mockResolvedValue([stubRoute])
     vi.mocked(fetchScenarioStations).mockResolvedValue([stubStation])
   })
 
-  it('calls fetchIsochrone with the default request on map load', async () => {
-    mount(MapView)
-    await triggerMapLoad()
-    const expectedRequest: IsochroneRequest = {
-      lat: 37.3382,
-      lng: -121.8863,
-      budget_mins: 90,
-      mode: 'walk',
-      scenario_slug: 'ca-hsr',
-    }
-    expect(fetchIsochrone).toHaveBeenCalledOnce()
-    expect(fetchIsochrone).toHaveBeenCalledWith(expectedRequest)
-  })
-
-  it('registers the isochrone GeoJSON source with the API response when the map loads', async () => {
+  it('registers the isochrone GeoJSON source from static fixture when the map loads', async () => {
     mount(MapView)
     await triggerMapLoad()
     expect(mockAddSource).toHaveBeenCalledWith(ISOCHRONE_SOURCE_ID, {
@@ -130,16 +109,6 @@ describe('MapView', () => {
     mount(MapView)
     expect(mockAddSource).not.toHaveBeenCalled()
     expect(mockAddLayer).not.toHaveBeenCalled()
-  })
-
-  it('does not add the isochrone layer when the API fetch fails', async () => {
-    vi.mocked(fetchIsochrone).mockRejectedValueOnce(new Error('API down'))
-    mount(MapView)
-    await triggerMapLoad()
-    expect(mockAddSource).not.toHaveBeenCalledWith(ISOCHRONE_SOURCE_ID, expect.anything())
-    expect(mockAddLayer).not.toHaveBeenCalledWith(
-      expect.objectContaining({ id: ISOCHRONE_LAYER_ID }),
-    )
   })
 
   it('adds a line layer for the CA HSR route after map loads', async () => {

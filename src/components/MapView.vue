@@ -4,18 +4,13 @@ import { Map } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { ISOCHRONE_LEGEND, useIsochroneLayer } from '../composables/useIsochroneLayer'
 import { useRouteLayer } from '../composables/useRouteLayer'
-import { ISOCHRONE_BOUNDS_CORNERS, ISOCHRONE_CENTER } from '../fixtures/isochrone'
+import {
+  staticIsochroneResponse,
+  ISOCHRONE_BOUNDS_CORNERS,
+  ISOCHRONE_CENTER,
+} from '../fixtures/isochrone'
 import { resolveMapStyleUrl } from '../mapStyle'
-import { fetchIsochrone, type IsochroneRequest } from '../api/isochrone'
 import { fetchScenarioRoutes, fetchScenarioStations } from '../api/scenarios'
-
-const DEFAULT_REQUEST: IsochroneRequest = {
-  lat: 37.3382,
-  lng: -121.8863,
-  budget_mins: 90,
-  mode: 'walk',
-  scenario_slug: 'ca-hsr',
-}
 
 const mapContainer = ref<HTMLElement | null>(null)
 let map: Map | null = null
@@ -45,12 +40,7 @@ onMounted(() => {
 
   map.on('load', async () => {
     if (!map) return
-    try {
-      const data = await fetchIsochrone(DEFAULT_REQUEST)
-      useIsochroneLayer(map, data)
-    } catch {
-      // leave the map empty rather than rendering stale fixture data
-    }
+    useIsochroneLayer(map, staticIsochroneResponse)
     try {
       const [routes, stations] = await Promise.all([
         fetchScenarioRoutes('ca-hsr'),
