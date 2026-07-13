@@ -1,10 +1,12 @@
 <script setup lang="ts">
+import IsochroneForm from './IsochroneForm.vue'
 import MapView from './components/MapView.vue'
 </script>
 
 <template>
   <main class="app-shell">
     <h1>Sparks Effect</h1>
+    <IsochroneForm />
     <div class="map-shell">
       <MapView />
     </div>
@@ -28,4 +30,3 @@ import MapView from './components/MapView.vue'
   min-height: 70vh;
 }
 </style>
-
