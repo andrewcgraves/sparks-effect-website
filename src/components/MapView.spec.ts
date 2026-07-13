@@ -70,8 +70,8 @@ describe('MapView', () => {
     const { Map } = await import('maplibre-gl')
     mount(MapView)
     const options = (Map as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(options.center[0]).toBeCloseTo(-122.39, 1)
-    expect(options.center[1]).toBeCloseTo(37.70, 1)
+    expect(options.center[0]).toBeCloseTo(-121.97, 1)
+    expect(options.center[1]).toBeCloseTo(37.39, 1)
   })
 
   it('initializes map with a keyless OpenFreeMap style by default', async () => {
@@ -81,16 +81,15 @@ describe('MapView', () => {
     expect(options.style).toBe('https://tiles.openfreemap.org/styles/liberty')
   })
 
-
   it('fits bounds to fixture isochrones after load', () => {
     mount(MapView)
     triggerMapLoad()
     expect(mockFitBounds).toHaveBeenCalledWith(ISOCHRONE_BOUNDS, expect.objectContaining({ padding: 40 }))
   })
 
-  it('ISOCHRONE_BOUNDS covers CA Bay Area latitude range', () => {
+  it('ISOCHRONE_BOUNDS covers the sample CA HSR corridor', () => {
     const [minLng, minLat, maxLng, maxLat] = ISOCHRONE_BOUNDS
-    expect(minLat).toBeGreaterThan(37)
+    expect(minLat).toBeGreaterThan(36.5)
     expect(maxLat).toBeLessThan(38.5)
     expect(minLng).toBeGreaterThan(-123)
     expect(maxLng).toBeLessThan(-121)

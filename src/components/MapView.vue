@@ -15,8 +15,8 @@ onMounted(() => {
   map = new Map({
     container: mapContainer.value,
     style: resolveMapStyleUrl(),
-    center: [-122.39, 37.70],
-    zoom: 10,
+    center: [-121.97, 37.39],
+    zoom: 8,
   })
 
 

@@ -49,17 +49,24 @@ describe('useIsochroneLayer', () => {
     expect(staticIsochroneResponse.metadata.scenario_slug).toBe('ca-hsr')
   })
 
-  it('fixture metadata lists reachable stations', () => {
+  it('fixture metadata lists reachable stations from the sample response', () => {
     const slugs = staticIsochroneResponse.metadata.reachable_stations.map((s) => s.station_slug)
-    expect(slugs).toContain('sf')
-    expect(slugs).toContain('millbrae')
+    expect(slugs).toEqual(expect.arrayContaining(['sf', 'millbrae', 'san-jose', 'gilroy']))
   })
 
-  it('fixture features all have source and station_slug properties', () => {
+  it('fixture features all have a source property', () => {
     for (const f of staticIsochroneResponse.features) {
       expect(['origin', 'egress']).toContain(f.properties.source)
+    }
+  })
+
+  it('egress features include station_slug and remaining_mins', () => {
+    const egresses = staticIsochroneResponse.features.filter((f) => f.properties.source === 'egress')
+    expect(egresses.length).toBeGreaterThanOrEqual(1)
+    for (const f of egresses) {
       expect(typeof f.properties.station_slug).toBe('string')
-      expect(f.properties.station_slug.length).toBeGreaterThan(0)
+      expect(f.properties.station_slug?.length).toBeGreaterThan(0)
+      expect(typeof f.properties.remaining_mins).toBe('number')
     }
   })
 
@@ -70,13 +77,13 @@ describe('useIsochroneLayer', () => {
     expect(egresses.length).toBeGreaterThanOrEqual(1)
   })
 
-  it('fixture polygon coordinates are in CA Bay Area', () => {
+  it('fixture polygon coordinates are in the CA HSR Bay Area corridor', () => {
     for (const f of staticIsochroneResponse.features) {
       for (const ring of f.geometry.coordinates) {
         for (const [lng, lat] of ring) {
           expect(lng).toBeGreaterThan(-123)
           expect(lng).toBeLessThan(-121)
-          expect(lat).toBeGreaterThan(37)
+          expect(lat).toBeGreaterThan(36.5)
           expect(lat).toBeLessThan(38.5)
         }
       }

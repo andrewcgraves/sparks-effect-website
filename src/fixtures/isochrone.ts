@@ -1,4 +1,5 @@
-import type { Feature, FeatureCollection, Polygon } from 'geojson'
+import type { FeatureCollection, Polygon } from 'geojson'
+import sampleIsochroneResponse from './sample-isochrone-response.json'
 
 export interface ReachableStation {
   station_slug: string
@@ -12,87 +13,51 @@ export interface ChainMetadata {
   scenario_slug: string
   mode: string
   wait_model: string
-  origin_iso_clamped: boolean
   origin_iso_available: boolean
+  origin_iso_clamped?: boolean
 }
 
 export interface IsochroneFeatureProperties {
   source: 'origin' | 'egress'
-  station_slug: string
-  remaining_mins: number
+  station_slug?: string
+  remaining_mins?: number
+  color?: string
+  contour?: number
+  fill?: string
+  'fill-opacity'?: number
+  fillColor?: string
+  fillOpacity?: number
+  metric?: string
+  opacity?: number
 }
 
 export interface ChainResponse extends FeatureCollection<Polygon, IsochroneFeatureProperties> {
   metadata: ChainMetadata
 }
 
-// Bounds: [minLng, minLat, maxLng, maxLat] — covers all three polygons with padding
-export const ISOCHRONE_BOUNDS: [number, number, number, number] = [-122.42, 37.577, -122.358, 37.815]
+export const staticIsochroneResponse = sampleIsochroneResponse as ChainResponse
 
-const originFeature: Feature<Polygon, IsochroneFeatureProperties> = {
-  type: 'Feature',
-  properties: { source: 'origin', station_slug: 'sf-transbay', remaining_mins: 30 },
-  geometry: {
-    type: 'Polygon',
-    coordinates: [
-      [
-        [-122.410, 37.799],
-        [-122.384, 37.799],
-        [-122.384, 37.779],
-        [-122.410, 37.779],
-        [-122.410, 37.799],
-      ],
-    ],
-  },
+function boundsFromFeatures(
+  features: ChainResponse['features'],
+  padding = 0.02,
+): [number, number, number, number] {
+  let minLng = Infinity
+  let minLat = Infinity
+  let maxLng = -Infinity
+  let maxLat = -Infinity
+
+  for (const feature of features) {
+    for (const ring of feature.geometry.coordinates) {
+      for (const [lng, lat] of ring) {
+        minLng = Math.min(minLng, lng)
+        minLat = Math.min(minLat, lat)
+        maxLng = Math.max(maxLng, lng)
+        maxLat = Math.max(maxLat, lat)
+      }
+    }
+  }
+
+  return [minLng - padding, minLat - padding, maxLng + padding, maxLat + padding]
 }
 
-const sfEgressFeature: Feature<Polygon, IsochroneFeatureProperties> = {
-  type: 'Feature',
-  properties: { source: 'egress', station_slug: 'sf', remaining_mins: 25 },
-  geometry: {
-    type: 'Polygon',
-    coordinates: [
-      [
-        [-122.408, 37.805],
-        [-122.370, 37.805],
-        [-122.370, 37.773],
-        [-122.408, 37.773],
-        [-122.408, 37.805],
-      ],
-    ],
-  },
-}
-
-const millbraeEgressFeature: Feature<Polygon, IsochroneFeatureProperties> = {
-  type: 'Feature',
-  properties: { source: 'egress', station_slug: 'millbrae', remaining_mins: 20 },
-  geometry: {
-    type: 'Polygon',
-    coordinates: [
-      [
-        [-122.405, 37.611],
-        [-122.369, 37.611],
-        [-122.369, 37.587],
-        [-122.405, 37.587],
-        [-122.405, 37.611],
-      ],
-    ],
-  },
-}
-
-export const staticIsochroneResponse: ChainResponse = {
-  type: 'FeatureCollection',
-  features: [originFeature, sfEgressFeature, millbraeEgressFeature],
-  metadata: {
-    reachable_stations: [
-      { station_slug: 'sf', access_mins: 5, remaining_mins: 25 },
-      { station_slug: 'millbrae', access_mins: 10, remaining_mins: 20 },
-    ],
-    origin_budget_mins: 30,
-    scenario_slug: 'ca-hsr',
-    mode: 'walk',
-    wait_model: 'none',
-    origin_iso_clamped: false,
-    origin_iso_available: true,
-  },
-}
+export const ISOCHRONE_BOUNDS = boundsFromFeatures(staticIsochroneResponse.features)
