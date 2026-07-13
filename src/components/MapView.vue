@@ -3,12 +3,14 @@ import { onMounted, onUnmounted, ref } from 'vue'
 import { Map } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { ISOCHRONE_LEGEND, useIsochroneLayer } from '../composables/useIsochroneLayer'
+import { useRouteLayer } from '../composables/useRouteLayer'
 import {
   staticIsochroneResponse,
   ISOCHRONE_BOUNDS_CORNERS,
   ISOCHRONE_CENTER,
 } from '../fixtures/isochrone'
 import { resolveMapStyleUrl } from '../mapStyle'
+import { fetchScenarioRoutes, fetchScenarioStations } from '../api/scenarios'
 
 const mapContainer = ref<HTMLElement | null>(null)
 let map: Map | null = null
@@ -36,9 +38,18 @@ onMounted(() => {
     zoom: 7,
   })
 
-  map.on('load', () => {
+  map.on('load', async () => {
     if (!map) return
     useIsochroneLayer(map, staticIsochroneResponse)
+    try {
+      const [routes, stations] = await Promise.all([
+        fetchScenarioRoutes('ca-hsr'),
+        fetchScenarioStations('ca-hsr'),
+      ])
+      if (map) useRouteLayer(map, routes, stations)
+    } catch {
+      // leave route overlay absent if API is unavailable
+    }
     fitMapToAllSegments()
   })
 
