@@ -43,6 +43,8 @@ describe('useIsochroneLayer', () => {
     expect(fillColor[0]).toBe('match')
     expect(fillColor[1]).toEqual(['get', 'source'])
     expect(fillColor[2]).toBe('origin')
+    expect(fillColor[3]).toBe('#4A90D9')
+    expect(fillColor[4]).toBe('#E8734A')
   })
 
   it('fixture has metadata with ca-hsr scenario_slug', () => {

@@ -94,4 +94,11 @@ describe('MapView', () => {
     expect(minLng).toBeGreaterThan(-123)
     expect(maxLng).toBeLessThan(-121)
   })
+
+  it('renders a color key for origin and egress isochrones', () => {
+    const wrapper = mount(MapView)
+    const legend = wrapper.get('[aria-label="Isochrone color key"]')
+    expect(legend.text()).toContain('Origin reach')
+    expect(legend.text()).toContain('From station')
+  })
 })
