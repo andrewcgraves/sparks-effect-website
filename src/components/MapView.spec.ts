@@ -8,6 +8,7 @@ import {
   ISOCHRONE_BOUNDS_CORNERS,
   ISOCHRONE_CENTER,
 } from '../fixtures/isochrone'
+import type { IsochroneRequest } from '../api/isochrone'
 
 const { mockAddSource, mockAddLayer, mockFitBounds, mockOn, mockRemove, mockResize } = vi.hoisted(
   () => ({
@@ -39,29 +40,50 @@ vi.mock('maplibre-gl', () => ({
   }),
 }))
 
-function triggerMapLoad() {
+vi.mock('../api/isochrone', () => ({
+  fetchIsochrone: vi.fn(),
+}))
+
+import { fetchIsochrone } from '../api/isochrone'
+
+async function triggerMapLoad() {
   const call = mockOn.mock.calls.find((args: unknown[]) => args[0] === 'load')
   const cb = call?.[1]
-  if (typeof cb === 'function') cb()
+  if (typeof cb === 'function') await cb()
 }
 
 describe('MapView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(fetchIsochrone).mockResolvedValue(staticIsochroneResponse)
   })
 
-  it('registers the isochrone GeoJSON source when the map loads', () => {
+  it('calls fetchIsochrone with the default request on map load', async () => {
     mount(MapView)
-    triggerMapLoad()
+    await triggerMapLoad()
+    const expectedRequest: IsochroneRequest = {
+      lat: 37.3382,
+      lng: -121.8863,
+      budget_mins: 90,
+      mode: 'walk',
+      scenario_slug: 'ca-hsr',
+    }
+    expect(fetchIsochrone).toHaveBeenCalledOnce()
+    expect(fetchIsochrone).toHaveBeenCalledWith(expectedRequest)
+  })
+
+  it('registers the isochrone GeoJSON source with the API response when the map loads', async () => {
+    mount(MapView)
+    await triggerMapLoad()
     expect(mockAddSource).toHaveBeenCalledWith(ISOCHRONE_SOURCE_ID, {
       type: 'geojson',
       data: staticIsochroneResponse,
     })
   })
 
-  it('adds a fill layer for isochrone polygons when the map loads', () => {
+  it('adds a fill layer for isochrone polygons when the map loads', async () => {
     mount(MapView)
-    triggerMapLoad()
+    await triggerMapLoad()
     expect(mockAddLayer).toHaveBeenCalledWith(
       expect.objectContaining({
         id: ISOCHRONE_LAYER_ID,
@@ -73,6 +95,14 @@ describe('MapView', () => {
 
   it('does not register source or layer before the load event fires', () => {
     mount(MapView)
+    expect(mockAddSource).not.toHaveBeenCalled()
+    expect(mockAddLayer).not.toHaveBeenCalled()
+  })
+
+  it('does not add the isochrone layer when the API fetch fails', async () => {
+    vi.mocked(fetchIsochrone).mockRejectedValueOnce(new Error('API down'))
+    mount(MapView)
+    await triggerMapLoad()
     expect(mockAddSource).not.toHaveBeenCalled()
     expect(mockAddLayer).not.toHaveBeenCalled()
   })
@@ -98,9 +128,9 @@ describe('MapView', () => {
     expect(options.style).toBe('https://tiles.openfreemap.org/styles/liberty')
   })
 
-  it('fits bounds to all isochrone segments after load', () => {
+  it('fits bounds to all isochrone segments after load', async () => {
     mount(MapView)
-    triggerMapLoad()
+    await triggerMapLoad()
     expect(mockResize).toHaveBeenCalled()
     expect(mockFitBounds).toHaveBeenCalledWith(
       ISOCHRONE_BOUNDS_CORNERS,
