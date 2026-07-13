@@ -74,6 +74,14 @@ describe('MapView', () => {
     expect(options.center[1]).toBeCloseTo(37.70, 1)
   })
 
+  it('initializes map with a keyless OpenFreeMap style by default', async () => {
+    const { Map } = await import('maplibre-gl')
+    mount(MapView)
+    const options = (Map as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(options.style).toBe('https://tiles.openfreemap.org/styles/liberty')
+  })
+
+
   it('fits bounds to fixture isochrones after load', () => {
     mount(MapView)
     triggerMapLoad()

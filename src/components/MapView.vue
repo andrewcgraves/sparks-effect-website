@@ -4,6 +4,7 @@ import { Map } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useIsochroneLayer } from '../composables/useIsochroneLayer'
 import { staticIsochroneResponse, ISOCHRONE_BOUNDS } from '../fixtures/isochrone'
+import { resolveMapStyleUrl } from '../mapStyle'
 
 const mapContainer = ref<HTMLElement | null>(null)
 let map: Map | null = null
@@ -13,10 +14,11 @@ onMounted(() => {
 
   map = new Map({
     container: mapContainer.value,
-    style: 'https://tiles.stadiamaps.com/styles/alidade_smooth.json',
+    style: resolveMapStyleUrl(),
     center: [-122.39, 37.70],
     zoom: 10,
   })
+
 
   map.on('load', () => {
     if (!map) return
@@ -42,6 +44,7 @@ onUnmounted(() => {
 .map-container {
   width: 100%;
   height: 100%;
-  min-height: 400px;
+  min-height: 70vh;
 }
+
 </style>
