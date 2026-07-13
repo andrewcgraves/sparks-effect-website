@@ -1,6 +1,12 @@
 <script setup lang="ts">
+import { onMounted } from 'vue'
+import { trackPageView } from './analytics/index'
 import IsochroneForm from './IsochroneForm.vue'
 import MapView from './components/MapView.vue'
+
+onMounted(() => {
+  trackPageView('/')
+})
 </script>
 
 <template>
