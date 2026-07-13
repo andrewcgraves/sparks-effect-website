@@ -3,11 +3,28 @@ import { onMounted, onUnmounted, ref } from 'vue'
 import { Map } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { ISOCHRONE_LEGEND, useIsochroneLayer } from '../composables/useIsochroneLayer'
-import { staticIsochroneResponse, ISOCHRONE_BOUNDS } from '../fixtures/isochrone'
+import {
+  staticIsochroneResponse,
+  ISOCHRONE_BOUNDS_CORNERS,
+  ISOCHRONE_CENTER,
+} from '../fixtures/isochrone'
 import { resolveMapStyleUrl } from '../mapStyle'
 
 const mapContainer = ref<HTMLElement | null>(null)
 let map: Map | null = null
+let resizeObserver: ResizeObserver | null = null
+let hasFittedToSegments = false
+
+function fitMapToAllSegments(): void {
+  if (!map) return
+  map.resize()
+  map.fitBounds(ISOCHRONE_BOUNDS_CORNERS, {
+    padding: { top: 56, bottom: 112, left: 56, right: 56 },
+    duration: 0,
+    maxZoom: 11,
+  })
+  hasFittedToSegments = true
+}
 
 onMounted(() => {
   if (!mapContainer.value) return
@@ -15,18 +32,31 @@ onMounted(() => {
   map = new Map({
     container: mapContainer.value,
     style: resolveMapStyleUrl(),
-    center: [-121.97, 37.39],
-    zoom: 8,
+    center: ISOCHRONE_CENTER,
+    zoom: 7,
   })
 
   map.on('load', () => {
     if (!map) return
     useIsochroneLayer(map, staticIsochroneResponse)
-    map.fitBounds(ISOCHRONE_BOUNDS, { padding: 40 })
+    fitMapToAllSegments()
   })
+
+  resizeObserver = new ResizeObserver(() => {
+    if (!map || !mapContainer.value) return
+    const { clientWidth, clientHeight } = mapContainer.value
+    if (clientWidth === 0 || clientHeight === 0) return
+    map.resize()
+    if (!hasFittedToSegments) {
+      fitMapToAllSegments()
+    }
+  })
+  resizeObserver.observe(mapContainer.value)
 })
 
 onUnmounted(() => {
+  resizeObserver?.disconnect()
+  resizeObserver = null
   map?.remove()
   map = null
 })

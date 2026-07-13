@@ -39,7 +39,7 @@ export const staticIsochroneResponse = sampleIsochroneResponse as ChainResponse
 
 function boundsFromFeatures(
   features: ChainResponse['features'],
-  padding = 0.02,
+  padding = 0.04,
 ): [number, number, number, number] {
   let minLng = Infinity
   let minLat = Infinity
@@ -61,3 +61,13 @@ function boundsFromFeatures(
 }
 
 export const ISOCHRONE_BOUNDS = boundsFromFeatures(staticIsochroneResponse.features)
+
+export const ISOCHRONE_CENTER: [number, number] = [
+  (ISOCHRONE_BOUNDS[0] + ISOCHRONE_BOUNDS[2]) / 2,
+  (ISOCHRONE_BOUNDS[1] + ISOCHRONE_BOUNDS[3]) / 2,
+]
+
+export const ISOCHRONE_BOUNDS_CORNERS: [[number, number], [number, number]] = [
+  [ISOCHRONE_BOUNDS[0], ISOCHRONE_BOUNDS[1]],
+  [ISOCHRONE_BOUNDS[2], ISOCHRONE_BOUNDS[3]],
+]

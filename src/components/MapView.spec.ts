@@ -2,15 +2,31 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import MapView from './MapView.vue'
 import { ISOCHRONE_SOURCE_ID, ISOCHRONE_LAYER_ID } from '../composables/useIsochroneLayer'
-import { staticIsochroneResponse, ISOCHRONE_BOUNDS } from '../fixtures/isochrone'
+import {
+  staticIsochroneResponse,
+  ISOCHRONE_BOUNDS,
+  ISOCHRONE_BOUNDS_CORNERS,
+  ISOCHRONE_CENTER,
+} from '../fixtures/isochrone'
 
-const { mockAddSource, mockAddLayer, mockFitBounds, mockOn, mockRemove } = vi.hoisted(() => ({
-  mockAddSource: vi.fn(),
-  mockAddLayer: vi.fn(),
-  mockFitBounds: vi.fn(),
-  mockOn: vi.fn(),
-  mockRemove: vi.fn(),
-}))
+const { mockAddSource, mockAddLayer, mockFitBounds, mockOn, mockRemove, mockResize } = vi.hoisted(
+  () => ({
+    mockAddSource: vi.fn(),
+    mockAddLayer: vi.fn(),
+    mockFitBounds: vi.fn(),
+    mockOn: vi.fn(),
+    mockRemove: vi.fn(),
+    mockResize: vi.fn(),
+  }),
+)
+
+class ResizeObserverStub {
+  observe = vi.fn()
+  disconnect = vi.fn()
+  unobserve = vi.fn()
+}
+
+vi.stubGlobal('ResizeObserver', ResizeObserverStub)
 
 vi.mock('maplibre-gl', () => ({
   Map: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
@@ -19,6 +35,7 @@ vi.mock('maplibre-gl', () => ({
     this['fitBounds'] = mockFitBounds
     this['on'] = mockOn
     this['remove'] = mockRemove
+    this['resize'] = mockResize
   }),
 }))
 
@@ -66,12 +83,12 @@ describe('MapView', () => {
     expect(mockRemove).toHaveBeenCalledOnce()
   })
 
-  it('initializes map with a CA Bay Area center', async () => {
+  it('initializes map centered on all isochrone segments', async () => {
     const { Map } = await import('maplibre-gl')
     mount(MapView)
     const options = (Map as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(options.center[0]).toBeCloseTo(-121.97, 1)
-    expect(options.center[1]).toBeCloseTo(37.39, 1)
+    expect(options.center[0]).toBeCloseTo(ISOCHRONE_CENTER[0], 5)
+    expect(options.center[1]).toBeCloseTo(ISOCHRONE_CENTER[1], 5)
   })
 
   it('initializes map with a keyless OpenFreeMap style by default', async () => {
@@ -81,10 +98,18 @@ describe('MapView', () => {
     expect(options.style).toBe('https://tiles.openfreemap.org/styles/liberty')
   })
 
-  it('fits bounds to fixture isochrones after load', () => {
+  it('fits bounds to all isochrone segments after load', () => {
     mount(MapView)
     triggerMapLoad()
-    expect(mockFitBounds).toHaveBeenCalledWith(ISOCHRONE_BOUNDS, expect.objectContaining({ padding: 40 }))
+    expect(mockResize).toHaveBeenCalled()
+    expect(mockFitBounds).toHaveBeenCalledWith(
+      ISOCHRONE_BOUNDS_CORNERS,
+      expect.objectContaining({
+        duration: 0,
+        maxZoom: 11,
+        padding: expect.objectContaining({ top: 56, bottom: 112, left: 56, right: 56 }),
+      }),
+    )
   })
 
   it('ISOCHRONE_BOUNDS covers the sample CA HSR corridor', () => {
@@ -93,6 +118,11 @@ describe('MapView', () => {
     expect(maxLat).toBeLessThan(38.5)
     expect(minLng).toBeGreaterThan(-123)
     expect(maxLng).toBeLessThan(-121)
+  })
+
+  it('ISOCHRONE_CENTER is the midpoint of ISOCHRONE_BOUNDS', () => {
+    expect(ISOCHRONE_CENTER[0]).toBeCloseTo((ISOCHRONE_BOUNDS[0] + ISOCHRONE_BOUNDS[2]) / 2, 10)
+    expect(ISOCHRONE_CENTER[1]).toBeCloseTo((ISOCHRONE_BOUNDS[1] + ISOCHRONE_BOUNDS[3]) / 2, 10)
   })
 
   it('renders a color key for origin and egress isochrones', () => {
