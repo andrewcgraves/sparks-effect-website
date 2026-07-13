@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
+import { nextTick } from 'vue'
 import { mount, flushPromises } from '@vue/test-utils'
 import AddressAutocomplete from './AddressAutocomplete.vue'
 import * as geocoding from '../api/geocoding'
@@ -18,16 +19,23 @@ const chicagoSuggestion: GeocodingSuggestion = {
 
 describe('AddressAutocomplete', () => {
   beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     vi.spyOn(geocoding, 'fetchSuggestions').mockResolvedValue([])
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.restoreAllMocks()
   })
 
   it('renders a text input', () => {
     const wrapper = mount(AddressAutocomplete)
     expect(wrapper.find('input[type="text"]').exists()).toBe(true)
+  })
+
+  it('labels the field "Origin address"', () => {
+    const wrapper = mount(AddressAutocomplete)
+    expect(wrapper.find('label').text()).toContain('Origin address')
   })
 
   it('shows no suggestions list initially', () => {
@@ -37,12 +45,38 @@ describe('AddressAutocomplete', () => {
 
   it('calls fetchSuggestions when the user types', async () => {
     const wrapper = mount(AddressAutocomplete)
-    const input = wrapper.find('input')
 
-    await input.setValue('Portland')
-    await flushPromises()
+    await wrapper.find('input').setValue('Portland')
+    await vi.advanceTimersByTimeAsync(350)
 
     expect(geocoding.fetchSuggestions).toHaveBeenCalledWith('Portland')
+  })
+
+  it('debounces input: rapid typing only triggers one fetch', async () => {
+    const wrapper = mount(AddressAutocomplete)
+    const input = wrapper.find('input')
+
+    await input.setValue('P')
+    await input.setValue('Po')
+    await input.setValue('Por')
+
+    expect(geocoding.fetchSuggestions).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(350)
+
+    expect(geocoding.fetchSuggestions).toHaveBeenCalledTimes(1)
+    expect(geocoding.fetchSuggestions).toHaveBeenCalledWith('Por')
+  })
+
+  it('shows loading indicator while fetching', async () => {
+    vi.spyOn(geocoding, 'fetchSuggestions').mockReturnValue(new Promise(() => {}))
+
+    const wrapper = mount(AddressAutocomplete)
+    await wrapper.find('input').setValue('Portland')
+    vi.advanceTimersByTime(350)
+    await nextTick()
+
+    expect(wrapper.find('[data-testid="suggestions-loading"]').exists()).toBe(true)
   })
 
   it('displays suggestions returned by the API', async () => {
@@ -50,7 +84,7 @@ describe('AddressAutocomplete', () => {
 
     const wrapper = mount(AddressAutocomplete)
     await wrapper.find('input').setValue('Port')
-    await flushPromises()
+    await vi.advanceTimersByTimeAsync(350)
 
     const list = wrapper.find('[data-testid="suggestions"]')
     expect(list.exists()).toBe(true)
@@ -65,7 +99,7 @@ describe('AddressAutocomplete', () => {
 
     const wrapper = mount(AddressAutocomplete)
     await wrapper.find('input').setValue('Port')
-    await flushPromises()
+    await vi.advanceTimersByTimeAsync(350)
 
     await wrapper.find('[data-testid="suggestions"] li').trigger('click')
 
@@ -82,7 +116,7 @@ describe('AddressAutocomplete', () => {
 
     const wrapper = mount(AddressAutocomplete)
     await wrapper.find('input').setValue('Port')
-    await flushPromises()
+    await vi.advanceTimersByTimeAsync(350)
 
     await wrapper.find('[data-testid="suggestions"] li').trigger('click')
 
@@ -94,7 +128,7 @@ describe('AddressAutocomplete', () => {
 
     const wrapper = mount(AddressAutocomplete)
     await wrapper.find('input').setValue('Port')
-    await flushPromises()
+    await vi.advanceTimersByTimeAsync(350)
 
     await wrapper.find('[data-testid="suggestions"] li').trigger('click')
 
@@ -104,7 +138,7 @@ describe('AddressAutocomplete', () => {
   it('does NOT emit "select" when the user types without choosing a suggestion', async () => {
     const wrapper = mount(AddressAutocomplete)
     await wrapper.find('input').setValue('some free text address')
-    await flushPromises()
+    await vi.advanceTimersByTimeAsync(350)
 
     expect(wrapper.emitted('select')).toBeUndefined()
   })
@@ -116,11 +150,11 @@ describe('AddressAutocomplete', () => {
 
     const wrapper = mount(AddressAutocomplete)
     await wrapper.find('input').setValue('Port')
-    await flushPromises()
+    await vi.advanceTimersByTimeAsync(350)
     await wrapper.find('[data-testid="suggestions"] li').trigger('click')
 
     await wrapper.find('input').setValue('Port modified')
-    await flushPromises()
+    await vi.advanceTimersByTimeAsync(350)
 
     expect(wrapper.emitted('select')).toHaveLength(1)
   })
@@ -130,8 +164,39 @@ describe('AddressAutocomplete', () => {
 
     const wrapper = mount(AddressAutocomplete)
     await wrapper.find('input').setValue('xyzzy')
-    await flushPromises()
+    await vi.advanceTimersByTimeAsync(350)
 
     expect(wrapper.find('[data-testid="suggestions"]').exists()).toBe(false)
+  })
+
+  it('shows empty state in foldout when lookup returns no results', async () => {
+    vi.spyOn(geocoding, 'fetchSuggestions').mockResolvedValue([])
+
+    const wrapper = mount(AddressAutocomplete)
+    await wrapper.find('input').setValue('xyzzy')
+    await wrapper.find('input').trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="suggestions-empty"]').exists()).toBe(true)
+  })
+
+  it('shows results when Enter is pressed without a prior selection', async () => {
+    vi.spyOn(geocoding, 'fetchSuggestions').mockResolvedValue([portlandSuggestion])
+
+    const wrapper = mount(AddressAutocomplete)
+    await wrapper.find('input').setValue('Portland')
+    await wrapper.find('input').trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+
+    expect(geocoding.fetchSuggestions).toHaveBeenCalledWith('Portland')
+    expect(wrapper.find('[data-testid="suggestions"]').exists()).toBe(true)
+  })
+
+  it('does not fetch on Enter when the input is empty', async () => {
+    const wrapper = mount(AddressAutocomplete)
+    await wrapper.find('input').trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+
+    expect(geocoding.fetchSuggestions).not.toHaveBeenCalled()
   })
 })
