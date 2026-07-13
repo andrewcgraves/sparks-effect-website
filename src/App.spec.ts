@@ -14,12 +14,16 @@ describe('App', () => {
   })
 
   it('renders the app title', () => {
-    const wrapper = mount(App)
+    const wrapper = mount(App, {
+      global: { stubs: { MapView: true, IsochroneForm: true } },
+    })
     expect(wrapper.get('h1').text()).toBe('Sparks Effect')
   })
 
   it('tracks a page view on mount', () => {
-    mount(App)
+    mount(App, {
+      global: { stubs: { MapView: true, IsochroneForm: true } },
+    })
     expect(trackPageView).toHaveBeenCalledOnce()
     expect(trackPageView).toHaveBeenCalledWith('/')
   })
