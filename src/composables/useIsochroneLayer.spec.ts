@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import type { Map } from 'maplibre-gl'
 import { useIsochroneLayer, ISOCHRONE_SOURCE_ID, ISOCHRONE_LAYER_ID } from './useIsochroneLayer'
-import { isochroneGeoJSON } from '../fixtures/isochrone'
+import { staticIsochroneResponse } from '../fixtures/isochrone'
 
 function makeMockMap(): Pick<Map, 'addSource' | 'addLayer'> {
   return {
@@ -13,17 +13,17 @@ function makeMockMap(): Pick<Map, 'addSource' | 'addLayer'> {
 describe('useIsochroneLayer', () => {
   it('registers a geojson source with the fixture data', () => {
     const map = makeMockMap()
-    useIsochroneLayer(map as Map, isochroneGeoJSON)
+    useIsochroneLayer(map as Map, staticIsochroneResponse)
     expect(map.addSource).toHaveBeenCalledOnce()
     expect(map.addSource).toHaveBeenCalledWith(ISOCHRONE_SOURCE_ID, {
       type: 'geojson',
-      data: isochroneGeoJSON,
+      data: staticIsochroneResponse,
     })
   })
 
   it('adds a fill layer referencing the isochrone source', () => {
     const map = makeMockMap()
-    useIsochroneLayer(map as Map, isochroneGeoJSON)
+    useIsochroneLayer(map as Map, staticIsochroneResponse)
     expect(map.addLayer).toHaveBeenCalledOnce()
     expect(map.addLayer).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -34,9 +34,52 @@ describe('useIsochroneLayer', () => {
     )
   })
 
-  it('fixture contains three contour features', () => {
-    expect(isochroneGeoJSON.features).toHaveLength(3)
-    const contours = isochroneGeoJSON.features.map((f) => f.properties?.contour)
-    expect(contours).toEqual(expect.arrayContaining([5, 10, 15]))
+  it('paint uses a source-based match expression for fill-color', () => {
+    const map = makeMockMap()
+    useIsochroneLayer(map as Map, staticIsochroneResponse)
+    const layerArg = (map.addLayer as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    const fillColor = layerArg.paint['fill-color']
+    expect(Array.isArray(fillColor)).toBe(true)
+    expect(fillColor[0]).toBe('match')
+    expect(fillColor[1]).toEqual(['get', 'source'])
+    expect(fillColor[2]).toBe('origin')
+  })
+
+  it('fixture has metadata with ca-hsr scenario_slug', () => {
+    expect(staticIsochroneResponse.metadata.scenario_slug).toBe('ca-hsr')
+  })
+
+  it('fixture metadata lists reachable stations', () => {
+    const slugs = staticIsochroneResponse.metadata.reachable_stations.map((s) => s.station_slug)
+    expect(slugs).toContain('sf')
+    expect(slugs).toContain('millbrae')
+  })
+
+  it('fixture features all have source and station_slug properties', () => {
+    for (const f of staticIsochroneResponse.features) {
+      expect(['origin', 'egress']).toContain(f.properties.source)
+      expect(typeof f.properties.station_slug).toBe('string')
+      expect(f.properties.station_slug.length).toBeGreaterThan(0)
+    }
+  })
+
+  it('fixture has exactly one origin feature and at least one egress feature', () => {
+    const origins = staticIsochroneResponse.features.filter((f) => f.properties.source === 'origin')
+    const egresses = staticIsochroneResponse.features.filter((f) => f.properties.source === 'egress')
+    expect(origins).toHaveLength(1)
+    expect(egresses.length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('fixture polygon coordinates are in CA Bay Area', () => {
+    for (const f of staticIsochroneResponse.features) {
+      for (const ring of f.geometry.coordinates) {
+        for (const [lng, lat] of ring) {
+          expect(lng).toBeGreaterThan(-123)
+          expect(lng).toBeLessThan(-121)
+          expect(lat).toBeGreaterThan(37)
+          expect(lat).toBeLessThan(38.5)
+        }
+      }
+    }
   })
 })

@@ -15,8 +15,8 @@ export function useIsochroneLayer(map: Map, geojson: FeatureCollection): void {
     type: 'fill',
     source: ISOCHRONE_SOURCE_ID,
     paint: {
-      'fill-color': ['get', 'color'],
-      'fill-opacity': ['get', 'opacity'],
+      'fill-color': ['match', ['get', 'source'], 'origin', '#4A90D9', '#E8734A'],
+      'fill-opacity': 0.35,
     },
   })
 }

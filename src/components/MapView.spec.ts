@@ -2,11 +2,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import MapView from './MapView.vue'
 import { ISOCHRONE_SOURCE_ID, ISOCHRONE_LAYER_ID } from '../composables/useIsochroneLayer'
-import { isochroneGeoJSON } from '../fixtures/isochrone'
+import { staticIsochroneResponse, ISOCHRONE_BOUNDS } from '../fixtures/isochrone'
 
-const { mockAddSource, mockAddLayer, mockOn, mockRemove } = vi.hoisted(() => ({
+const { mockAddSource, mockAddLayer, mockFitBounds, mockOn, mockRemove } = vi.hoisted(() => ({
   mockAddSource: vi.fn(),
   mockAddLayer: vi.fn(),
+  mockFitBounds: vi.fn(),
   mockOn: vi.fn(),
   mockRemove: vi.fn(),
 }))
@@ -15,6 +16,7 @@ vi.mock('maplibre-gl', () => ({
   Map: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
     this['addSource'] = mockAddSource
     this['addLayer'] = mockAddLayer
+    this['fitBounds'] = mockFitBounds
     this['on'] = mockOn
     this['remove'] = mockRemove
   }),
@@ -36,7 +38,7 @@ describe('MapView', () => {
     triggerMapLoad()
     expect(mockAddSource).toHaveBeenCalledWith(ISOCHRONE_SOURCE_ID, {
       type: 'geojson',
-      data: isochroneGeoJSON,
+      data: staticIsochroneResponse,
     })
   })
 
@@ -62,5 +64,27 @@ describe('MapView', () => {
     const wrapper = mount(MapView)
     wrapper.unmount()
     expect(mockRemove).toHaveBeenCalledOnce()
+  })
+
+  it('initializes map with a CA Bay Area center', async () => {
+    const { Map } = await import('maplibre-gl')
+    mount(MapView)
+    const options = (Map as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(options.center[0]).toBeCloseTo(-122.39, 1)
+    expect(options.center[1]).toBeCloseTo(37.70, 1)
+  })
+
+  it('fits bounds to fixture isochrones after load', () => {
+    mount(MapView)
+    triggerMapLoad()
+    expect(mockFitBounds).toHaveBeenCalledWith(ISOCHRONE_BOUNDS, expect.objectContaining({ padding: 40 }))
+  })
+
+  it('ISOCHRONE_BOUNDS covers CA Bay Area latitude range', () => {
+    const [minLng, minLat, maxLng, maxLat] = ISOCHRONE_BOUNDS
+    expect(minLat).toBeGreaterThan(37)
+    expect(maxLat).toBeLessThan(38.5)
+    expect(minLng).toBeGreaterThan(-123)
+    expect(maxLng).toBeLessThan(-121)
   })
 })
