@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import AddressAutocomplete from './components/AddressAutocomplete.vue'
+import type { GeocodingSuggestion } from './api/geocoding'
 
 const emit = defineEmits<{
   submit: [payload: { lat: number; lng: number; duration: number }]
@@ -8,6 +10,13 @@ const emit = defineEmits<{
 const lat = ref('')
 const lng = ref('')
 const duration = ref('')
+const selectedLabel = ref('')
+
+function onAutocompleteSelect(suggestion: GeocodingSuggestion) {
+  lat.value = String(suggestion.lat)
+  lng.value = String(suggestion.lng)
+  selectedLabel.value = suggestion.label
+}
 
 function handleSubmit() {
   if (lat.value === '' || lng.value === '' || duration.value === '') return
@@ -22,6 +31,13 @@ function handleSubmit() {
 
 <template>
   <form @submit.prevent="handleSubmit">
+    <AddressAutocomplete @select="onAutocompleteSelect" />
+    <p
+      v-if="selectedLabel"
+      data-testid="selected-label"
+    >
+      {{ selectedLabel }}
+    </p>
     <label>
       Latitude
       <input
