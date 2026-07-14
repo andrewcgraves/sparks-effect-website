@@ -120,6 +120,48 @@ describe('IsochroneForm', () => {
     expect((wrapper.find('input[data-testid="lng"]').element as HTMLInputElement).value).toBe('-122.6784')
   })
 
+  it('emits origin-change with coordinates when both lat and lng are valid', async () => {
+    const wrapper = mount(IsochroneForm)
+    await wrapper.find('input[data-testid="lat"]').setValue('51.5074')
+    await wrapper.find('input[data-testid="lng"]').setValue('-0.1278')
+    const emissions = wrapper.emitted<[{ lat: number; lng: number } | null]>('origin-change')!
+    expect(emissions).toBeDefined()
+    const lastEmit = emissions[emissions.length - 1][0]
+    expect(lastEmit).toEqual({ lat: 51.5074, lng: -0.1278 })
+  })
+
+  it('emits origin-change with null when lat is cleared', async () => {
+    const wrapper = mount(IsochroneForm)
+    await wrapper.find('input[data-testid="lat"]').setValue('51.5074')
+    await wrapper.find('input[data-testid="lng"]').setValue('-0.1278')
+    await wrapper.find('input[data-testid="lat"]').setValue('')
+    const emissions = wrapper.emitted<[{ lat: number; lng: number } | null]>('origin-change')!
+    const lastEmit = emissions[emissions.length - 1][0]
+    expect(lastEmit).toBeNull()
+  })
+
+  it('emits origin-change with null when lng is cleared', async () => {
+    const wrapper = mount(IsochroneForm)
+    await wrapper.find('input[data-testid="lat"]').setValue('51.5074')
+    await wrapper.find('input[data-testid="lng"]').setValue('-0.1278')
+    await wrapper.find('input[data-testid="lng"]').setValue('')
+    const emissions = wrapper.emitted<[{ lat: number; lng: number } | null]>('origin-change')!
+    const lastEmit = emissions[emissions.length - 1][0]
+    expect(lastEmit).toBeNull()
+  })
+
+  it('emits origin-change when autocomplete select fills lat and lng', async () => {
+    const wrapper = mount(IsochroneForm, {
+      global: { stubs: { AddressAutocomplete: true } },
+    })
+    const suggestion: GeocodingSuggestion = { label: 'Portland, OR, USA', lat: 45.5231, lng: -122.6784 }
+    await wrapper.findComponent({ name: 'AddressAutocomplete' }).vm.$emit('select', suggestion)
+    const emissions = wrapper.emitted<[{ lat: number; lng: number } | null]>('origin-change')!
+    expect(emissions).toBeDefined()
+    const lastEmit = emissions[emissions.length - 1][0]
+    expect(lastEmit).toEqual({ lat: 45.5231, lng: -122.6784 })
+  })
+
   it('submits with coordinates filled by autocomplete selection', async () => {
     const wrapper = mount(IsochroneForm, {
       global: { stubs: { AddressAutocomplete: true } },
