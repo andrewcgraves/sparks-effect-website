@@ -1,26 +1,25 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { Map } from 'maplibre-gl'
+import type { GeoJSONSource } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { ISOCHRONE_LEGEND, useIsochroneLayer } from '../composables/useIsochroneLayer'
+import { ISOCHRONE_SOURCE_ID, ISOCHRONE_LEGEND, useIsochroneLayer } from '../composables/useIsochroneLayer'
 import { useRouteLayer } from '../composables/useRouteLayer'
 import { ISOCHRONE_BOUNDS_CORNERS, ISOCHRONE_CENTER } from '../fixtures/isochrone'
+import type { ChainResponse } from '../fixtures/isochrone'
 import { resolveMapStyleUrl } from '../mapStyle'
-import { fetchIsochrone, type IsochroneRequest } from '../api/isochrone'
 import { fetchScenarioRoutes, fetchScenarioStations } from '../api/scenarios'
 
-const DEFAULT_REQUEST: IsochroneRequest = {
-  lat: 37.3382,
-  lng: -121.8863,
-  budget_mins: 90,
-  mode: 'walk',
-  scenario_slug: 'ca-hsr',
-}
+const props = defineProps<{
+  isochroneData: ChainResponse | null
+  loading: boolean
+}>()
 
 const mapContainer = ref<HTMLElement | null>(null)
 let map: Map | null = null
 let resizeObserver: ResizeObserver | null = null
 let hasFittedToSegments = false
+let isMapLoaded = false
 
 function fitMapToAllSegments(): void {
   if (!map) return
@@ -32,6 +31,24 @@ function fitMapToAllSegments(): void {
   })
   hasFittedToSegments = true
 }
+
+function applyIsochroneData(data: ChainResponse): void {
+  if (!map) return
+  const existing = map.getSource(ISOCHRONE_SOURCE_ID) as GeoJSONSource | undefined
+  if (existing) {
+    existing.setData(data)
+  } else {
+    useIsochroneLayer(map, data)
+  }
+}
+
+watch(
+  () => props.isochroneData,
+  (data) => {
+    if (!data || !isMapLoaded) return
+    applyIsochroneData(data)
+  },
+)
 
 onMounted(() => {
   if (!mapContainer.value) return
@@ -45,16 +62,20 @@ onMounted(() => {
 
   map.on('load', async () => {
     if (!map) return
+    isMapLoaded = true
+
     await Promise.allSettled([
-      fetchIsochrone(DEFAULT_REQUEST).then((data) => {
-        if (map) useIsochroneLayer(map, data)
-      }),
       Promise.all([fetchScenarioRoutes('ca-hsr'), fetchScenarioStations('ca-hsr')]).then(
         ([routes, stations]) => {
           if (map) useRouteLayer(map, routes, stations)
         },
       ),
     ])
+
+    if (props.isochroneData) {
+      applyIsochroneData(props.isochroneData)
+    }
+
     fitMapToAllSegments()
   })
 
@@ -84,6 +105,16 @@ onUnmounted(() => {
       ref="mapContainer"
       class="map-container"
     />
+    <div
+      v-if="loading"
+      class="map-loading"
+      data-testid="map-loading"
+      aria-live="polite"
+      aria-label="Generating isochrone"
+    >
+      <span class="map-loading__spinner" />
+      <span>Generating isochrone…</span>
+    </div>
     <aside
       class="map-legend"
       aria-label="Isochrone color key"
@@ -120,6 +151,36 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   min-height: 70vh;
+}
+
+.map-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: rgb(255 255 255 / 65%);
+  font: 15px/1.4 system-ui, 'Segoe UI', Roboto, sans-serif;
+  color: #1a1a1a;
+  pointer-events: none;
+}
+
+.map-loading__spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 3px solid #ccc;
+  border-top-color: #1a1a1a;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .map-legend {
