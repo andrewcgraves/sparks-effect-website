@@ -6,11 +6,21 @@ import MapView from './components/MapView.vue'
 import { fetchIsochrone } from './api/isochrone'
 import type { ChainResponse } from './fixtures/isochrone'
 
+const origin = ref<{ lat: number; lng: number } | null>(null)
 const isochroneData = ref<ChainResponse | null>(null)
 const isLoading = ref(false)
 const fetchError = ref<string | null>(null)
 
+onMounted(() => {
+  trackPageView('/')
+})
+
+function onOriginChange(coords: { lat: number; lng: number } | null) {
+  origin.value = coords
+}
+
 async function handleFormSubmit(payload: { lat: number; lng: number; duration: number }) {
+  origin.value = { lat: payload.lat, lng: payload.lng }
   isLoading.value = true
   fetchError.value = null
   try {
@@ -27,16 +37,15 @@ async function handleFormSubmit(payload: { lat: number; lng: number; duration: n
     isLoading.value = false
   }
 }
-
-onMounted(() => {
-  trackPageView('/')
-})
 </script>
 
 <template>
   <main class="app-shell">
     <h1>Sparks Effect</h1>
-    <IsochroneForm @submit="handleFormSubmit" />
+    <IsochroneForm
+      @submit="handleFormSubmit"
+      @origin-change="onOriginChange"
+    />
     <p
       v-if="fetchError"
       class="fetch-error"
@@ -47,6 +56,7 @@ onMounted(() => {
     </p>
     <div class="map-shell">
       <MapView
+        :origin="origin"
         :isochrone-data="isochroneData"
         :loading="isLoading"
       />

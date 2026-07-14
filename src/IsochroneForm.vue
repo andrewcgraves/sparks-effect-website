@@ -1,16 +1,27 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import AddressAutocomplete from './components/AddressAutocomplete.vue'
 import type { GeocodingSuggestion } from './api/geocoding'
 
 const emit = defineEmits<{
   submit: [payload: { lat: number; lng: number; duration: number }]
+  'origin-change': [origin: { lat: number; lng: number } | null]
 }>()
 
 const lat = ref('')
 const lng = ref('')
 const duration = ref('')
 const selectedLabel = ref('')
+
+watch([lat, lng], ([newLat, newLng]) => {
+  const parsedLat = parseFloat(newLat)
+  const parsedLng = parseFloat(newLng)
+  if (isFinite(parsedLat) && isFinite(parsedLng)) {
+    emit('origin-change', { lat: parsedLat, lng: parsedLng })
+  } else {
+    emit('origin-change', null)
+  }
+})
 
 function onAutocompleteSelect(suggestion: GeocodingSuggestion) {
   lat.value = String(suggestion.lat)

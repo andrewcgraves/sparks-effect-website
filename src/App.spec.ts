@@ -127,4 +127,21 @@ describe('App', () => {
     expect(wrapper.findComponent({ name: 'MapView' }).props('loading')).toBe(false)
     expect(wrapper.find('[data-testid="fetch-error"]').exists()).toBe(true)
   })
+
+  it('passes origin to MapView when IsochroneForm emits origin-change', async () => {
+    const wrapper = mount(App, {
+      global: { stubs: { MapView: true, IsochroneForm: true } },
+    })
+    await wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('origin-change', { lat: 51.5074, lng: -0.1278 })
+    expect(wrapper.findComponent({ name: 'MapView' }).props('origin')).toEqual({ lat: 51.5074, lng: -0.1278 })
+  })
+
+  it('clears MapView origin when IsochroneForm emits origin-change with null', async () => {
+    const wrapper = mount(App, {
+      global: { stubs: { MapView: true, IsochroneForm: true } },
+    })
+    await wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('origin-change', { lat: 51.5074, lng: -0.1278 })
+    await wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('origin-change', null)
+    expect(wrapper.findComponent({ name: 'MapView' }).props('origin')).toBeNull()
+  })
 })

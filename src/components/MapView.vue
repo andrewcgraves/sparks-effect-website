@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, watch } from 'vue'
+import { onMounted, onUnmounted, ref, toRef, watch } from 'vue'
 import { Map } from 'maplibre-gl'
 import type { GeoJSONSource } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { ISOCHRONE_SOURCE_ID, ISOCHRONE_LEGEND, useIsochroneLayer } from '../composables/useIsochroneLayer'
 import { useRouteLayer } from '../composables/useRouteLayer'
+import { useOriginMarker } from '../composables/useOriginMarker'
 import { ISOCHRONE_BOUNDS_CORNERS, ISOCHRONE_CENTER } from '../fixtures/isochrone'
 import type { ChainResponse } from '../fixtures/isochrone'
 import { resolveMapStyleUrl } from '../mapStyle'
@@ -13,6 +14,7 @@ import { fetchScenarioRoutes, fetchScenarioStations } from '../api/scenarios'
 const props = defineProps<{
   isochroneData: ChainResponse | null
   loading: boolean
+  origin?: { lat: number; lng: number } | null
 }>()
 
 const mapContainer = ref<HTMLElement | null>(null)
@@ -59,6 +61,8 @@ onMounted(() => {
     center: ISOCHRONE_CENTER,
     zoom: 7,
   })
+
+  useOriginMarker(map, toRef(props, 'origin'))
 
   map.on('load', async () => {
     if (!map) return
