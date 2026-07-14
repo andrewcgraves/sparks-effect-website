@@ -19,7 +19,7 @@ function onOriginChange(coords: { lat: number; lng: number } | null) {
   origin.value = coords
 }
 
-async function handleFormSubmit(payload: { lat: number; lng: number; duration: number }) {
+async function handleFormSubmit(payload: { lat: number; lng: number; duration: number; mode: 'walk' | 'bike' | 'drive' }) {
   origin.value = { lat: payload.lat, lng: payload.lng }
   isLoading.value = true
   fetchError.value = null
@@ -28,7 +28,7 @@ async function handleFormSubmit(payload: { lat: number; lng: number; duration: n
       lat: payload.lat,
       lng: payload.lng,
       budget_mins: payload.duration,
-      mode: 'walk',
+      mode: payload.mode,
       scenario_slug: 'ca-hsr',
     })
   } catch {

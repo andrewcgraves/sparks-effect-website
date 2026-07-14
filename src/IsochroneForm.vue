@@ -2,9 +2,12 @@
 import { ref, watch } from 'vue'
 import AddressAutocomplete from './components/AddressAutocomplete.vue'
 import type { GeocodingSuggestion } from './api/geocoding'
+import { trackModeToggle } from './analytics/index'
+
+type Mode = 'walk' | 'bike' | 'drive'
 
 const emit = defineEmits<{
-  submit: [payload: { lat: number; lng: number; duration: number }]
+  submit: [payload: { lat: number; lng: number; duration: number; mode: Mode }]
   'origin-change': [origin: { lat: number; lng: number } | null]
 }>()
 
@@ -12,6 +15,7 @@ const lat = ref('')
 const lng = ref('')
 const duration = ref('')
 const selectedLabel = ref('')
+const mode = ref<Mode>('walk')
 
 watch([lat, lng], ([newLat, newLng]) => {
   const parsedLat = parseFloat(newLat)
@@ -29,6 +33,11 @@ function onAutocompleteSelect(suggestion: GeocodingSuggestion) {
   selectedLabel.value = suggestion.label
 }
 
+function onModeChange(newMode: Mode) {
+  mode.value = newMode
+  trackModeToggle(newMode)
+}
+
 function handleSubmit() {
   if (lat.value === '' || lng.value === '' || duration.value === '') return
 
@@ -36,6 +45,7 @@ function handleSubmit() {
     lat: parseFloat(lat.value),
     lng: parseFloat(lng.value),
     duration: parseFloat(duration.value),
+    mode: mode.value,
   })
 }
 </script>
@@ -76,6 +86,42 @@ function handleSubmit() {
         min="1"
       >
     </label>
+    <fieldset>
+      <legend>Mode</legend>
+      <label>
+        <input
+          type="radio"
+          name="mode"
+          value="walk"
+          :checked="mode === 'walk'"
+          data-testid="mode-walk"
+          @change="onModeChange('walk')"
+        >
+        Walk
+      </label>
+      <label>
+        <input
+          type="radio"
+          name="mode"
+          value="bike"
+          :checked="mode === 'bike'"
+          data-testid="mode-bike"
+          @change="onModeChange('bike')"
+        >
+        Bike
+      </label>
+      <label>
+        <input
+          type="radio"
+          name="mode"
+          value="drive"
+          :checked="mode === 'drive'"
+          data-testid="mode-drive"
+          @change="onModeChange('drive')"
+        >
+        Drive
+      </label>
+    </fieldset>
     <button type="submit">
       Generate isochrone
     </button>
