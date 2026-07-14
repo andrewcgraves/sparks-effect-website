@@ -10,6 +10,10 @@ onMounted(() => {
   trackPageView('/')
 })
 
+function onOriginChange(coords: { lat: number; lng: number } | null) {
+  origin.value = coords
+}
+
 function onFormSubmit(payload: { lat: number; lng: number; duration: number }) {
   origin.value = { lat: payload.lat, lng: payload.lng }
 }
@@ -18,7 +22,10 @@ function onFormSubmit(payload: { lat: number; lng: number; duration: number }) {
 <template>
   <main class="app-shell">
     <h1>Sparks Effect</h1>
-    <IsochroneForm @submit="onFormSubmit" />
+    <IsochroneForm
+      @submit="onFormSubmit"
+      @origin-change="onOriginChange"
+    />
     <div class="map-shell">
       <MapView :origin="origin" />
     </div>
