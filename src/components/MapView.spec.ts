@@ -17,16 +17,27 @@ import {
 import type { IsochroneRequest } from '../api/isochrone'
 import type { Route, Station } from '../api/scenarios'
 
-const { mockAddSource, mockAddLayer, mockFitBounds, mockOn, mockRemove, mockResize } = vi.hoisted(
-  () => ({
-    mockAddSource: vi.fn(),
-    mockAddLayer: vi.fn(),
-    mockFitBounds: vi.fn(),
-    mockOn: vi.fn(),
-    mockRemove: vi.fn(),
-    mockResize: vi.fn(),
-  }),
-)
+const {
+  mockAddSource,
+  mockAddLayer,
+  mockFitBounds,
+  mockOn,
+  mockRemove,
+  mockResize,
+  mockSetLngLat,
+  mockMarkerAddTo,
+  mockMarkerRemove,
+} = vi.hoisted(() => ({
+  mockAddSource: vi.fn(),
+  mockAddLayer: vi.fn(),
+  mockFitBounds: vi.fn(),
+  mockOn: vi.fn(),
+  mockRemove: vi.fn(),
+  mockResize: vi.fn(),
+  mockSetLngLat: vi.fn(),
+  mockMarkerAddTo: vi.fn(),
+  mockMarkerRemove: vi.fn(),
+}))
 
 class ResizeObserverStub {
   observe = vi.fn()
@@ -44,6 +55,11 @@ vi.mock('maplibre-gl', () => ({
     this['on'] = mockOn
     this['remove'] = mockRemove
     this['resize'] = mockResize
+  }),
+  Marker: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
+    this['setLngLat'] = mockSetLngLat
+    this['addTo'] = mockMarkerAddTo
+    this['remove'] = mockMarkerRemove
   }),
 }))
 
@@ -86,6 +102,7 @@ async function triggerMapLoad() {
 describe('MapView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockSetLngLat.mockReturnValue({ addTo: mockMarkerAddTo })
     vi.mocked(fetchIsochrone).mockResolvedValue(staticIsochroneResponse)
     vi.mocked(fetchScenarioRoutes).mockResolvedValue([stubRoute])
     vi.mocked(fetchScenarioStations).mockResolvedValue([stubStation])
@@ -251,5 +268,36 @@ describe('MapView', () => {
     const legend = wrapper.get('[aria-label="Isochrone color key"]')
     expect(legend.text()).toContain('Origin reach')
     expect(legend.text()).toContain('From station')
+  })
+
+  it('places an origin marker when the origin prop is provided', () => {
+    mount(MapView, { props: { origin: { lat: 37.33, lng: -121.89 } } })
+    expect(mockSetLngLat).toHaveBeenCalledWith([-121.89, 37.33])
+    expect(mockMarkerAddTo).toHaveBeenCalled()
+  })
+
+  it('does not place a marker when origin prop is absent', () => {
+    mount(MapView)
+    expect(mockSetLngLat).not.toHaveBeenCalled()
+    expect(mockMarkerAddTo).not.toHaveBeenCalled()
+  })
+
+  it('updates the marker when the origin prop changes', async () => {
+    const wrapper = mount(MapView, { props: { origin: { lat: 37.33, lng: -121.89 } } })
+    vi.clearAllMocks()
+    mockSetLngLat.mockReturnValue({ addTo: mockMarkerAddTo })
+
+    await wrapper.setProps({ origin: { lat: 38.0, lng: -122.5 } })
+
+    expect(mockSetLngLat).toHaveBeenCalledWith([-122.5, 38.0])
+    expect(mockMarkerAddTo).toHaveBeenCalled()
+  })
+
+  it('removes the marker when origin prop changes to null', async () => {
+    const wrapper = mount(MapView, { props: { origin: { lat: 37.33, lng: -121.89 } } })
+
+    await wrapper.setProps({ origin: null })
+
+    expect(mockMarkerRemove).toHaveBeenCalled()
   })
 })

@@ -1,20 +1,26 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 import { trackPageView } from './analytics/index'
 import IsochroneForm from './IsochroneForm.vue'
 import MapView from './components/MapView.vue'
 
+const origin = ref<{ lat: number; lng: number } | null>(null)
+
 onMounted(() => {
   trackPageView('/')
 })
+
+function onFormSubmit(payload: { lat: number; lng: number; duration: number }) {
+  origin.value = { lat: payload.lat, lng: payload.lng }
+}
 </script>
 
 <template>
   <main class="app-shell">
     <h1>Sparks Effect</h1>
-    <IsochroneForm />
+    <IsochroneForm @submit="onFormSubmit" />
     <div class="map-shell">
-      <MapView />
+      <MapView :origin="origin" />
     </div>
   </main>
 </template>
