@@ -10,7 +10,7 @@ const isochroneData = ref<ChainResponse | null>(null)
 const isLoading = ref(false)
 const fetchError = ref<string | null>(null)
 
-async function handleFormSubmit(payload: { lat: number; lng: number; duration: number }) {
+async function handleFormSubmit(payload: { lat: number; lng: number; duration: number; mode: 'walk' | 'bike' | 'drive' }) {
   isLoading.value = true
   fetchError.value = null
   try {
@@ -18,7 +18,7 @@ async function handleFormSubmit(payload: { lat: number; lng: number; duration: n
       lat: payload.lat,
       lng: payload.lng,
       budget_mins: payload.duration,
-      mode: 'walk',
+      mode: payload.mode,
       scenario_slug: 'ca-hsr',
     })
   } catch {

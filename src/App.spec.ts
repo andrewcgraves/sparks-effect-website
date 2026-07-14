@@ -66,6 +66,7 @@ describe('App', () => {
       lat: 51.5074,
       lng: -0.1278,
       duration: 30,
+      mode: 'walk',
     })
     expect(fetchIsochrone).toHaveBeenCalledOnce()
     expect(fetchIsochrone).toHaveBeenCalledWith({
@@ -75,6 +76,22 @@ describe('App', () => {
       mode: 'walk',
       scenario_slug: 'ca-hsr',
     })
+  })
+
+  it('forwards the selected mode from the form payload to fetchIsochrone', async () => {
+    vi.mocked(fetchIsochrone).mockResolvedValue(stubIsochrone)
+    const wrapper = mount(App, {
+      global: { stubs: { MapView: true, IsochroneForm: true } },
+    })
+    await wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('submit', {
+      lat: 51.5074,
+      lng: -0.1278,
+      duration: 30,
+      mode: 'bike',
+    })
+    expect(fetchIsochrone).toHaveBeenCalledWith(
+      expect.objectContaining({ mode: 'bike' }),
+    )
   })
 
   it('sets loading=true on MapView while the fetch is in flight', async () => {
@@ -89,6 +106,7 @@ describe('App', () => {
       lat: 51.5074,
       lng: -0.1278,
       duration: 30,
+      mode: 'walk',
     })
     await vi.waitFor(() => {
       expect(wrapper.findComponent({ name: 'MapView' }).props('loading')).toBe(true)
@@ -107,6 +125,7 @@ describe('App', () => {
       lat: 51.5074,
       lng: -0.1278,
       duration: 30,
+      mode: 'walk',
     })
     await flushPromises()
     expect(wrapper.findComponent({ name: 'MapView' }).props('isochroneData')).toEqual(stubIsochrone)
@@ -122,6 +141,7 @@ describe('App', () => {
       lat: 51.5074,
       lng: -0.1278,
       duration: 30,
+      mode: 'walk',
     })
     await flushPromises()
     expect(wrapper.findComponent({ name: 'MapView' }).props('loading')).toBe(false)
