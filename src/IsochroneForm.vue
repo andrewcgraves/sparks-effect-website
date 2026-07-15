@@ -69,7 +69,8 @@ async function onUseCurrentLocation() {
   }
 }
 
-function onModeChange(newMode: Mode) {
+function onModeChange(event: Event) {
+  const newMode = (event.target as HTMLSelectElement).value as Mode
   mode.value = newMode
   trackModeToggle(newMode)
 }
@@ -139,42 +140,24 @@ function handleSubmit() {
         min="1"
       >
     </label>
-    <fieldset>
-      <legend>Mode</legend>
-      <label>
-        <input
-          type="radio"
-          name="mode"
-          value="walk"
-          :checked="mode === 'walk'"
-          data-testid="mode-walk"
-          @change="onModeChange('walk')"
-        >
-        Walk
-      </label>
-      <label>
-        <input
-          type="radio"
-          name="mode"
-          value="bike"
-          :checked="mode === 'bike'"
-          data-testid="mode-bike"
-          @change="onModeChange('bike')"
-        >
-        Bike
-      </label>
-      <label>
-        <input
-          type="radio"
-          name="mode"
-          value="drive"
-          :checked="mode === 'drive'"
-          data-testid="mode-drive"
-          @change="onModeChange('drive')"
-        >
-        Drive
-      </label>
-    </fieldset>
+    <label>
+      Mode
+      <select
+        data-testid="mode"
+        :value="mode"
+        @change="onModeChange"
+      >
+        <option value="walk">
+          Walk
+        </option>
+        <option value="bike">
+          Bike
+        </option>
+        <option value="drive">
+          Drive
+        </option>
+      </select>
+    </label>
     <button type="submit">
       Generate isochrone
     </button>
@@ -261,41 +244,25 @@ button[data-testid="use-current-location"]:disabled {
   font-size: 0.8125rem;
 }
 
-fieldset {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  align-items: center;
-  margin: 0;
-  padding: 0.75rem 1rem;
+form > label select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.5rem 0.65rem;
   border: 1px solid var(--color-border);
-  border-radius: 10px;
-  max-width: 360px;
-}
-
-legend {
-  padding: 0 0.4rem;
-  font-family: var(--font-body);
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--color-ink-muted);
-}
-
-fieldset label {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--color-ink);
   font-family: var(--font-body);
   font-size: 0.9375rem;
-  color: var(--color-ink);
+  font-weight: 400;
   cursor: pointer;
+  transition: border-color 0.18s var(--ease-smooth), box-shadow 0.18s var(--ease-smooth);
 }
 
-fieldset input[type="radio"] {
-  accent-color: var(--color-coral);
-  cursor: pointer;
+form > label select:focus {
+  outline: none;
+  border-color: var(--color-coral);
+  box-shadow: 0 0 0 3px rgb(225 102 91 / 18%);
 }
 
 button[type="submit"] {

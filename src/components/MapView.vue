@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, toRef, watch } from 'vue'
+import { nextTick, onMounted, onUnmounted, ref, toRef, watch } from 'vue'
 import { Map } from 'maplibre-gl'
 import type { GeoJSONSource } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
@@ -22,6 +22,7 @@ const props = defineProps<{
 
 const ORIGIN_SNAP_ZOOM = 9
 
+const isFullscreen = ref(false)
 const mapContainer = ref<HTMLElement | null>(null)
 let map: Map | null = null
 let resizeObserver: ResizeObserver | null = null
@@ -99,6 +100,12 @@ watch(
   maybeAddRouteLayer,
 )
 
+async function toggleFullscreen(): Promise<void> {
+  isFullscreen.value = !isFullscreen.value
+  await nextTick()
+  map?.resize()
+}
+
 onMounted(() => {
   if (!mapContainer.value) return
 
@@ -147,11 +154,24 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="map-frame">
+  <div
+    class="map-frame"
+    :class="{ 'map-frame--fullscreen': isFullscreen }"
+  >
     <div
       ref="mapContainer"
       class="map-container"
     />
+    <button
+      type="button"
+      class="map-fullscreen-toggle"
+      data-testid="map-fullscreen-toggle"
+      :aria-pressed="isFullscreen"
+      :aria-label="isFullscreen ? 'Collapse map' : 'Expand map to fullscreen'"
+      @click="toggleFullscreen"
+    >
+      {{ isFullscreen ? 'Close' : 'Expand' }}
+    </button>
     <div
       v-if="loading"
       class="map-loading"
@@ -192,6 +212,38 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   min-height: 70vh;
+}
+
+.map-frame--fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  width: 100vw;
+  height: 100svh;
+  background: #ffffff;
+}
+
+.map-fullscreen-toggle {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 3;
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 92%);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 20%);
+  transition: background 0.18s var(--ease-smooth), border-color 0.18s var(--ease-smooth);
+}
+
+.map-fullscreen-toggle:hover {
+  border-color: var(--color-apricot);
+  background: #ffffff;
 }
 
 .map-container {

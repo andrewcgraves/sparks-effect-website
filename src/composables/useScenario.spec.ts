@@ -71,12 +71,28 @@ describe('useScenario', () => {
     expect(fetchScenario).toHaveBeenCalledWith('ca-hsr')
   })
 
-  it('starts with empty routes, stations, and services', () => {
+  it('starts with empty name, description, routes, stations, and services', () => {
     vi.mocked(fetchScenario).mockResolvedValueOnce(stubDetail)
-    const { routes, stations, services } = useScenario('ca-hsr')
+    const { name, description, routes, stations, services } = useScenario('ca-hsr')
+    expect(name.value).toBe('')
+    expect(description.value).toBe('')
     expect(routes.value).toEqual([])
     expect(stations.value).toEqual([])
     expect(services.value).toEqual([])
+  })
+
+  it('populates name after fetch resolves', async () => {
+    vi.mocked(fetchScenario).mockResolvedValueOnce(stubDetail)
+    const { name } = useScenario('ca-hsr')
+    await flushPromises()
+    expect(name.value).toBe(stubDetail.name)
+  })
+
+  it('populates description after fetch resolves', async () => {
+    vi.mocked(fetchScenario).mockResolvedValueOnce(stubDetail)
+    const { description } = useScenario('ca-hsr')
+    await flushPromises()
+    expect(description.value).toBe(stubDetail.description)
   })
 
   it('populates routes after fetch resolves', async () => {
@@ -102,8 +118,10 @@ describe('useScenario', () => {
 
   it('leaves refs empty when fetch rejects', async () => {
     vi.mocked(fetchScenario).mockRejectedValueOnce(new Error('network error'))
-    const { routes, stations, services } = useScenario('ca-hsr')
+    const { name, description, routes, stations, services } = useScenario('ca-hsr')
     await flushPromises()
+    expect(name.value).toBe('')
+    expect(description.value).toBe('')
     expect(routes.value).toEqual([])
     expect(stations.value).toEqual([])
     expect(services.value).toEqual([])

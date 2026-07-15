@@ -428,4 +428,28 @@ describe('MapView', () => {
     const wrapper = mount(MapView, { props: { ...defaultProps, services: [stubService] } })
     expect(wrapper.props('services')).toEqual([stubService])
   })
+
+  it('renders a fullscreen toggle button', () => {
+    const wrapper = mount(MapView, { props: defaultProps })
+    const toggle = wrapper.find('[data-testid="map-fullscreen-toggle"]')
+    expect(toggle.exists()).toBe(true)
+    expect(toggle.attributes('aria-pressed')).toBe('false')
+  })
+
+  it('toggles the fullscreen class and resizes the map when the toggle is clicked', async () => {
+    const wrapper = mount(MapView, { props: defaultProps })
+    await triggerMapLoad()
+    mockResize.mockClear()
+
+    const toggle = wrapper.find('[data-testid="map-fullscreen-toggle"]')
+    await toggle.trigger('click')
+
+    expect(wrapper.find('.map-frame--fullscreen').exists()).toBe(true)
+    expect(toggle.attributes('aria-pressed')).toBe('true')
+    expect(mockResize).toHaveBeenCalled()
+
+    await toggle.trigger('click')
+    expect(wrapper.find('.map-frame--fullscreen').exists()).toBe(false)
+    expect(toggle.attributes('aria-pressed')).toBe('false')
+  })
 })
