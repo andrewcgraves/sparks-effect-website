@@ -2,6 +2,8 @@
 import { ref, watch } from 'vue'
 import AddressAutocomplete from './components/AddressAutocomplete.vue'
 import type { GeocodingSuggestion } from './api/geocoding'
+import { reverseGeocode } from './api/geocoding'
+import { getCurrentPosition } from './api/geolocation'
 import { trackModeToggle } from './analytics/index'
 
 type Mode = 'walk' | 'bike' | 'drive'
@@ -15,7 +17,11 @@ const lat = ref('')
 const lng = ref('')
 const duration = ref('')
 const selectedLabel = ref('')
+const locationError = ref('')
+const locating = ref(false)
 const mode = ref<Mode>('walk')
+const addressAutocompleteRef = ref<InstanceType<typeof AddressAutocomplete> | null>(null)
+let locationRequestId = 0
 
 watch([lat, lng], ([newLat, newLng]) => {
   const parsedLat = parseFloat(newLat)
@@ -31,6 +37,36 @@ function onAutocompleteSelect(suggestion: GeocodingSuggestion) {
   lat.value = String(suggestion.lat)
   lng.value = String(suggestion.lng)
   selectedLabel.value = suggestion.label
+}
+
+async function onUseCurrentLocation() {
+  if (locating.value) return
+  locating.value = true
+  locationError.value = ''
+  const requestId = ++locationRequestId
+  try {
+    const position = await getCurrentPosition()
+    if (requestId !== locationRequestId) return
+    lat.value = String(position.lat)
+    lng.value = String(position.lng)
+    const suggestion = await reverseGeocode(position.lat, position.lng)
+    if (requestId !== locationRequestId) return
+    if (lat.value !== String(position.lat) || lng.value !== String(position.lng)) return
+    if (suggestion) {
+      selectedLabel.value = suggestion.label
+      addressAutocompleteRef.value?.setInputValue(suggestion.label)
+    } else {
+      selectedLabel.value = ''
+      addressAutocompleteRef.value?.setInputValue('')
+    }
+  } catch {
+    if (requestId !== locationRequestId) return
+    locationError.value = 'Unable to get your current location.'
+  } finally {
+    if (requestId === locationRequestId) {
+      locating.value = false
+    }
+  }
 }
 
 function onModeChange(newMode: Mode) {
@@ -52,7 +88,24 @@ function handleSubmit() {
 
 <template>
   <form @submit.prevent="handleSubmit">
-    <AddressAutocomplete @select="onAutocompleteSelect" />
+    <AddressAutocomplete
+      ref="addressAutocompleteRef"
+      @select="onAutocompleteSelect"
+    />
+    <button
+      type="button"
+      data-testid="use-current-location"
+      :disabled="locating"
+      @click="onUseCurrentLocation"
+    >
+      Use my location
+    </button>
+    <p
+      v-if="locationError"
+      data-testid="location-error"
+    >
+      {{ locationError }}
+    </p>
     <p
       v-if="selectedLabel"
       data-testid="selected-label"
