@@ -102,10 +102,9 @@ async function handleFormSubmit(payload: { lat: number; lng: number; duration: n
         >
           {{ fetchError }}
         </p>
+        <SpeedGraph />
       </div>
     </section>
-
-    <SpeedGraph />
 
     <section class="flex flex-col gap-2 max-w-[720px]">
       <h2 class="m-0">
