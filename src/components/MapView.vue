@@ -155,16 +155,17 @@ onUnmounted(() => {
 
 <template>
   <div
-    class="map-frame"
-    :class="{ 'map-frame--fullscreen': isFullscreen }"
+    data-testid="map-frame"
+    :data-fullscreen="isFullscreen"
+    :class="isFullscreen ? 'fixed inset-0 z-[1000] w-screen h-svh bg-white' : 'relative w-full h-full min-h-[70vh]'"
   >
     <div
       ref="mapContainer"
-      class="map-container"
+      class="w-full h-full min-h-[70vh]"
     />
     <button
       type="button"
-      class="map-fullscreen-toggle"
+      class="absolute top-3 right-3 z-[3] px-[0.9rem] py-[0.45rem] border border-border rounded-full bg-white/92 text-ink font-body text-[0.8125rem] font-semibold cursor-pointer shadow-[0_1px_4px_rgb(0_0_0/20%)] transition-colors ease-[var(--ease-smooth)] hover:border-apricot hover:bg-white"
       data-testid="map-fullscreen-toggle"
       :aria-pressed="isFullscreen"
       :aria-label="isFullscreen ? 'Collapse map' : 'Expand map to fullscreen'"
@@ -174,29 +175,29 @@ onUnmounted(() => {
     </button>
     <div
       v-if="loading"
-      class="map-loading"
+      class="absolute inset-0 z-[2] flex items-center justify-center gap-2.5 bg-white/65 font-body text-ink pointer-events-none"
       data-testid="map-loading"
       aria-live="polite"
       aria-label="Generating isochrone"
     >
-      <span class="map-loading__spinner" />
+      <span class="inline-block w-5 h-5 border-[3px] border-[#ccc] border-t-coral rounded-full animate-spin" />
       <span>Generating isochrone…</span>
     </div>
     <aside
-      class="map-legend"
+      class="absolute right-3 bottom-3 z-[1] m-0 px-3 py-2.5 border border-border rounded-lg bg-white/92 shadow font-body text-sm"
       aria-label="Isochrone color key"
     >
-      <p class="map-legend__title">
+      <p class="m-0 mb-1.5 font-display font-bold text-ink-true">
         Isochrone key
       </p>
-      <ul class="map-legend__list">
+      <ul class="m-0 p-0 list-none space-y-1">
         <li
           v-for="entry in ISOCHRONE_LEGEND"
           :key="entry.source"
-          class="map-legend__item"
+          class="flex items-center gap-2"
         >
           <span
-            class="map-legend__swatch"
+            class="inline-block w-3.5 h-3.5 rounded-[3px] opacity-85 shrink-0"
             :style="{ backgroundColor: entry.color }"
           />
           <span>{{ entry.label }}</span>
@@ -205,131 +206,3 @@ onUnmounted(() => {
     </aside>
   </div>
 </template>
-
-<style scoped>
-.map-frame {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  min-height: 70vh;
-}
-
-.map-frame--fullscreen {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  width: 100vw;
-  height: 100svh;
-  background: #ffffff;
-}
-
-.map-fullscreen-toggle {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  z-index: 3;
-  padding: 0.45rem 0.9rem;
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  background: rgb(255 255 255 / 92%);
-  color: var(--color-ink);
-  font-family: var(--font-body);
-  font-size: 0.8125rem;
-  font-weight: 600;
-  cursor: pointer;
-  box-shadow: 0 1px 4px rgb(0 0 0 / 20%);
-  transition: background 0.18s var(--ease-smooth), border-color 0.18s var(--ease-smooth);
-}
-
-.map-fullscreen-toggle:hover {
-  border-color: var(--color-apricot);
-  background: #ffffff;
-}
-
-.map-container {
-  width: 100%;
-  height: 100%;
-  min-height: 70vh;
-}
-
-.map-loading {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  background: rgb(255 255 255 / 65%);
-  font-family: var(--font-body);
-  font-size: 15px;
-  line-height: 1.4;
-  color: var(--color-ink);
-  pointer-events: none;
-}
-
-.map-loading__spinner {
-  display: inline-block;
-  width: 20px;
-  height: 20px;
-  border: 3px solid var(--color-placeholder);
-  border-top-color: var(--color-coral);
-  border-radius: 50%;
-  animation: spin 0.7s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.map-legend {
-  position: absolute;
-  right: 12px;
-  bottom: 12px;
-  z-index: 1;
-  margin: 0;
-  padding: 10px 12px;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  background: rgb(255 255 255 / 92%);
-  color: var(--color-ink);
-  box-shadow: 0 1px 4px rgb(0 0 0 / 20%);
-  font-family: var(--font-body);
-  font-size: 13px;
-  line-height: 1.35;
-}
-
-.map-legend__title {
-  margin: 0 0 6px;
-  font-family: var(--font-display);
-  font-weight: 700;
-  color: var(--color-ink-true);
-}
-
-.map-legend__list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.map-legend__item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.map-legend__item + .map-legend__item {
-  margin-top: 4px;
-}
-
-.map-legend__swatch {
-  display: inline-block;
-  width: 14px;
-  height: 14px;
-  border-radius: 3px;
-  opacity: 0.85;
-  flex-shrink: 0;
-}
-</style>

@@ -80,12 +80,14 @@ defineExpose({ setInputValue })
 </script>
 
 <template>
-  <div class="address-autocomplete">
-    <label class="address-autocomplete__label">
+  <div class="mb-3">
+    <label class="flex flex-col gap-1 font-body text-sm font-semibold text-ink max-w-[360px]">
       Origin address
-      <div class="address-autocomplete__input-wrap">
+      <div class="relative">
         <input
           v-model="inputValue"
+          class="w-full box-border px-2.5 py-2 border border-border rounded-lg bg-white text-ink font-body transition-colors ease-[var(--ease-smooth)] placeholder:text-placeholder focus:outline-none focus:border-coral focus:ring-3 focus:ring-coral/20"
+          data-testid="address-input"
           type="text"
           placeholder="Start typing a place name"
           autocomplete="off"
@@ -98,24 +100,25 @@ defineExpose({ setInputValue })
         <div
           v-if="foldoutOpen"
           id="address-suggestions"
-          class="address-autocomplete__foldout"
+          class="absolute top-[calc(100%+4px)] left-0 right-0 z-10 bg-white border border-border rounded-lg shadow-md max-h-60 overflow-y-auto"
         >
           <p
             v-if="isLoading"
-            class="address-autocomplete__foldout-status"
+            class="m-0 px-[0.7rem] py-[0.55rem] font-body text-[13px] leading-[1.3] text-ink-muted"
             data-testid="suggestions-loading"
           >
             Searching…
           </p>
           <ul
             v-else-if="suggestions.length > 0"
-            class="address-autocomplete__list"
+            class="m-0 p-0 list-none"
             data-testid="suggestions"
             role="listbox"
           >
             <li
               v-for="suggestion in suggestions"
               :key="`${suggestion.label}-${suggestion.lat}-${suggestion.lng}`"
+              class="px-2.5 py-2 cursor-pointer font-body text-sm text-ink border-b border-border last:border-b-0 hover:bg-surface focus:bg-surface"
               role="option"
               @click="onSelect(suggestion)"
             >
@@ -124,7 +127,7 @@ defineExpose({ setInputValue })
           </ul>
           <p
             v-else
-            class="address-autocomplete__foldout-status"
+            class="m-0 px-[0.7rem] py-[0.55rem] font-body text-[13px] leading-[1.3] text-ink-muted"
             data-testid="suggestions-empty"
           >
             No results found
@@ -134,98 +137,3 @@ defineExpose({ setInputValue })
     </label>
   </div>
 </template>
-
-<style scoped>
-.address-autocomplete {
-  margin-bottom: 0.75rem;
-}
-
-.address-autocomplete__label {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  max-width: 360px;
-  font-family: var(--font-body);
-  font-size: 0.875rem;
-  font-weight: 600;
-  line-height: 1.4;
-  color: var(--color-ink);
-}
-
-.address-autocomplete__input-wrap {
-  position: relative;
-}
-
-.address-autocomplete__input-wrap input {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 0.5rem 0.65rem;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  background: #ffffff;
-  color: var(--color-ink);
-  font-family: var(--font-body);
-  font-size: 0.9375rem;
-  font-weight: 400;
-  transition: border-color 0.18s var(--ease-smooth), box-shadow 0.18s var(--ease-smooth);
-}
-
-.address-autocomplete__input-wrap input::placeholder {
-  color: var(--color-placeholder);
-}
-
-.address-autocomplete__input-wrap input:focus {
-  outline: none;
-  border-color: var(--color-coral);
-  box-shadow: 0 0 0 3px rgb(225 102 91 / 18%);
-}
-
-.address-autocomplete__foldout {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  right: 0;
-  z-index: 10;
-  background: #ffffff;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgb(18 18 18 / 12%);
-  max-height: 240px;
-  overflow-y: auto;
-}
-
-.address-autocomplete__foldout-status {
-  margin: 0;
-  padding: 0.55rem 0.7rem;
-  font-family: var(--font-body);
-  font-size: 13px;
-  line-height: 1.3;
-  color: var(--color-ink-muted);
-}
-
-.address-autocomplete__list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.address-autocomplete__list li {
-  padding: 0.55rem 0.7rem;
-  cursor: pointer;
-  font-family: var(--font-body);
-  font-size: 14px;
-  line-height: 1.35;
-  color: var(--color-ink);
-  border-bottom: 1px solid var(--color-border);
-  transition: background 0.15s var(--ease-smooth);
-}
-
-.address-autocomplete__list li:last-child {
-  border-bottom: none;
-}
-
-.address-autocomplete__list li:hover,
-.address-autocomplete__list li:focus {
-  background: var(--color-surface);
-}
-</style>

@@ -54,15 +54,15 @@ async function handleFormSubmit(payload: { lat: number; lng: number; duration: n
 </script>
 
 <template>
-  <div class="service-view">
-    <header class="service-view__header">
+  <div class="grid grid-cols-1 gap-[clamp(1.5rem,4vw,2.5rem)] pt-[clamp(1.5rem,4vw,2.5rem)] px-[var(--page-gutter)] pb-12">
+    <header class="flex flex-col gap-2 max-w-[720px]">
       <h1>{{ heading }}</h1>
-      <p class="t-lead service-view__description">
+      <p class="t-lead m-0">
         {{ leadDescription }}
       </p>
       <p
         v-if="scenarioError"
-        class="scenario-error"
+        class="m-0 px-3.5 py-2.5 border border-[#f0c8c4] border-l-[3px] border-l-coral rounded-lg bg-[#fdf1f0] text-[#a3352b] font-body text-sm leading-normal max-w-[720px]"
         role="alert"
         data-testid="scenario-error"
       >
@@ -70,8 +70,8 @@ async function handleFormSubmit(payload: { lat: number; lng: number; duration: n
       </p>
     </header>
 
-    <section class="service-view__workspace">
-      <div class="service-view__map">
+    <section class="grid grid-cols-1 min-[900px]:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-[clamp(1rem,3vw,2rem)] items-start">
+      <div class="min-h-[70vh] max-[899px]:min-h-[55vh] rounded-xl overflow-hidden">
         <MapView
           :origin="origin"
           :isochrone-data="isochroneData"
@@ -81,14 +81,14 @@ async function handleFormSubmit(payload: { lat: number; lng: number; duration: n
           :services="services"
         />
       </div>
-      <div class="service-view__form">
+      <div class="flex flex-col gap-3">
         <IsochroneForm
           @submit="handleFormSubmit"
           @origin-change="onOriginChange"
         />
         <p
           v-if="fetchError"
-          class="fetch-error"
+          class="m-0 px-3.5 py-2.5 border border-[#f0c8c4] border-l-[3px] border-l-coral rounded-lg bg-[#fdf1f0] text-[#a3352b] font-body text-sm leading-normal"
           role="alert"
           data-testid="fetch-error"
         >
@@ -97,18 +97,24 @@ async function handleFormSubmit(payload: { lat: number; lng: number; duration: n
       </div>
     </section>
 
-    <SpeedGraph class="service-view__speed-graph" />
+    <SpeedGraph />
 
-    <section class="service-view__section">
-      <h2>About this service</h2>
-      <p>{{ leadDescription }}</p>
+    <section class="flex flex-col gap-2 max-w-[720px]">
+      <h2 class="m-0">
+        About this service
+      </h2>
+      <p class="m-0">
+        {{ leadDescription }}
+      </p>
     </section>
 
-    <section class="service-view__section">
-      <h2>Technology assumptions</h2>
+    <section class="flex flex-col gap-2 max-w-[720px]">
+      <h2 class="m-0">
+        Technology assumptions
+      </h2>
       <ul
         v-if="services.length"
-        class="service-view__assumptions"
+        class="m-0 pl-5 font-body text-ink-muted leading-7 [&_strong]:text-ink"
         data-testid="technology-assumptions"
       >
         <li
@@ -132,97 +138,3 @@ async function handleFormSubmit(payload: { lat: number; lng: number; duration: n
     </section>
   </div>
 </template>
-
-<style scoped>
-.service-view {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: clamp(1.5rem, 4vw, 2.5rem);
-  padding: clamp(1.5rem, 4vw, 2.5rem) var(--page-gutter) 3rem;
-}
-
-.service-view__header {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  max-width: 720px;
-}
-
-.service-view__description {
-  margin: 0;
-}
-
-.service-view__workspace {
-  display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-  gap: clamp(1rem, 3vw, 2rem);
-  align-items: start;
-}
-
-.service-view__map {
-  min-height: 70vh;
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-.service-view__form {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.service-view__section {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  max-width: 720px;
-}
-
-.service-view__section h2 {
-  margin: 0;
-}
-
-.service-view__section p {
-  margin: 0;
-}
-
-.service-view__assumptions {
-  margin: 0;
-  padding-left: 1.25rem;
-  font-family: var(--font-body);
-  color: var(--color-ink-muted);
-  line-height: 1.7;
-}
-
-.service-view__assumptions strong {
-  color: var(--color-ink);
-}
-
-.fetch-error,
-.scenario-error {
-  margin: 0;
-  padding: 0.65rem 0.9rem;
-  border: 1px solid #f0c8c4;
-  border-left: 3px solid var(--color-coral);
-  border-radius: 8px;
-  background: #fdf1f0;
-  color: #a3352b;
-  font-family: var(--font-body);
-  font-size: 0.875rem;
-  line-height: 1.5;
-}
-
-.scenario-error {
-  max-width: 720px;
-}
-
-@media (max-width: 900px) {
-  .service-view__workspace {
-    grid-template-columns: 1fr;
-  }
-
-  .service-view__map {
-    min-height: 55vh;
-  }
-}
-</style>

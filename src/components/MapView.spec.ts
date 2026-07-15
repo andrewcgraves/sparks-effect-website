@@ -444,12 +444,12 @@ describe('MapView', () => {
     const toggle = wrapper.find('[data-testid="map-fullscreen-toggle"]')
     await toggle.trigger('click')
 
-    expect(wrapper.find('.map-frame--fullscreen').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="map-frame"]').attributes('data-fullscreen')).toBe('true')
     expect(toggle.attributes('aria-pressed')).toBe('true')
     expect(mockResize).toHaveBeenCalled()
 
     await toggle.trigger('click')
-    expect(wrapper.find('.map-frame--fullscreen').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="map-frame"]').attributes('data-fullscreen')).toBe('false')
     expect(toggle.attributes('aria-pressed')).toBe('false')
   })
 })

@@ -217,7 +217,7 @@ describe('IsochroneForm', () => {
     expect((wrapper.find('input[data-testid="lat"]').element as HTMLInputElement).value).toBe('45.5231')
     expect((wrapper.find('input[data-testid="lng"]').element as HTMLInputElement).value).toBe('-122.6784')
     expect(wrapper.find('[data-testid="selected-label"]').text()).toBe(suggestion.label)
-    expect(wrapper.find('.address-autocomplete input').element as HTMLInputElement).toHaveProperty('value', suggestion.label)
+    expect(wrapper.find('[data-testid="address-input"]').element as HTMLInputElement).toHaveProperty('value', suggestion.label)
 
     const emissions = wrapper.emitted<[{ lat: number; lng: number } | null]>('origin-change')!
     const lastEmit = emissions[emissions.length - 1][0]
@@ -235,7 +235,7 @@ describe('IsochroneForm', () => {
     expect((wrapper.find('input[data-testid="lat"]').element as HTMLInputElement).value).toBe('45.5231')
     expect((wrapper.find('input[data-testid="lng"]').element as HTMLInputElement).value).toBe('-122.6784')
     expect(wrapper.find('[data-testid="selected-label"]').exists()).toBe(false)
-    expect((wrapper.find('.address-autocomplete input').element as HTMLInputElement).value).toBe('')
+    expect((wrapper.find('[data-testid="address-input"]').element as HTMLInputElement).value).toBe('')
   })
 
   it('shows an error and does not fill fields when geolocation fails', async () => {

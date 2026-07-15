@@ -1,6 +1,7 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Open+Sans:ital,wdth,wght@0,75..100,300..800;1,75..100,300..800&display=swap");
+@import "tailwindcss";
 
-:root {
+@theme {
   --color-ink: #121212;
   --color-ink-true: #000000;
   --color-ink-muted: #4a4a4f;
@@ -12,74 +13,88 @@
   --color-slate: #1e293b;
   --font-display: "Inter", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
   --font-body: "Open Sans", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+}
+
+:root {
   --page-gutter: clamp(16px, 7vw, 88px);
   --ease-smooth: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-html,
-body {
-  font-family: var(--font-body);
-  font-size: 16px;
-  line-height: 1.5;
-  color: var(--color-ink);
-  background: #ffffff;
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
+@layer base {
+  html,
+  body {
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 1.5;
+    color: var(--color-ink);
+    background: #ffffff;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    margin: 0;
+  }
+
+  #app {
+    min-height: 100svh;
+  }
+
+  h1 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: clamp(36px, 6vw, 64px);
+    line-height: 1;
+    letter-spacing: -0.02em;
+    color: var(--color-ink-true);
+    margin: 0;
+  }
+
+  h2 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 28px;
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+    color: var(--color-ink-true);
+  }
+
+  p {
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 1.65;
+    color: var(--color-ink-muted);
+  }
+
+  *:focus-visible {
+    outline: 2px solid var(--color-coral);
+    outline-offset: 3px;
+    border-radius: 8px;
+  }
+
+  ::selection {
+    background: var(--color-coral);
+    color: #fff;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms !important;
+    }
+  }
 }
 
-body {
-  margin: 0;
-}
-
-#app {
-  min-height: 100svh;
-}
-
-h1 {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: clamp(36px, 6vw, 64px);
-  line-height: 1;
-  letter-spacing: -0.02em;
-  color: var(--color-ink-true);
-  margin: 0;
-}
-
-h2 {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 28px;
-  line-height: 1.15;
-  letter-spacing: -0.01em;
-  color: var(--color-ink-true);
-}
-
-p {
-  font-family: var(--font-body);
-  font-size: 16px;
-  line-height: 1.65;
-  color: var(--color-ink-muted);
-}
-
-*:focus-visible {
-  outline: 2px solid var(--color-coral);
-  outline-offset: 3px;
-  border-radius: 8px;
-}
-
-::selection {
-  background: var(--color-coral);
-  color: #fff;
-}
-
-.t-lead {
+@utility t-lead {
   font-family: var(--font-body);
   font-size: clamp(18px, 1.6vw, 21px);
   line-height: 1.6;
   color: var(--color-ink-muted);
 }
 
-.t-caption {
+@utility t-caption {
   font-family: var(--font-body);
   font-style: italic;
   font-size: 13px;
@@ -87,20 +102,11 @@ p {
   color: var(--color-ink-muted);
 }
 
-.t-microlabel {
+@utility t-microlabel {
   font-family: var(--font-body);
   font-style: italic;
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.12em;
   color: var(--color-ink-muted);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    transition-duration: 0.01ms !important;
-    animation-duration: 0.01ms !important;
-  }
 }

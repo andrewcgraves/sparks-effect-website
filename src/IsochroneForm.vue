@@ -88,13 +88,17 @@ function handleSubmit() {
 </script>
 
 <template>
-  <form @submit.prevent="handleSubmit">
+  <form
+    class="flex flex-col gap-4 py-5 px-[var(--page-gutter)] pb-7"
+    @submit.prevent="handleSubmit"
+  >
     <AddressAutocomplete
       ref="addressAutocompleteRef"
       @select="onAutocompleteSelect"
     />
     <button
       type="button"
+      class="self-start px-3.5 py-2 border border-border rounded-full bg-surface font-body text-sm font-semibold cursor-pointer transition-colors ease-[var(--ease-smooth)] hover:not-disabled:border-apricot hover:not-disabled:bg-white disabled:opacity-55 disabled:cursor-not-allowed"
       data-testid="use-current-location"
       :disabled="locating"
       @click="onUseCurrentLocation"
@@ -103,46 +107,52 @@ function handleSubmit() {
     </button>
     <p
       v-if="locationError"
+      class="m-0 text-coral text-[0.8125rem]"
       data-testid="location-error"
     >
       {{ locationError }}
     </p>
     <p
       v-if="selectedLabel"
+      class="m-0 text-ink-muted text-[0.8125rem]"
       data-testid="selected-label"
     >
       {{ selectedLabel }}
     </p>
-    <label>
+    <label class="flex flex-col gap-1 font-body text-sm font-semibold text-ink max-w-[360px]">
       Latitude
       <input
         v-model="lat"
+        class="w-full box-border px-2.5 py-2 border border-border rounded-lg bg-white text-ink font-body transition-colors ease-[var(--ease-smooth)] placeholder:text-placeholder focus:outline-none focus:border-coral focus:ring-3 focus:ring-coral/20"
         data-testid="lat"
         type="number"
         step="any"
       >
     </label>
-    <label>
+    <label class="flex flex-col gap-1 font-body text-sm font-semibold text-ink max-w-[360px]">
       Longitude
       <input
         v-model="lng"
+        class="w-full box-border px-2.5 py-2 border border-border rounded-lg bg-white text-ink font-body transition-colors ease-[var(--ease-smooth)] placeholder:text-placeholder focus:outline-none focus:border-coral focus:ring-3 focus:ring-coral/20"
         data-testid="lng"
         type="number"
         step="any"
       >
     </label>
-    <label>
+    <label class="flex flex-col gap-1 font-body text-sm font-semibold text-ink max-w-[360px]">
       Journey duration (minutes)
       <input
         v-model="duration"
+        class="w-full box-border px-2.5 py-2 border border-border rounded-lg bg-white text-ink font-body transition-colors ease-[var(--ease-smooth)] placeholder:text-placeholder focus:outline-none focus:border-coral focus:ring-3 focus:ring-coral/20"
         data-testid="duration"
         type="number"
         min="1"
       >
     </label>
-    <label>
+    <label class="flex flex-col gap-1 font-body text-sm font-semibold text-ink max-w-[360px]">
       Mode
       <select
+        class="w-full box-border px-2.5 py-2 border border-border rounded-lg bg-white text-ink font-body transition-colors ease-[var(--ease-smooth)] focus:outline-none focus:border-coral focus:ring-3 focus:ring-coral/20"
         data-testid="mode"
         :value="mode"
         @change="onModeChange"
@@ -158,134 +168,11 @@ function handleSubmit() {
         </option>
       </select>
     </label>
-    <button type="submit">
+    <button
+      type="submit"
+      class="self-start mt-1 px-5.5 py-2.5 rounded-full bg-coral text-white font-display font-semibold cursor-pointer transition-colors ease-[var(--ease-smooth)] hover:bg-apricot active:translate-y-px"
+    >
       Generate isochrone
     </button>
   </form>
 </template>
-
-<style scoped>
-form {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  padding: 1.25rem var(--page-gutter) 1.75rem;
-  font-family: var(--font-body);
-}
-
-form > label {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  font-family: var(--font-body);
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--color-ink);
-  max-width: 360px;
-}
-
-form > label input {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 0.5rem 0.65rem;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  background: #ffffff;
-  color: var(--color-ink);
-  font-family: var(--font-body);
-  font-size: 0.9375rem;
-  font-weight: 400;
-  transition: border-color 0.18s var(--ease-smooth), box-shadow 0.18s var(--ease-smooth);
-}
-
-form > label input::placeholder {
-  color: var(--color-placeholder);
-}
-
-form > label input:focus {
-  outline: none;
-  border-color: var(--color-coral);
-  box-shadow: 0 0 0 3px rgb(225 102 91 / 18%);
-}
-
-button[data-testid="use-current-location"] {
-  align-self: flex-start;
-  padding: 0.5rem 0.9rem;
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  background: var(--color-surface);
-  color: var(--color-ink);
-  font-family: var(--font-body);
-  font-size: 0.875rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.18s var(--ease-smooth), border-color 0.18s var(--ease-smooth);
-}
-
-button[data-testid="use-current-location"]:hover:not(:disabled) {
-  border-color: var(--color-apricot);
-  background: #ffffff;
-}
-
-button[data-testid="use-current-location"]:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-[data-testid="location-error"] {
-  margin: 0;
-  color: var(--color-coral);
-  font-size: 0.8125rem;
-}
-
-[data-testid="selected-label"] {
-  margin: 0;
-  color: var(--color-ink-muted);
-  font-size: 0.8125rem;
-}
-
-form > label select {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 0.5rem 0.65rem;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  background: #ffffff;
-  color: var(--color-ink);
-  font-family: var(--font-body);
-  font-size: 0.9375rem;
-  font-weight: 400;
-  cursor: pointer;
-  transition: border-color 0.18s var(--ease-smooth), box-shadow 0.18s var(--ease-smooth);
-}
-
-form > label select:focus {
-  outline: none;
-  border-color: var(--color-coral);
-  box-shadow: 0 0 0 3px rgb(225 102 91 / 18%);
-}
-
-button[type="submit"] {
-  align-self: flex-start;
-  margin-top: 0.25rem;
-  padding: 0.7rem 1.4rem;
-  border: none;
-  border-radius: 999px;
-  background: var(--color-coral);
-  color: #ffffff;
-  font-family: var(--font-display);
-  font-size: 0.9375rem;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  cursor: pointer;
-  transition: background 0.18s var(--ease-smooth), transform 0.18s var(--ease-smooth);
-}
-
-button[type="submit"]:hover {
-  background: var(--color-apricot);
-}
-
-button[type="submit"]:active {
-  transform: translateY(1px);
-}
-</style>
