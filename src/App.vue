@@ -45,7 +45,12 @@ async function handleFormSubmit(payload: { lat: number; lng: number; duration: n
 
 <template>
   <main class="app-shell">
-    <h1>Sparks Effect</h1>
+    <header class="flex items-center gap-3 border-b border-slate-200 bg-slate-900 px-4 py-3 text-white shadow-sm">
+      <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500 text-lg font-bold">S</span>
+      <h1 class="text-lg font-semibold tracking-tight">
+        Sparks Effect
+      </h1>
+    </header>
     <IsochroneForm
       @submit="handleFormSubmit"
       @origin-change="onOriginChange"
@@ -77,10 +82,6 @@ async function handleFormSubmit(payload: { lat: number; lng: number; duration: n
   flex-direction: column;
   min-height: 100svh;
   margin: 0;
-}
-
-.app-shell h1 {
-  margin: 0.75rem 1rem;
 }
 
 .fetch-error {
