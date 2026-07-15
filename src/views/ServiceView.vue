@@ -18,7 +18,7 @@ const isochroneData = ref<ChainResponse | null>(null)
 const isLoading = ref(false)
 const fetchError = ref<string | null>(null)
 
-const { name, description, routes, stations, services } = useScenario(props.slug)
+const { name, description, routes, stations, services, error: scenarioError } = useScenario(props.slug)
 
 const heading = computed(() => name.value || 'Transit service')
 const leadDescription = computed(
@@ -59,6 +59,14 @@ async function handleFormSubmit(payload: { lat: number; lng: number; duration: n
       <h1>{{ heading }}</h1>
       <p class="t-lead service-view__description">
         {{ leadDescription }}
+      </p>
+      <p
+        v-if="scenarioError"
+        class="scenario-error"
+        role="alert"
+        data-testid="scenario-error"
+      >
+        {{ scenarioError }}
       </p>
     </header>
 
@@ -190,7 +198,8 @@ async function handleFormSubmit(payload: { lat: number; lng: number; duration: n
   color: var(--color-ink);
 }
 
-.fetch-error {
+.fetch-error,
+.scenario-error {
   margin: 0;
   padding: 0.65rem 0.9rem;
   border: 1px solid #f0c8c4;
@@ -201,6 +210,10 @@ async function handleFormSubmit(payload: { lat: number; lng: number; duration: n
   font-family: var(--font-body);
   font-size: 0.875rem;
   line-height: 1.5;
+}
+
+.scenario-error {
+  max-width: 720px;
 }
 
 @media (max-width: 900px) {

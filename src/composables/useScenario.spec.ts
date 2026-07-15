@@ -126,4 +126,19 @@ describe('useScenario', () => {
     expect(stations.value).toEqual([])
     expect(services.value).toEqual([])
   })
+
+  it('starts with no error and stays clear when fetch resolves', async () => {
+    vi.mocked(fetchScenario).mockResolvedValueOnce(stubDetail)
+    const { error } = useScenario('ca-hsr')
+    expect(error.value).toBeNull()
+    await flushPromises()
+    expect(error.value).toBeNull()
+  })
+
+  it('sets an error mentioning the slug when fetch rejects', async () => {
+    vi.mocked(fetchScenario).mockRejectedValueOnce(new Error('network error'))
+    const { error } = useScenario('missing-service')
+    await flushPromises()
+    expect(error.value).toContain('missing-service')
+  })
 })

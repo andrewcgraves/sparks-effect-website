@@ -18,6 +18,7 @@ vi.mock('../composables/useScenario', () => ({
     routes: ref([]),
     stations: ref([]),
     services: ref([]),
+    error: ref(null),
   }),
 }))
 

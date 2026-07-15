@@ -8,6 +8,7 @@ export function useScenario(slug: string) {
   const routes = ref<Route[]>([])
   const stations = ref<Station[]>([])
   const services = ref<Service[]>([])
+  const error = ref<string | null>(null)
 
   fetchScenario(slug).then((detail) => {
     name.value = detail.name
@@ -15,7 +16,9 @@ export function useScenario(slug: string) {
     routes.value = detail.routes
     stations.value = detail.stations
     services.value = detail.services
-  }).catch(() => {})
+  }).catch(() => {
+    error.value = `We couldn't load the "${slug}" service. It may not exist or the API is unavailable.`
+  })
 
-  return { name, description, routes, stations, services }
+  return { name, description, routes, stations, services, error }
 }
