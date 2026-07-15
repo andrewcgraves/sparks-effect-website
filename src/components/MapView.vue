@@ -6,7 +6,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { ISOCHRONE_SOURCE_ID, ISOCHRONE_LEGEND, useIsochroneLayer } from '../composables/useIsochroneLayer'
 import { useRouteLayer } from '../composables/useRouteLayer'
 import { useOriginMarker } from '../composables/useOriginMarker'
-import { ISOCHRONE_BOUNDS_CORNERS, ISOCHRONE_CENTER } from '../fixtures/isochrone'
+import { ISOCHRONE_BOUNDS_CORNERS, ISOCHRONE_CENTER, isochroneBoundsCorners } from '../fixtures/isochrone'
 import type { ChainResponse } from '../fixtures/isochrone'
 import { resolveMapStyleUrl } from '../mapStyle'
 import type { Route, Station, Service } from '../api/scenarios'
@@ -20,6 +20,8 @@ const props = defineProps<{
   services: Service[]
 }>()
 
+const ORIGIN_SNAP_ZOOM = 9
+
 const mapContainer = ref<HTMLElement | null>(null)
 let map: Map | null = null
 let resizeObserver: ResizeObserver | null = null
@@ -27,13 +29,33 @@ let hasFittedToSegments = false
 let isMapLoaded = false
 let routeLayerAdded = false
 
+const MAP_FIT_PADDING = { top: 56, bottom: 112, left: 56, right: 56 }
+
 function fitMapToAllSegments(): void {
   if (!map) return
   map.resize()
   map.fitBounds(ISOCHRONE_BOUNDS_CORNERS, {
-    padding: { top: 56, bottom: 112, left: 56, right: 56 },
+    padding: MAP_FIT_PADDING,
     duration: 0,
     maxZoom: 11,
+  })
+  hasFittedToSegments = true
+}
+
+function snapMapToOrigin(coords: { lat: number; lng: number }): void {
+  if (!map) return
+  map.flyTo({
+    center: [coords.lng, coords.lat],
+    zoom: ORIGIN_SNAP_ZOOM,
+  })
+  hasFittedToSegments = true
+}
+
+function fitMapToIsochrone(data: ChainResponse): void {
+  if (!map || data.features.length === 0) return
+  map.fitBounds(isochroneBoundsCorners(data.features), {
+    padding: MAP_FIT_PADDING,
+    duration: 800,
   })
   hasFittedToSegments = true
 }
@@ -46,6 +68,7 @@ function applyIsochroneData(data: ChainResponse): void {
   } else {
     useIsochroneLayer(map, data)
   }
+  fitMapToIsochrone(data)
 }
 
 function maybeAddRouteLayer(): void {
@@ -60,6 +83,14 @@ watch(
   (data) => {
     if (!data || !isMapLoaded) return
     applyIsochroneData(data)
+  },
+)
+
+watch(
+  () => props.origin,
+  (coords) => {
+    if (!coords || !isMapLoaded) return
+    snapMapToOrigin(coords)
   },
 )
 
@@ -88,9 +119,11 @@ onMounted(() => {
 
     if (props.isochroneData) {
       applyIsochroneData(props.isochroneData)
+    } else if (props.origin) {
+      snapMapToOrigin(props.origin)
+    } else {
+      fitMapToAllSegments()
     }
-
-    fitMapToAllSegments()
   })
 
   resizeObserver = new ResizeObserver(() => {

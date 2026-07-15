@@ -22,6 +22,7 @@ const {
   mockAddSource,
   mockAddLayer,
   mockFitBounds,
+  mockFlyTo,
   mockOn,
   mockRemove,
   mockResize,
@@ -33,6 +34,7 @@ const {
   mockAddSource: vi.fn(),
   mockAddLayer: vi.fn(),
   mockFitBounds: vi.fn(),
+  mockFlyTo: vi.fn(),
   mockOn: vi.fn(),
   mockRemove: vi.fn(),
   mockResize: vi.fn(),
@@ -55,6 +57,7 @@ vi.mock('maplibre-gl', () => ({
     this['addSource'] = mockAddSource
     this['addLayer'] = mockAddLayer
     this['fitBounds'] = mockFitBounds
+    this['flyTo'] = mockFlyTo
     this['on'] = mockOn
     this['remove'] = mockRemove
     this['resize'] = mockResize
@@ -142,6 +145,39 @@ describe('MapView', () => {
     await triggerMapLoad()
     await wrapper.setProps({ isochroneData: staticIsochroneResponse })
     expect(mockSetData).toHaveBeenCalledWith(staticIsochroneResponse)
+  })
+
+  it('fits the map to the isochrone frame when isochroneData arrives after load', async () => {
+    const wrapper = mount(MapView, { props: defaultProps })
+    await triggerMapLoad()
+    mockFitBounds.mockClear()
+
+    await wrapper.setProps({ isochroneData: staticIsochroneResponse })
+
+    expect(mockFitBounds).toHaveBeenCalledWith(
+      ISOCHRONE_BOUNDS_CORNERS,
+      expect.objectContaining({
+        padding: expect.objectContaining({ top: 56, bottom: 112, left: 56, right: 56 }),
+      }),
+    )
+  })
+
+  it('fits the map to the isochrone frame after an origin snap when isochrone is generated', async () => {
+    const wrapper = mount(MapView, {
+      props: { ...defaultProps, origin: { lat: 34.05, lng: -118.25 } },
+    })
+    await triggerMapLoad()
+    mockFitBounds.mockClear()
+    mockFlyTo.mockClear()
+
+    await wrapper.setProps({ isochroneData: staticIsochroneResponse })
+
+    expect(mockFitBounds).toHaveBeenCalledWith(
+      ISOCHRONE_BOUNDS_CORNERS,
+      expect.objectContaining({
+        padding: expect.objectContaining({ top: 56, bottom: 112, left: 56, right: 56 }),
+      }),
+    )
   })
 
   it('adds isochrone source via useIsochroneLayer when prop updates and source does not yet exist', async () => {
@@ -325,6 +361,67 @@ describe('MapView', () => {
     await wrapper.setProps({ origin: null })
 
     expect(mockMarkerRemove).toHaveBeenCalled()
+  })
+
+  it('flies the map to the origin when origin is set after map load', async () => {
+    const wrapper = mount(MapView, { props: defaultProps })
+    await triggerMapLoad()
+    mockFlyTo.mockClear()
+
+    await wrapper.setProps({ origin: { lat: 34.05, lng: -118.25 } })
+
+    expect(mockFlyTo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        center: [-118.25, 34.05],
+        zoom: 9,
+      }),
+    )
+  })
+
+  it('flies the map to the origin on load when origin is already set', async () => {
+    mount(MapView, { props: { ...defaultProps, origin: { lat: 34.05, lng: -118.25 } } })
+    await triggerMapLoad()
+
+    expect(mockFlyTo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        center: [-118.25, 34.05],
+        zoom: 9,
+      }),
+    )
+  })
+
+  it('does not fly when origin is cleared to null', async () => {
+    const wrapper = mount(MapView, {
+      props: { ...defaultProps, origin: { lat: 37.33, lng: -121.89 } },
+    })
+    await triggerMapLoad()
+    mockFlyTo.mockClear()
+
+    await wrapper.setProps({ origin: null })
+
+    expect(mockFlyTo).not.toHaveBeenCalled()
+  })
+
+  it('flies again when origin coordinates change', async () => {
+    const wrapper = mount(MapView, {
+      props: { ...defaultProps, origin: { lat: 37.33, lng: -121.89 } },
+    })
+    await triggerMapLoad()
+    mockFlyTo.mockClear()
+
+    await wrapper.setProps({ origin: { lat: 38.0, lng: -122.5 } })
+
+    expect(mockFlyTo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        center: [-122.5, 38.0],
+        zoom: 9,
+      }),
+    )
+  })
+
+  it('does not fly to origin before the map load event', () => {
+    mount(MapView, { props: { ...defaultProps, origin: { lat: 34.05, lng: -118.25 } } })
+    expect(mockFlyTo).not.toHaveBeenCalled()
   })
 
   it('accepts a services prop', () => {

@@ -37,7 +37,7 @@ export interface ChainResponse extends FeatureCollection<Polygon, IsochroneFeatu
 
 export const staticIsochroneResponse = sampleIsochroneResponse as ChainResponse
 
-function boundsFromFeatures(
+export function boundsFromFeatures(
   features: ChainResponse['features'],
   padding = 0.04,
 ): [number, number, number, number] {
@@ -58,6 +58,17 @@ function boundsFromFeatures(
   }
 
   return [minLng - padding, minLat - padding, maxLng + padding, maxLat + padding]
+}
+
+export function isochroneBoundsCorners(
+  features: ChainResponse['features'],
+  padding = 0.04,
+): [[number, number], [number, number]] {
+  const [minLng, minLat, maxLng, maxLat] = boundsFromFeatures(features, padding)
+  return [
+    [minLng, minLat],
+    [maxLng, maxLat],
+  ]
 }
 
 export const ISOCHRONE_BOUNDS = boundsFromFeatures(staticIsochroneResponse.features)
