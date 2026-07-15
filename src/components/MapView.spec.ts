@@ -14,7 +14,7 @@ import {
   ISOCHRONE_BOUNDS_CORNERS,
   ISOCHRONE_CENTER,
 } from '../fixtures/isochrone'
-import type { Route, Station } from '../api/scenarios'
+import type { Route, Station, Service } from '../api/scenarios'
 
 const mockSetData = vi.fn()
 
@@ -67,13 +67,6 @@ vi.mock('maplibre-gl', () => ({
   }),
 }))
 
-vi.mock('../api/scenarios', () => ({
-  fetchScenarioRoutes: vi.fn(),
-  fetchScenarioStations: vi.fn(),
-}))
-
-import { fetchScenarioRoutes, fetchScenarioStations } from '../api/scenarios'
-
 const stubRoute: Route = {
   id: 'r1',
   scenario_id: 's1',
@@ -89,8 +82,25 @@ const stubStation: Station = {
   slug: 'sf',
   name: 'San Francisco',
   location: { type: 'Point', coordinates: [-122.4194, 37.7749] },
-  platform_height: 0,
+  platform_height: '0',
 }
+
+const stubService: Service = {
+  id: 'svc1',
+  name: 'Northbound Express',
+  vehicle_type: {
+    id: 'vt1',
+    name: 'High-Speed Rail',
+    propulsion: 'electric',
+    max_speed_kmh: 320,
+  },
+  direction: 'northbound',
+  provenance: 'calibrated',
+  stop_count: 2,
+  frequency_windows: [],
+}
+
+const defaultProps = { isochroneData: null, loading: false, routes: [], stations: [], services: [] }
 
 async function triggerMapLoad() {
   const call = mockOn.mock.calls.find((args: unknown[]) => args[0] === 'load')
@@ -103,12 +113,10 @@ describe('MapView', () => {
     vi.clearAllMocks()
     mockGetSource.mockReturnValue(null)
     mockSetLngLat.mockReturnValue({ addTo: mockMarkerAddTo })
-    vi.mocked(fetchScenarioRoutes).mockResolvedValue([stubRoute])
-    vi.mocked(fetchScenarioStations).mockResolvedValue([stubStation])
   })
 
   it('does not add isochrone source or layer on load when no isochroneData prop is provided', async () => {
-    mount(MapView, { props: { isochroneData: null, loading: false } })
+    mount(MapView, { props: defaultProps })
     await triggerMapLoad()
     expect(mockAddSource).not.toHaveBeenCalledWith(ISOCHRONE_SOURCE_ID, expect.anything())
     expect(mockAddLayer).not.toHaveBeenCalledWith(
@@ -117,7 +125,7 @@ describe('MapView', () => {
   })
 
   it('adds the isochrone source and layer when isochroneData prop is provided at mount time', async () => {
-    mount(MapView, { props: { isochroneData: staticIsochroneResponse, loading: false } })
+    mount(MapView, { props: { ...defaultProps, isochroneData: staticIsochroneResponse } })
     await triggerMapLoad()
     expect(mockAddSource).toHaveBeenCalledWith(ISOCHRONE_SOURCE_ID, {
       type: 'geojson',
@@ -130,7 +138,7 @@ describe('MapView', () => {
 
   it('calls setData on the existing source when isochroneData prop updates after map loads', async () => {
     mockGetSource.mockReturnValue({ setData: mockSetData })
-    const wrapper = mount(MapView, { props: { isochroneData: null, loading: false } })
+    const wrapper = mount(MapView, { props: defaultProps })
     await triggerMapLoad()
     await wrapper.setProps({ isochroneData: staticIsochroneResponse })
     expect(mockSetData).toHaveBeenCalledWith(staticIsochroneResponse)
@@ -138,7 +146,7 @@ describe('MapView', () => {
 
   it('adds isochrone source via useIsochroneLayer when prop updates and source does not yet exist', async () => {
     mockGetSource.mockReturnValue(null)
-    const wrapper = mount(MapView, { props: { isochroneData: null, loading: false } })
+    const wrapper = mount(MapView, { props: defaultProps })
     await triggerMapLoad()
     await wrapper.setProps({ isochroneData: staticIsochroneResponse })
     expect(mockAddSource).toHaveBeenCalledWith(ISOCHRONE_SOURCE_ID, {
@@ -151,25 +159,24 @@ describe('MapView', () => {
   })
 
   it('does not register source or layer before the load event fires', () => {
-    mount(MapView, { props: { isochroneData: null, loading: false } })
+    mount(MapView, { props: defaultProps })
     expect(mockAddSource).not.toHaveBeenCalled()
     expect(mockAddLayer).not.toHaveBeenCalled()
   })
 
   it('shows the loading overlay when loading prop is true', () => {
-    const wrapper = mount(MapView, { props: { isochroneData: null, loading: true } })
+    const wrapper = mount(MapView, { props: { ...defaultProps, loading: true } })
     expect(wrapper.find('[data-testid="map-loading"]').exists()).toBe(true)
   })
 
   it('hides the loading overlay when loading prop is false', () => {
-    const wrapper = mount(MapView, { props: { isochroneData: null, loading: false } })
+    const wrapper = mount(MapView, { props: defaultProps })
     expect(wrapper.find('[data-testid="map-loading"]').exists()).toBe(false)
   })
 
-  it('adds a line layer for the CA HSR route after map loads', async () => {
-    mount(MapView, { props: { isochroneData: null, loading: false } })
+  it('adds route and station layers when routes prop is non-empty at map load time', async () => {
+    mount(MapView, { props: { ...defaultProps, routes: [stubRoute], stations: [stubStation] } })
     await triggerMapLoad()
-    expect(fetchScenarioRoutes).toHaveBeenCalledWith('ca-hsr')
     expect(mockAddSource).toHaveBeenCalledWith(
       ROUTE_SOURCE_ID,
       expect.objectContaining({ type: 'geojson' }),
@@ -177,12 +184,6 @@ describe('MapView', () => {
     expect(mockAddLayer).toHaveBeenCalledWith(
       expect.objectContaining({ id: ROUTE_LINE_LAYER_ID, type: 'line', source: ROUTE_SOURCE_ID }),
     )
-  })
-
-  it('adds a circle layer for stations after map loads', async () => {
-    mount(MapView, { props: { isochroneData: null, loading: false } })
-    await triggerMapLoad()
-    expect(fetchScenarioStations).toHaveBeenCalledWith('ca-hsr')
     expect(mockAddSource).toHaveBeenCalledWith(
       STATION_SOURCE_ID,
       expect.objectContaining({ type: 'geojson' }),
@@ -192,9 +193,8 @@ describe('MapView', () => {
     )
   })
 
-  it('does not add route layer when route/station fetch fails', async () => {
-    vi.mocked(fetchScenarioRoutes).mockRejectedValueOnce(new Error('unavailable'))
-    mount(MapView, { props: { isochroneData: null, loading: false } })
+  it('does not add route layer when routes prop is empty at map load time', async () => {
+    mount(MapView, { props: defaultProps })
     await triggerMapLoad()
     expect(mockAddSource).not.toHaveBeenCalledWith(ROUTE_SOURCE_ID, expect.anything())
     expect(mockAddLayer).not.toHaveBeenCalledWith(
@@ -202,9 +202,38 @@ describe('MapView', () => {
     )
   })
 
-  it('still renders isochrone layer (from prop) when route/station fetch fails', async () => {
-    vi.mocked(fetchScenarioRoutes).mockRejectedValueOnce(new Error('unavailable'))
-    mount(MapView, { props: { isochroneData: staticIsochroneResponse, loading: false } })
+  it('adds route layer when routes prop arrives after map loads', async () => {
+    const wrapper = mount(MapView, { props: defaultProps })
+    await triggerMapLoad()
+    expect(mockAddSource).not.toHaveBeenCalledWith(ROUTE_SOURCE_ID, expect.anything())
+
+    await wrapper.setProps({ routes: [stubRoute], stations: [stubStation] })
+    expect(mockAddSource).toHaveBeenCalledWith(
+      ROUTE_SOURCE_ID,
+      expect.objectContaining({ type: 'geojson' }),
+    )
+    expect(mockAddLayer).toHaveBeenCalledWith(
+      expect.objectContaining({ id: ROUTE_LINE_LAYER_ID }),
+    )
+  })
+
+  it('does not add route layer a second time when routes prop updates again', async () => {
+    const wrapper = mount(MapView, { props: { ...defaultProps, routes: [stubRoute], stations: [stubStation] } })
+    await triggerMapLoad()
+    const addSourceCallCount = mockAddSource.mock.calls.filter(
+      (c: unknown[]) => c[0] === ROUTE_SOURCE_ID,
+    ).length
+    expect(addSourceCallCount).toBe(1)
+
+    await wrapper.setProps({ routes: [...stubRoute ? [stubRoute] : [], stubRoute] })
+    const addSourceCallCountAfter = mockAddSource.mock.calls.filter(
+      (c: unknown[]) => c[0] === ROUTE_SOURCE_ID,
+    ).length
+    expect(addSourceCallCountAfter).toBe(1)
+  })
+
+  it('still renders isochrone layer when routes prop is empty', async () => {
+    mount(MapView, { props: { ...defaultProps, isochroneData: staticIsochroneResponse } })
     await triggerMapLoad()
     expect(mockAddSource).toHaveBeenCalledWith(ISOCHRONE_SOURCE_ID, expect.anything())
     expect(mockAddLayer).toHaveBeenCalledWith(
@@ -213,14 +242,14 @@ describe('MapView', () => {
   })
 
   it('removes the map on unmount', () => {
-    const wrapper = mount(MapView, { props: { isochroneData: null, loading: false } })
+    const wrapper = mount(MapView, { props: defaultProps })
     wrapper.unmount()
     expect(mockRemove).toHaveBeenCalledOnce()
   })
 
   it('initializes map centered on all isochrone segments', async () => {
     const { Map } = await import('maplibre-gl')
-    mount(MapView, { props: { isochroneData: null, loading: false } })
+    mount(MapView, { props: defaultProps })
     const options = (Map as ReturnType<typeof vi.fn>).mock.calls[0][0]
     expect(options.center[0]).toBeCloseTo(ISOCHRONE_CENTER[0], 5)
     expect(options.center[1]).toBeCloseTo(ISOCHRONE_CENTER[1], 5)
@@ -228,13 +257,13 @@ describe('MapView', () => {
 
   it('initializes map with a keyless OpenFreeMap style by default', async () => {
     const { Map } = await import('maplibre-gl')
-    mount(MapView, { props: { isochroneData: null, loading: false } })
+    mount(MapView, { props: defaultProps })
     const options = (Map as ReturnType<typeof vi.fn>).mock.calls[0][0]
     expect(options.style).toBe('https://tiles.openfreemap.org/styles/liberty')
   })
 
   it('fits bounds to all isochrone segments after load', async () => {
-    mount(MapView, { props: { isochroneData: null, loading: false } })
+    mount(MapView, { props: defaultProps })
     await triggerMapLoad()
     expect(mockResize).toHaveBeenCalled()
     expect(mockFitBounds).toHaveBeenCalledWith(
@@ -261,26 +290,26 @@ describe('MapView', () => {
   })
 
   it('renders a color key for origin and egress isochrones', () => {
-    const wrapper = mount(MapView, { props: { isochroneData: null, loading: false } })
+    const wrapper = mount(MapView, { props: defaultProps })
     const legend = wrapper.get('[aria-label="Isochrone color key"]')
     expect(legend.text()).toContain('Origin reach')
     expect(legend.text()).toContain('From station')
   })
 
   it('places an origin marker when the origin prop is provided', () => {
-    mount(MapView, { props: { isochroneData: null, loading: false, origin: { lat: 37.33, lng: -121.89 } } })
+    mount(MapView, { props: { ...defaultProps, origin: { lat: 37.33, lng: -121.89 } } })
     expect(mockSetLngLat).toHaveBeenCalledWith([-121.89, 37.33])
     expect(mockMarkerAddTo).toHaveBeenCalled()
   })
 
   it('does not place a marker when origin prop is absent', () => {
-    mount(MapView, { props: { isochroneData: null, loading: false } })
+    mount(MapView, { props: defaultProps })
     expect(mockSetLngLat).not.toHaveBeenCalled()
     expect(mockMarkerAddTo).not.toHaveBeenCalled()
   })
 
   it('updates the marker when the origin prop changes', async () => {
-    const wrapper = mount(MapView, { props: { isochroneData: null, loading: false, origin: { lat: 37.33, lng: -121.89 } } })
+    const wrapper = mount(MapView, { props: { ...defaultProps, origin: { lat: 37.33, lng: -121.89 } } })
     vi.clearAllMocks()
     mockSetLngLat.mockReturnValue({ addTo: mockMarkerAddTo })
 
@@ -291,10 +320,15 @@ describe('MapView', () => {
   })
 
   it('removes the marker when origin prop changes to null', async () => {
-    const wrapper = mount(MapView, { props: { isochroneData: null, loading: false, origin: { lat: 37.33, lng: -121.89 } } })
+    const wrapper = mount(MapView, { props: { ...defaultProps, origin: { lat: 37.33, lng: -121.89 } } })
 
     await wrapper.setProps({ origin: null })
 
     expect(mockMarkerRemove).toHaveBeenCalled()
+  })
+
+  it('accepts a services prop', () => {
+    const wrapper = mount(MapView, { props: { ...defaultProps, services: [stubService] } })
+    expect(wrapper.props('services')).toEqual([stubService])
   })
 })

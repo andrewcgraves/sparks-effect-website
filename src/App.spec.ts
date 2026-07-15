@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import App from './App.vue'
+import { ref } from 'vue'
 
 vi.mock('./analytics/index', () => ({
   trackPageView: vi.fn(),
@@ -8,6 +9,14 @@ vi.mock('./analytics/index', () => ({
 
 vi.mock('./api/isochrone', () => ({
   fetchIsochrone: vi.fn(),
+}))
+
+vi.mock('./composables/useScenario', () => ({
+  useScenario: () => ({
+    routes: ref([]),
+    stations: ref([]),
+    services: ref([]),
+  }),
 }))
 
 import { trackPageView } from './analytics/index'

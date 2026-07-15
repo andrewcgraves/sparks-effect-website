@@ -4,12 +4,16 @@ import { trackPageView } from './analytics/index'
 import IsochroneForm from './IsochroneForm.vue'
 import MapView from './components/MapView.vue'
 import { fetchIsochrone } from './api/isochrone'
+import { useScenario } from './composables/useScenario'
 import type { ChainResponse } from './fixtures/isochrone'
+import { DEFAULT_SCENARIO_SLUG } from './constants'
 
 const origin = ref<{ lat: number; lng: number } | null>(null)
 const isochroneData = ref<ChainResponse | null>(null)
 const isLoading = ref(false)
 const fetchError = ref<string | null>(null)
+
+const { routes, stations, services } = useScenario(DEFAULT_SCENARIO_SLUG)
 
 onMounted(() => {
   trackPageView('/')
@@ -29,7 +33,7 @@ async function handleFormSubmit(payload: { lat: number; lng: number; duration: n
       lng: payload.lng,
       budget_mins: payload.duration,
       mode: payload.mode,
-      scenario_slug: 'ca-hsr',
+      scenario_slug: DEFAULT_SCENARIO_SLUG,
     })
   } catch {
     fetchError.value = 'Failed to generate isochrone. Please try again.'
@@ -59,6 +63,9 @@ async function handleFormSubmit(payload: { lat: number; lng: number; duration: n
         :origin="origin"
         :isochrone-data="isochroneData"
         :loading="isLoading"
+        :routes="routes"
+        :stations="stations"
+        :services="services"
       />
     </div>
   </main>
