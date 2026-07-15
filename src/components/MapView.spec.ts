@@ -373,7 +373,7 @@ describe('MapView', () => {
     expect(mockFlyTo).toHaveBeenCalledWith(
       expect.objectContaining({
         center: [-118.25, 34.05],
-        zoom: 12 - Math.log2(3),
+        zoom: 9,
       }),
     )
   })
@@ -385,7 +385,7 @@ describe('MapView', () => {
     expect(mockFlyTo).toHaveBeenCalledWith(
       expect.objectContaining({
         center: [-118.25, 34.05],
-        zoom: 12 - Math.log2(3),
+        zoom: 9,
       }),
     )
   })
@@ -414,7 +414,7 @@ describe('MapView', () => {
     expect(mockFlyTo).toHaveBeenCalledWith(
       expect.objectContaining({
         center: [-122.5, 38.0],
-        zoom: 12 - Math.log2(3),
+        zoom: 9,
       }),
     )
   })

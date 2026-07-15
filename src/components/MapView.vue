@@ -20,7 +20,7 @@ const props = defineProps<{
   services: Service[]
 }>()
 
-const ORIGIN_SNAP_ZOOM = 12 - Math.log2(3)
+const ORIGIN_SNAP_ZOOM = 9
 
 const mapContainer = ref<HTMLElement | null>(null)
 let map: Map | null = null
