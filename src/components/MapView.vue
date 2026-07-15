@@ -6,7 +6,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { ISOCHRONE_SOURCE_ID, ISOCHRONE_LEGEND, useIsochroneLayer } from '../composables/useIsochroneLayer'
 import { useRouteLayer } from '../composables/useRouteLayer'
 import { useOriginMarker } from '../composables/useOriginMarker'
-import { ISOCHRONE_BOUNDS_CORNERS, ISOCHRONE_CENTER, isochroneBoundsCorners } from '../fixtures/isochrone'
+import { ISOCHRONE_BOUNDS_CORNERS, ISOCHRONE_CENTER, expandBoundsCorners, isochroneBoundsCorners } from '../fixtures/isochrone'
 import type { ChainResponse } from '../fixtures/isochrone'
 import { resolveMapStyleUrl } from '../mapStyle'
 import type { Route, Station, Service } from '../api/scenarios'
@@ -21,6 +21,7 @@ const props = defineProps<{
 }>()
 
 const ORIGIN_SNAP_ZOOM = 12
+const ISOCHRONE_FIT_ZOOM_OUT = 3
 
 const mapContainer = ref<HTMLElement | null>(null)
 let map: Map | null = null
@@ -53,10 +54,13 @@ function snapMapToOrigin(coords: { lat: number; lng: number }): void {
 
 function fitMapToIsochrone(data: ChainResponse): void {
   if (!map || data.features.length === 0) return
-  map.fitBounds(isochroneBoundsCorners(data.features), {
-    padding: MAP_FIT_PADDING,
-    duration: 800,
-  })
+  map.fitBounds(
+    expandBoundsCorners(isochroneBoundsCorners(data.features), ISOCHRONE_FIT_ZOOM_OUT),
+    {
+      padding: MAP_FIT_PADDING,
+      duration: 800,
+    },
+  )
   hasFittedToSegments = true
 }
 

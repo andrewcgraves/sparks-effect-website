@@ -13,6 +13,7 @@ import {
   ISOCHRONE_BOUNDS,
   ISOCHRONE_BOUNDS_CORNERS,
   ISOCHRONE_CENTER,
+  expandBoundsCorners,
 } from '../fixtures/isochrone'
 import type { Route, Station, Service } from '../api/scenarios'
 
@@ -155,7 +156,7 @@ describe('MapView', () => {
     await wrapper.setProps({ isochroneData: staticIsochroneResponse })
 
     expect(mockFitBounds).toHaveBeenCalledWith(
-      ISOCHRONE_BOUNDS_CORNERS,
+      expandBoundsCorners(ISOCHRONE_BOUNDS_CORNERS, 3),
       expect.objectContaining({
         padding: expect.objectContaining({ top: 56, bottom: 112, left: 56, right: 56 }),
       }),
@@ -173,7 +174,7 @@ describe('MapView', () => {
     await wrapper.setProps({ isochroneData: staticIsochroneResponse })
 
     expect(mockFitBounds).toHaveBeenCalledWith(
-      ISOCHRONE_BOUNDS_CORNERS,
+      expandBoundsCorners(ISOCHRONE_BOUNDS_CORNERS, 3),
       expect.objectContaining({
         padding: expect.objectContaining({ top: 56, bottom: 112, left: 56, right: 56 }),
       }),

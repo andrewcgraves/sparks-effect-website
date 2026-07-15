@@ -71,6 +71,21 @@ export function isochroneBoundsCorners(
   ]
 }
 
+export function expandBoundsCorners(
+  corners: [[number, number], [number, number]],
+  factor: number,
+): [[number, number], [number, number]] {
+  const [[minLng, minLat], [maxLng, maxLat]] = corners
+  const lngCenter = (minLng + maxLng) / 2
+  const latCenter = (minLat + maxLat) / 2
+  const halfLng = ((maxLng - minLng) / 2) * factor
+  const halfLat = ((maxLat - minLat) / 2) * factor
+  return [
+    [lngCenter - halfLng, latCenter - halfLat],
+    [lngCenter + halfLng, latCenter + halfLat],
+  ]
+}
+
 export const ISOCHRONE_BOUNDS = boundsFromFeatures(staticIsochroneResponse.features)
 
 export const ISOCHRONE_CENTER: [number, number] = [
