@@ -24,7 +24,7 @@ const station: Station = {
   slug: 'sf',
   name: 'San Francisco',
   location: { type: 'Point', coordinates: [-122.4194, 37.7749] },
-  platform_height: 0,
+  platform_height: '0',
 }
 
 function makeMockMap(): Pick<Map, 'addSource' | 'addLayer'> {

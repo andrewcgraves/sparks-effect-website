@@ -9,12 +9,15 @@ import { useOriginMarker } from '../composables/useOriginMarker'
 import { ISOCHRONE_BOUNDS_CORNERS, ISOCHRONE_CENTER } from '../fixtures/isochrone'
 import type { ChainResponse } from '../fixtures/isochrone'
 import { resolveMapStyleUrl } from '../mapStyle'
-import { fetchScenarioRoutes, fetchScenarioStations } from '../api/scenarios'
+import type { Route, Station, Service } from '../api/scenarios'
 
 const props = defineProps<{
   isochroneData: ChainResponse | null
   loading: boolean
   origin?: { lat: number; lng: number } | null
+  routes: Route[]
+  stations: Station[]
+  services: Service[]
 }>()
 
 const mapContainer = ref<HTMLElement | null>(null)
@@ -22,6 +25,7 @@ let map: Map | null = null
 let resizeObserver: ResizeObserver | null = null
 let hasFittedToSegments = false
 let isMapLoaded = false
+let routeLayerAdded = false
 
 function fitMapToAllSegments(): void {
   if (!map) return
@@ -44,12 +48,24 @@ function applyIsochroneData(data: ChainResponse): void {
   }
 }
 
+function maybeAddRouteLayer(): void {
+  if (!map || !isMapLoaded || routeLayerAdded) return
+  if (props.routes.length === 0) return
+  useRouteLayer(map, props.routes, props.stations)
+  routeLayerAdded = true
+}
+
 watch(
   () => props.isochroneData,
   (data) => {
     if (!data || !isMapLoaded) return
     applyIsochroneData(data)
   },
+)
+
+watch(
+  () => props.routes,
+  maybeAddRouteLayer,
 )
 
 onMounted(() => {
@@ -64,17 +80,11 @@ onMounted(() => {
 
   useOriginMarker(map, toRef(props, 'origin'))
 
-  map.on('load', async () => {
+  map.on('load', () => {
     if (!map) return
     isMapLoaded = true
 
-    await Promise.allSettled([
-      Promise.all([fetchScenarioRoutes('ca-hsr'), fetchScenarioStations('ca-hsr')]).then(
-        ([routes, stations]) => {
-          if (map) useRouteLayer(map, routes, stations)
-        },
-      ),
-    ])
+    maybeAddRouteLayer()
 
     if (props.isochroneData) {
       applyIsochroneData(props.isochroneData)
