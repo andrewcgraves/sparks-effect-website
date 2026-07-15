@@ -13,7 +13,6 @@ import {
   ISOCHRONE_BOUNDS,
   ISOCHRONE_BOUNDS_CORNERS,
   ISOCHRONE_CENTER,
-  expandBoundsCorners,
 } from '../fixtures/isochrone'
 import type { Route, Station, Service } from '../api/scenarios'
 
@@ -156,7 +155,7 @@ describe('MapView', () => {
     await wrapper.setProps({ isochroneData: staticIsochroneResponse })
 
     expect(mockFitBounds).toHaveBeenCalledWith(
-      expandBoundsCorners(ISOCHRONE_BOUNDS_CORNERS, 3),
+      ISOCHRONE_BOUNDS_CORNERS,
       expect.objectContaining({
         padding: expect.objectContaining({ top: 56, bottom: 112, left: 56, right: 56 }),
       }),
@@ -174,7 +173,7 @@ describe('MapView', () => {
     await wrapper.setProps({ isochroneData: staticIsochroneResponse })
 
     expect(mockFitBounds).toHaveBeenCalledWith(
-      expandBoundsCorners(ISOCHRONE_BOUNDS_CORNERS, 3),
+      ISOCHRONE_BOUNDS_CORNERS,
       expect.objectContaining({
         padding: expect.objectContaining({ top: 56, bottom: 112, left: 56, right: 56 }),
       }),
@@ -374,7 +373,7 @@ describe('MapView', () => {
     expect(mockFlyTo).toHaveBeenCalledWith(
       expect.objectContaining({
         center: [-118.25, 34.05],
-        zoom: 12,
+        zoom: 12 - Math.log2(3),
       }),
     )
   })
@@ -386,7 +385,7 @@ describe('MapView', () => {
     expect(mockFlyTo).toHaveBeenCalledWith(
       expect.objectContaining({
         center: [-118.25, 34.05],
-        zoom: 12,
+        zoom: 12 - Math.log2(3),
       }),
     )
   })
@@ -415,7 +414,7 @@ describe('MapView', () => {
     expect(mockFlyTo).toHaveBeenCalledWith(
       expect.objectContaining({
         center: [-122.5, 38.0],
-        zoom: 12,
+        zoom: 12 - Math.log2(3),
       }),
     )
   })
