@@ -64,6 +64,19 @@ function onSelect(suggestion: GeocodingSuggestion) {
   hasSearched.value = false
   emit('select', suggestion)
 }
+
+function setInputValue(value: string) {
+  if (debounceTimer) {
+    clearTimeout(debounceTimer)
+    debounceTimer = null
+  }
+  inputValue.value = value
+  suggestions.value = []
+  hasSearched.value = false
+  isLoading.value = false
+}
+
+defineExpose({ setInputValue })
 </script>
 
 <template>

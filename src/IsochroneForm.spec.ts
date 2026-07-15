@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { flushPromises } from '@vue/test-utils'
 import { mount } from '@vue/test-utils'
 import IsochroneForm from './IsochroneForm.vue'
 import type { GeocodingSuggestion } from './api/geocoding'
@@ -7,11 +8,27 @@ vi.mock('./analytics/index', () => ({
   trackModeToggle: vi.fn(),
 }))
 
+vi.mock('./api/geolocation', () => ({
+  getCurrentPosition: vi.fn(),
+}))
+
+vi.mock('./api/geocoding', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./api/geocoding')>()
+  return {
+    ...actual,
+    reverseGeocode: vi.fn(),
+  }
+})
+
 import { trackModeToggle } from './analytics/index'
+import { getCurrentPosition } from './api/geolocation'
+import { reverseGeocode } from './api/geocoding'
 
 describe('IsochroneForm', () => {
   beforeEach(() => {
     vi.mocked(trackModeToggle).mockClear()
+    vi.mocked(getCurrentPosition).mockReset()
+    vi.mocked(reverseGeocode).mockReset()
   })
 
   it('renders a latitude input', () => {
@@ -176,5 +193,89 @@ describe('IsochroneForm', () => {
     expect(payload.lng).toBe(-122.6784)
     expect(payload.duration).toBe(30)
     expect(payload.mode).toBe('walk')
+  })
+
+  it('renders a use-current-location button', () => {
+    const wrapper = mount(IsochroneForm)
+    const button = wrapper.find('[data-testid="use-current-location"]')
+    expect(button.exists()).toBe(true)
+    expect(button.attributes('type')).toBe('button')
+  })
+
+  it('fills lat, lng, address, and emits origin-change when use-current-location succeeds', async () => {
+    vi.mocked(getCurrentPosition).mockResolvedValue({ lat: 45.5231, lng: -122.6784 })
+    const suggestion: GeocodingSuggestion = {
+      label: 'Portland, Multnomah County, Oregon, United States',
+      lat: 45.5231,
+      lng: -122.6784,
+    }
+    vi.mocked(reverseGeocode).mockResolvedValue(suggestion)
+
+    const wrapper = mount(IsochroneForm)
+    await wrapper.find('[data-testid="use-current-location"]').trigger('click')
+    await flushPromises()
+
+    expect((wrapper.find('input[data-testid="lat"]').element as HTMLInputElement).value).toBe('45.5231')
+    expect((wrapper.find('input[data-testid="lng"]').element as HTMLInputElement).value).toBe('-122.6784')
+    expect(wrapper.find('[data-testid="selected-label"]').text()).toBe(suggestion.label)
+    expect(wrapper.find('.address-autocomplete input').element as HTMLInputElement).toHaveProperty('value', suggestion.label)
+
+    const emissions = wrapper.emitted<[{ lat: number; lng: number } | null]>('origin-change')!
+    const lastEmit = emissions[emissions.length - 1][0]
+    expect(lastEmit).toEqual({ lat: 45.5231, lng: -122.6784 })
+  })
+
+  it('fills lat and lng but leaves address empty when reverse geocode fails', async () => {
+    vi.mocked(getCurrentPosition).mockResolvedValue({ lat: 45.5231, lng: -122.6784 })
+    vi.mocked(reverseGeocode).mockResolvedValue(null)
+
+    const wrapper = mount(IsochroneForm)
+    await wrapper.find('[data-testid="use-current-location"]').trigger('click')
+    await flushPromises()
+
+    expect((wrapper.find('input[data-testid="lat"]').element as HTMLInputElement).value).toBe('45.5231')
+    expect((wrapper.find('input[data-testid="lng"]').element as HTMLInputElement).value).toBe('-122.6784')
+    expect(wrapper.find('[data-testid="selected-label"]').exists()).toBe(false)
+    expect((wrapper.find('.address-autocomplete input').element as HTMLInputElement).value).toBe('')
+  })
+
+  it('shows an error and does not fill fields when geolocation fails', async () => {
+    vi.mocked(getCurrentPosition).mockRejectedValue(new Error('permission denied'))
+
+    const wrapper = mount(IsochroneForm)
+    await wrapper.find('[data-testid="use-current-location"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="location-error"]').exists()).toBe(true)
+    expect((wrapper.find('input[data-testid="lat"]').element as HTMLInputElement).value).toBe('')
+    expect((wrapper.find('input[data-testid="lng"]').element as HTMLInputElement).value).toBe('')
+    expect(wrapper.emitted('origin-change')).toBeUndefined()
+  })
+
+  it('ignores overlapping use-current-location clicks while locating', async () => {
+    let resolvePosition!: (value: { lat: number; lng: number }) => void
+    vi.mocked(getCurrentPosition).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolvePosition = resolve
+        }),
+    )
+    vi.mocked(reverseGeocode).mockResolvedValue({
+      label: 'Portland, OR, USA',
+      lat: 45.5231,
+      lng: -122.6784,
+    })
+
+    const wrapper = mount(IsochroneForm)
+    const button = wrapper.find('[data-testid="use-current-location"]')
+    await button.trigger('click')
+    await button.trigger('click')
+
+    expect(getCurrentPosition).toHaveBeenCalledOnce()
+    expect((button.element as HTMLButtonElement).disabled).toBe(true)
+
+    resolvePosition({ lat: 45.5231, lng: -122.6784 })
+    await flushPromises()
+    expect((button.element as HTMLButtonElement).disabled).toBe(false)
   })
 })

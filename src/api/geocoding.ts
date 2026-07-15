@@ -30,3 +30,27 @@ export async function fetchSuggestions(query: string): Promise<GeocodingSuggesti
     return []
   }
 }
+
+export async function reverseGeocode(lat: number, lng: number): Promise<GeocodingSuggestion | null> {
+  const userAgent = import.meta.env.VITE_GEOCODING_USER_AGENT ?? 'sparks-effect-app/1.0'
+  const url = new URL(`${NOMINATIM_BASE}/reverse`)
+  url.searchParams.set('lat', String(lat))
+  url.searchParams.set('lon', String(lng))
+  url.searchParams.set('format', 'jsonv2')
+
+  try {
+    const response = await fetch(url.toString(), {
+      headers: { 'User-Agent': userAgent },
+    })
+    if (!response.ok) return null
+
+    const data: { display_name: string; lat: string; lon: string } = await response.json()
+    return {
+      label: data.display_name,
+      lat: parseFloat(data.lat),
+      lng: parseFloat(data.lon),
+    }
+  } catch {
+    return null
+  }
+}
