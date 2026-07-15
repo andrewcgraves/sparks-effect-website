@@ -36,4 +36,12 @@ describe('ServiceView scenario load error', () => {
     expect(error.exists()).toBe(true)
     expect(error.text()).toContain('missing-service')
   })
+
+  it('shows an unavailable message for technology assumptions when the scenario failed', () => {
+    const wrapper = mount(ServiceView, {
+      props: { slug: 'missing-service' },
+      global: { stubs: { MapView: true, IsochroneForm: true, SpeedGraph: true } },
+    })
+    expect(wrapper.find('[data-testid="technology-assumptions"]').text()).toContain('unavailable')
+  })
 })

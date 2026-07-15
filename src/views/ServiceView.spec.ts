@@ -67,6 +67,11 @@ describe('ServiceView', () => {
     expect(trackPageView).toHaveBeenCalledWith('/service/ca-hsr')
   })
 
+  it('sets the document title from the scenario name', () => {
+    mountView()
+    expect(document.title).toBe('CA HSR — Sparks Effect')
+  })
+
   it('passes null isochroneData and loading=false to MapView before any submission', () => {
     const wrapper = mountView()
     const mapView = wrapper.findComponent({ name: 'MapView' })

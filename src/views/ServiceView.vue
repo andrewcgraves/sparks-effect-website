@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import IsochroneForm from '../IsochroneForm.vue'
 import MapView from '../components/MapView.vue'
@@ -23,6 +23,14 @@ const { name, description, routes, stations, services, error: scenarioError } = 
 const heading = computed(() => name.value || 'Transit service')
 const leadDescription = computed(
   () => description.value || 'Explore how far you can travel across this transit service.',
+)
+
+watch(
+  heading,
+  (value) => {
+    document.title = `${value} — Sparks Effect`
+  },
+  { immediate: true },
 )
 
 onMounted(() => {
@@ -130,7 +138,7 @@ async function handleFormSubmit(payload: { lat: number; lng: number; duration: n
         v-else
         data-testid="technology-assumptions"
       >
-        Rolling-stock assumptions will be listed here once service data loads.
+        {{ scenarioError ? 'Technology assumptions are unavailable for this service.' : 'Rolling-stock assumptions will be listed here once service data loads.' }}
       </p>
       <p class="t-caption">
         Route-level assumptions such as speed limits are TBD.
