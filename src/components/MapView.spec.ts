@@ -22,6 +22,7 @@ const {
   mockAddSource,
   mockAddLayer,
   mockFitBounds,
+  mockFlyTo,
   mockOn,
   mockRemove,
   mockResize,
@@ -33,6 +34,7 @@ const {
   mockAddSource: vi.fn(),
   mockAddLayer: vi.fn(),
   mockFitBounds: vi.fn(),
+  mockFlyTo: vi.fn(),
   mockOn: vi.fn(),
   mockRemove: vi.fn(),
   mockResize: vi.fn(),
@@ -55,6 +57,7 @@ vi.mock('maplibre-gl', () => ({
     this['addSource'] = mockAddSource
     this['addLayer'] = mockAddLayer
     this['fitBounds'] = mockFitBounds
+    this['flyTo'] = mockFlyTo
     this['on'] = mockOn
     this['remove'] = mockRemove
     this['resize'] = mockResize
@@ -325,6 +328,67 @@ describe('MapView', () => {
     await wrapper.setProps({ origin: null })
 
     expect(mockMarkerRemove).toHaveBeenCalled()
+  })
+
+  it('flies the map to the origin when origin is set after map load', async () => {
+    const wrapper = mount(MapView, { props: defaultProps })
+    await triggerMapLoad()
+    mockFlyTo.mockClear()
+
+    await wrapper.setProps({ origin: { lat: 34.05, lng: -118.25 } })
+
+    expect(mockFlyTo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        center: [-118.25, 34.05],
+        zoom: 12,
+      }),
+    )
+  })
+
+  it('flies the map to the origin on load when origin is already set', async () => {
+    mount(MapView, { props: { ...defaultProps, origin: { lat: 34.05, lng: -118.25 } } })
+    await triggerMapLoad()
+
+    expect(mockFlyTo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        center: [-118.25, 34.05],
+        zoom: 12,
+      }),
+    )
+  })
+
+  it('does not fly when origin is cleared to null', async () => {
+    const wrapper = mount(MapView, {
+      props: { ...defaultProps, origin: { lat: 37.33, lng: -121.89 } },
+    })
+    await triggerMapLoad()
+    mockFlyTo.mockClear()
+
+    await wrapper.setProps({ origin: null })
+
+    expect(mockFlyTo).not.toHaveBeenCalled()
+  })
+
+  it('flies again when origin coordinates change', async () => {
+    const wrapper = mount(MapView, {
+      props: { ...defaultProps, origin: { lat: 37.33, lng: -121.89 } },
+    })
+    await triggerMapLoad()
+    mockFlyTo.mockClear()
+
+    await wrapper.setProps({ origin: { lat: 38.0, lng: -122.5 } })
+
+    expect(mockFlyTo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        center: [-122.5, 38.0],
+        zoom: 12,
+      }),
+    )
+  })
+
+  it('does not fly to origin before the map load event', () => {
+    mount(MapView, { props: { ...defaultProps, origin: { lat: 34.05, lng: -118.25 } } })
+    expect(mockFlyTo).not.toHaveBeenCalled()
   })
 
   it('accepts a services prop', () => {

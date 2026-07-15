@@ -20,6 +20,8 @@ const props = defineProps<{
   services: Service[]
 }>()
 
+const ORIGIN_SNAP_ZOOM = 12
+
 const mapContainer = ref<HTMLElement | null>(null)
 let map: Map | null = null
 let resizeObserver: ResizeObserver | null = null
@@ -34,6 +36,15 @@ function fitMapToAllSegments(): void {
     padding: { top: 56, bottom: 112, left: 56, right: 56 },
     duration: 0,
     maxZoom: 11,
+  })
+  hasFittedToSegments = true
+}
+
+function snapMapToOrigin(coords: { lat: number; lng: number }): void {
+  if (!map) return
+  map.flyTo({
+    center: [coords.lng, coords.lat],
+    zoom: ORIGIN_SNAP_ZOOM,
   })
   hasFittedToSegments = true
 }
@@ -64,6 +75,14 @@ watch(
 )
 
 watch(
+  () => props.origin,
+  (coords) => {
+    if (!coords || !isMapLoaded) return
+    snapMapToOrigin(coords)
+  },
+)
+
+watch(
   () => props.routes,
   maybeAddRouteLayer,
 )
@@ -90,7 +109,11 @@ onMounted(() => {
       applyIsochroneData(props.isochroneData)
     }
 
-    fitMapToAllSegments()
+    if (props.origin) {
+      snapMapToOrigin(props.origin)
+    } else {
+      fitMapToAllSegments()
+    }
   })
 
   resizeObserver = new ResizeObserver(() => {
