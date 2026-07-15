@@ -12,7 +12,12 @@ import { RouterLink, RouterView } from 'vue-router'
         Sparks Effect
       </RouterLink>
     </header>
-    <RouterView />
+    <RouterView v-slot="{ Component, route }">
+      <component
+        :is="Component"
+        :key="route.path"
+      />
+    </RouterView>
   </div>
 </template>
 
