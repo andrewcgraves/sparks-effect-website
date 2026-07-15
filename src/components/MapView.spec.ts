@@ -147,6 +147,39 @@ describe('MapView', () => {
     expect(mockSetData).toHaveBeenCalledWith(staticIsochroneResponse)
   })
 
+  it('fits the map to the isochrone frame when isochroneData arrives after load', async () => {
+    const wrapper = mount(MapView, { props: defaultProps })
+    await triggerMapLoad()
+    mockFitBounds.mockClear()
+
+    await wrapper.setProps({ isochroneData: staticIsochroneResponse })
+
+    expect(mockFitBounds).toHaveBeenCalledWith(
+      ISOCHRONE_BOUNDS_CORNERS,
+      expect.objectContaining({
+        padding: expect.objectContaining({ top: 56, bottom: 112, left: 56, right: 56 }),
+      }),
+    )
+  })
+
+  it('fits the map to the isochrone frame after an origin snap when isochrone is generated', async () => {
+    const wrapper = mount(MapView, {
+      props: { ...defaultProps, origin: { lat: 34.05, lng: -118.25 } },
+    })
+    await triggerMapLoad()
+    mockFitBounds.mockClear()
+    mockFlyTo.mockClear()
+
+    await wrapper.setProps({ isochroneData: staticIsochroneResponse })
+
+    expect(mockFitBounds).toHaveBeenCalledWith(
+      ISOCHRONE_BOUNDS_CORNERS,
+      expect.objectContaining({
+        padding: expect.objectContaining({ top: 56, bottom: 112, left: 56, right: 56 }),
+      }),
+    )
+  })
+
   it('adds isochrone source via useIsochroneLayer when prop updates and source does not yet exist', async () => {
     mockGetSource.mockReturnValue(null)
     const wrapper = mount(MapView, { props: defaultProps })
