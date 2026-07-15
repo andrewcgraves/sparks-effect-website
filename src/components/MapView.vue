@@ -209,8 +209,10 @@ onUnmounted(() => {
   justify-content: center;
   gap: 10px;
   background: rgb(255 255 255 / 65%);
-  font: 15px/1.4 system-ui, 'Segoe UI', Roboto, sans-serif;
-  color: #1a1a1a;
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.4;
+  color: var(--color-ink);
   pointer-events: none;
 }
 
@@ -218,8 +220,8 @@ onUnmounted(() => {
   display: inline-block;
   width: 20px;
   height: 20px;
-  border: 3px solid #ccc;
-  border-top-color: #1a1a1a;
+  border: 3px solid var(--color-placeholder);
+  border-top-color: var(--color-coral);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
 }
@@ -237,16 +239,21 @@ onUnmounted(() => {
   z-index: 1;
   margin: 0;
   padding: 10px 12px;
-  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
   background: rgb(255 255 255 / 92%);
-  color: #1a1a1a;
+  color: var(--color-ink);
   box-shadow: 0 1px 4px rgb(0 0 0 / 20%);
-  font: 13px/1.35 system-ui, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 1.35;
 }
 
 .map-legend__title {
   margin: 0 0 6px;
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--color-ink-true);
 }
 
 .map-legend__list {

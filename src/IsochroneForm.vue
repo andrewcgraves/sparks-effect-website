@@ -180,3 +180,145 @@ function handleSubmit() {
     </button>
   </form>
 </template>
+
+<style scoped>
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.25rem var(--page-gutter) 1.75rem;
+  font-family: var(--font-body);
+}
+
+form > label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  max-width: 360px;
+}
+
+form > label input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: 0.9375rem;
+  font-weight: 400;
+  transition: border-color 0.18s var(--ease-smooth), box-shadow 0.18s var(--ease-smooth);
+}
+
+form > label input::placeholder {
+  color: var(--color-placeholder);
+}
+
+form > label input:focus {
+  outline: none;
+  border-color: var(--color-coral);
+  box-shadow: 0 0 0 3px rgb(225 102 91 / 18%);
+}
+
+button[data-testid="use-current-location"] {
+  align-self: flex-start;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s var(--ease-smooth), border-color 0.18s var(--ease-smooth);
+}
+
+button[data-testid="use-current-location"]:hover:not(:disabled) {
+  border-color: var(--color-apricot);
+  background: #ffffff;
+}
+
+button[data-testid="use-current-location"]:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+[data-testid="location-error"] {
+  margin: 0;
+  color: var(--color-coral);
+  font-size: 0.8125rem;
+}
+
+[data-testid="selected-label"] {
+  margin: 0;
+  color: var(--color-ink-muted);
+  font-size: 0.8125rem;
+}
+
+fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  max-width: 360px;
+}
+
+legend {
+  padding: 0 0.4rem;
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-ink-muted);
+}
+
+fieldset label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: var(--font-body);
+  font-size: 0.9375rem;
+  color: var(--color-ink);
+  cursor: pointer;
+}
+
+fieldset input[type="radio"] {
+  accent-color: var(--color-coral);
+  cursor: pointer;
+}
+
+button[type="submit"] {
+  align-self: flex-start;
+  margin-top: 0.25rem;
+  padding: 0.7rem 1.4rem;
+  border: none;
+  border-radius: 999px;
+  background: var(--color-coral);
+  color: #ffffff;
+  font-family: var(--font-display);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: background 0.18s var(--ease-smooth), transform 0.18s var(--ease-smooth);
+}
+
+button[type="submit"]:hover {
+  background: var(--color-apricot);
+}
+
+button[type="submit"]:active {
+  transform: translateY(1px);
+}
+</style>

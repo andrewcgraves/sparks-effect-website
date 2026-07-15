@@ -77,19 +77,24 @@ async function handleFormSubmit(payload: { lat: number; lng: number; duration: n
   flex-direction: column;
   min-height: 100svh;
   margin: 0;
+  background: #ffffff;
 }
 
 .app-shell h1 {
-  margin: 0.75rem 1rem;
+  margin: clamp(1rem, 4vw, 2rem) var(--page-gutter) 0.5rem;
 }
 
 .fetch-error {
-  margin: 0.5rem 1rem;
-  padding: 0.5rem 0.75rem;
-  border-radius: 4px;
-  background: #fef2f2;
-  color: #b91c1c;
+  margin: 0.5rem var(--page-gutter);
+  padding: 0.65rem 0.9rem;
+  border: 1px solid #f0c8c4;
+  border-left: 3px solid var(--color-coral);
+  border-radius: 8px;
+  background: #fdf1f0;
+  color: #a3352b;
+  font-family: var(--font-body);
   font-size: 0.875rem;
+  line-height: 1.5;
 }
 
 .map-shell {

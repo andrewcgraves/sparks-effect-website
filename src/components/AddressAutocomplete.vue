@@ -143,8 +143,13 @@ defineExpose({ setInputValue })
 .address-autocomplete__label {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-  font: 14px/1.4 system-ui, 'Segoe UI', Roboto, sans-serif;
+  gap: 0.3rem;
+  max-width: 360px;
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--color-ink);
 }
 
 .address-autocomplete__input-wrap {
@@ -154,22 +159,37 @@ defineExpose({ setInputValue })
 .address-autocomplete__input-wrap input {
   width: 100%;
   box-sizing: border-box;
-  padding: 0.45rem 0.6rem;
-  border: 1px solid #c8c8c8;
-  border-radius: 4px;
-  font: inherit;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: 0.9375rem;
+  font-weight: 400;
+  transition: border-color 0.18s var(--ease-smooth), box-shadow 0.18s var(--ease-smooth);
+}
+
+.address-autocomplete__input-wrap input::placeholder {
+  color: var(--color-placeholder);
+}
+
+.address-autocomplete__input-wrap input:focus {
+  outline: none;
+  border-color: var(--color-coral);
+  box-shadow: 0 0 0 3px rgb(225 102 91 / 18%);
 }
 
 .address-autocomplete__foldout {
   position: absolute;
-  top: calc(100% + 2px);
+  top: calc(100% + 4px);
   left: 0;
   right: 0;
   z-index: 10;
-  background: #fff;
-  border: 1px solid #b0b8c4;
-  border-radius: 4px;
-  box-shadow: 0 4px 12px rgb(0 0 0 / 15%);
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgb(18 18 18 / 12%);
   max-height: 240px;
   overflow-y: auto;
 }
@@ -177,8 +197,10 @@ defineExpose({ setInputValue })
 .address-autocomplete__foldout-status {
   margin: 0;
   padding: 0.55rem 0.7rem;
-  font: 13px/1.3 system-ui, 'Segoe UI', Roboto, sans-serif;
-  color: #666;
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 1.3;
+  color: var(--color-ink-muted);
 }
 
 .address-autocomplete__list {
@@ -190,8 +212,12 @@ defineExpose({ setInputValue })
 .address-autocomplete__list li {
   padding: 0.55rem 0.7rem;
   cursor: pointer;
-  font: 14px/1.35 system-ui, 'Segoe UI', Roboto, sans-serif;
-  border-bottom: 1px solid #f0f0f0;
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.35;
+  color: var(--color-ink);
+  border-bottom: 1px solid var(--color-border);
+  transition: background 0.15s var(--ease-smooth);
 }
 
 .address-autocomplete__list li:last-child {
@@ -200,6 +226,6 @@ defineExpose({ setInputValue })
 
 .address-autocomplete__list li:hover,
 .address-autocomplete__list li:focus {
-  background: #f0f4f8;
+  background: var(--color-surface);
 }
 </style>
