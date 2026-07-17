@@ -17,7 +17,9 @@ vi.mock('maplibre-gl', () => ({
   }),
 }))
 
+import { Marker } from 'maplibre-gl'
 import { useOriginMarker } from './useOriginMarker'
+import { THEME_TOKEN_FALLBACKS } from '../themeTokens'
 
 function makeMockMap(): Map {
   return {} as Map
@@ -27,6 +29,11 @@ describe('useOriginMarker', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockSetLngLat.mockReturnValue({ addTo: mockAddTo })
+  })
+
+  it('paints the marker with the brand coral rather than the MapLibre default', () => {
+    useOriginMarker(makeMockMap(), ref({ lat: 37.33, lng: -121.89 }))
+    expect(Marker).toHaveBeenCalledWith({ color: THEME_TOKEN_FALLBACKS['--color-coral'] })
   })
 
   it('places the marker immediately when origin is provided', () => {

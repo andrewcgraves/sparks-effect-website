@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { FullscreenControl } from 'maplibre-gl'
 import MapView from './MapView.vue'
 import { ISOCHRONE_SOURCE_ID, ISOCHRONE_LAYER_ID } from '../composables/useIsochroneLayer'
 import {
@@ -30,6 +31,7 @@ const {
   mockSetLngLat,
   mockMarkerAddTo,
   mockMarkerRemove,
+  mockAddControl,
 } = vi.hoisted(() => ({
   mockAddSource: vi.fn(),
   mockAddLayer: vi.fn(),
@@ -42,6 +44,7 @@ const {
   mockSetLngLat: vi.fn(),
   mockMarkerAddTo: vi.fn(),
   mockMarkerRemove: vi.fn(),
+  mockAddControl: vi.fn(),
 }))
 
 class ResizeObserverStub {
@@ -62,12 +65,14 @@ vi.mock('maplibre-gl', () => ({
     this['remove'] = mockRemove
     this['resize'] = mockResize
     this['getSource'] = mockGetSource
+    this['addControl'] = mockAddControl
   }),
   Marker: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
     this['setLngLat'] = mockSetLngLat
     this['addTo'] = mockMarkerAddTo
     this['remove'] = mockMarkerRemove
   }),
+  FullscreenControl: vi.fn(),
 }))
 
 const stubRoute: Route = {
@@ -295,7 +300,7 @@ describe('MapView', () => {
     const { Map } = await import('maplibre-gl')
     mount(MapView, { props: defaultProps })
     const options = (Map as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(options.style).toBe('https://tiles.openfreemap.org/styles/liberty')
+    expect(options.style).toBe('https://tiles.openfreemap.org/styles/positron')
   })
 
   it('fits bounds to all isochrone segments after load', async () => {
@@ -330,6 +335,12 @@ describe('MapView', () => {
     const legend = wrapper.get('[aria-label="Isochrone color key"]')
     expect(legend.text()).toContain('Origin reach')
     expect(legend.text()).toContain('From station')
+  })
+
+  it('adds a fullscreen control so the map can be expanded', () => {
+    mount(MapView, { props: defaultProps })
+    expect(FullscreenControl).toHaveBeenCalledOnce()
+    expect(mockAddControl).toHaveBeenCalledWith(expect.any(FullscreenControl))
   })
 
   it('places an origin marker when the origin prop is provided', () => {

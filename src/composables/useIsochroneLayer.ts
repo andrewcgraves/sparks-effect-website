@@ -1,18 +1,36 @@
 import type { Map } from 'maplibre-gl'
 import type { FeatureCollection } from 'geojson'
+import { readThemeToken } from '../themeTokens'
 
 export const ISOCHRONE_SOURCE_ID = 'isochrone-source'
 export const ISOCHRONE_LAYER_ID = 'isochrone-fill'
 
-export const ORIGIN_FILL_COLOR = '#4A90D9'
-export const EGRESS_FILL_COLOR = '#E8734A'
+export const ISOCHRONE_FILL_OPACITY = 0.35
 
-export const ISOCHRONE_LEGEND = [
-  { source: 'origin', label: 'Origin reach', color: ORIGIN_FILL_COLOR },
-  { source: 'egress', label: 'From station', color: EGRESS_FILL_COLOR },
-] as const
+export interface IsochroneColors {
+  origin: string
+  egress: string
+}
 
-export function useIsochroneLayer(map: Map, geojson: FeatureCollection): void {
+export function resolveIsochroneColors(): IsochroneColors {
+  return {
+    origin: readThemeToken('--color-data-origin'),
+    egress: readThemeToken('--color-data-egress'),
+  }
+}
+
+export function isochroneLegend(colors: IsochroneColors = resolveIsochroneColors()) {
+  return [
+    { source: 'origin', label: 'Origin reach', color: colors.origin },
+    { source: 'egress', label: 'From station', color: colors.egress },
+  ] as const
+}
+
+export function useIsochroneLayer(
+  map: Map,
+  geojson: FeatureCollection,
+  colors: IsochroneColors = resolveIsochroneColors(),
+): void {
   map.addSource(ISOCHRONE_SOURCE_ID, {
     type: 'geojson',
     data: geojson,
@@ -23,8 +41,8 @@ export function useIsochroneLayer(map: Map, geojson: FeatureCollection): void {
     type: 'fill',
     source: ISOCHRONE_SOURCE_ID,
     paint: {
-      'fill-color': ['match', ['get', 'source'], 'origin', ORIGIN_FILL_COLOR, EGRESS_FILL_COLOR],
-      'fill-opacity': 0.35,
+      'fill-color': ['match', ['get', 'source'], 'origin', colors.origin, colors.egress],
+      'fill-opacity': ISOCHRONE_FILL_OPACITY,
     },
   })
 }

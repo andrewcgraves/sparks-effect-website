@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, toRef, watch } from 'vue'
-import { Map } from 'maplibre-gl'
+import { Map, FullscreenControl } from 'maplibre-gl'
 import type { GeoJSONSource } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { ISOCHRONE_SOURCE_ID, ISOCHRONE_LEGEND, useIsochroneLayer } from '../composables/useIsochroneLayer'
+import { ISOCHRONE_SOURCE_ID, isochroneLegend, resolveIsochroneColors, useIsochroneLayer } from '../composables/useIsochroneLayer'
 import { useRouteLayer } from '../composables/useRouteLayer'
 import { useOriginMarker } from '../composables/useOriginMarker'
 import { ISOCHRONE_BOUNDS_CORNERS, ISOCHRONE_CENTER, isochroneBoundsCorners } from '../fixtures/isochrone'
@@ -21,6 +21,12 @@ const props = defineProps<{
 }>()
 
 const ORIGIN_SNAP_ZOOM = 9
+
+/* Resolved once, from the CSS tokens, because MapLibre paints to WebGL and
+   cannot read CSS variables. The legend reads the same values so the key and
+   the fills can never drift apart. */
+const isochroneColors = resolveIsochroneColors()
+const legend = isochroneLegend(isochroneColors)
 
 const mapContainer = ref<HTMLElement | null>(null)
 let map: Map | null = null
@@ -66,7 +72,7 @@ function applyIsochroneData(data: ChainResponse): void {
   if (existing) {
     existing.setData(data)
   } else {
-    useIsochroneLayer(map, data)
+    useIsochroneLayer(map, data, isochroneColors)
   }
   fitMapToIsochrone(data)
 }
@@ -109,6 +115,8 @@ onMounted(() => {
     zoom: 7,
   })
 
+  map.addControl(new FullscreenControl())
+
   useOriginMarker(map, toRef(props, 'origin'))
 
   map.on('load', () => {
@@ -147,36 +155,39 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="map-frame">
+  <div class="map-frame relative h-full min-h-[70vh] w-full">
     <div
       ref="mapContainer"
-      class="map-container"
+      class="h-full min-h-[70vh] w-full"
     />
     <div
       v-if="loading"
-      class="map-loading"
+      class="font-body pointer-events-none absolute inset-0 z-2 flex items-center justify-center gap-2.5 bg-white/65 text-[15px] text-ink"
       data-testid="map-loading"
       aria-live="polite"
       aria-label="Generating isochrone"
     >
-      <span class="map-loading__spinner" />
+      <span class="size-5 shrink-0 animate-spin rounded-full border-3 border-border border-t-coral" />
       <span>Generating isochrone…</span>
     </div>
+    <!-- Top-left is the only corner MapLibre leaves free: attribution takes the
+         bottom (wrapping to two lines when narrow) and the fullscreen control
+         the top-right. Anywhere else the key's second row gets covered. -->
     <aside
-      class="map-legend"
+      class="absolute top-3 left-3 z-1 rounded-(--radius-field) bg-white/92 px-3 py-2.5 shadow-(--shadow-panel)"
       aria-label="Isochrone color key"
     >
-      <p class="map-legend__title">
+      <p class="font-body text-micro mb-1.5 text-ink-muted italic uppercase">
         Isochrone key
       </p>
-      <ul class="map-legend__list">
+      <ul class="m-0 flex list-none flex-col gap-1 p-0">
         <li
-          v-for="entry in ISOCHRONE_LEGEND"
+          v-for="entry in legend"
           :key="entry.source"
-          class="map-legend__item"
+          class="font-body text-caption flex items-center gap-2 text-ink"
         >
           <span
-            class="map-legend__swatch"
+            class="inline-block size-3.5 shrink-0 rounded-[3px] opacity-85"
             :style="{ backgroundColor: entry.color }"
           />
           <span>{{ entry.label }}</span>
@@ -187,90 +198,23 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.map-frame {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  min-height: 70vh;
+/* MapLibre renders its own controls and attribution into the map container, so
+   utilities can't reach them — this is the ":deep() exception", not leftover BEM. */
+.map-frame :deep(.maplibregl-ctrl-group) {
+  border-radius: var(--radius-field);
+  box-shadow: var(--shadow-panel);
 }
 
-.map-container {
-  width: 100%;
-  height: 100%;
-  min-height: 70vh;
+.map-frame :deep(.maplibregl-ctrl-group button + button) {
+  border-top-color: var(--color-border);
 }
 
-.map-loading {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  background: rgb(255 255 255 / 65%);
-  font: 15px/1.4 system-ui, 'Segoe UI', Roboto, sans-serif;
-  color: #1a1a1a;
-  pointer-events: none;
+.map-frame :deep(.maplibregl-ctrl-attrib) {
+  font-family: var(--font-body);
+  font-size: var(--text-micro);
 }
 
-.map-loading__spinner {
-  display: inline-block;
-  width: 20px;
-  height: 20px;
-  border: 3px solid #ccc;
-  border-top-color: #1a1a1a;
-  border-radius: 50%;
-  animation: spin 0.7s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.map-legend {
-  position: absolute;
-  right: 12px;
-  bottom: 12px;
-  z-index: 1;
-  margin: 0;
-  padding: 10px 12px;
-  border-radius: 6px;
-  background: rgb(255 255 255 / 92%);
-  color: #1a1a1a;
-  box-shadow: 0 1px 4px rgb(0 0 0 / 20%);
-  font: 13px/1.35 system-ui, 'Segoe UI', Roboto, sans-serif;
-}
-
-.map-legend__title {
-  margin: 0 0 6px;
-  font-weight: 600;
-}
-
-.map-legend__list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.map-legend__item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.map-legend__item + .map-legend__item {
-  margin-top: 4px;
-}
-
-.map-legend__swatch {
-  display: inline-block;
-  width: 14px;
-  height: 14px;
-  border-radius: 3px;
-  opacity: 0.85;
-  flex-shrink: 0;
+.map-frame :deep(.maplibregl-ctrl-attrib a) {
+  color: var(--color-ink-muted);
 }
 </style>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { fetchSuggestions, type GeocodingSuggestion } from '../api/geocoding'
+import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from './fieldStyles'
 
 const DEBOUNCE_MS = 300
 
@@ -80,12 +81,14 @@ defineExpose({ setInputValue })
 </script>
 
 <template>
+  <!-- .address-autocomplete is kept as a hook for IsochroneForm.spec.ts. -->
   <div class="address-autocomplete">
-    <label class="address-autocomplete__label">
-      Origin address
-      <div class="address-autocomplete__input-wrap">
+    <label :class="FIELD_LABEL_CLASS">
+      Location
+      <div class="relative">
         <input
           v-model="inputValue"
+          :class="[FIELD_INPUT_CLASS, 'w-full placeholder:text-placeholder']"
           type="text"
           placeholder="Start typing a place name"
           autocomplete="off"
@@ -98,24 +101,25 @@ defineExpose({ setInputValue })
         <div
           v-if="foldoutOpen"
           id="address-suggestions"
-          class="address-autocomplete__foldout"
+          class="absolute top-[calc(100%+2px)] right-0 left-0 z-10 max-h-[240px] overflow-y-auto rounded-(--radius-field) border border-border bg-white shadow-(--shadow-panel)"
         >
           <p
             v-if="isLoading"
-            class="address-autocomplete__foldout-status"
+            class="font-body text-caption px-3 py-2 text-ink-muted italic"
             data-testid="suggestions-loading"
           >
             Searching…
           </p>
           <ul
             v-else-if="suggestions.length > 0"
-            class="address-autocomplete__list"
+            class="m-0 list-none p-0"
             data-testid="suggestions"
             role="listbox"
           >
             <li
               v-for="suggestion in suggestions"
               :key="`${suggestion.label}-${suggestion.lat}-${suggestion.lng}`"
+              class="font-body cursor-pointer border-b border-border px-3 py-2 text-[14px] text-ink not-italic normal-case transition-colors duration-200 ease-(--ease-smooth) last:border-b-0 hover:bg-surface"
               role="option"
               @click="onSelect(suggestion)"
             >
@@ -124,7 +128,7 @@ defineExpose({ setInputValue })
           </ul>
           <p
             v-else
-            class="address-autocomplete__foldout-status"
+            class="font-body text-caption px-3 py-2 text-ink-muted italic"
             data-testid="suggestions-empty"
           >
             No results found
@@ -134,72 +138,3 @@ defineExpose({ setInputValue })
     </label>
   </div>
 </template>
-
-<style scoped>
-.address-autocomplete {
-  margin-bottom: 0.75rem;
-}
-
-.address-autocomplete__label {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  font: 14px/1.4 system-ui, 'Segoe UI', Roboto, sans-serif;
-}
-
-.address-autocomplete__input-wrap {
-  position: relative;
-}
-
-.address-autocomplete__input-wrap input {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 0.45rem 0.6rem;
-  border: 1px solid #c8c8c8;
-  border-radius: 4px;
-  font: inherit;
-}
-
-.address-autocomplete__foldout {
-  position: absolute;
-  top: calc(100% + 2px);
-  left: 0;
-  right: 0;
-  z-index: 10;
-  background: #fff;
-  border: 1px solid #b0b8c4;
-  border-radius: 4px;
-  box-shadow: 0 4px 12px rgb(0 0 0 / 15%);
-  max-height: 240px;
-  overflow-y: auto;
-}
-
-.address-autocomplete__foldout-status {
-  margin: 0;
-  padding: 0.55rem 0.7rem;
-  font: 13px/1.3 system-ui, 'Segoe UI', Roboto, sans-serif;
-  color: #666;
-}
-
-.address-autocomplete__list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.address-autocomplete__list li {
-  padding: 0.55rem 0.7rem;
-  cursor: pointer;
-  font: 14px/1.35 system-ui, 'Segoe UI', Roboto, sans-serif;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.address-autocomplete__list li:last-child {
-  border-bottom: none;
-}
-
-.address-autocomplete__list li:hover,
-.address-autocomplete__list li:focus {
-  background: #f0f4f8;
-}
-</style>

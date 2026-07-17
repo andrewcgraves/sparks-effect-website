@@ -1,12 +1,19 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import AddressAutocomplete from './components/AddressAutocomplete.vue'
+import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from './components/fieldStyles'
 import type { GeocodingSuggestion } from './api/geocoding'
 import { reverseGeocode } from './api/geocoding'
 import { getCurrentPosition } from './api/geolocation'
 import { trackModeToggle } from './analytics/index'
 
 type Mode = 'walk' | 'bike' | 'drive'
+
+const MODE_OPTIONS: { value: Mode; label: string }[] = [
+  { value: 'walk', label: 'Walk' },
+  { value: 'bike', label: 'Bike' },
+  { value: 'drive', label: 'Drive' },
+]
 
 const emit = defineEmits<{
   submit: [payload: { lat: number; lng: number; duration: number; mode: Mode }]
@@ -87,95 +94,106 @@ function handleSubmit() {
 </script>
 
 <template>
-  <form @submit.prevent="handleSubmit">
-    <AddressAutocomplete
-      ref="addressAutocompleteRef"
-      @select="onAutocompleteSelect"
-    />
-    <button
-      type="button"
-      data-testid="use-current-location"
-      :disabled="locating"
-      @click="onUseCurrentLocation"
-    >
-      Use my location
-    </button>
-    <p
-      v-if="locationError"
-      data-testid="location-error"
-    >
-      {{ locationError }}
-    </p>
-    <p
-      v-if="selectedLabel"
-      data-testid="selected-label"
-    >
-      {{ selectedLabel }}
-    </p>
-    <label>
-      Latitude
-      <input
-        v-model="lat"
-        data-testid="lat"
-        type="number"
-        step="any"
+  <form
+    class="flex flex-col gap-4 rounded-(--radius-box) border border-border bg-surface p-4"
+    @submit.prevent="handleSubmit"
+  >
+    <h2 class="font-display text-h3 text-ink-true">
+      Plot isochrone
+    </h2>
+
+    <div class="flex flex-col gap-2">
+      <AddressAutocomplete
+        ref="addressAutocompleteRef"
+        @select="onAutocompleteSelect"
+      />
+      <button
+        type="button"
+        class="font-display text-btn self-start text-ink-muted uppercase transition-colors duration-200 ease-(--ease-smooth) hover:text-coral disabled:cursor-not-allowed disabled:opacity-50"
+        data-testid="use-current-location"
+        :disabled="locating"
+        @click="onUseCurrentLocation"
       >
-    </label>
-    <label>
-      Longitude
-      <input
-        v-model="lng"
-        data-testid="lng"
-        type="number"
-        step="any"
+        📍 Use my location
+      </button>
+      <p
+        v-if="locationError"
+        class="font-body text-caption text-coral italic"
+        data-testid="location-error"
       >
-    </label>
-    <label>
-      Journey duration (minutes)
+        {{ locationError }}
+      </p>
+      <p
+        v-if="selectedLabel"
+        class="font-body text-caption text-ink-muted italic"
+        data-testid="selected-label"
+      >
+        {{ selectedLabel }}
+      </p>
+    </div>
+
+    <div class="grid grid-cols-2 gap-3">
+      <label :class="FIELD_LABEL_CLASS">
+        Latitude
+        <input
+          v-model="lat"
+          :class="FIELD_INPUT_CLASS"
+          data-testid="lat"
+          type="number"
+          step="any"
+        >
+      </label>
+      <label :class="FIELD_LABEL_CLASS">
+        Longitude
+        <input
+          v-model="lng"
+          :class="FIELD_INPUT_CLASS"
+          data-testid="lng"
+          type="number"
+          step="any"
+        >
+      </label>
+    </div>
+
+    <label :class="FIELD_LABEL_CLASS">
+      Travel time (minutes)
       <input
         v-model="duration"
+        :class="FIELD_INPUT_CLASS"
         data-testid="duration"
         type="number"
         min="1"
       >
     </label>
-    <fieldset>
-      <legend>Mode</legend>
-      <label>
-        <input
-          type="radio"
-          name="mode"
-          value="walk"
-          :checked="mode === 'walk'"
-          data-testid="mode-walk"
-          @change="onModeChange('walk')"
+
+    <fieldset class="flex flex-col gap-2 border-0 p-0">
+      <legend class="font-body text-micro text-ink-muted italic uppercase">
+        Mode
+      </legend>
+      <div class="flex gap-4">
+        <label
+          v-for="option in MODE_OPTIONS"
+          :key="option.value"
+          class="font-body flex cursor-pointer items-center gap-1.5 text-[14px] text-ink"
         >
-        Walk
-      </label>
-      <label>
-        <input
-          type="radio"
-          name="mode"
-          value="bike"
-          :checked="mode === 'bike'"
-          data-testid="mode-bike"
-          @change="onModeChange('bike')"
-        >
-        Bike
-      </label>
-      <label>
-        <input
-          type="radio"
-          name="mode"
-          value="drive"
-          :checked="mode === 'drive'"
-          data-testid="mode-drive"
-          @change="onModeChange('drive')"
-        >
-        Drive
-      </label>
+          <input
+            type="radio"
+            name="mode"
+            class="accent-coral"
+            :value="option.value"
+            :checked="mode === option.value"
+            :data-testid="`mode-${option.value}`"
+            @change="onModeChange(option.value)"
+          >
+          {{ option.label }}
+        </label>
+      </div>
     </fieldset>
-    <button type="submit">
+
+    <button
+      type="submit"
+      class="font-display text-btn mt-1 cursor-pointer rounded-(--radius-field) bg-coral px-4 py-2.5 text-white uppercase transition-colors duration-200 ease-(--ease-smooth) hover:bg-ink"
+    >
       Generate isochrone
     </button>
   </form>

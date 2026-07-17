@@ -13,6 +13,8 @@ vi.mock('./api/isochrone', () => ({
 
 vi.mock('./composables/useScenario', () => ({
   useScenario: () => ({
+    name: ref('CA HSR'),
+    description: ref('California High-Speed Rail'),
     routes: ref([]),
     stations: ref([]),
     services: ref([]),
@@ -42,11 +44,18 @@ describe('App', () => {
     vi.mocked(fetchIsochrone).mockClear()
   })
 
-  it('renders the app title', () => {
+  it('titles the page with the scenario name', () => {
     const wrapper = mount(App, {
       global: { stubs: { MapView: true, IsochroneForm: true } },
     })
-    expect(wrapper.get('h1').text()).toBe('Sparks Effect')
+    expect(wrapper.get('h1').text()).toBe('Route: CA HSR')
+  })
+
+  it('renders the scenario description', () => {
+    const wrapper = mount(App, {
+      global: { stubs: { MapView: true, IsochroneForm: true } },
+    })
+    expect(wrapper.text()).toContain('California High-Speed Rail')
   })
 
   it('tracks a page view on mount', () => {

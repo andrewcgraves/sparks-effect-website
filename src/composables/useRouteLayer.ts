@@ -1,5 +1,6 @@
 import type { Map } from 'maplibre-gl'
 import type { Route, Station } from '../api/scenarios'
+import { readThemeToken } from '../themeTokens'
 
 export const ROUTE_SOURCE_ID = 'route-source'
 export const ROUTE_LINE_LAYER_ID = 'route-line'
@@ -7,6 +8,8 @@ export const STATION_SOURCE_ID = 'station-source'
 export const STATION_DOTS_LAYER_ID = 'station-dots'
 
 export function useRouteLayer(map: Map, routes: Route[], stations: Station[]): void {
+  const ink = readThemeToken('--color-ink')
+
   map.addSource(ROUTE_SOURCE_ID, {
     type: 'geojson',
     data: {
@@ -24,7 +27,7 @@ export function useRouteLayer(map: Map, routes: Route[], stations: Station[]): v
     type: 'line',
     source: ROUTE_SOURCE_ID,
     layout: { 'line-join': 'round', 'line-cap': 'round' },
-    paint: { 'line-color': '#1a1a1a', 'line-width': 2.5 },
+    paint: { 'line-color': ink, 'line-width': 2.5 },
   })
 
   map.addSource(STATION_SOURCE_ID, {
@@ -47,7 +50,7 @@ export function useRouteLayer(map: Map, routes: Route[], stations: Station[]): v
       'circle-radius': 5,
       'circle-color': '#ffffff',
       'circle-stroke-width': 2,
-      'circle-stroke-color': '#1a1a1a',
+      'circle-stroke-color': ink,
     },
   })
 }
