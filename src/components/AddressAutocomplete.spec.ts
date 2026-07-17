@@ -33,9 +33,9 @@ describe('AddressAutocomplete', () => {
     expect(wrapper.find('input[type="text"]').exists()).toBe(true)
   })
 
-  it('labels the field "Origin address"', () => {
+  it('labels the field "Location"', () => {
     const wrapper = mount(AddressAutocomplete)
-    expect(wrapper.find('label').text()).toContain('Origin address')
+    expect(wrapper.find('label').text()).toContain('Location')
   })
 
   it('shows no suggestions list initially', () => {

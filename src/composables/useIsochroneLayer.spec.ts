@@ -1,6 +1,12 @@
 import { describe, it, expect, vi } from 'vitest'
 import type { Map } from 'maplibre-gl'
-import { useIsochroneLayer, ISOCHRONE_SOURCE_ID, ISOCHRONE_LAYER_ID } from './useIsochroneLayer'
+import {
+  useIsochroneLayer,
+  isochroneLegend,
+  ISOCHRONE_SOURCE_ID,
+  ISOCHRONE_LAYER_ID,
+} from './useIsochroneLayer'
+import { THEME_TOKEN_FALLBACKS } from '../themeTokens'
 import { staticIsochroneResponse } from '../fixtures/isochrone'
 
 function makeMockMap(): Pick<Map, 'addSource' | 'addLayer'> {
@@ -43,8 +49,25 @@ describe('useIsochroneLayer', () => {
     expect(fillColor[0]).toBe('match')
     expect(fillColor[1]).toEqual(['get', 'source'])
     expect(fillColor[2]).toBe('origin')
-    expect(fillColor[3]).toBe('#4A90D9')
-    expect(fillColor[4]).toBe('#E8734A')
+    expect(fillColor[3]).toBe(THEME_TOKEN_FALLBACKS['--color-data-origin'])
+    expect(fillColor[4]).toBe(THEME_TOKEN_FALLBACKS['--color-data-egress'])
+  })
+
+  it('paints with caller-supplied colours resolved from the CSS tokens', () => {
+    const map = makeMockMap()
+    useIsochroneLayer(map as Map, staticIsochroneResponse, { origin: '#111111', egress: '#222222' })
+    const layerArg = (map.addLayer as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(layerArg.paint['fill-color']).toEqual(
+      ['match', ['get', 'source'], 'origin', '#111111', '#222222'],
+    )
+  })
+
+  it('legend labels carry the same colours the fills are painted with', () => {
+    const legend = isochroneLegend({ origin: '#111111', egress: '#222222' })
+    expect(legend.map((e) => [e.source, e.color])).toEqual([
+      ['origin', '#111111'],
+      ['egress', '#222222'],
+    ])
   })
 
   it('fixture has metadata with ca-hsr scenario_slug', () => {
