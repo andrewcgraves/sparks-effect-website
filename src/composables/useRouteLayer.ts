@@ -7,6 +7,47 @@ export const ROUTE_LINE_LAYER_ID = 'route-line'
 export const STATION_SOURCE_ID = 'station-source'
 export const STATION_DOTS_LAYER_ID = 'station-dots'
 
+/* A fixed absolute-degree pad would swamp a short local route and be
+   negligible on a cross-state one, so pad proportionally to the route's own
+   extent instead — this is what keeps the fit generalized across route scales. */
+export function routeBoundsCorners(
+  routes: Route[],
+  paddingFraction = 0.1,
+): [[number, number], [number, number]] | null {
+  let minLng = Infinity
+  let minLat = Infinity
+  let maxLng = -Infinity
+  let maxLat = -Infinity
+
+  for (const route of routes) {
+    for (const [lng, lat] of route.geometry.coordinates) {
+      minLng = Math.min(minLng, lng)
+      minLat = Math.min(minLat, lat)
+      maxLng = Math.max(maxLng, lng)
+      maxLat = Math.max(maxLat, lat)
+    }
+  }
+
+  if (!Number.isFinite(minLng)) return null
+
+  const lngPadding = (maxLng - minLng) * paddingFraction
+  const latPadding = (maxLat - minLat) * paddingFraction
+
+  return [
+    [minLng - lngPadding, minLat - latPadding],
+    [maxLng + lngPadding, maxLat + latPadding],
+  ]
+}
+
+export function centerFromCorners(
+  corners: [[number, number], [number, number]],
+): [number, number] {
+  return [
+    (corners[0][0] + corners[1][0]) / 2,
+    (corners[0][1] + corners[1][1]) / 2,
+  ]
+}
+
 export function useRouteLayer(map: Map, routes: Route[], stations: Station[]): void {
   const ink = readThemeToken('--color-ink')
 
