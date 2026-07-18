@@ -22,3 +22,7 @@ export function trackModeToggle(mode: string): void {
 export function trackIsochroneRequest(travelMode: string, durationMinutes: number): void {
   _sink({ type: 'isochrone_request', travelMode, durationMinutes })
 }
+
+export function trackIsochroneError(travelMode: string, durationMinutes: number, status: number | null): void {
+  _sink({ type: 'isochrone_error', travelMode, durationMinutes, status })
+}

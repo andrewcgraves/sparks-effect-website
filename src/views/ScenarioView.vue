@@ -2,18 +2,15 @@
 import { ref } from 'vue'
 import IsochroneForm from '../IsochroneForm.vue'
 import MapView from '../components/MapView.vue'
-import { fetchIsochrone } from '../api/isochrone'
 import { useScenario } from '../composables/useScenario'
-import type { ChainResponse } from '../fixtures/isochrone'
+import { useIsochrone } from '../composables/useIsochrone'
 
 const props = defineProps<{ slug: string }>()
 
 const origin = ref<{ lat: number; lng: number } | null>(null)
-const isochroneData = ref<ChainResponse | null>(null)
-const isLoading = ref(false)
-const fetchError = ref<string | null>(null)
 
 const { name, description, routes, stations, services } = useScenario(props.slug)
+const { data: isochroneData, loading: isLoading, error: fetchError, generate } = useIsochrone()
 
 function onOriginChange(coords: { lat: number; lng: number } | null) {
   origin.value = coords
@@ -21,21 +18,13 @@ function onOriginChange(coords: { lat: number; lng: number } | null) {
 
 async function handleFormSubmit(payload: { lat: number; lng: number; duration: number; mode: 'walk' | 'bike' | 'drive' }) {
   origin.value = { lat: payload.lat, lng: payload.lng }
-  isLoading.value = true
-  fetchError.value = null
-  try {
-    isochroneData.value = await fetchIsochrone({
-      lat: payload.lat,
-      lng: payload.lng,
-      budget_mins: payload.duration,
-      mode: payload.mode,
-      scenario_slug: props.slug,
-    })
-  } catch {
-    fetchError.value = 'Failed to generate isochrone. Please try again.'
-  } finally {
-    isLoading.value = false
-  }
+  await generate({
+    lat: payload.lat,
+    lng: payload.lng,
+    budget_mins: payload.duration,
+    mode: payload.mode,
+    scenario_slug: props.slug,
+  })
 }
 </script>
 
@@ -65,6 +54,8 @@ async function handleFormSubmit(payload: { lat: number; lng: number; duration: n
 
       <div class="flex flex-col gap-4">
         <IsochroneForm
+          :error="fetchError"
+          :loading="isLoading"
           @submit="handleFormSubmit"
           @origin-change="onOriginChange"
         />
@@ -78,15 +69,6 @@ async function handleFormSubmit(payload: { lat: number; lng: number; duration: n
         </section>
       </div>
     </div>
-
-    <p
-      v-if="fetchError"
-      class="font-body text-caption mt-4 rounded-(--radius-field) border border-coral/40 bg-coral/10 px-3 py-2 text-coral"
-      role="alert"
-      data-testid="fetch-error"
-    >
-      {{ fetchError }}
-    </p>
 
     <section class="mt-16 max-w-[720px]">
       <h2 class="font-display text-h2 text-ink-true">

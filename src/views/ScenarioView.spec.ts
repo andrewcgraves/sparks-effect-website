@@ -3,9 +3,13 @@ import { mount, flushPromises } from '@vue/test-utils'
 import ScenarioView from './ScenarioView.vue'
 import { ref } from 'vue'
 
-vi.mock('../api/isochrone', () => ({
-  fetchIsochrone: vi.fn(),
-}))
+vi.mock('../api/isochrone', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../api/isochrone')>()
+  return {
+    ...actual,
+    fetchIsochrone: vi.fn(),
+  }
+})
 
 const mockUseScenario = vi.fn()
 vi.mock('../composables/useScenario', () => ({
@@ -103,7 +107,7 @@ describe('ScenarioView', () => {
     )
   })
 
-  it('sets loading=true on MapView while the fetch is in flight', async () => {
+  it('sets loading=true on MapView and IsochroneForm while the fetch is in flight', async () => {
     let resolveIsochrone!: (v: ChainResponse) => void
     vi.mocked(fetchIsochrone).mockReturnValue(
       new Promise<ChainResponse>((res) => { resolveIsochrone = res }),
@@ -118,9 +122,11 @@ describe('ScenarioView', () => {
     await vi.waitFor(() => {
       expect(wrapper.findComponent({ name: 'MapView' }).props('loading')).toBe(true)
     })
+    expect(wrapper.findComponent({ name: 'IsochroneForm' }).props('loading')).toBe(true)
     resolveIsochrone(stubIsochrone)
     await flushPromises()
     expect(wrapper.findComponent({ name: 'MapView' }).props('loading')).toBe(false)
+    expect(wrapper.findComponent({ name: 'IsochroneForm' }).props('loading')).toBe(false)
   })
 
   it('passes isochrone data to MapView after successful fetch', async () => {
@@ -137,7 +143,8 @@ describe('ScenarioView', () => {
     expect(wrapper.findComponent({ name: 'MapView' }).props('loading')).toBe(false)
   })
 
-  it('clears loading state and shows an error message when the fetch throws', async () => {
+  it('clears loading state and threads the error into IsochroneForm when the fetch throws', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
     vi.mocked(fetchIsochrone).mockRejectedValue(new Error('API down'))
     const wrapper = mountScenarioView()
     await wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('submit', {
@@ -148,7 +155,14 @@ describe('ScenarioView', () => {
     })
     await flushPromises()
     expect(wrapper.findComponent({ name: 'MapView' }).props('loading')).toBe(false)
-    expect(wrapper.find('[data-testid="fetch-error"]').exists()).toBe(true)
+    expect(wrapper.findComponent({ name: 'IsochroneForm' }).props('error')).toBe(
+      'Failed to generate isochrone. Please try again.',
+    )
+  })
+
+  it('does not render a below-grid fetch-error element', () => {
+    const wrapper = mountScenarioView()
+    expect(wrapper.find('main > [data-testid="fetch-error"]').exists()).toBe(false)
   })
 
   it('passes origin to MapView when IsochroneForm emits origin-change', async () => {
