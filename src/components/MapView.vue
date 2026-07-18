@@ -4,7 +4,7 @@ import { Map, FullscreenControl } from 'maplibre-gl'
 import type { GeoJSONSource } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { ISOCHRONE_SOURCE_ID, isochroneLegend, resolveIsochroneColors, useIsochroneLayer } from '../composables/useIsochroneLayer'
-import { useRouteLayer } from '../composables/useRouteLayer'
+import { centerFromCorners, routeBoundsCorners, useRouteLayer } from '../composables/useRouteLayer'
 import { useOriginMarker } from '../composables/useOriginMarker'
 import { ISOCHRONE_BOUNDS_CORNERS, ISOCHRONE_CENTER, isochroneBoundsCorners } from '../fixtures/isochrone'
 import type { ChainResponse } from '../fixtures/isochrone'
@@ -32,20 +32,41 @@ const mapContainer = ref<HTMLElement | null>(null)
 let map: Map | null = null
 let resizeObserver: ResizeObserver | null = null
 let hasFittedToSegments = false
+let hasFittedToRoutes = false
 let isMapLoaded = false
 let routeLayerAdded = false
 
 const MAP_FIT_PADDING = { top: 56, bottom: 112, left: 56, right: 56 }
 
-function fitMapToAllSegments(): void {
-  if (!map) return
+function applyBoundsFit(corners: [[number, number], [number, number]]): boolean {
+  if (!map) return false
   map.resize()
-  map.fitBounds(ISOCHRONE_BOUNDS_CORNERS, {
+  map.fitBounds(corners, {
     padding: MAP_FIT_PADDING,
     duration: 0,
     maxZoom: 11,
   })
   hasFittedToSegments = true
+  return true
+}
+
+function fitMapToStaticFallback(): void {
+  applyBoundsFit(ISOCHRONE_BOUNDS_CORNERS)
+}
+
+/* Routes load asynchronously from the scenario fetch, so this fit needs to
+   run both on the initial map load and again whenever routes arrive later. */
+function fitMapToRoutes(): boolean {
+  const corners = routeBoundsCorners(props.routes)
+  if (!corners) return false
+  const fitted = applyBoundsFit(corners)
+  if (fitted) hasFittedToRoutes = true
+  return fitted
+}
+
+function fitMapToDefaultView(): void {
+  if (fitMapToRoutes()) return
+  fitMapToStaticFallback()
 }
 
 function snapMapToOrigin(coords: { lat: number; lng: number }): void {
@@ -102,16 +123,25 @@ watch(
 
 watch(
   () => props.routes,
-  maybeAddRouteLayer,
+  (routes) => {
+    maybeAddRouteLayer()
+    if (!isMapLoaded || props.isochroneData || props.origin || hasFittedToRoutes) return
+    if (routes.length > 0) fitMapToRoutes()
+  },
 )
 
 onMounted(() => {
   if (!mapContainer.value) return
 
+  const initialRouteCorners = routeBoundsCorners(props.routes)
+  const initialCenter: [number, number] = initialRouteCorners
+    ? centerFromCorners(initialRouteCorners)
+    : ISOCHRONE_CENTER
+
   map = new Map({
     container: mapContainer.value,
     style: resolveMapStyleUrl(),
-    center: ISOCHRONE_CENTER,
+    center: initialCenter,
     zoom: 7,
   })
 
@@ -130,7 +160,7 @@ onMounted(() => {
     } else if (props.origin) {
       snapMapToOrigin(props.origin)
     } else {
-      fitMapToAllSegments()
+      fitMapToDefaultView()
     }
   })
 
@@ -140,7 +170,7 @@ onMounted(() => {
     if (clientWidth === 0 || clientHeight === 0) return
     map.resize()
     if (!hasFittedToSegments) {
-      fitMapToAllSegments()
+      fitMapToDefaultView()
     }
   })
   resizeObserver.observe(mapContainer.value)

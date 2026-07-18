@@ -8,6 +8,7 @@ import {
   ROUTE_SOURCE_ID,
   STATION_DOTS_LAYER_ID,
   STATION_SOURCE_ID,
+  routeBoundsCorners,
 } from '../composables/useRouteLayer'
 import {
   staticIsochroneResponse,
@@ -109,6 +110,8 @@ const stubService: Service = {
 }
 
 const defaultProps = { isochroneData: null, loading: false, routes: [], stations: [], services: [] }
+
+const stubRouteCorners = routeBoundsCorners([stubRoute]) as [[number, number], [number, number]]
 
 async function triggerMapLoad() {
   const call = mockOn.mock.calls.find((args: unknown[]) => args[0] === 'load')
@@ -314,6 +317,95 @@ describe('MapView', () => {
         maxZoom: 11,
         padding: expect.objectContaining({ top: 56, bottom: 112, left: 56, right: 56 }),
       }),
+    )
+  })
+
+  it('initializes map centered on the route bounds when routes are provided at mount time', async () => {
+    const { Map } = await import('maplibre-gl')
+    mount(MapView, { props: { ...defaultProps, routes: [stubRoute] } })
+    const options = (Map as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(options.center[0]).toBeCloseTo(-122.15, 5)
+    expect(options.center[1]).toBeCloseTo(37.5, 5)
+  })
+
+  it('fits bounds to the route geometry after load when routes are provided', async () => {
+    mount(MapView, { props: { ...defaultProps, routes: [stubRoute] } })
+    await triggerMapLoad()
+    expect(mockFitBounds).toHaveBeenCalledWith(
+      stubRouteCorners,
+      expect.objectContaining({
+        duration: 0,
+        maxZoom: 11,
+        padding: expect.objectContaining({ top: 56, bottom: 112, left: 56, right: 56 }),
+      }),
+    )
+  })
+
+  it('refits the map to route bounds when routes arrive after load', async () => {
+    const wrapper = mount(MapView, { props: defaultProps })
+    await triggerMapLoad()
+    mockFitBounds.mockClear()
+
+    await wrapper.setProps({ routes: [stubRoute] })
+
+    expect(mockFitBounds).toHaveBeenCalledWith(
+      stubRouteCorners,
+      expect.objectContaining({
+        padding: expect.objectContaining({ top: 56, bottom: 112, left: 56, right: 56 }),
+      }),
+    )
+  })
+
+  it('does not refit the map when routes change again after the initial route fit', async () => {
+    const wrapper = mount(MapView, { props: defaultProps })
+    await triggerMapLoad()
+    await wrapper.setProps({ routes: [stubRoute] })
+    mockFitBounds.mockClear()
+
+    const otherRoute: Route = {
+      ...stubRoute,
+      id: 'r2',
+      geometry: { type: 'LineString', coordinates: [[-118.25, 34.05], [-117.9, 33.8]] },
+    }
+    await wrapper.setProps({ routes: [stubRoute, otherRoute] })
+
+    expect(mockFitBounds).not.toHaveBeenCalled()
+  })
+
+  it('prefers the isochrone frame over route bounds when isochroneData is also provided', async () => {
+    mount(MapView, {
+      props: { ...defaultProps, routes: [stubRoute], isochroneData: staticIsochroneResponse },
+    })
+    await triggerMapLoad()
+    expect(mockFitBounds).toHaveBeenCalledWith(
+      ISOCHRONE_BOUNDS_CORNERS,
+      expect.objectContaining({
+        padding: expect.objectContaining({ top: 56, bottom: 112, left: 56, right: 56 }),
+      }),
+    )
+    expect(mockFitBounds).not.toHaveBeenCalledWith(
+      stubRouteCorners,
+      expect.anything(),
+    )
+  })
+
+  it('prefers snapping to origin over route bounds when origin is also provided', async () => {
+    mount(MapView, {
+      props: { ...defaultProps, routes: [stubRoute], origin: { lat: 34.05, lng: -118.25 } },
+    })
+    await triggerMapLoad()
+    expect(mockFlyTo).toHaveBeenCalledWith(
+      expect.objectContaining({ center: [-118.25, 34.05], zoom: 9 }),
+    )
+    expect(mockFitBounds).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the static isochrone bounds fit when no routes are provided', async () => {
+    mount(MapView, { props: defaultProps })
+    await triggerMapLoad()
+    expect(mockFitBounds).toHaveBeenCalledWith(
+      ISOCHRONE_BOUNDS_CORNERS,
+      expect.objectContaining({ duration: 0, maxZoom: 11 }),
     )
   })
 
