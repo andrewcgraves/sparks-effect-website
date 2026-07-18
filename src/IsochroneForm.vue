@@ -15,6 +15,9 @@ const MODE_OPTIONS: { value: Mode; label: string }[] = [
   { value: 'drive', label: 'Drive' },
 ]
 
+const DURATION_MIN = 0
+const DURATION_MAX = 120
+
 const emit = defineEmits<{
   submit: [payload: { lat: number; lng: number; duration: number; mode: Mode }]
   'origin-change': [origin: { lat: number; lng: number } | null]
@@ -22,13 +25,29 @@ const emit = defineEmits<{
 
 const lat = ref('')
 const lng = ref('')
-const duration = ref('')
+const duration = ref(30)
+const durationText = ref(String(duration.value))
 const selectedLabel = ref('')
 const locationError = ref('')
 const locating = ref(false)
 const mode = ref<Mode>('walk')
 const addressAutocompleteRef = ref<InstanceType<typeof AddressAutocomplete> | null>(null)
 let locationRequestId = 0
+
+watch(duration, (value) => {
+  durationText.value = String(value)
+})
+
+function onDurationBlur() {
+  // Vue auto-casts v-model on type="number" inputs to a number when parseable,
+  // so durationText.value isn't reliably a string here.
+  const raw = String(durationText.value)
+  const parsed = Math.round(Number(raw))
+  const isValid = raw.trim() !== '' && Number.isFinite(parsed)
+  const clamped = isValid ? Math.min(DURATION_MAX, Math.max(DURATION_MIN, parsed)) : duration.value
+  duration.value = clamped
+  durationText.value = String(clamped)
+}
 
 watch([lat, lng], ([newLat, newLng]) => {
   const parsedLat = parseFloat(newLat)
@@ -82,12 +101,12 @@ function onModeChange(newMode: Mode) {
 }
 
 function handleSubmit() {
-  if (lat.value === '' || lng.value === '' || duration.value === '') return
+  if (lat.value === '' || lng.value === '') return
 
   emit('submit', {
     lat: parseFloat(lat.value),
     lng: parseFloat(lng.value),
-    duration: parseFloat(duration.value),
+    duration: duration.value,
     mode: mode.value,
   })
 }
@@ -157,13 +176,28 @@ function handleSubmit() {
 
     <label :class="FIELD_LABEL_CLASS">
       Travel time (minutes)
-      <input
-        v-model="duration"
-        :class="FIELD_INPUT_CLASS"
-        data-testid="duration"
-        type="number"
-        min="1"
-      >
+      <div class="flex items-center gap-3">
+        <input
+          v-model.number="duration"
+          type="range"
+          :min="DURATION_MIN"
+          :max="DURATION_MAX"
+          step="1"
+          class="accent-coral flex-1"
+          data-testid="duration-slider"
+        >
+        <input
+          v-model="durationText"
+          :class="FIELD_INPUT_CLASS"
+          class="w-20"
+          data-testid="duration"
+          type="number"
+          :min="DURATION_MIN"
+          :max="DURATION_MAX"
+          step="1"
+          @blur="onDurationBlur"
+        >
+      </div>
     </label>
 
     <fieldset class="flex flex-col gap-2 border-0 p-0">

@@ -46,6 +46,64 @@ describe('IsochroneForm', () => {
     expect(wrapper.find('input[data-testid="duration"]').exists()).toBe(true)
   })
 
+  it('renders a duration slider', () => {
+    const wrapper = mount(IsochroneForm)
+    expect(wrapper.find('input[data-testid="duration-slider"]').exists()).toBe(true)
+  })
+
+  it('defaults duration to 30 on both the number input and the slider', () => {
+    const wrapper = mount(IsochroneForm)
+    expect((wrapper.find('input[data-testid="duration"]').element as HTMLInputElement).value).toBe('30')
+    expect((wrapper.find('input[data-testid="duration-slider"]').element as HTMLInputElement).value).toBe('30')
+  })
+
+  it('syncs the number input when the slider changes', async () => {
+    const wrapper = mount(IsochroneForm)
+    await wrapper.find('input[data-testid="duration-slider"]').setValue('75')
+    expect((wrapper.find('input[data-testid="duration"]').element as HTMLInputElement).value).toBe('75')
+  })
+
+  it('syncs the slider when the number input is blurred with a valid value', async () => {
+    const wrapper = mount(IsochroneForm)
+    const durationInput = wrapper.find('input[data-testid="duration"]')
+    await durationInput.setValue('90')
+    await durationInput.trigger('blur')
+    expect((wrapper.find('input[data-testid="duration-slider"]').element as HTMLInputElement).value).toBe('90')
+  })
+
+  it('clamps the number input to 120 on blur when it exceeds the max', async () => {
+    const wrapper = mount(IsochroneForm)
+    const durationInput = wrapper.find('input[data-testid="duration"]')
+    await durationInput.setValue('500')
+    await durationInput.trigger('blur')
+    expect((durationInput.element as HTMLInputElement).value).toBe('120')
+    expect((wrapper.find('input[data-testid="duration-slider"]').element as HTMLInputElement).value).toBe('120')
+  })
+
+  it('clamps the number input to 0 on blur when it is negative', async () => {
+    const wrapper = mount(IsochroneForm)
+    const durationInput = wrapper.find('input[data-testid="duration"]')
+    await durationInput.setValue('-10')
+    await durationInput.trigger('blur')
+    expect((durationInput.element as HTMLInputElement).value).toBe('0')
+  })
+
+  it('rounds the number input to the nearest integer on blur', async () => {
+    const wrapper = mount(IsochroneForm)
+    const durationInput = wrapper.find('input[data-testid="duration"]')
+    await durationInput.setValue('45.6')
+    await durationInput.trigger('blur')
+    expect((durationInput.element as HTMLInputElement).value).toBe('46')
+  })
+
+  it('reverts to the last valid value on blur when the input is emptied', async () => {
+    const wrapper = mount(IsochroneForm)
+    const durationInput = wrapper.find('input[data-testid="duration"]')
+    await durationInput.setValue('')
+    await durationInput.trigger('blur')
+    expect((durationInput.element as HTMLInputElement).value).toBe('30')
+  })
+
   it('renders walk, bike, and drive mode radio buttons', () => {
     const wrapper = mount(IsochroneForm)
     expect(wrapper.find('input[data-testid="mode-walk"]').exists()).toBe(true)
@@ -114,14 +172,6 @@ describe('IsochroneForm', () => {
     const wrapper = mount(IsochroneForm)
     await wrapper.find('input[data-testid="lat"]').setValue('51.5074')
     await wrapper.find('input[data-testid="duration"]').setValue('30')
-    await wrapper.find('form').trigger('submit')
-    expect(wrapper.emitted('submit')).toBeUndefined()
-  })
-
-  it('does not emit submit when duration is empty', async () => {
-    const wrapper = mount(IsochroneForm)
-    await wrapper.find('input[data-testid="lat"]').setValue('51.5074')
-    await wrapper.find('input[data-testid="lng"]').setValue('-0.1278')
     await wrapper.find('form').trigger('submit')
     expect(wrapper.emitted('submit')).toBeUndefined()
   })
