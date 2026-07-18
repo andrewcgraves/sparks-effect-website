@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { consoleSink, noopSink } from './sinks'
-import { configureSink, trackIsochroneRequest, trackModeToggle, trackOriginSearch, trackPageView } from './index'
+import { configureSink, trackIsochroneError, trackIsochroneRequest, trackModeToggle, trackOriginSearch, trackPageView } from './index'
 import type { AnalyticsEvent } from './types'
 
 describe('sinks', () => {
@@ -47,6 +47,16 @@ describe('analytics helpers', () => {
   it('trackIsochroneRequest emits an isochrone_request event', () => {
     trackIsochroneRequest('cycling', 30)
     expect(captured).toEqual([{ type: 'isochrone_request', travelMode: 'cycling', durationMinutes: 30 }])
+  })
+
+  it('trackIsochroneError emits an isochrone_error event with an HTTP status', () => {
+    trackIsochroneError('walking', 45, 500)
+    expect(captured).toEqual([{ type: 'isochrone_error', travelMode: 'walking', durationMinutes: 45, status: 500 }])
+  })
+
+  it('trackIsochroneError emits a null status for connectivity failures', () => {
+    trackIsochroneError('driving', 60, null)
+    expect(captured).toEqual([{ type: 'isochrone_error', travelMode: 'driving', durationMinutes: 60, status: null }])
   })
 
   it('multiple events accumulate in order', () => {

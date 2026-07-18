@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fetchIsochrone, type IsochroneRequest } from './isochrone'
+import { fetchIsochrone, IsochroneApiError, type IsochroneRequest } from './isochrone'
 import type { ChainResponse } from '../fixtures/isochrone'
 
 const validRequest: IsochroneRequest = {
@@ -96,13 +96,33 @@ describe('fetchIsochrone', () => {
     expect(result).toEqual(mockChainResponse)
   })
 
-  it('throws when the API returns a non-ok status', async () => {
+  it('throws an IsochroneApiError carrying the status when the API returns a non-ok status', async () => {
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: false,
       status: 500,
     } as Response)
 
     await expect(fetchIsochrone(validRequest)).rejects.toThrow('500')
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+    } as Response)
+    await expect(fetchIsochrone(validRequest)).rejects.toBeInstanceOf(IsochroneApiError)
+  })
+
+  it('sets the status property on the thrown IsochroneApiError', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: false,
+      status: 422,
+    } as Response)
+
+    await fetchIsochrone(validRequest).then(
+      () => { throw new Error('expected rejection') },
+      (err: unknown) => {
+        expect(err).toBeInstanceOf(IsochroneApiError)
+        expect((err as IsochroneApiError).status).toBe(422)
+      },
+    )
   })
 
   it('throws when the network request fails', async () => {

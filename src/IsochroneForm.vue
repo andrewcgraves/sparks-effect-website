@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import AddressAutocomplete from './components/AddressAutocomplete.vue'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from './components/fieldStyles'
 import type { GeocodingSuggestion } from './api/geocoding'
@@ -18,6 +18,14 @@ const MODE_OPTIONS: { value: Mode; label: string }[] = [
 const DURATION_MIN = 0
 const DURATION_MAX = 120
 
+const props = withDefaults(
+  defineProps<{
+    error?: string | null
+    loading?: boolean
+  }>(),
+  { error: null, loading: false },
+)
+
 const emit = defineEmits<{
   submit: [payload: { lat: number; lng: number; duration: number; mode: Mode }]
   'origin-change': [origin: { lat: number; lng: number } | null]
@@ -34,6 +42,32 @@ const mode = ref<Mode>('walk')
 const addressAutocompleteRef = ref<InstanceType<typeof AddressAutocomplete> | null>(null)
 let locationRequestId = 0
 
+// Shared origin parse used by both the submit gate and the origin-change watcher.
+function parseOrigin(latText: string, lngText: string): { lat: number; lng: number } | null {
+  const parsedLat = parseFloat(latText)
+  const parsedLng = parseFloat(lngText)
+  return isFinite(parsedLat) && isFinite(parsedLng) ? { lat: parsedLat, lng: parsedLng } : null
+}
+
+// Enable submit only once we have a parseable origin and a non-zero travel time.
+// Duration always arrives as a number in [0, 120] from the slider, so 0 is the
+// only value it gates.
+const isValid = computed(() => parseOrigin(lat.value, lng.value) !== null && duration.value > 0)
+
+// The fetch error is owned by the parent, but a stale error shouldn't linger once
+// the user starts fixing their input. Locally suppress it after any field edit; a
+// fresh error prop (including the null→message flip on the next submit) un-suppresses.
+const errorDismissed = ref(false)
+watch(() => props.error, () => {
+  errorDismissed.value = false
+})
+watch([lat, lng, duration, mode], () => {
+  errorDismissed.value = true
+})
+
+const showError = computed(() => !!props.error && !errorDismissed.value)
+const showHint = computed(() => !showError.value && !isValid.value)
+
 watch(duration, (value) => {
   durationText.value = String(value)
 })
@@ -43,20 +77,14 @@ function onDurationBlur() {
   // so durationText.value isn't reliably a string here.
   const raw = String(durationText.value)
   const parsed = Math.round(Number(raw))
-  const isValid = raw.trim() !== '' && Number.isFinite(parsed)
-  const clamped = isValid ? Math.min(DURATION_MAX, Math.max(DURATION_MIN, parsed)) : duration.value
+  const durationParseable = raw.trim() !== '' && Number.isFinite(parsed)
+  const clamped = durationParseable ? Math.min(DURATION_MAX, Math.max(DURATION_MIN, parsed)) : duration.value
   duration.value = clamped
   durationText.value = String(clamped)
 }
 
 watch([lat, lng], ([newLat, newLng]) => {
-  const parsedLat = parseFloat(newLat)
-  const parsedLng = parseFloat(newLng)
-  if (isFinite(parsedLat) && isFinite(parsedLng)) {
-    emit('origin-change', { lat: parsedLat, lng: parsedLng })
-  } else {
-    emit('origin-change', null)
-  }
+  emit('origin-change', parseOrigin(newLat, newLng))
 })
 
 function onAutocompleteSelect(suggestion: GeocodingSuggestion) {
@@ -226,9 +254,26 @@ function handleSubmit() {
 
     <button
       type="submit"
-      class="font-display text-btn mt-1 cursor-pointer rounded-(--radius-field) bg-coral px-4 py-2.5 text-white uppercase transition-colors duration-200 ease-(--ease-smooth) hover:bg-ink"
+      class="font-display text-btn mt-1 cursor-pointer rounded-(--radius-field) bg-coral px-4 py-2.5 text-white uppercase transition-colors duration-200 ease-(--ease-smooth) hover:bg-ink disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-coral"
+      :disabled="!isValid || loading"
     >
-      Generate isochrone
+      {{ loading ? 'Generating…' : 'Generate isochrone' }}
     </button>
+
+    <p
+      v-if="showError"
+      class="font-body text-caption text-coral"
+      role="alert"
+      data-testid="fetch-error"
+    >
+      {{ error }}
+    </p>
+    <p
+      v-else-if="showHint"
+      class="font-body text-caption text-ink-muted italic"
+      data-testid="submit-hint"
+    >
+      Enter a location and travel time to continue.
+    </p>
   </form>
 </template>

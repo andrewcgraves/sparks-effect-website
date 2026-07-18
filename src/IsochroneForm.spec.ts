@@ -302,6 +302,73 @@ describe('IsochroneForm', () => {
     expect(wrapper.emitted('origin-change')).toBeUndefined()
   })
 
+  it('disables the submit button when lat and lng are empty', () => {
+    const wrapper = mount(IsochroneForm)
+    expect((wrapper.find('button[type="submit"]').element as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('disables the submit button when only lat is filled', async () => {
+    const wrapper = mount(IsochroneForm)
+    await wrapper.find('input[data-testid="lat"]').setValue('51.5074')
+    expect((wrapper.find('button[type="submit"]').element as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('disables the submit button when the duration is 0', async () => {
+    const wrapper = mount(IsochroneForm)
+    await wrapper.find('input[data-testid="lat"]').setValue('51.5074')
+    await wrapper.find('input[data-testid="lng"]').setValue('-0.1278')
+    await wrapper.find('input[data-testid="duration-slider"]').setValue('0')
+    expect((wrapper.find('button[type="submit"]').element as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('enables the submit button when lat, lng, and a non-zero duration are present', async () => {
+    const wrapper = mount(IsochroneForm)
+    await wrapper.find('input[data-testid="lat"]').setValue('51.5074')
+    await wrapper.find('input[data-testid="lng"]').setValue('-0.1278')
+    expect((wrapper.find('button[type="submit"]').element as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('shows the insufficient-data hint while the button is disabled', () => {
+    const wrapper = mount(IsochroneForm)
+    const hint = wrapper.find('[data-testid="submit-hint"]')
+    expect(hint.exists()).toBe(true)
+    expect(hint.text()).toBe('Enter a location and travel time to continue.')
+  })
+
+  it('hides the hint once the form is valid', async () => {
+    const wrapper = mount(IsochroneForm)
+    await wrapper.find('input[data-testid="lat"]').setValue('51.5074')
+    await wrapper.find('input[data-testid="lng"]').setValue('-0.1278')
+    expect(wrapper.find('[data-testid="submit-hint"]').exists()).toBe(false)
+  })
+
+  it('renders the error prop under the submit button, taking precedence over the hint', () => {
+    const wrapper = mount(IsochroneForm, {
+      props: { error: 'Failed to generate isochrone. Please try again.' },
+    })
+    const error = wrapper.find('[data-testid="fetch-error"]')
+    expect(error.exists()).toBe(true)
+    expect(error.text()).toBe('Failed to generate isochrone. Please try again.')
+    expect(error.attributes('role')).toBe('alert')
+    expect(wrapper.find('[data-testid="submit-hint"]').exists()).toBe(false)
+  })
+
+  it('clears the displayed error when a field is edited', async () => {
+    const wrapper = mount(IsochroneForm, {
+      props: { error: 'Failed to generate isochrone. Please try again.' },
+    })
+    expect(wrapper.find('[data-testid="fetch-error"]').exists()).toBe(true)
+    await wrapper.find('input[data-testid="lat"]').setValue('51.5074')
+    expect(wrapper.find('[data-testid="fetch-error"]').exists()).toBe(false)
+  })
+
+  it('disables the submit button and relabels it while loading', () => {
+    const wrapper = mount(IsochroneForm, { props: { loading: true } })
+    const button = wrapper.find('button[type="submit"]')
+    expect((button.element as HTMLButtonElement).disabled).toBe(true)
+    expect(button.text()).toBe('Generating…')
+  })
+
   it('ignores overlapping use-current-location clicks while locating', async () => {
     let resolvePosition!: (value: { lat: number; lng: number }) => void
     vi.mocked(getCurrentPosition).mockImplementation(
