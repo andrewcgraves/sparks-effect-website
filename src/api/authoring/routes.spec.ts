@@ -5,10 +5,12 @@ import type { Route } from './types'
 const stubRoute: Route = {
   id: 'rt1',
   slug: 'main-line',
-  scenario_slug: 'ca-hsr',
+  name: 'Main Line',
+  mode: 'rail',
+  bidirectional: true,
   geometry: { type: 'LineString', coordinates: [[-122.4, 37.7], [-121.9, 37.3]] },
   segments: [
-    { from_seq: 0, to_seq: 1, distance_m: 42000, run_seconds: 600, max_speed_kmh: 320 },
+    { cant_mm: 150, curve_radius_m: 1200, grade_pct: 1.2 },
   ],
 }
 
@@ -28,7 +30,7 @@ describe('fetchRoute', () => {
     const url = vi.mocked(fetch).mock.calls[0][0] as string
     expect(url).toContain('/api/routes/main-line')
     expect(result).toEqual(stubRoute)
-    expect(result.segments[0].max_speed_kmh).toBe(320)
+    expect(result.segments[0].curve_radius_m).toBe(1200)
   })
 
   it('throws when the response is not ok', async () => {

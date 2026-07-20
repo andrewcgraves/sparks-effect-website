@@ -3,6 +3,7 @@ import CoverPage from '../views/CoverPage.vue'
 import ScenarioView from '../views/ScenarioView.vue'
 import LoginView from '../views/LoginView.vue'
 import AuthoringView from '../views/AuthoringView.vue'
+import RouteView from '../views/RouteView.vue'
 import NotFoundView from '../views/NotFoundView.vue'
 import { trackPageView } from '../analytics/index'
 import { useAuthStore } from '../stores/auth'
@@ -31,6 +32,12 @@ export const router = createRouter({
       name: 'authoring',
       component: AuthoringView,
       meta: { requiresAuth: true },
+    },
+    {
+      path: '/routes/:slug',
+      name: 'route',
+      component: RouteView,
+      props: true,
     },
     {
       path: '/:pathMatch(.*)*',

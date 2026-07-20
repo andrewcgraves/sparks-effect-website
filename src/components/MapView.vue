@@ -18,6 +18,7 @@ const props = defineProps<{
   routes: Route[]
   stations: Station[]
   services: Service[]
+  hideIsochroneLegend?: boolean
 }>()
 
 const ORIGIN_SNAP_ZOOM = 9
@@ -204,6 +205,7 @@ onUnmounted(() => {
          bottom (wrapping to two lines when narrow) and the fullscreen control
          the top-right. Anywhere else the key's second row gets covered. -->
     <aside
+      v-if="!hideIsochroneLegend"
       class="absolute top-3 left-3 z-1 rounded-(--radius-field) bg-white/92 px-3 py-2.5 shadow-(--shadow-panel)"
       aria-label="Isochrone color key"
     >
