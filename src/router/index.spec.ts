@@ -9,6 +9,7 @@ vi.mock('../views/CoverPage.vue', () => ({ default: { template: '<div />' } }))
 vi.mock('../views/ScenarioView.vue', () => ({ default: { props: ['slug'], template: '<div />' } }))
 vi.mock('../views/LoginView.vue', () => ({ default: { template: '<div />' } }))
 vi.mock('../views/AuthoringView.vue', () => ({ default: { template: '<div />' } }))
+vi.mock('../views/RouteView.vue', () => ({ default: { props: ['slug'], template: '<div />' } }))
 vi.mock('../views/NotFoundView.vue', () => ({ default: { template: '<div />' } }))
 
 import { router } from './index'
@@ -30,6 +31,11 @@ describe('router', () => {
   it('tracks a page view for /scenario/:slug using the actual route path', async () => {
     await router.push('/scenario/ca-hsr')
     expect(trackPageView).toHaveBeenCalledWith('/scenario/ca-hsr')
+  })
+
+  it('tracks a page view for /routes/:slug using the actual route path', async () => {
+    await router.push('/routes/main-line')
+    expect(trackPageView).toHaveBeenCalledWith('/routes/main-line')
   })
 
   it('tracks a page view for unmatched paths using the actual route path', async () => {

@@ -73,21 +73,22 @@ export interface GeoLineString {
   coordinates: number[][]
 }
 
-// Per-segment physics between two consecutive stops.
+// Alignment physics for one segment of an ingested route.
 export interface RouteSegment {
-  from_seq: number
-  to_seq: number
-  distance_m: number
-  run_seconds: number
-  max_speed_kmh: number
+  cant_mm: number
+  curve_radius_m: number
+  grade_pct: number
 }
 
-// A computed route carrying geometry plus per-segment physics.
+// An ingested route carrying geometry plus per-segment physics.
 export interface Route {
   id: string
+  scenario_id?: string | null
   slug: string
-  scenario_slug: string
+  name: string
+  mode: string
   geometry: GeoLineString
+  bidirectional: boolean
   segments: RouteSegment[]
 }
 
