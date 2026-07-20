@@ -5,6 +5,18 @@ export function apiBase(): string {
   return import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
 }
 
+// A failed API response, carrying the status so callers can branch on it —
+// notably 401, which means the session is gone rather than the network.
+export class ApiError extends Error {
+  readonly status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+  }
+}
+
 // Supplies the current bearer token, or null when signed out.
 export type AuthTokenProvider = () => string | null
 
@@ -42,7 +54,7 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
     } catch {
       // Non-JSON or empty error body; fall back to status only.
     }
-    throw new Error(`${method} ${path} failed: ${res.status}${detail}`)
+    throw new ApiError(`${method} ${path} failed: ${res.status}${detail}`, res.status)
   }
 
   // 204 No Content carries no body to parse.

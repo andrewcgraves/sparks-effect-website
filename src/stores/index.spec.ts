@@ -41,6 +41,29 @@ describe('installStores', () => {
     app.unmount()
   })
 
+  it('rehydrates a persisted session on boot', async () => {
+    const me = { id: 'u1', email: 'a@example.com' }
+    localStorage.setItem('sparks-effect.auth', JSON.stringify({ token: 'tok-1' }))
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 200, json: async () => me } as Response)
+
+    const app = createApp(Noop)
+    installStores(app)
+    app.mount(document.createElement('div'))
+
+    // The boot fetch is fire-and-forget, so let it settle.
+    await vi.waitFor(() => expect(useAuthStore().user).toEqual(me))
+    expect(vi.mocked(fetch).mock.calls[0][0]).toContain('/api/auth/me')
+    app.unmount()
+  })
+
+  it('does not fetch identity when there is no persisted token', () => {
+    const app = createApp(Noop)
+    installStores(app)
+    app.mount(document.createElement('div'))
+    expect(fetch).not.toHaveBeenCalled()
+    app.unmount()
+  })
+
   it('stops sending the token after sign-out', async () => {
     const app = createApp(Noop)
     installStores(app)
