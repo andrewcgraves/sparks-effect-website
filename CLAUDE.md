@@ -10,3 +10,13 @@ Use the Makefile for all build/test tasks (npm project).
 - `make clean` — remove `node_modules` and `dist`
 
 Deps install automatically via `make install`; targets depend on it.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in Linear, team `Sparks Effect` (`SPA-` prefix). See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five canonical roles, each label string equal to its name. See `docs/agents/triage-labels.md`.
