@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   listServices,
+  fetchMyServices,
   fetchService,
   createService,
   updateService,
@@ -40,6 +41,15 @@ describe('services CRUD', () => {
     const result = await listServices()
     const [url, init] = vi.mocked(fetch).mock.calls[0]
     expect(url).toContain('/api/services')
+    expect((init as RequestInit | undefined)?.method ?? 'GET').toBe('GET')
+    expect(result).toEqual([stubService])
+  })
+
+  it('fetchMyServices GETs /api/me/services', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 200, json: async () => [stubService] } as Response)
+    const result = await fetchMyServices()
+    const [url, init] = vi.mocked(fetch).mock.calls[0]
+    expect(url).toContain('/api/me/services')
     expect((init as RequestInit | undefined)?.method ?? 'GET').toBe('GET')
     expect(result).toEqual([stubService])
   })

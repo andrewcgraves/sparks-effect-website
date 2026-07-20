@@ -7,6 +7,11 @@ export async function listScenarios(): Promise<Scenario[]> {
   return apiRequest<Scenario[]>('/api/scenarios')
 }
 
+// Lists the signed-in user's own scenarios.
+export async function fetchMyScenarios(): Promise<Scenario[]> {
+  return apiRequest<Scenario[]>('/api/me/scenarios')
+}
+
 // Fetches a single scenario by slug.
 export async function fetchScenario(slug: string): Promise<Scenario> {
   return apiRequest<Scenario>(`/api/scenarios/${slug}`)

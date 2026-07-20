@@ -7,6 +7,11 @@ export async function listServices(): Promise<Service[]> {
   return apiRequest<Service[]>('/api/services')
 }
 
+// Lists the signed-in user's own services.
+export async function fetchMyServices(): Promise<Service[]> {
+  return apiRequest<Service[]>('/api/me/services')
+}
+
 // Fetches a single service by slug.
 export async function fetchService(slug: string): Promise<Service> {
   return apiRequest<Service>(`/api/services/${slug}`)
