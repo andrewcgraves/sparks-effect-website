@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { apiBase, apiRequest } from './client'
+import { apiBase, apiRequest, setAuthTokenProvider } from './client'
 
 describe('apiBase', () => {
   afterEach(() => {
@@ -93,5 +93,48 @@ describe('apiRequest', () => {
       },
     } as unknown as Response)
     await expect(apiRequest('/api/things')).rejects.toThrow(/GET \/api\/things failed: 500/)
+  })
+})
+
+describe('auth token injection', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn())
+  })
+
+  afterEach(() => {
+    setAuthTokenProvider(null)
+    vi.restoreAllMocks()
+    vi.unstubAllEnvs()
+  })
+
+  function headersOf(): Headers {
+    return vi.mocked(fetch).mock.calls[0][1]?.headers as Headers
+  }
+
+  it('sends no Authorization header when no provider is registered', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 204 } as Response)
+    await apiRequest('/api/services')
+    expect(headersOf().has('Authorization')).toBe(false)
+  })
+
+  it('sends a bearer token supplied by the registered provider', async () => {
+    setAuthTokenProvider(() => 'tok-1')
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 204 } as Response)
+    await apiRequest('/api/services')
+    expect(headersOf().get('Authorization')).toBe('Bearer tok-1')
+  })
+
+  it('omits the header while the provider reports a signed-out user', async () => {
+    setAuthTokenProvider(() => null)
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 204 } as Response)
+    await apiRequest('/api/services')
+    expect(headersOf().has('Authorization')).toBe(false)
+  })
+
+  it('lets an explicit caller Authorization header win', async () => {
+    setAuthTokenProvider(() => 'tok-1')
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 204 } as Response)
+    await apiRequest('/api/services', { headers: { Authorization: 'Bearer caller' } })
+    expect(headersOf().get('Authorization')).toBe('Bearer caller')
   })
 })
