@@ -19,11 +19,6 @@ function emptyScenarioDraft(): ScenarioInput {
   return { name: '', description: '', service_ids: [] }
 }
 
-// Deep-copies a seed so editing a draft never mutates the caller's service/scenario.
-function clone<T>(value: T): T {
-  return structuredClone(value)
-}
-
 // Rewrites seq to match array order, keeping stop ordering canonical after edits.
 function renumber(stops: Stop[]): Stop[] {
   return stops.map((stop, index) => ({ ...stop, seq: index }))
@@ -40,7 +35,8 @@ export const useDraftsStore = defineStore('drafts', () => {
   const hasScenarioDraft = computed(() => scenarioDraft.value !== null)
 
   function startServiceDraft(seed?: ServiceInput, serviceId: string | null = null): void {
-    serviceDraft.value = seed ? clone(seed) : emptyServiceDraft()
+    // Cloned so editing the draft never mutates the caller's service.
+    serviceDraft.value = seed ? structuredClone(seed) : emptyServiceDraft()
     editingServiceId.value = serviceId
   }
 
@@ -65,7 +61,8 @@ export const useDraftsStore = defineStore('drafts', () => {
   }
 
   function startScenarioDraft(seed?: ScenarioInput, scenarioId: string | null = null): void {
-    scenarioDraft.value = seed ? clone(seed) : emptyScenarioDraft()
+    // Cloned so editing the draft never mutates the caller's scenario.
+    scenarioDraft.value = seed ? structuredClone(seed) : emptyScenarioDraft()
     editingScenarioId.value = scenarioId
   }
 

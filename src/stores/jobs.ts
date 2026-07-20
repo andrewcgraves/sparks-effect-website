@@ -24,7 +24,7 @@ export const useJobsStore = defineStore('jobs', () => {
   // Abort handles live outside reactive state — they're control plumbing, not UI data.
   const controllers = new Map<string, AbortController>()
 
-  const get = computed(() => (jobId: string): TrackedJob | undefined => entries.value[jobId])
+  const jobById = computed(() => (jobId: string): TrackedJob | undefined => entries.value[jobId])
   const isPending = computed(() => (jobId: string): boolean => {
     const entry = entries.value[jobId]
     return entry ? PENDING.has(entry.status) : false
@@ -99,8 +99,7 @@ export const useJobsStore = defineStore('jobs', () => {
   function cancel(jobId: string): void {
     const entry = entries.value[jobId]
     if (!entry) return
-    controllers.get(jobId)?.abort()
-    controllers.delete(jobId)
+    abort(jobId)
     entries.value[jobId] = { ...entry, status: 'cancelled' }
   }
 
@@ -115,5 +114,5 @@ export const useJobsStore = defineStore('jobs', () => {
     entries.value = {}
   }
 
-  return { entries, get, isPending, anyPending, track, cancel, clear, reset }
+  return { entries, jobById, isPending, anyPending, track, cancel, clear, reset }
 })

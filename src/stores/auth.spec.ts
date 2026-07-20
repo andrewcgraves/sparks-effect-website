@@ -49,6 +49,13 @@ describe('useAuthStore', () => {
     expect(localStorage.getItem(AUTH_STORAGE_KEY)).toBeNull()
   })
 
+  it('treats an empty token as signed out, matching what it will persist', () => {
+    const auth = useAuthStore()
+    auth.signIn('')
+    expect(auth.isAuthenticated).toBe(false)
+    expect(localStorage.getItem(AUTH_STORAGE_KEY)).toBeNull()
+  })
+
   it('ignores a corrupt persisted session rather than throwing', () => {
     localStorage.setItem(AUTH_STORAGE_KEY, 'not json')
     setActivePinia(createPinia())

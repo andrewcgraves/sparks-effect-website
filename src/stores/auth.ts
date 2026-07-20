@@ -43,12 +43,13 @@ export const useAuthStore = defineStore('auth', () => {
   const token = ref<string | null>(persisted?.token ?? null)
   const user = ref<AuthUser | null>(persisted?.user ?? null)
 
-  const isAuthenticated = computed(() => token.value !== null)
+  // Mirrors readPersistedSession: an empty token authenticates nothing.
+  const isAuthenticated = computed(() => Boolean(token.value))
 
   // Persistence is best-effort: a full or disabled store must not break sign-in.
   function persist(): void {
     try {
-      if (token.value === null) {
+      if (!token.value) {
         localStorage.removeItem(AUTH_STORAGE_KEY)
         return
       }

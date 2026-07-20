@@ -22,7 +22,7 @@ describe('useJobsStore', () => {
   it('has no tracked jobs to start with', () => {
     const jobs = useJobsStore()
     expect(jobs.anyPending).toBe(false)
-    expect(jobs.get('job1')).toBeUndefined()
+    expect(jobs.jobById('job1')).toBeUndefined()
     expect(jobs.isPending('job1')).toBe(false)
   })
 
@@ -39,15 +39,15 @@ describe('useJobsStore', () => {
     await vi.advanceTimersByTimeAsync(0)
     expect(jobs.isPending('job1')).toBe(true)
     expect(jobs.anyPending).toBe(true)
-    expect(jobs.get('job1')?.status).toBe('running')
-    expect(jobs.get('job1')?.progress).toBe(0.5)
+    expect(jobs.jobById('job1')?.status).toBe('running')
+    expect(jobs.jobById('job1')?.progress).toBe(0.5)
 
     await vi.advanceTimersByTimeAsync(1000)
     await expect(tracked).resolves.toBe('result:route-1')
 
-    expect(jobs.get('job1')?.status).toBe('succeeded')
-    expect(jobs.get('job1')?.result).toBe('result:route-1')
-    expect(jobs.get('job1')?.error).toBeNull()
+    expect(jobs.jobById('job1')?.status).toBe('succeeded')
+    expect(jobs.jobById('job1')?.result).toBe('result:route-1')
+    expect(jobs.jobById('job1')?.error).toBeNull()
     expect(jobs.isPending('job1')).toBe(false)
     expect(jobs.anyPending).toBe(false)
   })
@@ -64,9 +64,9 @@ describe('useJobsStore', () => {
     await vi.advanceTimersByTimeAsync(0)
     await expect(tracked).rejects.toThrow(/solver exploded/)
 
-    expect(jobs.get('job1')?.status).toBe('failed')
-    expect(jobs.get('job1')?.error).toMatch(/solver exploded/)
-    expect(jobs.get('job1')?.result).toBeNull()
+    expect(jobs.jobById('job1')?.status).toBe('failed')
+    expect(jobs.jobById('job1')?.error).toMatch(/solver exploded/)
+    expect(jobs.jobById('job1')?.result).toBeNull()
     expect(jobs.isPending('job1')).toBe(false)
   })
 
@@ -82,8 +82,8 @@ describe('useJobsStore', () => {
     await vi.advanceTimersByTimeAsync(0)
     await expect(first).resolves.toBe('r1')
 
-    expect(jobs.get('job1')?.status).toBe('succeeded')
-    expect(jobs.get('job2')?.status).toBe('running')
+    expect(jobs.jobById('job1')?.status).toBe('succeeded')
+    expect(jobs.jobById('job2')?.status).toBe('running')
     expect(jobs.anyPending).toBe(true)
   })
 
@@ -102,7 +102,7 @@ describe('useJobsStore', () => {
     await vi.advanceTimersByTimeAsync(0)
 
     await expect(tracked).rejects.toThrow(/aborted/i)
-    expect(jobs.get('job1')?.status).toBe('cancelled')
+    expect(jobs.jobById('job1')?.status).toBe('cancelled')
     expect(jobs.isPending('job1')).toBe(false)
   })
 
@@ -120,7 +120,7 @@ describe('useJobsStore', () => {
     await jobs.track('job1', async (slug: string) => slug)
 
     jobs.clear('job1')
-    expect(jobs.get('job1')).toBeUndefined()
+    expect(jobs.jobById('job1')).toBeUndefined()
   })
 
   it('reset cancels everything in flight and empties the store', async () => {
@@ -135,7 +135,7 @@ describe('useJobsStore', () => {
     await vi.advanceTimersByTimeAsync(0)
 
     await expect(tracked).rejects.toThrow(/aborted/i)
-    expect(jobs.get('job1')).toBeUndefined()
+    expect(jobs.jobById('job1')).toBeUndefined()
     expect(jobs.anyPending).toBe(false)
   })
 
