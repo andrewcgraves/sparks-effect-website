@@ -153,6 +153,72 @@ describe('useAuthStore', () => {
     })
   })
 
+  describe('login', () => {
+    it('exchanges credentials for a session and signs in', async () => {
+      const session = {
+        token: 'tok-1',
+        expires_at: '2026-07-21T00:00:00Z',
+        user: { id: 'u1', email: 'a@example.com', is_admin: false },
+      }
+      vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 200, json: async () => session } as Response)
+
+      const auth = useAuthStore()
+      await auth.login('a@example.com', 'secret')
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0]
+      expect(url).toContain('/api/auth/login')
+      expect(JSON.parse((init as RequestInit).body as string)).toEqual({
+        email: 'a@example.com',
+        password: 'secret',
+      })
+      expect(auth.token).toBe('tok-1')
+      expect(auth.user).toEqual(session.user)
+      expect(auth.isAuthenticated).toBe(true)
+    })
+
+    it('leaves the store signed out and propagates the error on invalid credentials', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: async () => ({ error: 'invalid email or password' }),
+      } as Response)
+
+      const auth = useAuthStore()
+      await expect(auth.login('a@example.com', 'wrong')).rejects.toBeInstanceOf(ApiError)
+      expect(auth.isAuthenticated).toBe(false)
+    })
+  })
+
+  describe('logout', () => {
+    it('revokes the session server-side and signs out locally', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 204 } as Response)
+
+      const auth = useAuthStore()
+      auth.signIn('tok-1', { id: 'u1', email: 'a@example.com' })
+      await auth.logout()
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0]
+      expect(url).toContain('/api/auth/logout')
+      expect((init as RequestInit).method).toBe('POST')
+      expect(auth.isAuthenticated).toBe(false)
+      expect(auth.token).toBeNull()
+    })
+
+    it('still signs out locally when revocation fails (e.g. an already-expired token)', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: async () => ({ error: 'session expired' }),
+      } as Response)
+
+      const auth = useAuthStore()
+      auth.signIn('tok-1', { id: 'u1', email: 'a@example.com' })
+      await auth.logout()
+
+      expect(auth.isAuthenticated).toBe(false)
+    })
+  })
+
   it('survives localStorage being unavailable', () => {
     vi.spyOn(window.localStorage, 'setItem').mockImplementation(() => {
       throw new Error('QuotaExceeded')

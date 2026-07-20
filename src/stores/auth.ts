@@ -1,7 +1,7 @@
 // Shared auth state: the signed-in user and the token the API client sends.
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { ApiError, fetchCurrentUser, type CurrentUser } from '../api/authoring'
+import { ApiError, fetchCurrentUser, login as loginRequest, logout as logoutRequest, type CurrentUser } from '../api/authoring'
 
 // localStorage key holding the persisted token so a reload stays signed in.
 export const AUTH_STORAGE_KEY = 'sparks-effect.auth'
@@ -70,6 +70,26 @@ export const useAuthStore = defineStore('auth', () => {
     persist()
   }
 
+  // Exchanges credentials for a session. There is no signup UI — accounts
+  // are provisioned by an admin. Leaves the store untouched on failure so
+  // the caller's error (e.g. invalid credentials) is the only visible effect.
+  async function login(email: string, password: string): Promise<void> {
+    const session = await loginRequest(email, password)
+    signIn(session.token, session.user)
+  }
+
+  // Revokes the session server-side, then signs out locally regardless of
+  // whether revocation succeeded — an already-expired token can't be
+  // revoked, but the user still expects to end up signed out.
+  async function logout(): Promise<void> {
+    try {
+      await logoutRequest()
+    } catch {
+      // Token already invalid/expired server-side; sign out locally anyway.
+    }
+    signOut()
+  }
+
   // Rehydrates the user behind a persisted token on boot.
   //
   // A 401 means the session was revoked or expired, so the stored token is
@@ -84,5 +104,5 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { token, user, isAuthenticated, signIn, signOut, restoreSession }
+  return { token, user, isAuthenticated, signIn, signOut, login, logout, restoreSession }
 })

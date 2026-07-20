@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   listScenarios,
+  fetchMyScenarios,
   fetchScenario,
   createScenario,
   updateScenario,
@@ -35,6 +36,14 @@ describe('scenarios CRUD', () => {
     const result = await listScenarios()
     const url = vi.mocked(fetch).mock.calls[0][0] as string
     expect(url).toContain('/api/scenarios')
+    expect(result).toEqual([stubScenario])
+  })
+
+  it('fetchMyScenarios GETs /api/me/scenarios', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 200, json: async () => [stubScenario] } as Response)
+    const result = await fetchMyScenarios()
+    const url = vi.mocked(fetch).mock.calls[0][0] as string
+    expect(url).toContain('/api/me/scenarios')
     expect(result).toEqual([stubScenario])
   })
 
