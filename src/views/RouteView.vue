@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import MapView from '../components/MapView.vue'
-import { useRoute } from '../composables/useRoute'
+import { useRouteDetail } from '../composables/useRouteDetail'
 import type { Route as ScenarioRoute } from '../api/scenarios'
 
 const props = defineProps<{ slug: string }>()
 
-const { route, loading, notFound } = useRoute(props.slug)
+const { route, loading, notFound, error } = useRouteDetail(props.slug)
 
 const mapRoutes = computed<ScenarioRoute[]>(() => {
   if (!route.value) return []
@@ -39,6 +39,15 @@ const mapRoutes = computed<ScenarioRoute[]>(() => {
       </p>
     </template>
 
+    <template v-else-if="error">
+      <h1 class="font-display text-display text-ink-true">
+        Something went wrong
+      </h1>
+      <p class="font-body text-body mt-3 text-ink-muted">
+        Failed to load this route. Please try again.
+      </p>
+    </template>
+
     <template v-else-if="route">
       <h1 class="font-display text-display text-ink-true">
         {{ route.name }}
@@ -52,6 +61,7 @@ const mapRoutes = computed<ScenarioRoute[]>(() => {
             :routes="mapRoutes"
             :stations="[]"
             :services="[]"
+            hide-isochrone-legend
           />
         </div>
 

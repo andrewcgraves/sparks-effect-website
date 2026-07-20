@@ -429,6 +429,11 @@ describe('MapView', () => {
     expect(legend.text()).toContain('From station')
   })
 
+  it('hides the isochrone legend when hideIsochroneLegend is set', () => {
+    const wrapper = mount(MapView, { props: { ...defaultProps, hideIsochroneLegend: true } })
+    expect(wrapper.find('[aria-label="Isochrone color key"]').exists()).toBe(false)
+  })
+
   it('adds a fullscreen control so the map can be expanded', () => {
     mount(MapView, { props: defaultProps })
     expect(FullscreenControl).toHaveBeenCalledOnce()

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { apiBase, apiRequest, setAuthTokenProvider } from './client'
+import { ApiError, apiBase, apiRequest, setAuthTokenProvider } from './client'
 
 describe('apiBase', () => {
   afterEach(() => {
@@ -82,6 +82,23 @@ describe('apiRequest', () => {
     await expect(apiRequest('/api/things/x', { method: 'GET' })).rejects.toThrow(
       /GET \/api\/things\/x failed: 404: not found/,
     )
+  })
+
+  it('throws an ApiError carrying the response status', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: async () => ({ error: 'not found' }),
+    } as Response)
+    await expect(apiRequest('/api/things/x')).rejects.toBeInstanceOf(ApiError)
+
+    let caught: unknown
+    try {
+      await apiRequest('/api/things/x')
+    } catch (err) {
+      caught = err
+    }
+    expect((caught as ApiError).status).toBe(404)
   })
 
   it('still throws when the error body is not JSON', async () => {
