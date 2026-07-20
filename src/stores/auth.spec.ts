@@ -5,7 +5,7 @@ import { ApiError } from '../api/authoring'
 
 describe('useAuthStore', () => {
   beforeEach(() => {
-    localStorage.clear()
+    window.localStorage.clear()
     setActivePinia(createPinia())
     vi.stubGlobal('fetch', vi.fn())
   })
@@ -41,7 +41,7 @@ describe('useAuthStore', () => {
 
   it('does not persist the user, so it cannot go stale across a reload', () => {
     useAuthStore().signIn('tok-1', { id: 'u1', email: 'a@example.com', is_admin: true })
-    expect(JSON.parse(localStorage.getItem(AUTH_STORAGE_KEY) as string)).toEqual({ token: 'tok-1' })
+    expect(JSON.parse(window.localStorage.getItem(AUTH_STORAGE_KEY) as string)).toEqual({ token: 'tok-1' })
 
     setActivePinia(createPinia())
     expect(useAuthStore().user).toBeNull()
@@ -55,18 +55,18 @@ describe('useAuthStore', () => {
     expect(auth.token).toBeNull()
     expect(auth.user).toBeNull()
     expect(auth.isAuthenticated).toBe(false)
-    expect(localStorage.getItem(AUTH_STORAGE_KEY)).toBeNull()
+    expect(window.localStorage.getItem(AUTH_STORAGE_KEY)).toBeNull()
   })
 
   it('treats an empty token as signed out, matching what it will persist', () => {
     const auth = useAuthStore()
     auth.signIn('')
     expect(auth.isAuthenticated).toBe(false)
-    expect(localStorage.getItem(AUTH_STORAGE_KEY)).toBeNull()
+    expect(window.localStorage.getItem(AUTH_STORAGE_KEY)).toBeNull()
   })
 
   it('ignores a corrupt persisted session rather than throwing', () => {
-    localStorage.setItem(AUTH_STORAGE_KEY, 'not json')
+    window.localStorage.setItem(AUTH_STORAGE_KEY, 'not json')
     setActivePinia(createPinia())
     const auth = useAuthStore()
     expect(auth.token).toBeNull()
@@ -74,7 +74,7 @@ describe('useAuthStore', () => {
   })
 
   it('ignores a persisted session that has no token', () => {
-    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ user: { id: 'u1' } }))
+    window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ user: { id: 'u1' } }))
     setActivePinia(createPinia())
     expect(useAuthStore().isAuthenticated).toBe(false)
   })
@@ -84,7 +84,7 @@ describe('useAuthStore', () => {
       const me = { id: 'u1', email: 'a@example.com', is_admin: false }
       vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 200, json: async () => me } as Response)
 
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: 'tok-1' }))
+      window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: 'tok-1' }))
       setActivePinia(createPinia())
       const auth = useAuthStore()
       await auth.restoreSession()
@@ -106,19 +106,19 @@ describe('useAuthStore', () => {
         json: async () => ({ error: 'session expired' }),
       } as Response)
 
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: 'stale' }))
+      window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: 'stale' }))
       setActivePinia(createPinia())
       const auth = useAuthStore()
       await auth.restoreSession()
 
       expect(auth.isAuthenticated).toBe(false)
-      expect(localStorage.getItem(AUTH_STORAGE_KEY)).toBeNull()
+      expect(window.localStorage.getItem(AUTH_STORAGE_KEY)).toBeNull()
     })
 
     it('keeps the session when the failure is transient rather than a 401', async () => {
       vi.mocked(fetch).mockRejectedValueOnce(new TypeError('Failed to fetch'))
 
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: 'tok-1' }))
+      window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: 'tok-1' }))
       setActivePinia(createPinia())
       const auth = useAuthStore()
       await auth.restoreSession()
@@ -134,7 +134,7 @@ describe('useAuthStore', () => {
         json: async () => ({ error: 'boom' }),
       } as Response)
 
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: 'tok-1' }))
+      window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: 'tok-1' }))
       setActivePinia(createPinia())
       const auth = useAuthStore()
       await auth.restoreSession()
@@ -154,7 +154,7 @@ describe('useAuthStore', () => {
   })
 
   it('survives localStorage being unavailable', () => {
-    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+    vi.spyOn(window.localStorage, 'setItem').mockImplementation(() => {
       throw new Error('QuotaExceeded')
     })
     const auth = useAuthStore()

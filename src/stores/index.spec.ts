@@ -8,7 +8,7 @@ const Noop = defineComponent({ render: () => h('div') })
 
 describe('installStores', () => {
   beforeEach(() => {
-    localStorage.clear()
+    window.localStorage.clear()
     vi.stubGlobal('fetch', vi.fn())
   })
 
@@ -43,7 +43,7 @@ describe('installStores', () => {
 
   it('rehydrates a persisted session on boot', async () => {
     const me = { id: 'u1', email: 'a@example.com' }
-    localStorage.setItem('sparks-effect.auth', JSON.stringify({ token: 'tok-1' }))
+    window.localStorage.setItem('sparks-effect.auth', JSON.stringify({ token: 'tok-1' }))
     vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 200, json: async () => me } as Response)
 
     const app = createApp(Noop)

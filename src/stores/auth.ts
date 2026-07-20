@@ -20,7 +20,7 @@ interface PersistedSession {
 function readPersistedToken(): string | null {
   let raw: string | null
   try {
-    raw = localStorage.getItem(AUTH_STORAGE_KEY)
+    raw = window.localStorage.getItem(AUTH_STORAGE_KEY)
   } catch {
     // Storage disabled (private mode, blocked cookies); treat as signed out.
     return null
@@ -49,10 +49,10 @@ export const useAuthStore = defineStore('auth', () => {
   function persist(): void {
     try {
       if (!token.value) {
-        localStorage.removeItem(AUTH_STORAGE_KEY)
+        window.localStorage.removeItem(AUTH_STORAGE_KEY)
         return
       }
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: token.value }))
+      window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: token.value }))
     } catch {
       // Session stays valid in memory for this tab.
     }
