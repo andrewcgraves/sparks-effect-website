@@ -1,32 +1,16 @@
 <script setup lang="ts">
-import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { useOwnedList } from '../composables/useOwnedList'
 import { fetchMyServices } from '../api/authoring/services'
 import { fetchMyScenarios } from '../api/authoring/scenarios'
-import type { Service, Scenario } from '../api/authoring/types'
 
 const auth = useAuthStore()
 const router = useRouter()
 
-const services = ref<Service[]>([])
-const servicesLoading = ref(true)
-const servicesError = ref(false)
-
-const scenarios = ref<Scenario[]>([])
-const scenariosLoading = ref(true)
-const scenariosError = ref(false)
-
 // Independent failures: one list failing to load shouldn't hide the other.
-fetchMyServices()
-  .then((result) => { services.value = result })
-  .catch(() => { servicesError.value = true })
-  .finally(() => { servicesLoading.value = false })
-
-fetchMyScenarios()
-  .then((result) => { scenarios.value = result })
-  .catch(() => { scenariosError.value = true })
-  .finally(() => { scenariosLoading.value = false })
+const { items: services, loading: servicesLoading, error: servicesError } = useOwnedList(fetchMyServices)
+const { items: scenarios, loading: scenariosLoading, error: scenariosError } = useOwnedList(fetchMyScenarios)
 
 async function handleSignOut() {
   await auth.logout()
