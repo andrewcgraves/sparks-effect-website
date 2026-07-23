@@ -31,11 +31,11 @@ function makeRouter() {
 const stubService: Service = {
   id: 'svc1',
   slug: 'northbound-express',
+  route_id: 'route-1',
   name: 'Northbound Express',
   stops: [],
   vehicle: { max_speed_kmh: 320, acceleration_ms2: 1, deceleration_ms2: 1, dwell_s: 30 },
   frequency_windows: [],
-  provenance: 'computed',
 }
 
 const stubScenario: Scenario = {
@@ -73,6 +73,16 @@ describe('AuthoringView', () => {
     const { wrapper } = await mountAuthoring()
     await flushPromises()
     expect(wrapper.text()).toContain('a@example.com')
+  })
+
+  it('links to the new-service authoring form', async () => {
+    vi.mocked(fetchMyServices).mockResolvedValue([])
+    vi.mocked(fetchMyScenarios).mockResolvedValue([])
+    const { wrapper } = await mountAuthoring()
+    await flushPromises()
+    const link = wrapper.find('[data-testid="new-service-link"]')
+    expect(link.exists()).toBe(true)
+    expect(link.attributes('href')).toBe('/authoring/services/new')
   })
 
   it('lists my services once loaded', async () => {

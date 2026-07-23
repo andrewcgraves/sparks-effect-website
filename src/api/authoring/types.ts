@@ -1,11 +1,19 @@
 // Domain model for the authoring API (services, scenarios, routes, jobs).
 
 // A single ordered stop along a service, carrying its own location inline.
+//
+// Slug, chainage_m, and offset_m are server-assigned: they appear on a stop
+// read back from the API, but are meaningless (and ignored) on a stop a client
+// is submitting, since the server re-derives them by snapping to the route on
+// every write.
 export interface Stop {
+  name: string
   lat: number
   lng: number
-  name: string
   seq: number
+  slug?: string
+  chainage_m?: number
+  offset_m?: number
 }
 
 // User-defined vehicle physics used to simulate a service.
@@ -23,25 +31,27 @@ export interface FrequencyWindow {
   headway_s: number
 }
 
-// How a service's derived data was produced.
-export type Provenance = 'computed' | 'calibrated' | 'frozen'
-
-// A service embeds its ordered stops, vehicle params, and frequency windows.
+// A service embeds its ordered stops, vehicle params, and frequency windows,
+// authored against one route.
 export interface Service {
   id: string
   slug: string
+  route_id: string
   name: string
+  description?: string
   stops: Stop[]
   vehicle: VehicleParams
   frequency_windows: FrequencyWindow[]
-  provenance: Provenance
   owner_id?: string | null
   created_at?: string
   updated_at?: string
 }
 
-// Create/update payload for a service (no server-assigned fields).
+// Create/update payload for a service (no server-assigned fields). The route
+// is named by slug — the server resolves it to its internal id, so a client
+// never has to know (or spoof) one.
 export interface ServiceInput {
+  route_slug: string
   name: string
   stops: Stop[]
   vehicle: VehicleParams
@@ -92,16 +102,93 @@ export interface Route {
   segments: RouteSegment[]
 }
 
+// A route reduced to what's needed to choose one from a picker.
+export interface RouteSummary {
+  slug: string
+  name: string
+  mode: string
+}
+
+// One raw, user-placed point to preview a snap for.
+export interface SnapStopInput {
+  id?: string
+  lat: number
+  lng: number
+}
+
+export interface SnapCoord {
+  lat: number
+  lng: number
+}
+
+// One stop's projection onto a route's alignment.
+export interface SnappedStopResult {
+  id?: string
+  input: SnapCoord
+  snapped: SnapCoord
+  chainage_m: number
+  offset_m: number
+  off_route: boolean
+}
+
+// The snap-stops preview response: every stop's projection, plus whether the
+// authored order agrees with the order the stops actually fall in along the
+// line.
+export interface SnapStopsResponse {
+  route_slug: string
+  off_route_threshold_m: number
+  stops: SnappedStopResult[]
+  chainage_order: number[]
+  order_is_consistent: boolean
+}
+
 // Lifecycle state of an async job.
 export type JobStatus = 'queued' | 'running' | 'succeeded' | 'failed'
 
-// An async job: submit, poll, then fetch its result by slug.
+// What a compile job compiled — the discriminator for which target id is set.
+export type JobKind = 'compile_scenario' | 'compile_user_scenario' | 'compile_user_service'
+
+// One directed hop in a compiled graph.
+export interface GraphEdge {
+  from_slug: string
+  to_slug: string
+  seconds: number
+}
+
+// One service's compiled edges within a graph.
+export interface ServiceGraph {
+  service_id: string
+  edges: GraphEdge[]
+  wait_secs: number
+}
+
+// One addressable point in a compiled graph.
+export interface GraphNode {
+  slug: string
+  lat: number
+  lng: number
+  names: string[]
+}
+
+// A compiled, Dijkstra-ready representation of a service or scenario's
+// active services — the result an async compile job persists.
+export interface TransitGraph {
+  services: ServiceGraph[]
+  nodes?: GraphNode[]
+}
+
+// An async compile job: trigger, poll by id, then read the result off the job
+// itself once it succeeds — there is no separate fetch-by-slug for it.
 export interface Job {
   id: string
+  kind: JobKind
   status: JobStatus
-  result_slug?: string | null
+  scenario_id?: string | null
+  user_scenario_id?: string | null
+  user_service_id?: string | null
+  owner_id?: string | null
   error?: string | null
-  progress?: number
+  result?: TransitGraph | null
   created_at?: string
   updated_at?: string
 }

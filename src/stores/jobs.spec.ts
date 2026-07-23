@@ -1,10 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useJobsStore } from './jobs'
-import type { Job } from '../api/authoring'
+import type { Job, TransitGraph } from '../api/authoring'
 
 function jobResponse(job: Job): Response {
   return { ok: true, status: 200, json: async () => job } as Response
+}
+
+const stubGraph: TransitGraph = {
+  services: [{ service_id: 'svc1', edges: [{ from_slug: 'a', to_slug: 'b', seconds: 60 }], wait_secs: 30 }],
 }
 
 describe('useJobsStore', () => {
@@ -28,25 +32,25 @@ describe('useJobsStore', () => {
 
   it('records a job as pending while it polls, then stores its result', async () => {
     vi.mocked(fetch)
-      .mockResolvedValueOnce(jobResponse({ id: 'job1', status: 'running', progress: 0.5 }))
-      .mockResolvedValueOnce(jobResponse({ id: 'job1', status: 'succeeded', result_slug: 'route-1' }))
+      .mockResolvedValueOnce(jobResponse({ id: 'job1', kind: 'compile_user_service', status: 'running' }))
+      .mockResolvedValueOnce(
+        jobResponse({ id: 'job1', kind: 'compile_user_service', status: 'succeeded', result: stubGraph }),
+      )
 
     const jobs = useJobsStore()
-    const tracked = jobs.track('job1', async (slug: string) => `result:${slug}`, {
-      intervalMs: 1000,
-    })
+    const tracked = jobs.track('job1', { intervalMs: 1000 })
 
     await vi.advanceTimersByTimeAsync(0)
     expect(jobs.isPending('job1')).toBe(true)
     expect(jobs.anyPending).toBe(true)
     expect(jobs.jobById('job1')?.status).toBe('running')
-    expect(jobs.jobById('job1')?.progress).toBe(0.5)
 
     await vi.advanceTimersByTimeAsync(1000)
-    await expect(tracked).resolves.toBe('result:route-1')
+    const resolved = await tracked
+    expect(resolved.result).toEqual(stubGraph)
 
     expect(jobs.jobById('job1')?.status).toBe('succeeded')
-    expect(jobs.jobById('job1')?.result).toBe('result:route-1')
+    expect(jobs.jobById('job1')?.result).toEqual(stubGraph)
     expect(jobs.jobById('job1')?.error).toBeNull()
     expect(jobs.isPending('job1')).toBe(false)
     expect(jobs.anyPending).toBe(false)
@@ -54,11 +58,11 @@ describe('useJobsStore', () => {
 
   it('records the failure message when a job fails', async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
-      jobResponse({ id: 'job1', status: 'failed', error: 'solver exploded' }),
+      jobResponse({ id: 'job1', kind: 'compile_user_service', status: 'failed', error: 'solver exploded' }),
     )
 
     const jobs = useJobsStore()
-    const tracked = jobs.track('job1', async (slug: string) => slug)
+    const tracked = jobs.track('job1')
     tracked.catch(() => {})
 
     await vi.advanceTimersByTimeAsync(0)
@@ -72,15 +76,17 @@ describe('useJobsStore', () => {
 
   it('tracks several jobs independently', async () => {
     vi.mocked(fetch)
-      .mockResolvedValueOnce(jobResponse({ id: 'job1', status: 'succeeded', result_slug: 'r1' }))
-      .mockResolvedValueOnce(jobResponse({ id: 'job2', status: 'running' }))
+      .mockResolvedValueOnce(
+        jobResponse({ id: 'job1', kind: 'compile_user_service', status: 'succeeded', result: stubGraph }),
+      )
+      .mockResolvedValueOnce(jobResponse({ id: 'job2', kind: 'compile_user_service', status: 'running' }))
 
     const jobs = useJobsStore()
-    const first = jobs.track('job1', async (slug: string) => slug)
-    jobs.track('job2', async (slug: string) => slug).catch(() => {})
+    const first = jobs.track('job1')
+    jobs.track('job2').catch(() => {})
 
     await vi.advanceTimersByTimeAsync(0)
-    await expect(first).resolves.toBe('r1')
+    await first
 
     expect(jobs.jobById('job1')?.status).toBe('succeeded')
     expect(jobs.jobById('job2')?.status).toBe('running')
@@ -88,10 +94,10 @@ describe('useJobsStore', () => {
   })
 
   it('cancel stops polling and marks the job cancelled', async () => {
-    vi.mocked(fetch).mockResolvedValue(jobResponse({ id: 'job1', status: 'running' }))
+    vi.mocked(fetch).mockResolvedValue(jobResponse({ id: 'job1', kind: 'compile_user_service', status: 'running' }))
 
     const jobs = useJobsStore()
-    const tracked = jobs.track('job1', async (slug: string) => slug, { intervalMs: 1000 })
+    const tracked = jobs.track('job1', { intervalMs: 1000 })
     // Handle the rejection up front; the abort below settles it before the assertion runs.
     tracked.catch(() => {})
 
@@ -113,21 +119,21 @@ describe('useJobsStore', () => {
 
   it('clear forgets a single job', async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
-      jobResponse({ id: 'job1', status: 'succeeded', result_slug: 'r1' }),
+      jobResponse({ id: 'job1', kind: 'compile_user_service', status: 'succeeded', result: stubGraph }),
     )
     const jobs = useJobsStore()
     await vi.advanceTimersByTimeAsync(0)
-    await jobs.track('job1', async (slug: string) => slug)
+    await jobs.track('job1')
 
     jobs.clear('job1')
     expect(jobs.jobById('job1')).toBeUndefined()
   })
 
   it('reset cancels everything in flight and empties the store', async () => {
-    vi.mocked(fetch).mockResolvedValue(jobResponse({ id: 'job1', status: 'running' }))
+    vi.mocked(fetch).mockResolvedValue(jobResponse({ id: 'job1', kind: 'compile_user_service', status: 'running' }))
 
     const jobs = useJobsStore()
-    const tracked = jobs.track('job1', async (slug: string) => slug, { intervalMs: 1000 })
+    const tracked = jobs.track('job1', { intervalMs: 1000 })
     tracked.catch(() => {})
     await vi.advanceTimersByTimeAsync(0)
 
@@ -140,14 +146,14 @@ describe('useJobsStore', () => {
   })
 
   it('re-tracking a job id cancels the previous watch', async () => {
-    vi.mocked(fetch).mockResolvedValue(jobResponse({ id: 'job1', status: 'running' }))
+    vi.mocked(fetch).mockResolvedValue(jobResponse({ id: 'job1', kind: 'compile_user_service', status: 'running' }))
 
     const jobs = useJobsStore()
-    const first = jobs.track('job1', async (slug: string) => slug, { intervalMs: 1000 })
+    const first = jobs.track('job1', { intervalMs: 1000 })
     first.catch(() => {})
     await vi.advanceTimersByTimeAsync(0)
 
-    const second = jobs.track('job1', async (slug: string) => slug, { intervalMs: 1000 })
+    const second = jobs.track('job1', { intervalMs: 1000 })
     second.catch(() => {})
     await vi.advanceTimersByTimeAsync(0)
 

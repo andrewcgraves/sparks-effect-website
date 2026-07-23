@@ -1,15 +1,18 @@
 // Service CRUD operations.
 import { apiRequest } from './client'
-import type { Service, ServiceInput } from './types'
+import type { Job, Service, ServiceInput } from './types'
 
-// Lists all services.
+// Lists the signed-in user's own user-authored services. There is no "all
+// services" read: /api/services is owner-scoped, same as the rest of this
+// CRUD surface.
 export async function listServices(): Promise<Service[]> {
   return apiRequest<Service[]>('/api/services')
 }
 
-// Lists the signed-in user's own services.
+// Alias of listServices — kept as its own name because callers reach for
+// "mine" alongside fetchMyScenarios.
 export async function fetchMyServices(): Promise<Service[]> {
-  return apiRequest<Service[]>('/api/me/services')
+  return listServices()
 }
 
 // Fetches a single service by slug.
@@ -36,4 +39,11 @@ export async function updateService(slug: string, input: ServiceInput): Promise<
 // Deletes a service by slug.
 export async function deleteService(slug: string): Promise<void> {
   await apiRequest<void>(`/api/services/${slug}`, { method: 'DELETE' })
+}
+
+// Triggers a compile of a single service, degenerate as a one-member
+// scenario. Returns the queued job immediately; poll it via fetchJob /
+// pollJobToResult to reach the compiled TransitGraph.
+export async function compileService(slug: string): Promise<Job> {
+  return apiRequest<Job>(`/api/services/${slug}/compile`, { method: 'POST' })
 }

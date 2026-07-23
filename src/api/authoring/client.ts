@@ -7,13 +7,19 @@ export function apiBase(): string {
 
 // A failed API response, carrying the status so callers can branch on it —
 // notably 401, which means the session is gone rather than the network.
+//
+// code is the handful of 409s and validation failures the server tags with a
+// machine-readable discriminator (e.g. "stale_graph") so a caller can act on
+// them instead of just displaying the message; most error bodies carry none.
 export class ApiError extends Error {
   readonly status: number
+  readonly code?: string
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, code?: string) {
     super(message)
     this.name = 'ApiError'
     this.status = status
+    this.code = code
   }
 }
 
@@ -46,15 +52,17 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
   const method = init?.method ?? 'GET'
 
   if (!res.ok) {
-    // Best-effort extraction of an { error } message from a JSON error body.
+    // Best-effort extraction of an { error, code? } body.
     let detail = ''
+    let code: string | undefined
     try {
-      const body = (await res.json()) as { error?: string }
+      const body = (await res.json()) as { error?: string; code?: string }
       if (body?.error) detail = `: ${body.error}`
+      code = body?.code
     } catch {
       // Non-JSON or empty error body; fall back to status only.
     }
-    throw new ApiError(`${method} ${path} failed: ${res.status}${detail}`, res.status)
+    throw new ApiError(`${method} ${path} failed: ${res.status}${detail}`, res.status, code)
   }
 
   // 204 No Content carries no body to parse.

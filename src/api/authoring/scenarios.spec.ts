@@ -31,34 +31,34 @@ describe('scenarios CRUD', () => {
     vi.unstubAllEnvs()
   })
 
-  it('listScenarios GETs /api/scenarios', async () => {
+  it('listScenarios GETs /api/user-scenarios', async () => {
     vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 200, json: async () => [stubScenario] } as Response)
     const result = await listScenarios()
     const url = vi.mocked(fetch).mock.calls[0][0] as string
-    expect(url).toContain('/api/scenarios')
+    expect(url).toContain('/api/user-scenarios')
     expect(result).toEqual([stubScenario])
   })
 
-  it('fetchMyScenarios GETs /api/me/scenarios', async () => {
+  it('fetchMyScenarios GETs /api/user-scenarios, same as listScenarios', async () => {
     vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 200, json: async () => [stubScenario] } as Response)
     const result = await fetchMyScenarios()
     const url = vi.mocked(fetch).mock.calls[0][0] as string
-    expect(url).toContain('/api/me/scenarios')
+    expect(url).toContain('/api/user-scenarios')
     expect(result).toEqual([stubScenario])
   })
 
-  it('fetchScenario GETs /api/scenarios/{slug}', async () => {
+  it('fetchScenario GETs /api/user-scenarios/{slug}', async () => {
     vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 200, json: async () => stubScenario } as Response)
     await fetchScenario('ca-hsr')
     const url = vi.mocked(fetch).mock.calls[0][0] as string
-    expect(url).toContain('/api/scenarios/ca-hsr')
+    expect(url).toContain('/api/user-scenarios/ca-hsr')
   })
 
   it('createScenario POSTs a body containing service_ids', async () => {
     vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 200, json: async () => stubScenario } as Response)
     await createScenario(stubInput)
     const [url, init] = vi.mocked(fetch).mock.calls[0]
-    expect(url).toContain('/api/scenarios')
+    expect(url).toContain('/api/user-scenarios')
     expect((init as RequestInit).method).toBe('POST')
     const body = JSON.parse((init as RequestInit).body as string)
     expect(body.service_ids).toEqual(['svc1', 'svc2'])
@@ -68,7 +68,7 @@ describe('scenarios CRUD', () => {
     vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 200, json: async () => stubScenario } as Response)
     await updateScenario('ca-hsr', stubInput)
     const [url, init] = vi.mocked(fetch).mock.calls[0]
-    expect(url).toContain('/api/scenarios/ca-hsr')
+    expect(url).toContain('/api/user-scenarios/ca-hsr')
     expect((init as RequestInit).method).toBe('PUT')
     const body = JSON.parse((init as RequestInit).body as string)
     expect(body.service_ids).toEqual(['svc1', 'svc2'])
@@ -78,7 +78,7 @@ describe('scenarios CRUD', () => {
     vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 204 } as Response)
     const result = await deleteScenario('ca-hsr')
     const [url, init] = vi.mocked(fetch).mock.calls[0]
-    expect(url).toContain('/api/scenarios/ca-hsr')
+    expect(url).toContain('/api/user-scenarios/ca-hsr')
     expect((init as RequestInit).method).toBe('DELETE')
     expect(result).toBeUndefined()
   })

@@ -41,9 +41,18 @@ async function handleSignOut() {
 
     <div class="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-2">
       <section>
-        <h2 class="font-display text-h2 text-ink-true">
-          My services
-        </h2>
+        <div class="flex items-center justify-between gap-3">
+          <h2 class="font-display text-h2 text-ink-true">
+            My services
+          </h2>
+          <router-link
+            to="/authoring/services/new"
+            class="font-display text-btn cursor-pointer text-ink-muted uppercase transition-colors duration-200 ease-(--ease-smooth) hover:text-coral"
+            data-testid="new-service-link"
+          >
+            + New service
+          </router-link>
+        </div>
         <p
           v-if="servicesLoading"
           class="font-body text-caption mt-3 text-ink-muted italic"

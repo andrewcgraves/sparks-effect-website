@@ -101,6 +101,38 @@ describe('apiRequest', () => {
     expect((caught as ApiError).status).toBe(404)
   })
 
+  it('carries a machine-readable code from the error body, when present', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      json: async () => ({ error: 'compiled graph is stale; recompile and retry', code: 'stale_graph' }),
+    } as Response)
+
+    let caught: unknown
+    try {
+      await apiRequest('/api/things/x')
+    } catch (err) {
+      caught = err
+    }
+    expect((caught as ApiError).code).toBe('stale_graph')
+  })
+
+  it('leaves code undefined when the error body has none', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      json: async () => ({ error: 'not found' }),
+    } as Response)
+
+    let caught: unknown
+    try {
+      await apiRequest('/api/things/x')
+    } catch (err) {
+      caught = err
+    }
+    expect((caught as ApiError).code).toBeUndefined()
+  })
+
   it('still throws when the error body is not JSON', async () => {
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: false,

@@ -34,12 +34,12 @@ function delay(ms: number, signal?: AbortSignal): Promise<void> {
   })
 }
 
-// Polls a job until it succeeds (resolving its result via fetchResult) or fails/times out.
-export async function pollJobToResult<T>(
-  jobId: string,
-  fetchResult: (slug: string) => Promise<T>,
-  options?: PollJobOptions,
-): Promise<T> {
+// Polls a job until it succeeds or fails/times out, resolving with the
+// succeeded job itself — its `result` is the compiled TransitGraph. There is
+// no separate fetch-by-slug: the compile endpoints embed the result directly
+// on the job, so a caller already reading the graph reads it off this return
+// value.
+export async function pollJobToResult(jobId: string, options?: PollJobOptions): Promise<Job> {
   const intervalMs = options?.intervalMs ?? 1000
   const timeoutMs = options?.timeoutMs ?? 60000
   const signal = options?.signal
@@ -53,10 +53,10 @@ export async function pollJobToResult<T>(
     options?.onStatus?.(job)
 
     if (job.status === 'succeeded') {
-      if (!job.result_slug) {
-        throw new Error(`Job ${jobId} succeeded but has no result_slug`)
+      if (!job.result) {
+        throw new Error(`Job ${jobId} succeeded but has no result`)
       }
-      return fetchResult(job.result_slug)
+      return job
     }
 
     if (job.status === 'failed') {
