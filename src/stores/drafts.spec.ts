@@ -1,8 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { nextTick } from 'vue'
-import { draftsStorageKey, useDraftsStore } from './drafts'
-import { useAuthStore } from './auth'
+import { draftsStorageKey, useDraftsStore, type PersistedDrafts } from './drafts'
+import { AUTH_STORAGE_KEY, useAuthStore } from './auth'
 import type { ScenarioInput, ServiceInput, Stop } from '../api/authoring'
 
 function stop(name: string, seq: number): Stop {
@@ -29,15 +29,19 @@ function reloadAs(userId: string) {
   return useDraftsStore()
 }
 
-function persisted(userId: string) {
+function persisted(userId: string): Partial<PersistedDrafts> | null {
   const raw = window.localStorage.getItem(draftsStorageKey(userId))
-  return raw === null ? null : JSON.parse(raw)
+  return raw === null ? null : (JSON.parse(raw) as Partial<PersistedDrafts>)
 }
 
 describe('useDraftsStore', () => {
   beforeEach(() => {
     window.localStorage.clear()
     setActivePinia(createPinia())
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   describe('service drafts', () => {
@@ -222,6 +226,47 @@ describe('useDraftsStore', () => {
       expect(restored.editingScenarioId).toBe('scn-1')
     })
 
+    it('restores drafts on boot, before the identity fetch has resolved', async () => {
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft(service('Blue Line'), 'svc-1')
+      await nextTick()
+
+      // A real reload boots with only the persisted token: auth.user stays null
+      // until /api/auth/me answers, which may be slow or fail outright while the
+      // session itself is fine. Drafts cannot wait on it.
+      setActivePinia(createPinia())
+      const booted = useDraftsStore()
+      expect(useAuthStore().user).toBeNull()
+      expect(booted.serviceDraft?.name).toBe('Blue Line')
+      expect(booted.editingServiceId).toBe('svc-1')
+    })
+
+    it('persists edits while the identity fetch is still outstanding', async () => {
+      setActivePinia(createPinia())
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft(service('Blue Line'))
+      await nextTick()
+
+      expect(persisted('u1')?.serviceDraft?.name).toBe('Blue Line')
+    })
+
+    it('adopts drafts once identity resolves for a session stored without an id', async () => {
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft(service('Blue Line'))
+      await nextTick()
+
+      // A session written before the account id was kept alongside the token:
+      // there is nothing to key on until /api/auth/me answers.
+      window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: 'tok-u1' }))
+      setActivePinia(createPinia())
+      const booted = useDraftsStore()
+      expect(booted.serviceDraft).toBeNull()
+
+      useAuthStore().signIn('tok-u1', { id: 'u1' })
+      await nextTick()
+      expect(booted.serviceDraft?.name).toBe('Blue Line')
+    })
+
     it('persists edits made directly through the draft, as a form binding would', async () => {
       const drafts = useDraftsStore()
       drafts.startServiceDraft(service('Blue Line'))
@@ -252,8 +297,8 @@ describe('useDraftsStore', () => {
 
       drafts.startServiceDraft(service('u2 draft'))
       await nextTick()
-      expect(persisted('u1').serviceDraft.name).toBe('u1 draft')
-      expect(persisted('u2').serviceDraft.name).toBe('u2 draft')
+      expect(persisted('u1')?.serviceDraft?.name).toBe('u1 draft')
+      expect(persisted('u2')?.serviceDraft?.name).toBe('u2 draft')
     })
 
     it('signing out clears drafts from memory but keeps the persisted copy for its owner', async () => {
@@ -336,7 +381,7 @@ describe('useDraftsStore', () => {
     })
 
     it('keeps the draft in memory when storage rejects the write', async () => {
-      const setItem = vi.spyOn(window.localStorage, 'setItem').mockImplementation(() => {
+      vi.spyOn(window.localStorage, 'setItem').mockImplementation(() => {
         throw new Error('QuotaExceededError')
       })
 
@@ -345,16 +390,14 @@ describe('useDraftsStore', () => {
       await nextTick()
 
       expect(drafts.serviceDraft?.name).toBe('Blue Line')
-      setItem.mockRestore()
     })
 
     it('starts empty when storage cannot be read', () => {
-      const getItem = vi.spyOn(window.localStorage, 'getItem').mockImplementation(() => {
+      vi.spyOn(window.localStorage, 'getItem').mockImplementation(() => {
         throw new Error('SecurityError')
       })
 
       expect(reloadAs('u1').serviceDraft).toBeNull()
-      getItem.mockRestore()
     })
   })
 })

@@ -11,10 +11,11 @@ import type {
   VehicleParams,
 } from '../api/authoring'
 import { useAuthStore } from './auth'
+import { readJson, removeKey, writeJson } from './storage'
 
 // Prefix for the localStorage entry holding a user's drafts. A service with
 // stops is a few KB, far inside quota, so localStorage is enough.
-export const DRAFTS_STORAGE_KEY_PREFIX = 'sparks-effect.drafts'
+const DRAFTS_STORAGE_KEY_PREFIX = 'sparks-effect.drafts'
 
 // Drafts are keyed by owner rather than stored under one shared key, so a
 // second account on the same browser can never open someone else's work.
@@ -44,14 +45,14 @@ function renumber(stops: Stop[]): Stop[] {
 }
 
 // Everything the store needs to resume editing exactly where the author left off.
-interface PersistedDrafts {
+export interface PersistedDrafts {
   serviceDraft: ServiceInput | null
   scenarioDraft: ScenarioInput | null
   editingServiceId: string | null
   editingScenarioId: string | null
 }
 
-function noDrafts(): PersistedDrafts {
+function emptyPersistedDrafts(): PersistedDrafts {
   return { serviceDraft: null, scenarioDraft: null, editingServiceId: null, editingScenarioId: null }
 }
 
@@ -79,11 +80,11 @@ function isVehicleParams(value: unknown): value is VehicleParams {
 }
 
 function isFrequencyWindow(value: unknown): value is FrequencyWindow {
-  const frequency = value as Partial<FrequencyWindow> | null
+  const frequencyWindow = value as Partial<FrequencyWindow> | null
   return (
-    typeof frequency?.start_time === 'string' &&
-    typeof frequency.end_time === 'string' &&
-    typeof frequency.headway_s === 'number'
+    typeof frequencyWindow?.start_time === 'string' &&
+    typeof frequencyWindow.end_time === 'string' &&
+    typeof frequencyWindow.headway_s === 'number'
   )
 }
 
@@ -113,32 +114,21 @@ function isScenarioInput(value: unknown): value is ScenarioInput {
 // for an existing record is restored as-is and wins over the server copy: it is
 // the newer edit, and the author is mid-sentence in it.
 function readPersistedDrafts(userId: string): PersistedDrafts {
-  let raw: string | null
-  try {
-    raw = window.localStorage.getItem(draftsStorageKey(userId))
-  } catch {
-    // Storage disabled (private mode, blocked cookies); start with a clean slate.
-    return noDrafts()
-  }
-  if (!raw) return noDrafts()
+  const parsed = readJson<PersistedDrafts>(draftsStorageKey(userId))
+  if (!parsed) return emptyPersistedDrafts()
 
-  try {
-    const parsed = JSON.parse(raw) as Partial<PersistedDrafts>
-    const serviceDraft = isServiceInput(parsed?.serviceDraft) ? parsed.serviceDraft : null
-    const scenarioDraft = isScenarioInput(parsed?.scenarioDraft) ? parsed.scenarioDraft : null
-    return {
-      serviceDraft,
-      scenarioDraft,
-      // An editing target without its draft edits nothing, so it goes too.
-      editingServiceId:
-        serviceDraft && typeof parsed.editingServiceId === 'string' ? parsed.editingServiceId : null,
-      editingScenarioId:
-        scenarioDraft && typeof parsed.editingScenarioId === 'string'
-          ? parsed.editingScenarioId
-          : null,
-    }
-  } catch {
-    return noDrafts()
+  // Each draft stands or falls on its own: a corrupt service draft is no reason
+  // to throw away a sound scenario sitting beside it.
+  const serviceDraft = isServiceInput(parsed.serviceDraft) ? parsed.serviceDraft : null
+  const scenarioDraft = isScenarioInput(parsed.scenarioDraft) ? parsed.scenarioDraft : null
+  return {
+    serviceDraft,
+    scenarioDraft,
+    // An editing target without its draft edits nothing, so it goes too.
+    editingServiceId:
+      serviceDraft && typeof parsed.editingServiceId === 'string' ? parsed.editingServiceId : null,
+    editingScenarioId:
+      scenarioDraft && typeof parsed.editingScenarioId === 'string' ? parsed.editingScenarioId : null,
   }
 }
 
@@ -164,22 +154,18 @@ export const useDraftsStore = defineStore('drafts', () => {
     const owner = ownerId
     if (!owner) return
 
-    try {
-      // No draft left to resume — clearing one, or saving it, ends here.
-      if (!serviceDraft.value && !scenarioDraft.value) {
-        window.localStorage.removeItem(draftsStorageKey(owner))
-        return
-      }
-      const snapshot: PersistedDrafts = {
-        serviceDraft: serviceDraft.value,
-        scenarioDraft: scenarioDraft.value,
-        editingServiceId: editingServiceId.value,
-        editingScenarioId: editingScenarioId.value,
-      }
-      window.localStorage.setItem(draftsStorageKey(owner), JSON.stringify(snapshot))
-    } catch {
-      // Drafts stay in memory for this tab.
+    // No draft left to resume — clearing one, or saving it, ends here.
+    if (!serviceDraft.value && !scenarioDraft.value) {
+      removeKey(draftsStorageKey(owner))
+      return
     }
+    const snapshot: PersistedDrafts = {
+      serviceDraft: serviceDraft.value,
+      scenarioDraft: scenarioDraft.value,
+      editingServiceId: editingServiceId.value,
+      editingScenarioId: editingScenarioId.value,
+    }
+    writeJson(draftsStorageKey(owner), snapshot)
   }
 
   // Drafts are edited as much through form bindings writing into them as
@@ -187,16 +173,18 @@ export const useDraftsStore = defineStore('drafts', () => {
   // than each mutator — a v-model must not be able to slip past it.
   watch([serviceDraft, scenarioDraft, editingServiceId, editingScenarioId], persist, { deep: true })
 
-  // The signed-in user resolves asynchronously on boot (auth rehydrates it from
-  // /api/auth/me), so drafts are adopted whenever the account changes rather
-  // than read once at store creation.
+  // Keyed on auth.userId, not auth.user: the full record arrives only once
+  // /api/auth/me answers, and a draft must not hang on a network call that may
+  // be slow or fail outright while the session stays perfectly valid. The watch
+  // still runs, because the id can change mid-session — sign-in, sign-out, or a
+  // switch between accounts.
   watch(
-    () => auth.user?.id ?? null,
+    () => auth.userId,
     (userId) => {
       ownerId = userId
       // Signing out drops drafts from memory but leaves the stored copy alone:
       // it is still the owner's unsaved work, waiting for them to sign back in.
-      const adopted = userId ? readPersistedDrafts(userId) : noDrafts()
+      const adopted = userId ? readPersistedDrafts(userId) : emptyPersistedDrafts()
       serviceDraft.value = adopted.serviceDraft
       scenarioDraft.value = adopted.scenarioDraft
       editingServiceId.value = adopted.editingServiceId

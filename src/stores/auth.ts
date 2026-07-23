@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { ApiError, fetchCurrentUser, login as loginRequest, logout as logoutRequest, type CurrentUser } from '../api/authoring'
+import { readJson, removeKey, writeJson } from './storage'
 
 // localStorage key holding the persisted token so a reload stays signed in.
 export const AUTH_STORAGE_KEY = 'sparks-effect.auth'
@@ -9,36 +10,38 @@ export const AUTH_STORAGE_KEY = 'sparks-effect.auth'
 // The account the UI renders as "signed in as ...", straight from /api/auth/me.
 export type AuthUser = CurrentUser
 
-// Only the token is persisted: it alone can't be re-derived. Everything about
-// the user comes back from /api/auth/me, which never goes stale the way a
-// cached copy would — notably is_admin, which gates admin-only UI.
+// The token, plus the id of the account it belongs to.
+//
+// The rest of the user record is deliberately not persisted: it comes back from
+// /api/auth/me and never goes stale the way a cached copy would — notably
+// is_admin, which gates admin-only UI. The id is the one exception, because it
+// cannot go stale (a token belongs to one account for its whole life) and
+// because state scoped per user — authoring drafts — has to know whose it is
+// the moment the page boots, not whenever the network gets round to answering.
 interface PersistedSession {
   token: string
+  userId?: string
 }
 
-// Reads a previously persisted token, tolerating absent, corrupt, or partial data.
-function readPersistedToken(): string | null {
-  let raw: string | null
-  try {
-    raw = window.localStorage.getItem(AUTH_STORAGE_KEY)
-  } catch {
-    // Storage disabled (private mode, blocked cookies); treat as signed out.
-    return null
-  }
-  if (!raw) return null
-
-  try {
-    const parsed = JSON.parse(raw) as Partial<PersistedSession>
-    // A session without a token can't authenticate anything, so discard it.
-    if (typeof parsed?.token !== 'string' || !parsed.token) return null
-    return parsed.token
-  } catch {
-    return null
+// Reads a previously persisted session, tolerating absent, corrupt, or partial data.
+function readPersistedSession(): PersistedSession | null {
+  const parsed = readJson<PersistedSession>(AUTH_STORAGE_KEY)
+  // A session without a token can't authenticate anything, so discard it.
+  if (typeof parsed?.token !== 'string' || !parsed.token) return null
+  return {
+    token: parsed.token,
+    userId: typeof parsed.userId === 'string' && parsed.userId ? parsed.userId : undefined,
   }
 }
 
 export const useAuthStore = defineStore('auth', () => {
-  const token = ref<string | null>(readPersistedToken())
+  const restored = readPersistedSession()
+
+  const token = ref<string | null>(restored?.token ?? null)
+  // Whose session this is, known without waiting on the network. Distinct from
+  // `user`, which carries the full, freshly fetched record and stays null until
+  // /api/auth/me answers — or forever, if it never does.
+  const userId = ref<string | null>(restored?.userId ?? null)
   // Populated by restoreSession() on boot, or by signIn() at login.
   const user = ref<AuthUser | null>(null)
 
@@ -47,25 +50,25 @@ export const useAuthStore = defineStore('auth', () => {
 
   // Persistence is best-effort: a full or disabled store must not break sign-in.
   function persist(): void {
-    try {
-      if (!token.value) {
-        window.localStorage.removeItem(AUTH_STORAGE_KEY)
-        return
-      }
-      window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: token.value }))
-    } catch {
-      // Session stays valid in memory for this tab.
+    if (!token.value) {
+      removeKey(AUTH_STORAGE_KEY)
+      return
     }
+    const session: PersistedSession = { token: token.value }
+    if (userId.value) session.userId = userId.value
+    writeJson(AUTH_STORAGE_KEY, session)
   }
 
   function signIn(newToken: string, newUser: AuthUser | null = null): void {
     token.value = newToken
+    userId.value = newUser?.id ?? null
     user.value = newUser
     persist()
   }
 
   function signOut(): void {
     token.value = null
+    userId.value = null
     user.value = null
     persist()
   }
@@ -98,11 +101,18 @@ export const useAuthStore = defineStore('auth', () => {
   async function restoreSession(): Promise<void> {
     if (!token.value) return
     try {
-      user.value = await fetchCurrentUser()
+      const me = await fetchCurrentUser()
+      user.value = me
+      // Confirms whose session this is, and backfills it for sessions stored
+      // before the id was kept alongside the token.
+      if (userId.value !== me.id) {
+        userId.value = me.id
+        persist()
+      }
     } catch (err: unknown) {
       if (err instanceof ApiError && err.status === 401) signOut()
     }
   }
 
-  return { token, user, isAuthenticated, signIn, signOut, login, logout, restoreSession }
+  return { token, userId, user, isAuthenticated, signIn, signOut, login, logout, restoreSession }
 })
