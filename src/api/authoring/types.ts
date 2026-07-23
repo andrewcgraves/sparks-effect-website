@@ -77,6 +77,16 @@ export interface ScenarioInput {
   service_ids: string[]
 }
 
+// Request body for POST /api/user-scenarios/{slug}/isochrone. The scenario is
+// named in the URL, not the body — unlike the seeded /api/isochrone, which
+// carries scenario_slug alongside these same fields.
+export interface UserScenarioIsochroneRequest {
+  lat: number
+  lng: number
+  budget_mins: number
+  mode: 'walk' | 'bike' | 'drive'
+}
+
 // GeoJSON LineString geometry for a route.
 export interface GeoLineString {
   type: 'LineString'

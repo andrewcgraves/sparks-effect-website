@@ -85,6 +85,16 @@ describe('AuthoringView', () => {
     expect(link.attributes('href')).toBe('/authoring/services/new')
   })
 
+  it('links to the new-scenario builder', async () => {
+    vi.mocked(fetchMyServices).mockResolvedValue([])
+    vi.mocked(fetchMyScenarios).mockResolvedValue([])
+    const { wrapper } = await mountAuthoring()
+    await flushPromises()
+    const link = wrapper.find('[data-testid="new-scenario-link"]')
+    expect(link.exists()).toBe(true)
+    expect(link.attributes('href')).toBe('/authoring/scenarios/new')
+  })
+
   it('lists my services once loaded', async () => {
     vi.mocked(fetchMyServices).mockResolvedValue([stubService])
     vi.mocked(fetchMyScenarios).mockResolvedValue([])
