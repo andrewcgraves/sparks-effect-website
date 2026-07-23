@@ -32,7 +32,7 @@ const DEFAULT_VEHICLE: VehicleParams = {
 }
 
 function emptyServiceDraft(): ServiceInput {
-  return { name: '', stops: [], vehicle: { ...DEFAULT_VEHICLE }, frequency_windows: [] }
+  return { route_slug: '', name: '', stops: [], vehicle: { ...DEFAULT_VEHICLE }, frequency_windows: [] }
 }
 
 function emptyScenarioDraft(): ScenarioInput {
@@ -91,7 +91,8 @@ function isFrequencyWindow(value: unknown): value is FrequencyWindow {
 function isServiceInput(value: unknown): value is ServiceInput {
   const service = value as Partial<ServiceInput> | null
   return (
-    typeof service?.name === 'string' &&
+    typeof service?.route_slug === 'string' &&
+    typeof service.name === 'string' &&
     Array.isArray(service.stops) &&
     service.stops.every(isStop) &&
     isVehicleParams(service.vehicle) &&
@@ -214,6 +215,45 @@ export const useDraftsStore = defineStore('drafts', () => {
     serviceDraft.value.stops = renumber(serviceDraft.value.stops.filter((_, i) => i !== index))
   }
 
+  // Patches one stop in place by index (its raw lat/lng/name as the author
+  // edits them), leaving the rest of the list untouched.
+  function updateStop(index: number, patch: Partial<Stop>): void {
+    if (!serviceDraft.value) return
+    const stops = serviceDraft.value.stops
+    if (index < 0 || index >= stops.length) return
+    serviceDraft.value.stops = stops.map((s, i) => (i === index ? { ...s, ...patch } : s))
+  }
+
+  // Swaps a stop with its neighbor in the given direction (-1 or 1) and
+  // renumbers — the reordering the order-fault check asks the user to do by
+  // hand, since map-drag reordering is out of scope.
+  function moveStop(index: number, direction: -1 | 1): void {
+    if (!serviceDraft.value) return
+    const stops = serviceDraft.value.stops
+    const target = index + direction
+    if (target < 0 || target >= stops.length) return
+    const next = [...stops]
+    ;[next[index], next[target]] = [next[target], next[index]]
+    serviceDraft.value.stops = renumber(next)
+  }
+
+  function addFrequencyWindow(window: FrequencyWindow): void {
+    if (!serviceDraft.value) return
+    serviceDraft.value.frequency_windows = [...serviceDraft.value.frequency_windows, window]
+  }
+
+  function removeFrequencyWindow(index: number): void {
+    if (!serviceDraft.value) return
+    serviceDraft.value.frequency_windows = serviceDraft.value.frequency_windows.filter((_, i) => i !== index)
+  }
+
+  function updateFrequencyWindow(index: number, patch: Partial<FrequencyWindow>): void {
+    if (!serviceDraft.value) return
+    serviceDraft.value.frequency_windows = serviceDraft.value.frequency_windows.map((w, i) =>
+      i === index ? { ...w, ...patch } : w,
+    )
+  }
+
   function clearServiceDraft(): void {
     serviceDraft.value = null
     editingServiceId.value = null
@@ -255,6 +295,11 @@ export const useDraftsStore = defineStore('drafts', () => {
     patchServiceDraft,
     addStop,
     removeStop,
+    updateStop,
+    moveStop,
+    addFrequencyWindow,
+    removeFrequencyWindow,
+    updateFrequencyWindow,
     clearServiceDraft,
     startScenarioDraft,
     patchScenarioDraft,

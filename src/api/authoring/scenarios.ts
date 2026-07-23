@@ -1,25 +1,30 @@
-// Scenario CRUD operations (new authoring model — curated service ID lists).
+// User-scenario CRUD operations: curated lists of the caller's own service
+// ids, at /api/user-scenarios. Distinct from the public, seeded /api/scenarios
+// read (a different model entirely — see internal/handler/mine.go on the
+// API), which this module does not touch.
 import { apiRequest } from './client'
 import type { Scenario, ScenarioInput } from './types'
 
-// Lists all scenarios.
+// Lists the signed-in user's own scenarios. There is no "all scenarios" read
+// here: /api/user-scenarios is owner-scoped.
 export async function listScenarios(): Promise<Scenario[]> {
-  return apiRequest<Scenario[]>('/api/scenarios')
+  return apiRequest<Scenario[]>('/api/user-scenarios')
 }
 
-// Lists the signed-in user's own scenarios.
+// Alias of listScenarios — kept as its own name because callers reach for
+// "mine" alongside fetchMyServices.
 export async function fetchMyScenarios(): Promise<Scenario[]> {
-  return apiRequest<Scenario[]>('/api/me/scenarios')
+  return listScenarios()
 }
 
 // Fetches a single scenario by slug.
 export async function fetchScenario(slug: string): Promise<Scenario> {
-  return apiRequest<Scenario>(`/api/scenarios/${slug}`)
+  return apiRequest<Scenario>(`/api/user-scenarios/${slug}`)
 }
 
 // Creates a new scenario.
 export async function createScenario(input: ScenarioInput): Promise<Scenario> {
-  return apiRequest<Scenario>('/api/scenarios', {
+  return apiRequest<Scenario>('/api/user-scenarios', {
     method: 'POST',
     body: JSON.stringify(input),
   })
@@ -27,7 +32,7 @@ export async function createScenario(input: ScenarioInput): Promise<Scenario> {
 
 // Updates an existing scenario by slug.
 export async function updateScenario(slug: string, input: ScenarioInput): Promise<Scenario> {
-  return apiRequest<Scenario>(`/api/scenarios/${slug}`, {
+  return apiRequest<Scenario>(`/api/user-scenarios/${slug}`, {
     method: 'PUT',
     body: JSON.stringify(input),
   })
@@ -35,5 +40,5 @@ export async function updateScenario(slug: string, input: ScenarioInput): Promis
 
 // Deletes a scenario by slug.
 export async function deleteScenario(slug: string): Promise<void> {
-  await apiRequest<void>(`/api/scenarios/${slug}`, { method: 'DELETE' })
+  await apiRequest<void>(`/api/user-scenarios/${slug}`, { method: 'DELETE' })
 }

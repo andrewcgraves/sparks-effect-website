@@ -1,14 +1,13 @@
 // Tracks async authoring jobs so their progress survives view navigation.
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { pollJobToResult, type Job, type JobStatus, type PollJobOptions } from '../api/authoring'
+import { pollJobToResult, type Job, type JobStatus, type PollJobOptions, type TransitGraph } from '../api/authoring'
 
 // A job the store is watching. 'cancelled' is store-local: the API never reports it.
 export interface TrackedJob {
   id: string
   status: JobStatus | 'cancelled'
-  progress: number | null
-  result: unknown
+  result: TransitGraph | null
   error: string | null
 }
 
@@ -16,7 +15,7 @@ export interface TrackedJob {
 const PENDING: ReadonlySet<TrackedJob['status']> = new Set(['queued', 'running'])
 
 function initialEntry(id: string): TrackedJob {
-  return { id, status: 'queued', progress: null, result: null, error: null }
+  return { id, status: 'queued', result: null, error: null }
 }
 
 export const useJobsStore = defineStore('jobs', () => {
@@ -39,12 +38,12 @@ export const useJobsStore = defineStore('jobs', () => {
   }
 
   // Watches a job to completion, mirroring its progress into the store.
-  // Resolves with the fetched result, or rejects if the job fails, times out, or is cancelled.
-  function track<T>(
+  // Resolves with the succeeded job (its `result` is the compiled graph), or
+  // rejects if the job fails, times out, or is cancelled.
+  function track(
     jobId: string,
-    fetchResult: (slug: string) => Promise<T>,
     options?: Omit<PollJobOptions, 'signal' | 'onStatus'>,
-  ): Promise<T> {
+  ): Promise<Job> {
     // A second watch of the same id supersedes the first.
     abort(jobId)
 
@@ -55,7 +54,7 @@ export const useJobsStore = defineStore('jobs', () => {
     // Only the newest watch of this id may write to the store.
     const isCurrent = () => controllers.get(jobId) === controller
 
-    return pollJobToResult(jobId, fetchResult, {
+    return pollJobToResult(jobId, {
       ...options,
       signal: controller.signal,
       onStatus: (job: Job) => {
@@ -63,22 +62,21 @@ export const useJobsStore = defineStore('jobs', () => {
         entries.value[jobId] = {
           ...entries.value[jobId],
           status: job.status,
-          progress: job.progress ?? null,
           error: job.error ?? null,
         }
       },
     })
-      .then((result) => {
+      .then((job) => {
         if (isCurrent()) {
           entries.value[jobId] = {
             ...entries.value[jobId],
             status: 'succeeded',
-            result,
+            result: job.result ?? null,
             error: null,
           }
           controllers.delete(jobId)
         }
-        return result
+        return job
       })
       .catch((err: unknown) => {
         // A superseded or cleared watch must not stomp the entry that replaced it.

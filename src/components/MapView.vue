@@ -6,6 +6,8 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { ISOCHRONE_SOURCE_ID, isochroneLegend, resolveIsochroneColors, useIsochroneLayer } from '../composables/useIsochroneLayer'
 import { centerFromCorners, routeBoundsCorners, useRouteLayer } from '../composables/useRouteLayer'
 import { useOriginMarker } from '../composables/useOriginMarker'
+import { useStopPreviewLayer } from '../composables/useStopPreviewLayer'
+import type { StopPreviewPair } from '../composables/useStopPreviewLayer'
 import { ISOCHRONE_BOUNDS_CORNERS, ISOCHRONE_CENTER, isochroneBoundsCorners } from '../fixtures/isochrone'
 import type { ChainResponse } from '../fixtures/isochrone'
 import { resolveMapStyleUrl } from '../mapStyle'
@@ -19,6 +21,10 @@ const props = defineProps<{
   stations: Station[]
   services: Service[]
   hideIsochroneLegend?: boolean
+  // Raw/snapped stop pairs for the service-authoring preview (draw the raw
+  // pin, the snapped pin, and a leader line between them). Absent by default
+  // — every other caller of this component leaves it unset.
+  stopPreviewPairs?: StopPreviewPair[]
 }>()
 
 const ORIGIN_SNAP_ZOOM = 9
@@ -36,6 +42,7 @@ let hasFittedToSegments = false
 let hasFittedToRoutes = false
 let isMapLoaded = false
 let routeLayerAdded = false
+let stopPreviewLayer: ReturnType<typeof useStopPreviewLayer> | null = null
 
 const MAP_FIT_PADDING = { top: 56, bottom: 112, left: 56, right: 56 }
 
@@ -106,6 +113,14 @@ function maybeAddRouteLayer(): void {
   routeLayerAdded = true
 }
 
+// Absent by default for every caller but the service-authoring form, so this
+// stays a no-op unless stopPreviewPairs is actually passed.
+function maybeInitStopPreviewLayer(): void {
+  if (!map || !isMapLoaded || stopPreviewLayer || !props.stopPreviewPairs) return
+  stopPreviewLayer = useStopPreviewLayer(map)
+  stopPreviewLayer.update(props.stopPreviewPairs)
+}
+
 watch(
   () => props.isochroneData,
   (data) => {
@@ -128,6 +143,15 @@ watch(
     maybeAddRouteLayer()
     if (!isMapLoaded || props.isochroneData || props.origin || hasFittedToRoutes) return
     if (routes.length > 0) fitMapToRoutes()
+  },
+)
+
+watch(
+  () => props.stopPreviewPairs,
+  (pairs) => {
+    if (!isMapLoaded || !pairs) return
+    maybeInitStopPreviewLayer()
+    stopPreviewLayer?.update(pairs)
   },
 )
 
@@ -155,6 +179,7 @@ onMounted(() => {
     isMapLoaded = true
 
     maybeAddRouteLayer()
+    maybeInitStopPreviewLayer()
 
     if (props.isochroneData) {
       applyIsochroneData(props.isochroneData)

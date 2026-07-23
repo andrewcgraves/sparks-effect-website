@@ -11,6 +11,12 @@ import {
   routeBoundsCorners,
 } from '../composables/useRouteLayer'
 import {
+  RAW_STOP_SOURCE_ID,
+  SNAPPED_STOP_SOURCE_ID,
+  LEADER_SOURCE_ID,
+} from '../composables/useStopPreviewLayer'
+import type { StopPreviewPair } from '../composables/useStopPreviewLayer'
+import {
   staticIsochroneResponse,
   ISOCHRONE_BOUNDS,
   ISOCHRONE_BOUNDS_CORNERS,
@@ -535,5 +541,45 @@ describe('MapView', () => {
   it('accepts a services prop', () => {
     const wrapper = mount(MapView, { props: { ...defaultProps, services: [stubService] } })
     expect(wrapper.props('services')).toEqual([stubService])
+  })
+
+  describe('stopPreviewPairs', () => {
+    const stubPairs: StopPreviewPair[] = [
+      { id: 'a', raw: { lat: 37.77, lng: -122.41 }, snapped: { lat: 37.771, lng: -122.409 }, offRoute: false },
+    ]
+
+    it('does not add stop-preview sources when the prop is absent', async () => {
+      mount(MapView, { props: defaultProps })
+      await triggerMapLoad()
+      expect(mockAddSource).not.toHaveBeenCalledWith(RAW_STOP_SOURCE_ID, expect.anything())
+    })
+
+    it('adds stop-preview sources and renders the initial pairs when provided at load', async () => {
+      mockGetSource.mockReturnValue({ setData: mockSetData })
+      mount(MapView, { props: { ...defaultProps, stopPreviewPairs: stubPairs } })
+      await triggerMapLoad()
+
+      expect(mockAddSource).toHaveBeenCalledWith(RAW_STOP_SOURCE_ID, expect.objectContaining({ type: 'geojson' }))
+      expect(mockAddSource).toHaveBeenCalledWith(SNAPPED_STOP_SOURCE_ID, expect.objectContaining({ type: 'geojson' }))
+      expect(mockAddSource).toHaveBeenCalledWith(LEADER_SOURCE_ID, expect.objectContaining({ type: 'geojson' }))
+      expect(mockSetData).toHaveBeenCalled()
+    })
+
+    it('updates the stop-preview layer when the prop changes after load', async () => {
+      mockGetSource.mockReturnValue({ setData: mockSetData })
+      const wrapper = mount(MapView, { props: { ...defaultProps, stopPreviewPairs: stubPairs } })
+      await triggerMapLoad()
+      mockSetData.mockClear()
+
+      const nextPairs: StopPreviewPair[] = [
+        ...stubPairs,
+        { id: 'b', raw: { lat: 38, lng: -123 }, snapped: null },
+      ]
+      await wrapper.setProps({ stopPreviewPairs: nextPairs })
+
+      expect(mockSetData).toHaveBeenCalled()
+      const rawCall = mockSetData.mock.calls.find((_, i) => i === 0)
+      expect(rawCall).toBeDefined()
+    })
   })
 })

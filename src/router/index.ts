@@ -3,6 +3,7 @@ import CoverPage from '../views/CoverPage.vue'
 import ScenarioView from '../views/ScenarioView.vue'
 import LoginView from '../views/LoginView.vue'
 import AuthoringView from '../views/AuthoringView.vue'
+import ServiceAuthoringView from '../views/ServiceAuthoringView.vue'
 import RouteView from '../views/RouteView.vue'
 import NotFoundView from '../views/NotFoundView.vue'
 import { trackPageView } from '../analytics/index'
@@ -31,6 +32,12 @@ export const router = createRouter({
       path: '/authoring',
       name: 'authoring',
       component: AuthoringView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/authoring/services/new',
+      name: 'new-service',
+      component: ServiceAuthoringView,
       meta: { requiresAuth: true },
     },
     {

@@ -11,6 +11,7 @@ function stop(name: string, seq: number): Stop {
 
 function service(name: string): ServiceInput {
   return {
+    route_slug: 'main-line',
     name,
     stops: [stop('A', 0)],
     vehicle: { max_speed_kmh: 90, acceleration_ms2: 1, deceleration_ms2: 1, dwell_s: 20 },
@@ -56,6 +57,7 @@ describe('useDraftsStore', () => {
       drafts.startServiceDraft()
       expect(drafts.hasServiceDraft).toBe(true)
       expect(drafts.serviceDraft).toEqual({
+        route_slug: '',
         name: '',
         stops: [],
         vehicle: expect.objectContaining({ max_speed_kmh: expect.any(Number) }),
@@ -68,6 +70,7 @@ describe('useDraftsStore', () => {
       const drafts = useDraftsStore()
       drafts.startServiceDraft(
         {
+          route_slug: 'main-line',
           name: 'Blue Line',
           stops: [stop('A', 0)],
           vehicle: { max_speed_kmh: 90, acceleration_ms2: 1, deceleration_ms2: 1, dwell_s: 20 },
@@ -117,6 +120,60 @@ describe('useDraftsStore', () => {
       ])
     })
 
+    it('updateStop patches one stop by index without touching the rest', () => {
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft()
+      drafts.addStop(stop('A', 0))
+      drafts.addStop(stop('B', 0))
+      drafts.updateStop(0, { lat: 40, lng: -70 })
+      expect(drafts.serviceDraft?.stops[0]).toEqual(expect.objectContaining({ name: 'A', lat: 40, lng: -70 }))
+      expect(drafts.serviceDraft?.stops[1].name).toBe('B')
+    })
+
+    it('updateStop is a no-op for an out-of-range index', () => {
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft()
+      drafts.addStop(stop('A', 0))
+      drafts.updateStop(5, { lat: 40 })
+      expect(drafts.serviceDraft?.stops).toHaveLength(1)
+    })
+
+    it('moveStop swaps a stop with its predecessor and renumbers', () => {
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft()
+      drafts.addStop(stop('A', 0))
+      drafts.addStop(stop('B', 0))
+      drafts.addStop(stop('C', 0))
+      drafts.moveStop(2, -1)
+      expect(drafts.serviceDraft?.stops.map((s) => [s.name, s.seq])).toEqual([
+        ['A', 0],
+        ['C', 1],
+        ['B', 2],
+      ])
+    })
+
+    it('moveStop swaps a stop with its successor and renumbers', () => {
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft()
+      drafts.addStop(stop('A', 0))
+      drafts.addStop(stop('B', 0))
+      drafts.moveStop(0, 1)
+      expect(drafts.serviceDraft?.stops.map((s) => [s.name, s.seq])).toEqual([
+        ['B', 0],
+        ['A', 1],
+      ])
+    })
+
+    it('moveStop is a no-op past either end of the list', () => {
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft()
+      drafts.addStop(stop('A', 0))
+      drafts.addStop(stop('B', 0))
+      drafts.moveStop(0, -1)
+      drafts.moveStop(1, 1)
+      expect(drafts.serviceDraft?.stops.map((s) => s.name)).toEqual(['A', 'B'])
+    })
+
     it('clearServiceDraft discards the draft and its editing target', () => {
       const drafts = useDraftsStore()
       drafts.startServiceDraft(undefined, 'svc-1')
@@ -128,6 +185,7 @@ describe('useDraftsStore', () => {
 
     it('keeps the draft across repeated store lookups, as navigation would', () => {
       useDraftsStore().startServiceDraft({
+        route_slug: 'main-line',
         name: 'Persisted',
         stops: [],
         vehicle: { max_speed_kmh: 90, acceleration_ms2: 1, deceleration_ms2: 1, dwell_s: 20 },
@@ -135,6 +193,38 @@ describe('useDraftsStore', () => {
       })
       // A different view calling useDraftsStore() sees the same shared state.
       expect(useDraftsStore().serviceDraft?.name).toBe('Persisted')
+    })
+
+    it('addFrequencyWindow appends a window', () => {
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft()
+      drafts.addFrequencyWindow({ start_time: '06:00', end_time: '22:00', headway_s: 900 })
+      expect(drafts.serviceDraft?.frequency_windows).toEqual([
+        { start_time: '06:00', end_time: '22:00', headway_s: 900 },
+      ])
+    })
+
+    it('removeFrequencyWindow drops a window by index', () => {
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft()
+      drafts.addFrequencyWindow({ start_time: '06:00', end_time: '10:00', headway_s: 600 })
+      drafts.addFrequencyWindow({ start_time: '10:00', end_time: '22:00', headway_s: 1200 })
+      drafts.removeFrequencyWindow(0)
+      expect(drafts.serviceDraft?.frequency_windows).toEqual([
+        { start_time: '10:00', end_time: '22:00', headway_s: 1200 },
+      ])
+    })
+
+    it('updateFrequencyWindow patches a window by index', () => {
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft()
+      drafts.addFrequencyWindow({ start_time: '06:00', end_time: '22:00', headway_s: 900 })
+      drafts.updateFrequencyWindow(0, { headway_s: 1800 })
+      expect(drafts.serviceDraft?.frequency_windows[0]).toEqual({
+        start_time: '06:00',
+        end_time: '22:00',
+        headway_s: 1800,
+      })
     })
   })
 
@@ -181,6 +271,7 @@ describe('useDraftsStore', () => {
   it('startServiceDraft clones its seed so later edits do not mutate the source', () => {
     const drafts = useDraftsStore()
     const source = {
+      route_slug: 'main-line',
       name: 'Blue Line',
       stops: [stop('A', 0)],
       vehicle: { max_speed_kmh: 90, acceleration_ms2: 1, deceleration_ms2: 1, dwell_s: 20 },
