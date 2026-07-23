@@ -17,6 +17,7 @@ import type { Route as ScenarioRoute } from '../api/scenarios'
 import MapView from '../components/MapView.vue'
 import type { StopPreviewPair } from '../composables/useStopPreviewLayer'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
+import { extractOffendingStopNames } from './parseServiceError'
 
 const drafts = useDraftsStore()
 const jobs = useJobsStore()
@@ -217,6 +218,15 @@ const canSubmit = computed(() => {
   return true
 })
 
+// The write-time 422 is the backstop behind live preview — preview already
+// catches off-route/order problems before submit, so this only fires when the
+// route changed underneath the draft or preview hasn't run yet. Named stops
+// get flagged on their own row in addition to the banner; the banner alone
+// wasn't attaching the rejection to "the offending stop" as the amendment asks.
+const submitErrorStopNames = computed<string[]>(() =>
+  submitError.value ? extractOffendingStopNames(submitError.value) : [],
+)
+
 async function handleSubmit(): Promise<void> {
   const draft = drafts.serviceDraft
   if (!draft || !canSubmit.value) return
@@ -234,10 +244,14 @@ async function handleSubmit(): Promise<void> {
   }
 }
 
+// A stale-graph retry should settle in one or two hops in practice; this just
+// bounds it so a persistently stale signal can't spin the UI forever.
+const MAX_STALE_GRAPH_RETRIES = 3
+
 // A 409 with the stale-graph code is not an error to show the user (SPA-83
 // decision 4): it means a compiled graph fell behind an edit, so the fix is to
 // fire the compile again and retry, not to surface a failure.
-async function triggerCompile(slug: string): Promise<void> {
+async function triggerCompile(slug: string, attempt = 1): Promise<void> {
   compiling.value = true
   compileError.value = ''
   try {
@@ -245,8 +259,8 @@ async function triggerCompile(slug: string): Promise<void> {
     const finished = await jobs.track(job.id)
     compiledGraph.value = finished.result ?? null
   } catch (err) {
-    if (err instanceof ApiError && err.code === 'stale_graph') {
-      await triggerCompile(slug)
+    if (err instanceof ApiError && err.code === 'stale_graph' && attempt < MAX_STALE_GRAPH_RETRIES) {
+      await triggerCompile(slug, attempt + 1)
       return
     }
     compileError.value = err instanceof Error ? err.message : 'Compile failed.'
@@ -347,15 +361,43 @@ function formatSeconds(total: number): string {
                 class="font-body text-caption flex items-center justify-between gap-2 rounded-(--radius-field) border border-border bg-white px-3 py-2 text-ink"
                 data-testid="stop-row"
               >
-                <div>
-                  <span class="font-medium">{{ stop.name }}</span>
-                  <span class="text-ink-muted"> ({{ stop.lat.toFixed(4) }}, {{ stop.lng.toFixed(4) }})</span>
+                <div class="flex flex-wrap items-center gap-2">
+                  <input
+                    :value="stop.name"
+                    class="w-28 border-b border-transparent bg-transparent font-medium not-italic normal-case hover:border-border focus:border-border focus:outline-none"
+                    :data-testid="`stop-edit-name-${index}`"
+                    type="text"
+                    @change="drafts.updateStop(index, { name: ($event.target as HTMLInputElement).value })"
+                  >
+                  <input
+                    :value="stop.lat"
+                    class="w-20 border-b border-transparent bg-transparent text-ink-muted not-italic normal-case hover:border-border focus:border-border focus:outline-none"
+                    :data-testid="`stop-edit-lat-${index}`"
+                    type="number"
+                    step="any"
+                    @change="drafts.updateStop(index, { lat: Number(($event.target as HTMLInputElement).value) })"
+                  >
+                  <input
+                    :value="stop.lng"
+                    class="w-20 border-b border-transparent bg-transparent text-ink-muted not-italic normal-case hover:border-border focus:border-border focus:outline-none"
+                    :data-testid="`stop-edit-lng-${index}`"
+                    type="number"
+                    step="any"
+                    @change="drafts.updateStop(index, { lng: Number(($event.target as HTMLInputElement).value) })"
+                  >
                   <span
                     v-if="preview?.stops[index]?.off_route"
-                    class="ml-2 text-coral"
+                    class="text-coral"
                     data-testid="stop-off-route"
                   >
                     {{ Math.round(preview!.stops[index].offset_m) }}m off the route
+                  </span>
+                  <span
+                    v-if="submitErrorStopNames.includes(stop.name)"
+                    class="text-coral"
+                    data-testid="stop-submit-error"
+                  >
+                    {{ submitError }}
                   </span>
                 </div>
                 <div class="flex shrink-0 gap-1">

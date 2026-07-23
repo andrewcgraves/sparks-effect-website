@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { mount, flushPromises, type DOMWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import type { Job, Route, RouteSummary, SnapStopsResponse, Service } from '../api/authoring/types'
 
@@ -17,6 +17,7 @@ import ServiceAuthoringView from './ServiceAuthoringView.vue'
 import { listRoutes, fetchRoute, snapStops } from '../api/authoring/routes'
 import { createService, compileService } from '../api/authoring/services'
 import { ApiError } from '../api/authoring/client'
+import { useDraftsStore } from '../stores/drafts'
 
 const stubRouteSummary: RouteSummary = { slug: 'main-line', name: 'Main Line', mode: 'rail' }
 
@@ -65,6 +66,10 @@ async function addStop(wrapper: ReturnType<typeof mountView>, name: string, lat:
   await wrapper.find('[data-testid="stop-lat"]').setValue(lat)
   await wrapper.find('[data-testid="stop-lng"]').setValue(lng)
   await wrapper.find('[data-testid="add-stop"]').trigger('click')
+}
+
+function stopRowName(row: DOMWrapper<Element>): string {
+  return (row.find('input[type="text"]').element as HTMLInputElement).value
 }
 
 describe('ServiceAuthoringView', () => {
@@ -124,7 +129,7 @@ describe('ServiceAuthoringView', () => {
     await addStop(wrapper, 'SF', 37.77, -122.41)
     const rows = wrapper.findAll('[data-testid="stop-row"]')
     expect(rows).toHaveLength(1)
-    expect(rows[0].text()).toContain('SF')
+    expect(stopRowName(rows[0])).toBe('SF')
   })
 
   it('shows an off-route warning inline once the preview flags a stop', async () => {
@@ -174,8 +179,8 @@ describe('ServiceAuthoringView', () => {
 
     await wrapper.find('[data-testid="stop-down-0"]').trigger('click')
     const rows = wrapper.findAll('[data-testid="stop-row"]')
-    expect(rows[0].text()).toContain('B')
-    expect(rows[1].text()).toContain('A')
+    expect(stopRowName(rows[0])).toBe('B')
+    expect(stopRowName(rows[1])).toBe('A')
   })
 
   it('removes a stop', async () => {
@@ -187,7 +192,43 @@ describe('ServiceAuthoringView', () => {
     await wrapper.find('[data-testid="stop-remove-0"]').trigger('click')
     const rows = wrapper.findAll('[data-testid="stop-row"]')
     expect(rows).toHaveLength(1)
-    expect(rows[0].text()).toContain('B')
+    expect(stopRowName(rows[0])).toBe('B')
+  })
+
+  it('edits a stop lat/lng inline via updateStop', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    await addStop(wrapper, 'A', 1, 1)
+
+    const latInput = wrapper.find('[data-testid="stop-edit-lat-0"]')
+    await latInput.setValue(40)
+    await latInput.trigger('change')
+
+    expect(useDraftsStore().serviceDraft?.stops[0].lat).toBe(40)
+  })
+
+  it('flags the offending stop row when a 422 names it', async () => {
+    vi.mocked(createService).mockRejectedValue(
+      new ApiError('POST /api/services failed: 422: stop "B" is 620 m from route "main-line"', 422),
+    )
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.find('[data-testid="route-select"]').setValue('main-line')
+    await flushPromises()
+    await addStop(wrapper, 'A', 37.77, -122.41)
+    await addStop(wrapper, 'B', 37.33, -121.88)
+    await vi.advanceTimersByTimeAsync(400)
+    await flushPromises()
+    await wrapper.find('[data-testid="service-name"]').setValue('Northbound Express')
+    await wrapper.find('[data-testid="frequency-headway"]').setValue(15)
+    await wrapper.find('[data-testid="add-frequency"]').trigger('click')
+
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    const rows = wrapper.findAll('[data-testid="stop-row"]')
+    expect(rows[1].find('[data-testid="stop-submit-error"]').exists()).toBe(true)
+    expect(rows[0].find('[data-testid="stop-submit-error"]').exists()).toBe(false)
   })
 
   it('disables submit until a route, two stops, name, and a frequency window are set', async () => {

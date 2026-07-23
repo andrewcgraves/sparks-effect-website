@@ -1,5 +1,6 @@
 import type { Map, GeoJSONSource } from 'maplibre-gl'
 import { readThemeToken } from '../themeTokens'
+import type { SnapCoord as LatLng } from '../api/authoring/types'
 
 export const RAW_STOP_SOURCE_ID = 'stop-preview-raw-source'
 export const RAW_STOP_LAYER_ID = 'stop-preview-raw'
@@ -7,11 +8,6 @@ export const SNAPPED_STOP_SOURCE_ID = 'stop-preview-snapped-source'
 export const SNAPPED_STOP_LAYER_ID = 'stop-preview-snapped'
 export const LEADER_SOURCE_ID = 'stop-preview-leader-source'
 export const LEADER_LAYER_ID = 'stop-preview-leader'
-
-export interface LatLng {
-  lat: number
-  lng: number
-}
 
 // One stop's raw-input/snapped-position pairing for the authoring map preview.
 // snapped is null until the snap-preview call for it has resolved.
