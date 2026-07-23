@@ -39,12 +39,20 @@ describe('useAuthStore', () => {
     expect(restored.isAuthenticated).toBe(true)
   })
 
-  it('does not persist the user, so it cannot go stale across a reload', () => {
+  it('persists only the token and the account id, so nothing can go stale', () => {
     useAuthStore().signIn('tok-1', { id: 'u1', email: 'a@example.com', is_admin: true })
-    expect(JSON.parse(window.localStorage.getItem(AUTH_STORAGE_KEY) as string)).toEqual({ token: 'tok-1' })
+    // The id can never go stale for a given token; email and is_admin can, and
+    // is_admin gates admin-only UI, so neither is written.
+    expect(JSON.parse(window.localStorage.getItem(AUTH_STORAGE_KEY) as string)).toEqual({
+      token: 'tok-1',
+      userId: 'u1',
+    })
 
     setActivePinia(createPinia())
-    expect(useAuthStore().user).toBeNull()
+    const restored = useAuthStore()
+    expect(restored.user).toBeNull()
+    // Identity is known on boot even though the user record is not.
+    expect(restored.userId).toBe('u1')
   })
 
   it('signOut clears both state and persisted session', () => {
@@ -54,6 +62,7 @@ describe('useAuthStore', () => {
 
     expect(auth.token).toBeNull()
     expect(auth.user).toBeNull()
+    expect(auth.userId).toBeNull()
     expect(auth.isAuthenticated).toBe(false)
     expect(window.localStorage.getItem(AUTH_STORAGE_KEY)).toBeNull()
   })
@@ -92,6 +101,25 @@ describe('useAuthStore', () => {
       expect(vi.mocked(fetch).mock.calls[0][0]).toContain('/api/auth/me')
       expect(auth.user).toEqual(me)
       expect(auth.isAuthenticated).toBe(true)
+    })
+
+    it('backfills the account id for a session stored without one', async () => {
+      const me = { id: 'u1', email: 'a@example.com' }
+      vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 200, json: async () => me } as Response)
+
+      // A session written before the id was kept alongside the token.
+      window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: 'tok-1' }))
+      setActivePinia(createPinia())
+      const auth = useAuthStore()
+      expect(auth.userId).toBeNull()
+
+      await auth.restoreSession()
+
+      expect(auth.userId).toBe('u1')
+      expect(JSON.parse(window.localStorage.getItem(AUTH_STORAGE_KEY) as string)).toEqual({
+        token: 'tok-1',
+        userId: 'u1',
+      })
     })
 
     it('makes no request when there is no token', async () => {
