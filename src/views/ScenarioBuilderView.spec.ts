@@ -248,4 +248,80 @@ describe('ScenarioBuilderView', () => {
 
     expect(wrapper.find('[data-testid="fetch-error"]').text()).toContain('Failed to generate isochrone')
   })
+
+  it('shows a "did not connect" notice for each near-miss cross-service pair, naming both stops and services', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        id: 'job1',
+        kind: 'compile_user_scenario',
+        status: 'succeeded',
+        result: {
+          services: [],
+          merge: {
+            near_misses: [
+              {
+                a: { service_id: 'svc1', slug: 'northbound-express-transbay', name: 'Transbay' },
+                b: { service_id: 'svc2', slug: 'southbound-local-transbay', name: 'Transbay' },
+                distance_m: 78,
+              },
+            ],
+          },
+        },
+      }),
+    } as Response)
+
+    const wrapper = mountView()
+    await flushPromises()
+    await fillAndSelect(wrapper)
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    const rows = wrapper.findAll('[data-testid="near-miss-row"]')
+    expect(rows).toHaveLength(1)
+    expect(rows[0].text()).toContain('Transbay (Northbound Express)')
+    expect(rows[0].text()).toContain('Transbay (Southbound Local)')
+    expect(rows[0].text()).toContain('78')
+    expect(rows[0].text()).toContain('did not connect')
+  })
+
+  it('shows a realised-interchange summary listing each multi-member cluster\'s stop names', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        id: 'job1',
+        kind: 'compile_user_scenario',
+        status: 'succeeded',
+        result: {
+          services: [],
+          merge: {
+            clusters: [
+              { key: 'northbound-express-transbay', names: ['Transbay', 'Salesforce Center'], members: [] },
+            ],
+          },
+        },
+      }),
+    } as Response)
+
+    const wrapper = mountView()
+    await flushPromises()
+    await fillAndSelect(wrapper)
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    const rows = wrapper.findAll('[data-testid="realised-cluster-row"]')
+    expect(rows).toHaveLength(1)
+    expect(rows[0].text()).toContain('Transbay')
+    expect(rows[0].text()).toContain('Salesforce Center')
+  })
+
+  it('renders neither report section when the compile result carries no merge diagnostics', async () => {
+    const wrapper = mountView()
+    await saveAndCompile(wrapper)
+
+    expect(wrapper.find('[data-testid="near-miss-list"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="realised-clusters"]').exists()).toBe(false)
+  })
 })

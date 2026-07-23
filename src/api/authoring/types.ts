@@ -180,10 +180,45 @@ export interface GraphNode {
   names: string[]
 }
 
+// One stop as it was before merging: which service it came from, its
+// stable slug, and its display name.
+export interface StopRef {
+  service_id: string
+  slug: string
+  name: string
+}
+
+// One realised merge: several services' stops that compiled to a single
+// graph node. `names` carries every distinct member name, so a caller can
+// render an unexpected merge rather than silently showing one name.
+export interface StopCluster {
+  key: string
+  names: string[]
+  members: StopRef[]
+}
+
+// A pair of cross-service stops that came close enough to merge but did
+// not. A missed merge is otherwise silent: the compile succeeds and the
+// graph is simply smaller.
+export interface NearMiss {
+  a: StopRef
+  b: StopRef
+  distance_m: number
+}
+
+// What the merge did, in both directions: the merges it made (clusters)
+// and the merges it nearly made (near_misses). Both are omitted from the
+// job result entirely when empty.
+export interface MergeReport {
+  clusters?: StopCluster[]
+  near_misses?: NearMiss[]
+}
+
 // A compiled, Dijkstra-ready representation of a service or scenario's
 // active services — the result an async compile job persists.
 export interface TransitGraph {
   services: ServiceGraph[]
+  merge?: MergeReport
   nodes?: GraphNode[]
 }
 

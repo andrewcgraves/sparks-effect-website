@@ -12,7 +12,7 @@ import MapView from '../components/MapView.vue'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
 
 const drafts = useDraftsStore()
-const { compiling, compileError, trigger: triggerCompile } = useCompileJob(compileScenario)
+const { compiling, compileError, result: compiledResult, trigger: triggerCompile } = useCompileJob(compileScenario)
 
 const services = ref<Service[]>([])
 const servicesLoading = ref(true)
@@ -59,6 +59,21 @@ const description = computed({
 
 function isSelected(serviceId: string): boolean {
   return drafts.scenarioDraft?.service_ids.includes(serviceId) ?? false
+}
+
+// Near-misses and clusters name stops by service_id; the checklist load
+// already has every candidate service's display name, so look it up rather
+// than have the compile result carry names twice.
+function serviceName(serviceId: string): string {
+  return services.value.find((service) => service.id === serviceId)?.name ?? serviceId
+}
+
+const merge = computed(() => compiledResult.value?.merge)
+const nearMisses = computed(() => merge.value?.near_misses ?? [])
+const realisedClusters = computed(() => merge.value?.clusters ?? [])
+
+function formatMeters(total: number): string {
+  return `${Math.round(total)} m`
 }
 
 const canSubmit = computed(() => {
@@ -284,6 +299,48 @@ const isochroneFormLoading = computed(() => isochroneLoading.value || compiling.
           >
             A member service changed — recompiling…
           </p>
+
+          <section
+            v-if="nearMisses.length"
+            class="rounded-(--radius-box) border border-border bg-surface p-4"
+            data-testid="near-miss-list"
+          >
+            <h2 class="font-display text-h3 text-ink-true">
+              Did not connect
+            </h2>
+            <ul class="mt-3 flex flex-col gap-2">
+              <li
+                v-for="(nearMiss, index) in nearMisses"
+                :key="index"
+                class="font-body text-caption text-ink"
+                data-testid="near-miss-row"
+              >
+                {{ nearMiss.a.name }} ({{ serviceName(nearMiss.a.service_id) }}) and
+                {{ nearMiss.b.name }} ({{ serviceName(nearMiss.b.service_id) }})
+                are {{ formatMeters(nearMiss.distance_m) }} apart and did not connect
+              </li>
+            </ul>
+          </section>
+
+          <section
+            v-if="realisedClusters.length"
+            class="rounded-(--radius-box) border border-border bg-surface p-4"
+            data-testid="realised-clusters"
+          >
+            <h2 class="font-display text-h3 text-ink-true">
+              Realised interchanges
+            </h2>
+            <ul class="mt-3 flex flex-col gap-2">
+              <li
+                v-for="cluster in realisedClusters"
+                :key="cluster.key"
+                class="font-body text-caption text-ink"
+                data-testid="realised-cluster-row"
+              >
+                {{ cluster.names.join(', ') }}
+              </li>
+            </ul>
+          </section>
         </div>
       </div>
     </template>
