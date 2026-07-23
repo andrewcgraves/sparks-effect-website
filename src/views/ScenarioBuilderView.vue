@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useDraftsStore } from '../stores/drafts'
-import { useJobsStore } from '../stores/jobs'
+import { useCompileJob } from '../composables/useCompileJob'
 import { ApiError } from '../api/authoring/client'
 import { fetchMyServices } from '../api/authoring/services'
 import { compileScenario, createScenario, fetchScenarioIsochrone } from '../api/authoring/scenarios'
@@ -12,23 +12,29 @@ import MapView from '../components/MapView.vue'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
 
 const drafts = useDraftsStore()
-const jobs = useJobsStore()
+const { compiling, compileError, trigger: triggerCompile } = useCompileJob(compileScenario)
 
 const services = ref<Service[]>([])
 const servicesLoading = ref(true)
 const servicesError = ref(false)
 
+// Doubles as "has this draft been saved" (gates the builder form) and the
+// record's identity for the compile/isochrone calls that follow — a separate
+// boolean would just track the same transition redundantly.
 const savedSlug = ref<string | null>(null)
 const submitting = ref(false)
 const submitError = ref('')
-const compiling = ref(false)
-const compileError = ref('')
+
+// True once the post-save compile has succeeded at least once. Distinguishes
+// that first compile (shown full-screen, replacing the builder form) from any
+// later recompile triggered by a stale-graph isochrone retry (shown inline,
+// alongside the still-visible map and form — see isochroneFormLoading below).
+const hasCompiledOnce = ref(false)
 
 const origin = ref<{ lat: number; lng: number } | null>(null)
 const isochroneData = ref<ChainResponse | null>(null)
 const isochroneLoading = ref(false)
 const isochroneError = ref<string | null>(null)
-const recompiling = ref(false)
 
 onMounted(async () => {
   if (!drafts.hasScenarioDraft) drafts.startScenarioDraft()
@@ -65,26 +71,6 @@ const canSubmit = computed(() => {
 // bounds it so a persistently stale signal can't spin the UI forever.
 const MAX_STALE_GRAPH_RETRIES = 3
 
-// A 409 with the stale-graph code is not an error to show the user (SPA-83
-// decision 4): it means a compiled graph fell behind an edit, so the fix is
-// to fire the compile again and retry, not to surface a failure.
-async function triggerCompile(slug: string, attempt = 1): Promise<void> {
-  compiling.value = true
-  compileError.value = ''
-  try {
-    const job = await compileScenario(slug)
-    await jobs.track(job.id)
-  } catch (err) {
-    if (err instanceof ApiError && err.code === 'stale_graph' && attempt < MAX_STALE_GRAPH_RETRIES) {
-      await triggerCompile(slug, attempt + 1)
-      return
-    }
-    compileError.value = err instanceof Error ? err.message : 'Compile failed.'
-  } finally {
-    compiling.value = false
-  }
-}
-
 async function handleSave(): Promise<void> {
   const draft = drafts.scenarioDraft
   if (!draft || !canSubmit.value) return
@@ -95,6 +81,7 @@ async function handleSave(): Promise<void> {
     drafts.clearScenarioDraft()
     savedSlug.value = created.slug
     await triggerCompile(created.slug)
+    if (!compileError.value) hasCompiledOnce.value = true
   } catch (err) {
     submitError.value = err instanceof ApiError ? err.message : 'Something went wrong saving the scenario.'
   } finally {
@@ -108,7 +95,9 @@ function onOriginChange(coords: { lat: number; lng: number } | null) {
 
 // Reopening a scenario whose member service was edited elsewhere answers 409
 // (stale_graph) on the isochrone call itself, not just on compile — recompile
-// and retry transparently, surfacing "recompiling…" rather than an error.
+// and retry transparently. Once hasCompiledOnce is set, `compiling` no longer
+// gates the full-screen "Compiling…" view (see the template), so this
+// recompile renders as the inline "recompiling…" note instead of an error.
 async function generateIsochrone(
   payload: { lat: number; lng: number; duration: number; mode: 'walk' | 'bike' | 'drive' },
   attempt = 1,
@@ -125,9 +114,7 @@ async function generateIsochrone(
     })
   } catch (err) {
     if (err instanceof ApiError && err.code === 'stale_graph' && attempt < MAX_STALE_GRAPH_RETRIES) {
-      recompiling.value = true
       await triggerCompile(savedSlug.value)
-      recompiling.value = false
       if (!compileError.value) {
         await generateIsochrone(payload, attempt + 1)
         return
@@ -149,7 +136,7 @@ async function handleIsochroneSubmit(payload: {
   await generateIsochrone(payload)
 }
 
-const isochroneFormLoading = computed(() => isochroneLoading.value || recompiling.value)
+const isochroneFormLoading = computed(() => isochroneLoading.value || compiling.value)
 </script>
 
 <template>
@@ -252,7 +239,7 @@ const isochroneFormLoading = computed(() => isochroneLoading.value || recompilin
 
     <template v-else>
       <p
-        v-if="compiling"
+        v-if="compiling && !hasCompiledOnce"
         class="font-body text-caption mt-8 text-ink-muted italic"
         data-testid="compiling-status"
       >
@@ -290,7 +277,7 @@ const isochroneFormLoading = computed(() => isochroneLoading.value || recompilin
             @origin-change="onOriginChange"
           />
           <p
-            v-if="recompiling"
+            v-if="compiling"
             class="font-body text-caption text-ink-muted italic"
             role="status"
             data-testid="recompiling-status"

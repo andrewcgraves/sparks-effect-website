@@ -199,7 +199,7 @@ describe('ScenarioBuilderView', () => {
     expect(fetchScenarioIsochrone).toHaveBeenCalledWith('ca-hsr', expect.objectContaining({ lat: 37.7, lng: -122.4 }))
   })
 
-  it('transparently recompiles and retries on a stale-graph 409, showing "recompiling…" rather than an error', async () => {
+  it('transparently recompiles and retries on a stale-graph 409, showing "recompiling…" while it does so, then rendering the retried result', async () => {
     vi.mocked(fetchScenarioIsochrone)
       .mockRejectedValueOnce(new ApiError('stale', 409, 'stale_graph'))
       .mockResolvedValueOnce(stubChainResponse)
@@ -208,11 +208,33 @@ describe('ScenarioBuilderView', () => {
     await saveAndCompile(wrapper)
     vi.mocked(compileScenario).mockClear()
 
-    await submitIsochroneForm(wrapper)
+    // Hold the recompile's job-status poll open so the mid-flight DOM state
+    // (the isochrone form/map staying mounted, with an inline "recompiling…"
+    // note) can be asserted before it resolves.
+    let resolveJobFetch!: (value: Response) => void
+    vi.mocked(fetch).mockImplementationOnce(
+      () => new Promise<Response>((resolve) => { resolveJobFetch = resolve }),
+    )
+
+    await wrapper.find('[data-testid="lat"]').setValue('37.7')
+    await wrapper.find('[data-testid="lng"]').setValue('-122.4')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="recompiling-status"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="compiling-status"]').exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'IsochroneForm' }).exists()).toBe(true)
+
+    resolveJobFetch({
+      ok: true,
+      status: 200,
+      json: async () => ({ id: 'job2', kind: 'compile_user_scenario', status: 'succeeded', result: { services: [] } }),
+    } as Response)
     await flushPromises()
 
     expect(compileScenario).toHaveBeenCalledWith('ca-hsr')
     expect(fetchScenarioIsochrone).toHaveBeenCalledTimes(2)
+    expect(wrapper.find('[data-testid="recompiling-status"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="fetch-error"]').exists()).toBe(false)
   })
 
