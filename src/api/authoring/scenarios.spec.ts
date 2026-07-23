@@ -6,8 +6,12 @@ import {
   createScenario,
   updateScenario,
   deleteScenario,
+  compileScenario,
+  fetchScenarioIsochrone,
 } from './scenarios'
-import type { Scenario, ScenarioInput } from './types'
+import { ApiError } from './client'
+import type { Job, Scenario, ScenarioInput } from './types'
+import type { ChainResponse } from '../../fixtures/isochrone'
 
 const stubInput: ScenarioInput = {
   name: 'CA HSR',
@@ -86,5 +90,38 @@ describe('scenarios CRUD', () => {
   it('throws on a non-ok response', async () => {
     vi.mocked(fetch).mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({}) } as Response)
     await expect(listScenarios()).rejects.toThrow()
+  })
+
+  it('compileScenario POSTs to /api/user-scenarios/{slug}/compile', async () => {
+    const job: Job = { id: 'job1', kind: 'compile_user_scenario', status: 'queued' }
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 202, json: async () => job } as Response)
+    const result = await compileScenario('ca-hsr')
+    const [url, init] = vi.mocked(fetch).mock.calls[0]
+    expect(url).toContain('/api/user-scenarios/ca-hsr/compile')
+    expect((init as RequestInit).method).toBe('POST')
+    expect(result).toEqual(job)
+  })
+
+  it('fetchScenarioIsochrone POSTs to /api/user-scenarios/{slug}/isochrone with the request body', async () => {
+    const response = { type: 'FeatureCollection', features: [], metadata: {} } as unknown as ChainResponse
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 200, json: async () => response } as Response)
+    const result = await fetchScenarioIsochrone('ca-hsr', { lat: 37.7, lng: -122.4, budget_mins: 30, mode: 'walk' })
+    const [url, init] = vi.mocked(fetch).mock.calls[0]
+    expect(url).toContain('/api/user-scenarios/ca-hsr/isochrone')
+    expect((init as RequestInit).method).toBe('POST')
+    const body = JSON.parse((init as RequestInit).body as string)
+    expect(body).toEqual({ lat: 37.7, lng: -122.4, budget_mins: 30, mode: 'walk' })
+    expect(result).toEqual(response)
+  })
+
+  it('fetchScenarioIsochrone surfaces a stale_graph ApiError code on 409', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      json: async () => ({ error: 'compiled graph is stale', code: 'stale_graph' }),
+    } as Response)
+    await expect(
+      fetchScenarioIsochrone('ca-hsr', { lat: 37.7, lng: -122.4, budget_mins: 30, mode: 'walk' }),
+    ).rejects.toMatchObject({ code: 'stale_graph' } satisfies Partial<ApiError>)
   })
 })

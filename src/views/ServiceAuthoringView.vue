@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useDraftsStore } from '../stores/drafts'
-import { useJobsStore } from '../stores/jobs'
+import { useCompileJob } from '../composables/useCompileJob'
 import { ApiError } from '../api/authoring/client'
 import { fetchRoute, listRoutes, snapStops } from '../api/authoring/routes'
 import { compileService, createService } from '../api/authoring/services'
@@ -10,7 +10,6 @@ import type {
   Route,
   RouteSummary,
   SnapStopsResponse,
-  TransitGraph,
   VehicleParams,
 } from '../api/authoring'
 import type { Route as ScenarioRoute } from '../api/scenarios'
@@ -20,7 +19,7 @@ import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
 import { extractOffendingStopNames } from './parseServiceError'
 
 const drafts = useDraftsStore()
-const jobs = useJobsStore()
+const { compiling, compileError, result: compiledGraph, trigger: triggerCompile, reset: resetCompile } = useCompileJob(compileService)
 
 const routes = ref<RouteSummary[]>([])
 const routesLoading = ref(true)
@@ -43,9 +42,6 @@ const newWindowHeadwayMin = ref<number | null>(null)
 const submitted = ref(false)
 const submitting = ref(false)
 const submitError = ref('')
-const compiling = ref(false)
-const compileError = ref('')
-const compiledGraph = ref<TransitGraph | null>(null)
 
 // Live preview trades a little latency for not hammering the snap endpoint on
 // every keystroke; 400ms is long enough to coalesce a burst of edits and short
@@ -244,35 +240,9 @@ async function handleSubmit(): Promise<void> {
   }
 }
 
-// A stale-graph retry should settle in one or two hops in practice; this just
-// bounds it so a persistently stale signal can't spin the UI forever.
-const MAX_STALE_GRAPH_RETRIES = 3
-
-// A 409 with the stale-graph code is not an error to show the user (SPA-83
-// decision 4): it means a compiled graph fell behind an edit, so the fix is to
-// fire the compile again and retry, not to surface a failure.
-async function triggerCompile(slug: string, attempt = 1): Promise<void> {
-  compiling.value = true
-  compileError.value = ''
-  try {
-    const job = await compileService(slug)
-    const finished = await jobs.track(job.id)
-    compiledGraph.value = finished.result ?? null
-  } catch (err) {
-    if (err instanceof ApiError && err.code === 'stale_graph' && attempt < MAX_STALE_GRAPH_RETRIES) {
-      await triggerCompile(slug, attempt + 1)
-      return
-    }
-    compileError.value = err instanceof Error ? err.message : 'Compile failed.'
-  } finally {
-    compiling.value = false
-  }
-}
-
 function startAnother(): void {
   submitted.value = false
-  compiledGraph.value = null
-  compileError.value = ''
+  resetCompile()
   preview.value = null
   selectedRoute.value = null
   drafts.startServiceDraft()

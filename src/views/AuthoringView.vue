@@ -89,9 +89,18 @@ async function handleSignOut() {
       </section>
 
       <section>
-        <h2 class="font-display text-h2 text-ink-true">
-          My scenarios
-        </h2>
+        <div class="flex items-center justify-between gap-3">
+          <h2 class="font-display text-h2 text-ink-true">
+            My scenarios
+          </h2>
+          <router-link
+            to="/authoring/scenarios/new"
+            class="font-display text-btn cursor-pointer text-ink-muted uppercase transition-colors duration-200 ease-(--ease-smooth) hover:text-coral"
+            data-testid="new-scenario-link"
+          >
+            + New scenario
+          </router-link>
+        </div>
         <p
           v-if="scenariosLoading"
           class="font-body text-caption mt-3 text-ink-muted italic"
