@@ -4,6 +4,7 @@ import { ApiError } from '../api/authoring/client'
 import type { TransitGraph } from '../api/authoring'
 import type { ChainResponse } from '../fixtures/isochrone'
 import { MAX_STALE_GRAPH_RETRIES, useCompileJob } from './useCompileJob'
+import { graphRoutes, graphStations } from './scenarioGraphMap'
 
 export interface IsochronePayload {
   lat: number
@@ -37,6 +38,10 @@ export function useScenarioIsochrone(getSlug: () => string | null) {
   const merge = computed(() => graph.value?.merge)
   const nearMisses = computed(() => merge.value?.near_misses ?? [])
   const realisedClusters = computed(() => merge.value?.clusters ?? [])
+
+  // The compiled graph, projected onto the point/line shapes MapView draws.
+  const mapStations = computed(() => graphStations(graph.value))
+  const mapRoutes = computed(() => graphRoutes(graph.value))
 
   // The compile is part of the same wait from the user's point of view.
   const isochroneFormLoading = computed(() => isochroneLoading.value || compiling.value)
@@ -96,6 +101,8 @@ export function useScenarioIsochrone(getSlug: () => string | null) {
     isochroneFormLoading,
     nearMisses,
     realisedClusters,
+    mapStations,
+    mapRoutes,
     onOriginChange,
     handleIsochroneSubmit,
   }

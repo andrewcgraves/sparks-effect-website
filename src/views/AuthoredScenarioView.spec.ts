@@ -15,7 +15,10 @@ vi.mock('../api/authoring/services', () => ({
   fetchMyServices: vi.fn(),
 }))
 vi.mock('../components/MapView.vue', () => ({
-  default: { props: ['origin', 'isochroneData', 'loading', 'routes', 'stations', 'services'], template: '<div data-testid="map" />' },
+  default: {
+    props: ['origin', 'isochroneData', 'loading', 'routes', 'stations', 'services'],
+    template: '<div data-testid="map" :data-stations="stations.length" :data-routes="routes.length" />',
+  },
 }))
 
 import AuthoredScenarioView from './AuthoredScenarioView.vue'
@@ -121,6 +124,22 @@ describe('AuthoredScenarioView', () => {
     expect(fetchScenarioIsochrone).toHaveBeenCalledWith('ca-hsr', {
       lat: 37.7, lng: -122.4, budget_mins: 30, mode: 'walk',
     })
+  })
+
+  it('hands the compiled graph to the map as station and route layers', async () => {
+    vi.mocked(fetchScenarioGraph).mockResolvedValue({
+      services: [{ service_id: 'svc1', wait_secs: 0, edges: [{ from_slug: 'a', to_slug: 'b', seconds: 60 }] }],
+      nodes: [
+        { slug: 'a', lat: 35.39, lng: -119.02, names: ['Test'] },
+        { slug: 'b', lat: 34.05, lng: -118.23, names: ['Testt'] },
+      ],
+    } as never)
+    const wrapper = mountView()
+    await flushPromises()
+    const map = wrapper.find('[data-testid="map"]')
+    // The mock MapView reflects its props as JSON via the stub below.
+    expect(map.attributes('data-stations')).toBe('2')
+    expect(map.attributes('data-routes')).toBe('1')
   })
 
   it('shows the near-miss and realised-interchange reports from the graph', async () => {

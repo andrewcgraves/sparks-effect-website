@@ -2,6 +2,7 @@
 import IsochroneForm from '../IsochroneForm.vue'
 import MapView from './MapView.vue'
 import type { NearMiss, Service, StopCluster } from '../api/authoring/types'
+import type { Route, Station } from '../api/scenarios'
 import type { ChainResponse } from '../fixtures/isochrone'
 import type { IsochronePayload } from '../composables/useScenarioIsochrone'
 
@@ -17,6 +18,9 @@ const props = defineProps<{
   nearMisses: NearMiss[]
   realisedClusters: StopCluster[]
   services: Service[]
+  // The compiled graph as map layers: stop dots and the lines between them.
+  mapStations?: Station[]
+  mapRoutes?: Route[]
   statusNote?: string | null
 }>()
 
@@ -44,8 +48,8 @@ function formatMeters(total: number): string {
         :origin="props.origin"
         :isochrone-data="props.isochroneData"
         :loading="props.loading"
-        :routes="[]"
-        :stations="[]"
+        :routes="props.mapRoutes ?? []"
+        :stations="props.mapStations ?? []"
         :services="[]"
       />
     </div>

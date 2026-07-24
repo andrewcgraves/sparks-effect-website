@@ -41,6 +41,8 @@ const {
   isochroneFormLoading,
   nearMisses,
   realisedClusters,
+  mapStations,
+  mapRoutes,
   onOriginChange,
   handleIsochroneSubmit,
 } = useScenarioIsochrone(() => savedSlug.value)
@@ -220,6 +222,8 @@ async function handleSave(): Promise<void> {
         :near-misses="nearMisses"
         :realised-clusters="realisedClusters"
         :services="services"
+        :map-stations="mapStations"
+        :map-routes="mapRoutes"
         :status-note="compiling ? 'A member service changed — recompiling…' : null"
         @submit="handleIsochroneSubmit"
         @origin-change="onOriginChange"
