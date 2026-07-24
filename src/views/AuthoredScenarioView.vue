@@ -5,6 +5,7 @@ import { fetchMyServices } from '../api/authoring/services'
 import type { Scenario } from '../api/authoring/types'
 import { useOwnedDetail } from '../composables/useOwnedDetail'
 import { useOwnedList } from '../composables/useOwnedList'
+import { ACTION_LINK_CLASS } from '../components/linkStyles'
 
 const props = defineProps<{ slug: string }>()
 
@@ -13,7 +14,7 @@ const { item: scenario, loading, notFound, error } = useOwnedDetail<Scenario>(fe
 // A scenario stores bare service ids, so names come from the owner's own
 // service list. It loads independently: a failure there degrades members to
 // their ids rather than hiding the scenario.
-const { items: services } = useOwnedList(fetchMyServices)
+const { items: services, loading: servicesLoading } = useOwnedList(fetchMyServices)
 
 const members = computed(() => (scenario.value?.service_ids ?? []).map((id) => {
   const match = services.value.find((service) => service.id === id)
@@ -25,7 +26,7 @@ const members = computed(() => (scenario.value?.service_ids ?? []).map((id) => {
   <main class="min-h-svh p-(--page-padding)">
     <router-link
       to="/authoring"
-      class="font-display text-btn cursor-pointer text-ink-muted uppercase transition-colors duration-200 ease-(--ease-smooth) hover:text-coral"
+      :class="ACTION_LINK_CLASS"
       data-testid="back-to-authoring"
     >
       ← My authoring
@@ -83,8 +84,15 @@ const members = computed(() => (scenario.value?.service_ids ?? []).map((id) => {
         <h2 class="font-display text-h3 text-ink-true">
           Services
         </h2>
+        <!-- Held until the lookup settles so members don't flash their raw ids. -->
         <p
-          v-if="members.length === 0"
+          v-if="servicesLoading"
+          class="font-body text-caption mt-3 text-ink-muted italic"
+        >
+          Loading…
+        </p>
+        <p
+          v-else-if="members.length === 0"
           class="font-body text-caption mt-3 text-ink-muted italic"
           data-testid="scenario-members-empty"
         >

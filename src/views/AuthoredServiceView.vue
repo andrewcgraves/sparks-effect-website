@@ -1,18 +1,23 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { fetchService } from '../api/authoring/services'
 import type { Service } from '../api/authoring/types'
 import { useOwnedDetail } from '../composables/useOwnedDetail'
+import { ACTION_LINK_CLASS } from '../components/linkStyles'
 
 const props = defineProps<{ slug: string }>()
 
 const { item: service, loading, notFound, error } = useOwnedDetail<Service>(fetchService, props.slug)
+
+// seq is the authored order; don't trust the array to arrive in it.
+const stops = computed(() => [...(service.value?.stops ?? [])].sort((a, b) => a.seq - b.seq))
 </script>
 
 <template>
   <main class="min-h-svh p-(--page-padding)">
     <router-link
       to="/authoring"
-      class="font-display text-btn cursor-pointer text-ink-muted uppercase transition-colors duration-200 ease-(--ease-smooth) hover:text-coral"
+      :class="ACTION_LINK_CLASS"
       data-testid="back-to-authoring"
     >
       ← My authoring
@@ -71,9 +76,19 @@ const { item: service, loading, notFound, error } = useOwnedDetail<Service>(fetc
           <h2 class="font-display text-h3 text-ink-true">
             Stops
           </h2>
-          <ol class="mt-3 flex flex-col gap-2">
+          <p
+            v-if="stops.length === 0"
+            class="font-body text-caption mt-3 text-ink-muted italic"
+            data-testid="service-stops-empty"
+          >
+            This service has no stops yet.
+          </p>
+          <ol
+            v-else
+            class="mt-3 flex flex-col gap-2"
+          >
             <li
-              v-for="stop in service.stops"
+              v-for="stop in stops"
               :key="stop.seq"
               class="font-body text-caption flex justify-between gap-3 text-ink"
               data-testid="service-stop-row"
@@ -121,7 +136,17 @@ const { item: service, loading, notFound, error } = useOwnedDetail<Service>(fetc
             <h2 class="font-display text-h3 text-ink-true">
               Frequency
             </h2>
-            <ul class="mt-3 flex flex-col gap-1">
+            <p
+              v-if="service.frequency_windows.length === 0"
+              class="font-body text-caption mt-3 text-ink-muted italic"
+              data-testid="service-windows-empty"
+            >
+              No frequency windows yet.
+            </p>
+            <ul
+              v-else
+              class="mt-3 flex flex-col gap-1"
+            >
               <li
                 v-for="(window, index) in service.frequency_windows"
                 :key="index"

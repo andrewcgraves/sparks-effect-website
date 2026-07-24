@@ -49,7 +49,9 @@ export const router = createRouter({
       component: ScenarioBuilderView,
       meta: { requiresAuth: true },
     },
-    // Declared after the /new forms so the literal segment wins the match.
+    // Read-only detail pages for the signed-in user's own records. The /new
+    // forms above still win their paths: vue-router ranks a static segment
+    // above a param regardless of declaration order.
     {
       path: '/authoring/services/:slug',
       name: 'service-detail',

@@ -5,7 +5,7 @@ import { ApiError } from '../api/authoring/client'
 // notFound is split out from error because a missing slug is a routine
 // outcome of a stale link, not a failure the user should retry.
 export function useOwnedDetail<T>(fetcher: (slug: string) => Promise<T>, slug: string) {
-  const item: Ref<T | null> = ref(null) as Ref<T | null>
+  const item = ref<T | null>(null) as Ref<T | null>
   const loading = ref(true)
   const notFound = ref(false)
   const error = ref(false)

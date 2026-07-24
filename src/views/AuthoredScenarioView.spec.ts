@@ -102,6 +102,26 @@ describe('AuthoredScenarioView', () => {
     expect(wrapper.findAll('[data-testid="scenario-member"]')).toHaveLength(2)
   })
 
+  it('shows an empty state for a scenario with no services', async () => {
+    vi.mocked(fetchScenario).mockResolvedValue({ ...stubScenario, service_ids: [] })
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="scenario-members-empty"]').exists()).toBe(true)
+  })
+
+  it('holds the member list until the service lookup settles', async () => {
+    vi.mocked(fetchScenario).mockResolvedValue(stubScenario)
+    let resolveServices: (value: Service[]) => void = () => {}
+    vi.mocked(fetchMyServices).mockReturnValue(new Promise((resolve) => { resolveServices = resolve }))
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.findAll('[data-testid="scenario-member"]')).toHaveLength(0)
+
+    resolveServices([stubService])
+    await flushPromises()
+    expect(wrapper.findAll('[data-testid="scenario-member"]')).toHaveLength(2)
+  })
+
   it('links back to the authoring page', async () => {
     vi.mocked(fetchScenario).mockResolvedValue(stubScenario)
     const wrapper = mountView()

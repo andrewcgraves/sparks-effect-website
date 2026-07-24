@@ -72,6 +72,29 @@ describe('AuthoredServiceView', () => {
     expect(rows[1].text()).toContain('Midtown')
   })
 
+  it('orders stops by seq rather than array order', async () => {
+    vi.mocked(fetchService).mockResolvedValue({
+      ...stubService,
+      stops: [
+        { name: 'Midtown', lat: 37.5, lng: -122.1, seq: 1 },
+        { name: 'Union', lat: 37.7, lng: -122.4, seq: 0 },
+      ],
+    })
+    const wrapper = mountView()
+    await flushPromises()
+    const rows = wrapper.findAll('[data-testid="service-stop-row"]')
+    expect(rows[0].text()).toContain('Union')
+    expect(rows[1].text()).toContain('Midtown')
+  })
+
+  it('shows empty states for a service with no stops or frequency windows', async () => {
+    vi.mocked(fetchService).mockResolvedValue({ ...stubService, stops: [], frequency_windows: [] })
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="service-stops-empty"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="service-windows-empty"]').exists()).toBe(true)
+  })
+
   it('shows the vehicle params and frequency windows', async () => {
     vi.mocked(fetchService).mockResolvedValue(stubService)
     const wrapper = mountView()
