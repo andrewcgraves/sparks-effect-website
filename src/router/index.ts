@@ -5,6 +5,8 @@ import LoginView from '../views/LoginView.vue'
 import AuthoringView from '../views/AuthoringView.vue'
 import ServiceAuthoringView from '../views/ServiceAuthoringView.vue'
 import ScenarioBuilderView from '../views/ScenarioBuilderView.vue'
+import AuthoredServiceView from '../views/AuthoredServiceView.vue'
+import AuthoredScenarioView from '../views/AuthoredScenarioView.vue'
 import RouteView from '../views/RouteView.vue'
 import NotFoundView from '../views/NotFoundView.vue'
 import { trackPageView } from '../analytics/index'
@@ -45,6 +47,21 @@ export const router = createRouter({
       path: '/authoring/scenarios/new',
       name: 'new-scenario',
       component: ScenarioBuilderView,
+      meta: { requiresAuth: true },
+    },
+    // Declared after the /new forms so the literal segment wins the match.
+    {
+      path: '/authoring/services/:slug',
+      name: 'service-detail',
+      component: AuthoredServiceView,
+      props: true,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/authoring/scenarios/:slug',
+      name: 'scenario-detail',
+      component: AuthoredScenarioView,
+      props: true,
       meta: { requiresAuth: true },
     },
     {

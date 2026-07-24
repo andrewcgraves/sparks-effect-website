@@ -81,9 +81,15 @@ async function handleSignOut() {
           <li
             v-for="service in services"
             :key="service.id"
-            class="font-body text-body rounded-(--radius-field) border border-border bg-surface px-3 py-2 text-ink"
           >
-            {{ service.name }}
+            <router-link
+              :to="`/authoring/services/${service.slug}`"
+              class="font-body text-body flex flex-col gap-1 rounded-(--radius-field) border border-border bg-surface px-3 py-2 text-ink transition-colors duration-200 ease-(--ease-smooth) hover:border-coral"
+              data-testid="service-link"
+            >
+              {{ service.name }}
+              <span class="text-micro text-ink-muted">{{ service.slug }}</span>
+            </router-link>
           </li>
         </ul>
       </section>
@@ -129,9 +135,15 @@ async function handleSignOut() {
           <li
             v-for="scenario in scenarios"
             :key="scenario.id"
-            class="font-body text-body rounded-(--radius-field) border border-border bg-surface px-3 py-2 text-ink"
           >
-            {{ scenario.name }}
+            <router-link
+              :to="`/authoring/scenarios/${scenario.slug}`"
+              class="font-body text-body flex flex-col gap-1 rounded-(--radius-field) border border-border bg-surface px-3 py-2 text-ink transition-colors duration-200 ease-(--ease-smooth) hover:border-coral"
+              data-testid="scenario-link"
+            >
+              {{ scenario.name }}
+              <span class="text-micro text-ink-muted">{{ scenario.slug }}</span>
+            </router-link>
           </li>
         </ul>
       </section>
