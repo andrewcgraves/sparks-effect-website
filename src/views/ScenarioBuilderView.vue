@@ -1,18 +1,16 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useDraftsStore } from '../stores/drafts'
-import { useCompileJob } from '../composables/useCompileJob'
+import { useScenarioIsochrone } from '../composables/useScenarioIsochrone'
 import { ApiError } from '../api/authoring/client'
 import { fetchMyServices } from '../api/authoring/services'
-import { compileScenario, createScenario, fetchScenarioIsochrone } from '../api/authoring/scenarios'
+import { createScenario } from '../api/authoring/scenarios'
 import type { Service } from '../api/authoring/types'
-import type { ChainResponse } from '../fixtures/isochrone'
 import IsochroneForm from '../IsochroneForm.vue'
 import MapView from '../components/MapView.vue'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
 
 const drafts = useDraftsStore()
-const { compiling, compileError, result: compiledResult, trigger: triggerCompile } = useCompileJob(compileScenario)
 
 const services = ref<Service[]>([])
 const servicesLoading = ref(true)
@@ -31,10 +29,22 @@ const submitError = ref('')
 // alongside the still-visible map and form — see isochroneFormLoading below).
 const hasCompiledOnce = ref(false)
 
-const origin = ref<{ lat: number; lng: number } | null>(null)
-const isochroneData = ref<ChainResponse | null>(null)
-const isochroneLoading = ref(false)
-const isochroneError = ref<string | null>(null)
+// The compile + isochrone half is shared with the preview page at
+// /authoring/scenarios/:slug, which plots the same way against a scenario it
+// loaded rather than one it just saved.
+const {
+  compiling,
+  compileError,
+  triggerCompile,
+  origin,
+  isochroneData,
+  isochroneError,
+  isochroneFormLoading,
+  nearMisses,
+  realisedClusters,
+  onOriginChange,
+  handleIsochroneSubmit,
+} = useScenarioIsochrone(() => savedSlug.value)
 
 onMounted(async () => {
   if (!drafts.hasScenarioDraft) drafts.startScenarioDraft()
@@ -68,10 +78,6 @@ function serviceName(serviceId: string): string {
   return services.value.find((service) => service.id === serviceId)?.name ?? serviceId
 }
 
-const merge = computed(() => compiledResult.value?.merge)
-const nearMisses = computed(() => merge.value?.near_misses ?? [])
-const realisedClusters = computed(() => merge.value?.clusters ?? [])
-
 function formatMeters(total: number): string {
   return `${Math.round(total)} m`
 }
@@ -81,10 +87,6 @@ const canSubmit = computed(() => {
   if (!draft || submitting.value) return false
   return draft.name.trim() !== '' && draft.service_ids.length > 0
 })
-
-// A stale-graph retry should settle in one or two hops in practice; this just
-// bounds it so a persistently stale signal can't spin the UI forever.
-const MAX_STALE_GRAPH_RETRIES = 3
 
 async function handleSave(): Promise<void> {
   const draft = drafts.scenarioDraft
@@ -104,54 +106,6 @@ async function handleSave(): Promise<void> {
   }
 }
 
-function onOriginChange(coords: { lat: number; lng: number } | null) {
-  origin.value = coords
-}
-
-// Reopening a scenario whose member service was edited elsewhere answers 409
-// (stale_graph) on the isochrone call itself, not just on compile — recompile
-// and retry transparently. Once hasCompiledOnce is set, `compiling` no longer
-// gates the full-screen "Compiling…" view (see the template), so this
-// recompile renders as the inline "recompiling…" note instead of an error.
-async function generateIsochrone(
-  payload: { lat: number; lng: number; duration: number; mode: 'walk' | 'bike' | 'drive' },
-  attempt = 1,
-): Promise<void> {
-  if (!savedSlug.value) return
-  isochroneLoading.value = true
-  isochroneError.value = null
-  try {
-    isochroneData.value = await fetchScenarioIsochrone(savedSlug.value, {
-      lat: payload.lat,
-      lng: payload.lng,
-      budget_mins: payload.duration,
-      mode: payload.mode,
-    })
-  } catch (err) {
-    if (err instanceof ApiError && err.code === 'stale_graph' && attempt < MAX_STALE_GRAPH_RETRIES) {
-      await triggerCompile(savedSlug.value)
-      if (!compileError.value) {
-        await generateIsochrone(payload, attempt + 1)
-        return
-      }
-    }
-    isochroneError.value = 'Failed to generate isochrone. Please try again.'
-  } finally {
-    isochroneLoading.value = false
-  }
-}
-
-async function handleIsochroneSubmit(payload: {
-  lat: number
-  lng: number
-  duration: number
-  mode: 'walk' | 'bike' | 'drive'
-}): Promise<void> {
-  origin.value = { lat: payload.lat, lng: payload.lng }
-  await generateIsochrone(payload)
-}
-
-const isochroneFormLoading = computed(() => isochroneLoading.value || compiling.value)
 </script>
 
 <template>
