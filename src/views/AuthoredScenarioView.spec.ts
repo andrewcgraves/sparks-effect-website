@@ -154,6 +154,29 @@ describe('AuthoredScenarioView', () => {
     expect(wrapper.find('[data-testid="scenario-error"]').exists()).toBe(true)
   })
 
+  it('reports a graph read that fails for a reason other than "never compiled"', async () => {
+    vi.mocked(fetchScenarioGraph).mockRejectedValue(new ApiError('boom', 500))
+    const wrapper = mountView()
+    await flushPromises()
+    expect(compileScenario).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="graph-error"]').exists()).toBe(true)
+  })
+
+  it('keeps the preview when a recompile fails after a graph has loaded', async () => {
+    vi.mocked(fetchScenarioIsochrone).mockRejectedValue(new ApiError('stale', 409, 'stale_graph'))
+    vi.mocked(compileScenario).mockRejectedValue(new ApiError('compile boom', 500))
+    const wrapper = mountView()
+    await flushPromises()
+
+    wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('submit', {
+      lat: 37.7, lng: -122.4, duration: 30, mode: 'walk',
+    })
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="compile-error"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="map"]').exists()).toBe(true)
+  })
+
   it('reports a failed compile instead of an unusable form', async () => {
     vi.mocked(fetchScenarioGraph).mockRejectedValue(new ApiError('no compiled graph', 404))
     vi.mocked(compileScenario).mockRejectedValue(new ApiError('compile boom', 500))

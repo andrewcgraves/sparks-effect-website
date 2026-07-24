@@ -5,7 +5,7 @@ import type { Job, TransitGraph } from '../api/authoring'
 
 // A stale-graph retry should settle in one or two hops in practice; this just
 // bounds it so a persistently stale signal can't spin the UI forever.
-const MAX_STALE_GRAPH_RETRIES = 3
+export const MAX_STALE_GRAPH_RETRIES = 3
 
 /**
  * Drives the compile -> poll chain shared by service and scenario authoring:

@@ -3,11 +3,7 @@ import { compileScenario, fetchScenarioIsochrone } from '../api/authoring/scenar
 import { ApiError } from '../api/authoring/client'
 import type { TransitGraph } from '../api/authoring'
 import type { ChainResponse } from '../fixtures/isochrone'
-import { useCompileJob } from './useCompileJob'
-
-// A stale-graph retry should settle in one or two hops in practice; this just
-// bounds it so a persistently stale signal can't spin the UI forever.
-const MAX_STALE_GRAPH_RETRIES = 3
+import { MAX_STALE_GRAPH_RETRIES, useCompileJob } from './useCompileJob'
 
 export interface IsochronePayload {
   lat: number
@@ -26,8 +22,7 @@ export interface IsochronePayload {
  * builder only after a save, the preview page from its route props.
  */
 export function useScenarioIsochrone(getSlug: () => string | null) {
-  const { compiling, compileError, result: compiledGraph, trigger: triggerCompile, reset: resetCompile }
-    = useCompileJob(compileScenario)
+  const { compiling, compileError, result: compiledGraph, trigger: triggerCompile } = useCompileJob(compileScenario)
 
   // A page that opens an already-compiled scenario reads its graph rather than
   // recompiling; a fresh compile supersedes it.
@@ -94,7 +89,6 @@ export function useScenarioIsochrone(getSlug: () => string | null) {
     graph,
     setGraph,
     triggerCompile,
-    resetCompile,
     origin,
     isochroneData,
     isochroneLoading,

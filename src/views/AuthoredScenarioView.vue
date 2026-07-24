@@ -1,23 +1,24 @@
 <script setup lang="ts">
-import { watch } from 'vue'
+import { ref, watch } from 'vue'
 import { fetchScenario, fetchScenarioGraph } from '../api/authoring/scenarios'
+import { fetchMyServices } from '../api/authoring/services'
 import { ApiError } from '../api/authoring/client'
 import type { Scenario } from '../api/authoring/types'
-import { fetchMyServices } from '../api/authoring/services'
 import { useOwnedDetail } from '../composables/useOwnedDetail'
 import { useOwnedList } from '../composables/useOwnedList'
 import { useScenarioIsochrone } from '../composables/useScenarioIsochrone'
-import IsochroneForm from '../IsochroneForm.vue'
-import MapView from '../components/MapView.vue'
+import ScenarioPreviewPanel from '../components/ScenarioPreviewPanel.vue'
 import { ACTION_LINK_CLASS } from '../components/linkStyles'
 
 const props = defineProps<{ slug: string }>()
 
 const { item: scenario, loading, notFound, error } = useOwnedDetail<Scenario>(fetchScenario, props.slug)
 
+// Named by the route, so plotting never waits on the detail fetch.
 const {
   compiling,
   compileError,
+  graph,
   setGraph,
   triggerCompile,
   origin,
@@ -28,11 +29,16 @@ const {
   realisedClusters,
   onOriginChange,
   handleIsochroneSubmit,
-} = useScenarioIsochrone(() => scenario.value?.slug ?? null)
+} = useScenarioIsochrone(() => props.slug)
 
-// Read the existing compiled graph rather than recompiling on every visit; a
+// Near-miss rows name their services; the panel resolves ids against this.
+const { items: services } = useOwnedList(fetchMyServices)
+
+const graphError = ref('')
+
+// Read the existing compiled graph rather than recompiling on every visit. A
 // 404 means this scenario has never compiled, which is a reason to compile,
-// not an error to show.
+// not an error to show; anything else is a genuine failure.
 watch(scenario, async (loaded) => {
   if (!loaded) return
   try {
@@ -40,22 +46,11 @@ watch(scenario, async (loaded) => {
   } catch (err) {
     if (err instanceof ApiError && err.status === 404) {
       await triggerCompile(loaded.slug)
+    } else {
+      graphError.value = "Couldn't load this scenario's compiled graph."
     }
   }
 }, { immediate: true })
-
-// Near-misses name stops by service_id; the compile result doesn't carry
-// display names, so resolve them against the owner's own services. A failed
-// lookup degrades to the id rather than hiding the report.
-const { items: services } = useOwnedList(fetchMyServices)
-
-function serviceName(serviceId: string): string {
-  return services.value.find((service) => service.id === serviceId)?.name ?? serviceId
-}
-
-function formatMeters(total: number): string {
-  return `${Math.round(total)} m`
-}
 </script>
 
 <template>
@@ -117,7 +112,25 @@ function formatMeters(total: number): string {
       </p>
 
       <p
-        v-if="compileError"
+        v-if="compiling && !graph"
+        class="font-body text-caption mt-8 text-ink-muted italic"
+        data-testid="compiling-status"
+      >
+        Compiling this scenario…
+      </p>
+      <p
+        v-else-if="graphError"
+        class="font-body text-caption mt-8 text-coral"
+        role="alert"
+        data-testid="graph-error"
+      >
+        {{ graphError }}
+      </p>
+      <!-- A failed compile only replaces the preview while there is no graph
+           to show; once one has loaded, a failed recompile is reported beside
+           the map rather than taking the plotted isochrone with it. -->
+      <p
+        v-else-if="compileError && !graph"
         class="font-body text-caption mt-8 text-coral"
         role="alert"
         data-testid="compile-error"
@@ -125,80 +138,19 @@ function formatMeters(total: number): string {
         {{ compileError }}
       </p>
 
-      <div
+      <ScenarioPreviewPanel
         v-else
-        class="mt-8 grid grid-cols-1 items-start gap-4 lg:grid-cols-[2fr_1fr]"
-      >
-        <div class="h-[70vh] overflow-hidden rounded-(--radius-box) border border-border">
-          <MapView
-            :origin="origin"
-            :isochrone-data="isochroneData"
-            :loading="isochroneFormLoading"
-            :routes="[]"
-            :stations="[]"
-            :services="[]"
-          />
-        </div>
-
-        <div class="flex flex-col gap-4">
-          <IsochroneForm
-            :error="isochroneError"
-            :loading="isochroneFormLoading"
-            @submit="handleIsochroneSubmit"
-            @origin-change="onOriginChange"
-          />
-          <p
-            v-if="compiling"
-            class="font-body text-caption text-ink-muted italic"
-            role="status"
-            data-testid="compiling-status"
-          >
-            Compiling this scenario…
-          </p>
-
-          <section
-            v-if="nearMisses.length"
-            class="rounded-(--radius-box) border border-border bg-surface p-4"
-            data-testid="near-miss-list"
-          >
-            <h2 class="font-display text-h3 text-ink-true">
-              Did not connect
-            </h2>
-            <ul class="mt-3 flex flex-col gap-2">
-              <li
-                v-for="(nearMiss, index) in nearMisses"
-                :key="index"
-                class="font-body text-caption text-ink"
-                data-testid="near-miss-row"
-              >
-                {{ nearMiss.a.name }} ({{ serviceName(nearMiss.a.service_id) }}) and
-                {{ nearMiss.b.name }} ({{ serviceName(nearMiss.b.service_id) }})
-                are {{ formatMeters(nearMiss.distance_m) }} apart and did not connect
-              </li>
-            </ul>
-          </section>
-
-          <section
-            v-if="realisedClusters.length"
-            class="rounded-(--radius-box) border border-border bg-surface p-4"
-            data-testid="realised-clusters"
-          >
-            <h2 class="font-display text-h3 text-ink-true">
-              Realised interchanges
-            </h2>
-            <ul class="mt-3 flex flex-col gap-2">
-              <li
-                v-for="cluster in realisedClusters"
-                :key="cluster.key"
-                class="font-body text-caption text-ink"
-                data-testid="realised-cluster-row"
-              >
-                {{ cluster.names.join(', ') }}
-              </li>
-            </ul>
-          </section>
-        </div>
-      </div>
+        :origin="origin"
+        :isochrone-data="isochroneData"
+        :loading="isochroneFormLoading"
+        :error="isochroneError || compileError || null"
+        :near-misses="nearMisses"
+        :realised-clusters="realisedClusters"
+        :services="services"
+        :status-note="compiling ? 'A member service changed — recompiling…' : null"
+        @submit="handleIsochroneSubmit"
+        @origin-change="onOriginChange"
+      />
     </template>
   </main>
 </template>

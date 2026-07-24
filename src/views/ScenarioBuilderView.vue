@@ -6,8 +6,7 @@ import { ApiError } from '../api/authoring/client'
 import { fetchMyServices } from '../api/authoring/services'
 import { createScenario } from '../api/authoring/scenarios'
 import type { Service } from '../api/authoring/types'
-import IsochroneForm from '../IsochroneForm.vue'
-import MapView from '../components/MapView.vue'
+import ScenarioPreviewPanel from '../components/ScenarioPreviewPanel.vue'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
 
 const drafts = useDraftsStore()
@@ -69,17 +68,6 @@ const description = computed({
 
 function isSelected(serviceId: string): boolean {
   return drafts.scenarioDraft?.service_ids.includes(serviceId) ?? false
-}
-
-// Near-misses and clusters name stops by service_id; the checklist load
-// already has every candidate service's display name, so look it up rather
-// than have the compile result carry names twice.
-function serviceName(serviceId: string): string {
-  return services.value.find((service) => service.id === serviceId)?.name ?? serviceId
-}
-
-function formatMeters(total: number): string {
-  return `${Math.round(total)} m`
 }
 
 const canSubmit = computed(() => {
@@ -223,80 +211,19 @@ async function handleSave(): Promise<void> {
         {{ compileError }}
       </p>
 
-      <div
+      <ScenarioPreviewPanel
         v-else
-        class="mt-8 grid grid-cols-1 items-start gap-4 lg:grid-cols-[2fr_1fr]"
-      >
-        <div class="h-[70vh] overflow-hidden rounded-(--radius-box) border border-border">
-          <MapView
-            :origin="origin"
-            :isochrone-data="isochroneData"
-            :loading="isochroneFormLoading"
-            :routes="[]"
-            :stations="[]"
-            :services="[]"
-          />
-        </div>
-
-        <div class="flex flex-col gap-4">
-          <IsochroneForm
-            :error="isochroneError"
-            :loading="isochroneFormLoading"
-            @submit="handleIsochroneSubmit"
-            @origin-change="onOriginChange"
-          />
-          <p
-            v-if="compiling"
-            class="font-body text-caption text-ink-muted italic"
-            role="status"
-            data-testid="recompiling-status"
-          >
-            A member service changed — recompiling…
-          </p>
-
-          <section
-            v-if="nearMisses.length"
-            class="rounded-(--radius-box) border border-border bg-surface p-4"
-            data-testid="near-miss-list"
-          >
-            <h2 class="font-display text-h3 text-ink-true">
-              Did not connect
-            </h2>
-            <ul class="mt-3 flex flex-col gap-2">
-              <li
-                v-for="(nearMiss, index) in nearMisses"
-                :key="index"
-                class="font-body text-caption text-ink"
-                data-testid="near-miss-row"
-              >
-                {{ nearMiss.a.name }} ({{ serviceName(nearMiss.a.service_id) }}) and
-                {{ nearMiss.b.name }} ({{ serviceName(nearMiss.b.service_id) }})
-                are {{ formatMeters(nearMiss.distance_m) }} apart and did not connect
-              </li>
-            </ul>
-          </section>
-
-          <section
-            v-if="realisedClusters.length"
-            class="rounded-(--radius-box) border border-border bg-surface p-4"
-            data-testid="realised-clusters"
-          >
-            <h2 class="font-display text-h3 text-ink-true">
-              Realised interchanges
-            </h2>
-            <ul class="mt-3 flex flex-col gap-2">
-              <li
-                v-for="cluster in realisedClusters"
-                :key="cluster.key"
-                class="font-body text-caption text-ink"
-                data-testid="realised-cluster-row"
-              >
-                {{ cluster.names.join(', ') }}
-              </li>
-            </ul>
-          </section>
-        </div>
-      </div>
+        :origin="origin"
+        :isochrone-data="isochroneData"
+        :loading="isochroneFormLoading"
+        :error="isochroneError"
+        :near-misses="nearMisses"
+        :realised-clusters="realisedClusters"
+        :services="services"
+        :status-note="compiling ? 'A member service changed — recompiling…' : null"
+        @submit="handleIsochroneSubmit"
+        @origin-change="onOriginChange"
+      />
     </template>
   </main>
 </template>
