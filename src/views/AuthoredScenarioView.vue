@@ -1,25 +1,12 @@
 <script setup lang="ts">
-import { computed } from 'vue'
 import { fetchScenario } from '../api/authoring/scenarios'
-import { fetchMyServices } from '../api/authoring/services'
 import type { Scenario } from '../api/authoring/types'
 import { useOwnedDetail } from '../composables/useOwnedDetail'
-import { useOwnedList } from '../composables/useOwnedList'
 import { ACTION_LINK_CLASS } from '../components/linkStyles'
 
 const props = defineProps<{ slug: string }>()
 
 const { item: scenario, loading, notFound, error } = useOwnedDetail<Scenario>(fetchScenario, props.slug)
-
-// A scenario stores bare service ids, so names come from the owner's own
-// service list. It loads independently: a failure there degrades members to
-// their ids rather than hiding the scenario.
-const { items: services, loading: servicesLoading } = useOwnedList(fetchMyServices)
-
-const members = computed(() => (scenario.value?.service_ids ?? []).map((id) => {
-  const match = services.value.find((service) => service.id === id)
-  return { id, name: match?.name ?? id, slug: match?.slug ?? null }
-}))
 </script>
 
 <template>
@@ -80,49 +67,15 @@ const members = computed(() => (scenario.value?.service_ids ?? []).map((id) => {
         {{ scenario.description }}
       </p>
 
-      <section class="mt-8 max-w-[720px] rounded-(--radius-box) border border-border bg-surface p-4">
-        <h2 class="font-display text-h3 text-ink-true">
-          Services
-        </h2>
-        <!-- Held until the lookup settles so members don't flash their raw ids. -->
-        <p
-          v-if="servicesLoading"
-          class="font-body text-caption mt-3 text-ink-muted italic"
-        >
-          Loading…
-        </p>
-        <p
-          v-else-if="members.length === 0"
-          class="font-body text-caption mt-3 text-ink-muted italic"
-          data-testid="scenario-members-empty"
-        >
-          This scenario has no services yet.
-        </p>
-        <ul
-          v-else
-          class="mt-3 flex flex-col gap-2"
-        >
-          <li
-            v-for="member in members"
-            :key="member.id"
-            class="font-body text-caption text-ink"
-            data-testid="scenario-member"
-          >
-            <router-link
-              v-if="member.slug"
-              :to="`/authoring/services/${member.slug}`"
-              class="cursor-pointer transition-colors duration-200 ease-(--ease-smooth) hover:text-coral"
-            >
-              {{ member.name }}
-              <span class="text-ink-muted">· {{ member.slug }}</span>
-            </router-link>
-            <span
-              v-else
-              class="text-ink-muted"
-            >{{ member.id }}</span>
-          </li>
-        </ul>
-      </section>
+      <!-- The map and isochrone form live on the public scenario page, so this
+           page points at it rather than restating the scenario's contents. -->
+      <router-link
+        :to="`/scenario/${scenario.slug}`"
+        class="font-display text-btn mt-8 inline-block cursor-pointer rounded-(--radius-field) border border-border bg-surface px-4 py-2 text-ink uppercase transition-colors duration-200 ease-(--ease-smooth) hover:border-coral hover:text-coral"
+        data-testid="view-isochrones-link"
+      >
+        View isochrones →
+      </router-link>
     </template>
   </main>
 </template>

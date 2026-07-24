@@ -1,38 +1,24 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createRouter, createMemoryHistory } from 'vue-router'
-import type { Scenario, Service } from '../api/authoring/types'
+import type { Scenario } from '../api/authoring/types'
 import { ApiError } from '../api/authoring/client'
 
 vi.mock('../api/authoring/scenarios', () => ({
   fetchScenario: vi.fn(),
 }))
-vi.mock('../api/authoring/services', () => ({
-  fetchMyServices: vi.fn(),
-}))
 
 import AuthoredScenarioView from './AuthoredScenarioView.vue'
 import { fetchScenario } from '../api/authoring/scenarios'
-import { fetchMyServices } from '../api/authoring/services'
 
 const Stub = { template: '<div>stub</div>' }
-
-const stubService: Service = {
-  id: 'svc1',
-  slug: 'northbound-express',
-  route_id: 'route-1',
-  name: 'Northbound Express',
-  stops: [],
-  vehicle: { max_speed_kmh: 320, acceleration_ms2: 1, deceleration_ms2: 1, dwell_s: 30 },
-  frequency_windows: [],
-}
 
 const stubScenario: Scenario = {
   id: 's1',
   slug: 'ca-hsr',
   name: 'CA HSR',
   description: 'California High-Speed Rail',
-  service_ids: ['svc1', 'svc-unknown'],
+  service_ids: ['svc1'],
 }
 
 function mountView(slug = 'ca-hsr') {
@@ -40,7 +26,7 @@ function mountView(slug = 'ca-hsr') {
     history: createMemoryHistory(),
     routes: [
       { path: '/authoring', name: 'authoring', component: Stub },
-      { path: '/authoring/services/:slug', name: 'service-detail', component: Stub },
+      { path: '/scenario/:slug', name: 'scenario', component: Stub },
       { path: '/authoring/scenarios/:slug', name: 'scenario-detail', component: AuthoredScenarioView, props: true },
     ],
   })
@@ -50,8 +36,6 @@ function mountView(slug = 'ca-hsr') {
 describe('AuthoredScenarioView', () => {
   beforeEach(() => {
     vi.mocked(fetchScenario).mockReset()
-    vi.mocked(fetchMyServices).mockReset()
-    vi.mocked(fetchMyServices).mockResolvedValue([stubService])
   })
 
   afterEach(() => {
@@ -74,52 +58,20 @@ describe('AuthoredScenarioView', () => {
     expect(wrapper.text()).toContain('California High-Speed Rail')
   })
 
-  it('names each member service and links to it', async () => {
+  it('links to the public scenario page for isochrones', async () => {
     vi.mocked(fetchScenario).mockResolvedValue(stubScenario)
     const wrapper = mountView()
     await flushPromises()
-    const rows = wrapper.findAll('[data-testid="scenario-member"]')
-    expect(rows).toHaveLength(2)
-    expect(rows[0].text()).toContain('Northbound Express')
-    expect(rows[0].find('a').attributes('href')).toBe('/authoring/services/northbound-express')
+    const link = wrapper.find('[data-testid="view-isochrones-link"]')
+    expect(link.attributes('href')).toBe('/scenario/ca-hsr')
   })
 
-  it('falls back to the raw id for a member service it cannot resolve', async () => {
+  it('does not restate the scenario contents', async () => {
     vi.mocked(fetchScenario).mockResolvedValue(stubScenario)
     const wrapper = mountView()
     await flushPromises()
-    const rows = wrapper.findAll('[data-testid="scenario-member"]')
-    expect(rows[1].text()).toContain('svc-unknown')
-    expect(rows[1].find('a').exists()).toBe(false)
-  })
-
-  it('still shows the scenario when the service lookup fails', async () => {
-    vi.mocked(fetchScenario).mockResolvedValue(stubScenario)
-    vi.mocked(fetchMyServices).mockRejectedValue(new Error('boom'))
-    const wrapper = mountView()
-    await flushPromises()
-    expect(wrapper.text()).toContain('CA HSR')
-    expect(wrapper.findAll('[data-testid="scenario-member"]')).toHaveLength(2)
-  })
-
-  it('shows an empty state for a scenario with no services', async () => {
-    vi.mocked(fetchScenario).mockResolvedValue({ ...stubScenario, service_ids: [] })
-    const wrapper = mountView()
-    await flushPromises()
-    expect(wrapper.find('[data-testid="scenario-members-empty"]').exists()).toBe(true)
-  })
-
-  it('holds the member list until the service lookup settles', async () => {
-    vi.mocked(fetchScenario).mockResolvedValue(stubScenario)
-    let resolveServices: (value: Service[]) => void = () => {}
-    vi.mocked(fetchMyServices).mockReturnValue(new Promise((resolve) => { resolveServices = resolve }))
-    const wrapper = mountView()
-    await flushPromises()
-    expect(wrapper.findAll('[data-testid="scenario-member"]')).toHaveLength(0)
-
-    resolveServices([stubService])
-    await flushPromises()
-    expect(wrapper.findAll('[data-testid="scenario-member"]')).toHaveLength(2)
+    expect(wrapper.find('[data-testid="scenario-member"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('svc1')
   })
 
   it('links back to the authoring page', async () => {
@@ -134,6 +86,7 @@ describe('AuthoredScenarioView', () => {
     const wrapper = mountView('no-such-scenario')
     await flushPromises()
     expect(wrapper.find('[data-testid="scenario-not-found"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="view-isochrones-link"]').exists()).toBe(false)
   })
 
   it('shows an error state on a non-404 failure', async () => {
