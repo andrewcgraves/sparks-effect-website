@@ -10,6 +10,8 @@ vi.mock('../views/ScenarioView.vue', () => ({ default: { props: ['slug'], templa
 vi.mock('../views/LoginView.vue', () => ({ default: { template: '<div />' } }))
 vi.mock('../views/AuthoringView.vue', () => ({ default: { template: '<div />' } }))
 vi.mock('../views/RouteView.vue', () => ({ default: { props: ['slug'], template: '<div />' } }))
+vi.mock('../views/AuthoredServiceView.vue', () => ({ default: { props: ['slug'], template: '<div />' } }))
+vi.mock('../views/AuthoredScenarioView.vue', () => ({ default: { props: ['slug'], template: '<div />' } }))
 vi.mock('../views/NotFoundView.vue', () => ({ default: { template: '<div />' } }))
 
 import { router } from './index'
@@ -65,6 +67,44 @@ describe('router', () => {
     it('lets a signed-out visitor reach /login', async () => {
       await router.push('/login')
       expect(router.currentRoute.value.path).toBe('/login')
+    })
+
+    it('gates the authored-service detail page behind sign-in', async () => {
+      await router.push('/authoring/services/northbound-express')
+      expect(router.currentRoute.value.path).toBe('/login')
+    })
+
+    it('gates the authored-scenario detail page behind sign-in', async () => {
+      await router.push('/authoring/scenarios/ca-hsr')
+      expect(router.currentRoute.value.path).toBe('/login')
+    })
+  })
+
+  describe('authored detail routes', () => {
+    beforeEach(() => {
+      useAuthStore().signIn('tok-1', { id: 'u1', email: 'a@example.com' })
+    })
+
+    it('passes the slug to the authored-service view', async () => {
+      await router.push('/authoring/services/northbound-express')
+      expect(router.currentRoute.value.name).toBe('service-detail')
+      expect(router.currentRoute.value.params.slug).toBe('northbound-express')
+    })
+
+    it('passes the slug to the authored-scenario view', async () => {
+      await router.push('/authoring/scenarios/ca-hsr')
+      expect(router.currentRoute.value.name).toBe('scenario-detail')
+      expect(router.currentRoute.value.params.slug).toBe('ca-hsr')
+    })
+
+    it('keeps the new-service form ahead of the slug route', async () => {
+      await router.push('/authoring/services/new')
+      expect(router.currentRoute.value.name).toBe('new-service')
+    })
+
+    it('keeps the new-scenario builder ahead of the slug route', async () => {
+      await router.push('/authoring/scenarios/new')
+      expect(router.currentRoute.value.name).toBe('new-scenario')
     })
   })
 })

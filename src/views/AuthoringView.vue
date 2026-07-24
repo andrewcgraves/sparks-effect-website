@@ -4,6 +4,7 @@ import { useAuthStore } from '../stores/auth'
 import { useOwnedList } from '../composables/useOwnedList'
 import { fetchMyServices } from '../api/authoring/services'
 import { fetchMyScenarios } from '../api/authoring/scenarios'
+import { ACTION_LINK_CLASS, LIST_CARD_LINK_CLASS } from '../components/linkStyles'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -31,7 +32,7 @@ async function handleSignOut() {
       </hgroup>
       <button
         type="button"
-        class="font-display text-btn cursor-pointer text-ink-muted uppercase transition-colors duration-200 ease-(--ease-smooth) hover:text-coral"
+        :class="ACTION_LINK_CLASS"
         data-testid="sign-out"
         @click="handleSignOut"
       >
@@ -47,7 +48,7 @@ async function handleSignOut() {
           </h2>
           <router-link
             to="/authoring/services/new"
-            class="font-display text-btn cursor-pointer text-ink-muted uppercase transition-colors duration-200 ease-(--ease-smooth) hover:text-coral"
+            :class="ACTION_LINK_CLASS"
             data-testid="new-service-link"
           >
             + New service
@@ -81,9 +82,15 @@ async function handleSignOut() {
           <li
             v-for="service in services"
             :key="service.id"
-            class="font-body text-body rounded-(--radius-field) border border-border bg-surface px-3 py-2 text-ink"
           >
-            {{ service.name }}
+            <router-link
+              :to="`/authoring/services/${service.slug}`"
+              :class="LIST_CARD_LINK_CLASS"
+              data-testid="service-link"
+            >
+              {{ service.name }}
+              <span class="text-micro text-ink-muted">{{ service.slug }}</span>
+            </router-link>
           </li>
         </ul>
       </section>
@@ -95,7 +102,7 @@ async function handleSignOut() {
           </h2>
           <router-link
             to="/authoring/scenarios/new"
-            class="font-display text-btn cursor-pointer text-ink-muted uppercase transition-colors duration-200 ease-(--ease-smooth) hover:text-coral"
+            :class="ACTION_LINK_CLASS"
             data-testid="new-scenario-link"
           >
             + New scenario
@@ -129,9 +136,15 @@ async function handleSignOut() {
           <li
             v-for="scenario in scenarios"
             :key="scenario.id"
-            class="font-body text-body rounded-(--radius-field) border border-border bg-surface px-3 py-2 text-ink"
           >
-            {{ scenario.name }}
+            <router-link
+              :to="`/authoring/scenarios/${scenario.slug}`"
+              :class="LIST_CARD_LINK_CLASS"
+              data-testid="scenario-link"
+            >
+              {{ scenario.name }}
+              <span class="text-micro text-ink-muted">{{ scenario.slug }}</span>
+            </router-link>
           </li>
         </ul>
       </section>

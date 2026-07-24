@@ -8,6 +8,7 @@ import {
   deleteScenario,
   compileScenario,
   fetchScenarioIsochrone,
+  fetchScenarioGraph,
 } from './scenarios'
 import { ApiError } from './client'
 import type { Job, Scenario, ScenarioInput } from './types'
@@ -100,6 +101,24 @@ describe('scenarios CRUD', () => {
     expect(url).toContain('/api/user-scenarios/ca-hsr/compile')
     expect((init as RequestInit).method).toBe('POST')
     expect(result).toEqual(job)
+  })
+
+  it('fetchScenarioGraph GETs /api/user-scenarios/{slug}/graph', async () => {
+    const graph = { services: [] }
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 200, json: async () => graph } as Response)
+    const result = await fetchScenarioGraph('ca-hsr')
+    const [url] = vi.mocked(fetch).mock.calls[0]
+    expect(url).toContain('/api/user-scenarios/ca-hsr/graph')
+    expect(result).toEqual(graph)
+  })
+
+  it('fetchScenarioGraph surfaces a 404 as an ApiError when nothing is compiled yet', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      json: async () => ({ error: 'no compiled graph for this scenario yet' }),
+    } as Response)
+    await expect(fetchScenarioGraph('ca-hsr')).rejects.toBeInstanceOf(ApiError)
   })
 
   it('fetchScenarioIsochrone POSTs to /api/user-scenarios/{slug}/isochrone with the request body', async () => {
