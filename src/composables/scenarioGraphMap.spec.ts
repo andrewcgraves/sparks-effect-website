@@ -4,14 +4,23 @@ import type { TransitGraph } from '../api/authoring'
 
 const graph = {
   services: [
-    { service_id: 'svc1', wait_secs: 0, edges: [
-      { from_slug: 'a', to_slug: 'b', seconds: 120 },
-      { from_slug: 'b', to_slug: 'gone', seconds: 90 },
-    ] },
+    { service_id: 'svc1', wait_secs: 0, edges: [{ from_slug: 'a', to_slug: 'b', seconds: 120 }] },
   ],
   nodes: [
     { slug: 'a', lat: 35.39, lng: -119.02, names: ['Test'] },
     { slug: 'b', lat: 34.05, lng: -118.23, names: [] },
+  ],
+  routes: [
+    {
+      id: 'rt-1',
+      slug: 'main-line',
+      name: 'Main Line',
+      mode: 'rail',
+      bidirectional: true,
+      // A curved alignment: three points, not the two the stops would chord.
+      geometry: { type: 'LineString', coordinates: [[-119.02, 35.39], [-118.6, 34.9], [-118.23, 34.05]] },
+      segments: [],
+    },
   ],
 } as unknown as TransitGraph
 
@@ -27,11 +36,12 @@ describe('scenarioGraphMap', () => {
     expect(graphStations(graph)[1].name).toBe('b')
   })
 
-  it('turns each edge into a two-point line between its endpoints', () => {
+  it('draws each bundled route by its own alignment, not a chord', () => {
     const routes = graphRoutes(graph)
-    // 'b'->'gone' is dropped: 'gone' is not in nodes.
     expect(routes).toHaveLength(1)
-    expect(routes[0].geometry.coordinates).toEqual([[-119.02, 35.39], [-118.23, 34.05]])
+    // The mid-point is preserved: the line follows the route, not stop-to-stop.
+    expect(routes[0].geometry.coordinates).toEqual([[-119.02, 35.39], [-118.6, 34.9], [-118.23, 34.05]])
+    expect(routes[0].id).toBe('rt-1')
   })
 
   it('returns empty arrays for a null graph', () => {
@@ -39,9 +49,9 @@ describe('scenarioGraphMap', () => {
     expect(graphRoutes(null)).toEqual([])
   })
 
-  it('handles a graph with no nodes without throwing', () => {
-    const g = { services: [{ service_id: 's', wait_secs: 0, edges: [{ from_slug: 'x', to_slug: 'y', seconds: 1 }] }] } as unknown as TransitGraph
+  it('draws no lines when the graph carries no routes', () => {
+    const g = { services: [], nodes: [{ slug: 'a', lat: 1, lng: 2, names: [] }] } as unknown as TransitGraph
     expect(graphRoutes(g)).toEqual([])
-    expect(graphStations(g)).toEqual([])
+    expect(graphStations(g)).toHaveLength(1)
   })
 })

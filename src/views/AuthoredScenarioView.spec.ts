@@ -133,11 +133,15 @@ describe('AuthoredScenarioView', () => {
         { slug: 'a', lat: 35.39, lng: -119.02, names: ['Test'] },
         { slug: 'b', lat: 34.05, lng: -118.23, names: ['Testt'] },
       ],
+      routes: [{
+        id: 'rt-1', slug: 'main-line', name: 'Main Line', mode: 'rail', bidirectional: true,
+        geometry: { type: 'LineString', coordinates: [[-119.02, 35.39], [-118.23, 34.05]] }, segments: [],
+      }],
     } as never)
     const wrapper = mountView()
     await flushPromises()
     const map = wrapper.find('[data-testid="map"]')
-    // The mock MapView reflects its props as JSON via the stub below.
+    // The mock MapView reflects its layer counts as data attributes.
     expect(map.attributes('data-stations')).toBe('2')
     expect(map.attributes('data-routes')).toBe('1')
   })
