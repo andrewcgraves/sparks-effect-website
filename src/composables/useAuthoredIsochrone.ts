@@ -31,7 +31,7 @@ export interface IsochroneApi {
  * The slug arrives as a getter because callers resolve it late, from their route
  * props rather than at setup time.
  */
-export function useScenarioIsochrone(getSlug: () => string | null, api: IsochroneApi) {
+export function useAuthoredIsochrone(getSlug: () => string | null, api: IsochroneApi) {
   const { compiling, compileError, result: compiledGraph, trigger: triggerCompile } = useCompileJob(api.compile)
 
   // A page that opens an already-compiled record reads its graph rather than

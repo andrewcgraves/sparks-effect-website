@@ -4,12 +4,14 @@ import MapView from './MapView.vue'
 import type { NearMiss, Service, StopCluster } from '../api/authoring/types'
 import type { Route, Station } from '../api/scenarios'
 import type { ChainResponse } from '../fixtures/isochrone'
-import type { IsochronePayload } from '../composables/useScenarioIsochrone'
+import type { IsochronePayload } from '../composables/useAuthoredIsochrone'
 
-// The preview half of a compiled scenario — map, plot form, and what the merge
-// did. Shared by the builder (previewing the scenario it just saved) and the
-// preview page at /authoring/scenarios/:slug, which show the same thing and
-// differ only in the status note above the reports.
+// The preview half of a compiled scenario or service — map, plot form, and what
+// the merge did. Shared by the detail pages at /authoring/scenarios/:slug and
+// /authoring/services/:slug, which show the same thing and differ only in the
+// status note above the reports. Nothing here is scenario-specific: a lone
+// service is the degenerate one-member case, so it passes itself as the single
+// entry in `services`.
 const props = defineProps<{
   origin: { lat: number; lng: number } | null
   isochroneData: ChainResponse | null

@@ -4,7 +4,7 @@ import { compileService, fetchService, fetchServiceGraph, fetchServiceIsochrone 
 import { ApiError } from '../api/authoring/client'
 import type { Service } from '../api/authoring/types'
 import { useOwnedDetail } from '../composables/useOwnedDetail'
-import { useScenarioIsochrone } from '../composables/useScenarioIsochrone'
+import { useAuthoredIsochrone } from '../composables/useAuthoredIsochrone'
 import ScenarioPreviewPanel from '../components/ScenarioPreviewPanel.vue'
 import { ACTION_LINK_CLASS } from '../components/linkStyles'
 
@@ -34,7 +34,7 @@ const {
   mapRoutes,
   onOriginChange,
   handleIsochroneSubmit,
-} = useScenarioIsochrone(() => props.slug, { compile: compileService, isochrone: fetchServiceIsochrone })
+} = useAuthoredIsochrone(() => props.slug, { compile: compileService, isochrone: fetchServiceIsochrone })
 
 // The panel resolves service ids to names for its near-miss and cluster rows. A
 // service is its own sole member, so this one record is the whole lookup — no

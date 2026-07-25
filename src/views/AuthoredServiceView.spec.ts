@@ -267,7 +267,8 @@ describe('AuthoredServiceView', () => {
     vi.mocked(fetchService).mockResolvedValue(stubService)
     const wrapper = mountView()
     await flushPromises()
-    const html = wrapper.html()
-    expect(html.indexOf('data-testid="map"')).toBeLessThan(html.indexOf('data-testid="service-stop-row"'))
+    // findAll returns document order, so the first hit tells us which came first.
+    const ordered = wrapper.findAll('[data-testid="map"], [data-testid="service-stop-row"]')
+    expect(ordered[0].attributes('data-testid')).toBe('map')
   })
 })

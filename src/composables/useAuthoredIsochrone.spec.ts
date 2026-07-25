@@ -3,7 +3,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { ApiError } from '../api/authoring/client'
 import type { AuthoredIsochroneRequest, Job, TransitGraph } from '../api/authoring'
 import type { ChainResponse } from '../fixtures/isochrone'
-import { useScenarioIsochrone } from './useScenarioIsochrone'
+import { useAuthoredIsochrone } from './useAuthoredIsochrone'
 
 const payload = { lat: 37.7, lng: -122.4, duration: 30, mode: 'walk' as const }
 const chain = { features: [] } as unknown as ChainResponse
@@ -29,7 +29,7 @@ let compile: Mock<(slug: string) => Promise<Job>>
 let isochrone: Mock<(slug: string, request: AuthoredIsochroneRequest) => Promise<ChainResponse>>
 
 function subject(getSlug: () => string | null = () => 'ca-hsr') {
-  return useScenarioIsochrone(getSlug, { compile, isochrone })
+  return useAuthoredIsochrone(getSlug, { compile, isochrone })
 }
 
 // useCompileJob polls the job endpoint through the jobs store; a succeeding
@@ -42,7 +42,7 @@ function succeedingJobFetch(result: unknown) {
   } as Response)
 }
 
-describe('useScenarioIsochrone', () => {
+describe('useAuthoredIsochrone', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     compile = vi.fn()

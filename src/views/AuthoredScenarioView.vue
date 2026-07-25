@@ -6,7 +6,7 @@ import { ApiError } from '../api/authoring/client'
 import type { Scenario } from '../api/authoring/types'
 import { useOwnedDetail } from '../composables/useOwnedDetail'
 import { useOwnedList } from '../composables/useOwnedList'
-import { useScenarioIsochrone } from '../composables/useScenarioIsochrone'
+import { useAuthoredIsochrone } from '../composables/useAuthoredIsochrone'
 import ScenarioPreviewPanel from '../components/ScenarioPreviewPanel.vue'
 import { ACTION_LINK_CLASS } from '../components/linkStyles'
 
@@ -31,7 +31,7 @@ const {
   mapRoutes,
   onOriginChange,
   handleIsochroneSubmit,
-} = useScenarioIsochrone(() => props.slug, { compile: compileScenario, isochrone: fetchScenarioIsochrone })
+} = useAuthoredIsochrone(() => props.slug, { compile: compileScenario, isochrone: fetchScenarioIsochrone })
 
 // Near-miss rows name their services; the panel resolves ids against this.
 const { items: services } = useOwnedList(fetchMyServices)
