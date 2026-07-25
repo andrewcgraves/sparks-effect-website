@@ -41,6 +41,7 @@ const placingStops = ref(false)
 // hand its number to a later one — stop slugs are minted from these names
 // server-side, and a reused number would silently move a slug.
 const stopCounter = ref(0)
+const draggingStop = ref(false)
 
 const newWindowStart = ref('06:00')
 const newWindowEnd = ref('22:00')
@@ -134,6 +135,10 @@ async function handleRouteChange(): Promise<void> {
 
 function schedulePreview(): void {
   if (previewTimer) clearTimeout(previewTimer)
+  // A drag rewrites a stop's coordinates on every pointer move. Snapping each
+  // one would put a burst of requests behind a single gesture for answers
+  // nobody reads, so the preview waits for the drop.
+  if (draggingStop.value) return
   previewTimer = setTimeout(() => void runPreview(), PREVIEW_DEBOUNCE_MS)
 }
 
@@ -216,6 +221,19 @@ function nextStopName(): string {
 function handleMapClick(coord: { lat: number; lng: number }): void {
   if (!drafts.serviceDraft) return
   drafts.addStop({ name: nextStopName(), lat: coord.lat, lng: coord.lng, seq: 0 })
+}
+
+// Dragging repositions a stop and nothing else: the id is its index in the
+// list, and only lat/lng are written, so names, ordering and the Stop N
+// counter come through untouched.
+function handleStopDrag(id: string, coord: { lat: number; lng: number }): void {
+  draggingStop.value = true
+  drafts.updateStop(Number(id), coord)
+}
+
+function handleStopDragEnd(id: string, coord: { lat: number; lng: number }): void {
+  draggingStop.value = false
+  drafts.updateStop(Number(id), coord)
 }
 
 function handleKeydown(event: KeyboardEvent): void {
@@ -667,6 +685,8 @@ function formatSeconds(total: number): string {
             :stop-placement-armed="placingStops"
             hide-isochrone-legend
             @map-click="handleMapClick"
+            @stop-drag="handleStopDrag"
+            @stop-drag-end="handleStopDragEnd"
           />
         </div>
       </div>

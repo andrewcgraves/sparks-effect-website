@@ -6,8 +6,9 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { ISOCHRONE_SOURCE_ID, isochroneLegend, resolveIsochroneColors, useIsochroneLayer } from '../composables/useIsochroneLayer'
 import { centerFromCorners, routeBoundsCorners, useRouteLayer } from '../composables/useRouteLayer'
 import { useOriginMarker } from '../composables/useOriginMarker'
-import { useStopPreviewLayer } from '../composables/useStopPreviewLayer'
+import { RAW_STOP_LAYER_ID, useStopPreviewLayer } from '../composables/useStopPreviewLayer'
 import type { StopPreviewPair } from '../composables/useStopPreviewLayer'
+import { useStopDrag } from '../composables/useStopDrag'
 import { ISOCHRONE_BOUNDS_CORNERS, ISOCHRONE_CENTER, isochroneBoundsCorners } from '../fixtures/isochrone'
 import type { ChainResponse } from '../fixtures/isochrone'
 import { resolveMapStyleUrl } from '../mapStyle'
@@ -33,6 +34,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'map-click': [coord: { lat: number; lng: number }]
+  'stop-drag': [id: string, coord: { lat: number; lng: number }]
+  'stop-drag-end': [id: string, coord: { lat: number; lng: number }]
 }>()
 
 const ORIGIN_SNAP_ZOOM = 9
@@ -127,6 +130,11 @@ function maybeInitStopPreviewLayer(): void {
   if (!map || !isMapLoaded || stopPreviewLayer || !props.stopPreviewPairs) return
   stopPreviewLayer = useStopPreviewLayer(map)
   stopPreviewLayer.update(props.stopPreviewPairs)
+  useStopDrag(map, {
+    onDrag: (id, coord) => emit('stop-drag', id, coord),
+    onDragEnd: (id, coord) => emit('stop-drag-end', id, coord),
+    idleCursor: () => (props.stopPlacementArmed ? 'crosshair' : ''),
+  })
 }
 
 // MapLibre suppresses its own click event when the pointer travelled further
@@ -135,6 +143,12 @@ function maybeInitStopPreviewLayer(): void {
 // mutates the caller's stop list; nothing here re-fits or re-centres the view.
 function handleMapClick(event: MapMouseEvent): void {
   if (!props.stopPlacementArmed) return
+  // A press on a pin is a reposition, not a placement — a drag shorter than
+  // MapLibre's click tolerance still arrives here as a click, and stacking a
+  // new stop on top of the one being nudged is never what was meant.
+  if (map?.getLayer(RAW_STOP_LAYER_ID) && map.queryRenderedFeatures(event.point, { layers: [RAW_STOP_LAYER_ID] }).length > 0) {
+    return
+  }
   emit('map-click', { lat: event.lngLat.lat, lng: event.lngLat.lng })
 }
 
