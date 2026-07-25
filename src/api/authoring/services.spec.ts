@@ -7,7 +7,11 @@ import {
   updateService,
   deleteService,
   compileService,
+  fetchServiceGraph,
+  fetchServiceIsochrone,
 } from './services'
+import { ApiError } from './client'
+import type { ChainResponse } from '../../fixtures/isochrone'
 import type { Job, Service, ServiceInput } from './types'
 
 const stubInput: ServiceInput = {
@@ -106,5 +110,47 @@ describe('services CRUD', () => {
     expect(url).toContain('/api/services/northbound-express/compile')
     expect((init as RequestInit).method).toBe('POST')
     expect(result).toEqual(stubJob)
+  })
+  it('fetchServiceGraph GETs /api/services/{slug}/graph', async () => {
+    const graph = { services: [], routes: [] }
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 200, json: async () => graph } as Response)
+    const result = await fetchServiceGraph('northbound-express')
+    const [url] = vi.mocked(fetch).mock.calls[0]
+    expect(url).toContain('/api/services/northbound-express/graph')
+    expect(result).toEqual(graph)
+  })
+
+  // A 404 here means "never compiled", which the detail page acts on by firing
+  // a compile — so it has to arrive as a status the caller can branch on.
+  it('fetchServiceGraph surfaces a 404 as an ApiError when nothing is compiled yet', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      json: async () => ({ error: 'no compiled graph for this service yet' }),
+    } as Response)
+    await expect(fetchServiceGraph('northbound-express')).rejects.toMatchObject({ status: 404 } satisfies Partial<ApiError>)
+  })
+
+  it('fetchServiceIsochrone POSTs to /api/services/{slug}/isochrone with the request body', async () => {
+    const response = { type: 'FeatureCollection', features: [], metadata: {} } as unknown as ChainResponse
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 200, json: async () => response } as Response)
+    const result = await fetchServiceIsochrone('northbound-express', { lat: 37.7, lng: -122.4, budget_mins: 30, mode: 'walk' })
+    const [url, init] = vi.mocked(fetch).mock.calls[0]
+    expect(url).toContain('/api/services/northbound-express/isochrone')
+    expect((init as RequestInit).method).toBe('POST')
+    const body = JSON.parse((init as RequestInit).body as string)
+    expect(body).toEqual({ lat: 37.7, lng: -122.4, budget_mins: 30, mode: 'walk' })
+    expect(result).toEqual(response)
+  })
+
+  it('fetchServiceIsochrone surfaces a stale_graph ApiError code on 409', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      json: async () => ({ error: 'compiled graph is stale', code: 'stale_graph' }),
+    } as Response)
+    await expect(
+      fetchServiceIsochrone('northbound-express', { lat: 37.7, lng: -122.4, budget_mins: 30, mode: 'walk' }),
+    ).rejects.toMatchObject({ code: 'stale_graph' } satisfies Partial<ApiError>)
   })
 })

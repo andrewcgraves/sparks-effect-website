@@ -1,6 +1,7 @@
 // Service CRUD operations.
 import { apiRequest } from './client'
-import type { Job, Service, ServiceInput } from './types'
+import type { ChainResponse } from '../../fixtures/isochrone'
+import type { AuthoredIsochroneRequest, Job, Service, ServiceInput, TransitGraph } from './types'
 
 // Lists the signed-in user's own user-authored services. There is no "all
 // services" read: /api/services is owner-scoped, same as the rest of this
@@ -46,4 +47,29 @@ export async function deleteService(slug: string): Promise<void> {
 // pollJobToResult to reach the compiled TransitGraph.
 export async function compileService(slug: string): Promise<Job> {
   return apiRequest<Job>(`/api/services/${slug}/compile`, { method: 'POST' })
+}
+
+// Reads a service's latest compiled graph without recompiling. 404s when the
+// service has never compiled successfully — the caller's cue to fire
+// compileService rather than an error to surface.
+//
+// Returns the same {...graph, routes: []} shape as fetchScenarioGraph, so the
+// graph-to-map helpers in composables/scenarioGraphMap work against either.
+export async function fetchServiceGraph(slug: string): Promise<TransitGraph> {
+  return apiRequest<TransitGraph>(`/api/services/${slug}/graph`)
+}
+
+// Computes an isochrone over a service's latest compiled graph — the
+// single-service counterpart to fetchScenarioIsochrone, for a service compiled
+// alone rather than as a scenario member. A 409 whose ApiError.code is
+// 'stale_graph' means the compiled graph fell behind an edit to the service
+// itself; the caller should recompile and retry.
+export async function fetchServiceIsochrone(
+  slug: string,
+  request: AuthoredIsochroneRequest,
+): Promise<ChainResponse> {
+  return apiRequest<ChainResponse>(`/api/services/${slug}/isochrone`, {
+    method: 'POST',
+    body: JSON.stringify(request),
+  })
 }

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { fetchScenario, fetchScenarioGraph } from '../api/authoring/scenarios'
+import { compileScenario, fetchScenario, fetchScenarioGraph, fetchScenarioIsochrone } from '../api/authoring/scenarios'
 import { fetchMyServices } from '../api/authoring/services'
 import { ApiError } from '../api/authoring/client'
 import type { Scenario } from '../api/authoring/types'
@@ -31,7 +31,7 @@ const {
   mapRoutes,
   onOriginChange,
   handleIsochroneSubmit,
-} = useScenarioIsochrone(() => props.slug)
+} = useScenarioIsochrone(() => props.slug, { compile: compileScenario, isochrone: fetchScenarioIsochrone })
 
 // Near-miss rows name their services; the panel resolves ids against this.
 const { items: services } = useOwnedList(fetchMyServices)
