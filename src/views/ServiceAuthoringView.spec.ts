@@ -72,6 +72,10 @@ function stopRowName(row: DOMWrapper<Element>): string {
   return (row.find('input[type="text"]').element as HTMLInputElement).value
 }
 
+function mapStub(wrapper: ReturnType<typeof mountView>) {
+  return wrapper.findComponent({ name: 'MapView' })
+}
+
 describe('ServiceAuthoringView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -316,10 +320,6 @@ describe('ServiceAuthoringView', () => {
       return wrapper.find('[data-testid="toggle-place-stops"]')
     }
 
-    function mapStub(wrapper: ReturnType<typeof mountView>) {
-      return wrapper.findComponent({ name: 'MapView' })
-    }
-
     async function clickMap(wrapper: ReturnType<typeof mountView>, lat: number, lng: number) {
       mapStub(wrapper).vm.$emit('map-click', { lat, lng })
       await flushPromises()
@@ -429,10 +429,6 @@ describe('ServiceAuthoringView', () => {
   })
 
   describe('dragging a stop pin to reposition it', () => {
-    function mapStub(wrapper: ReturnType<typeof mountView>) {
-      return wrapper.findComponent({ name: 'MapView' })
-    }
-
     async function mountWithTwoStops() {
       const wrapper = mountView()
       await flushPromises()

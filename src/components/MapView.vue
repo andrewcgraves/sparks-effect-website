@@ -13,6 +13,7 @@ import { ISOCHRONE_BOUNDS_CORNERS, ISOCHRONE_CENTER, isochroneBoundsCorners } fr
 import type { ChainResponse } from '../fixtures/isochrone'
 import { resolveMapStyleUrl } from '../mapStyle'
 import type { Route, Station, Service } from '../api/scenarios'
+import type { SnapCoord as LatLng } from '../api/authoring/types'
 
 const props = defineProps<{
   isochroneData: ChainResponse | null
@@ -33,9 +34,9 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  'map-click': [coord: { lat: number; lng: number }]
-  'stop-drag': [id: string, coord: { lat: number; lng: number }]
-  'stop-drag-end': [id: string, coord: { lat: number; lng: number }]
+  'map-click': [coord: LatLng]
+  'stop-drag': [id: string, coord: LatLng]
+  'stop-drag-end': [id: string, coord: LatLng]
 }>()
 
 const ORIGIN_SNAP_ZOOM = 9
@@ -124,9 +125,11 @@ function maybeAddRouteLayer(): void {
   routeLayerAdded = true
 }
 
-// Absent by default for every caller but the service-authoring form, so this
-// stays a no-op unless stopPreviewPairs is actually passed.
-function maybeInitStopPreviewLayer(): void {
+// Draws the stop preview and makes its pins draggable — the two go together,
+// since dragging is wired against the layer the preview creates. Absent by
+// default for every caller but the service-authoring form, so this stays a
+// no-op unless stopPreviewPairs is actually passed.
+function maybeInitStopInteraction(): void {
   if (!map || !isMapLoaded || stopPreviewLayer || !props.stopPreviewPairs) return
   stopPreviewLayer = useStopPreviewLayer(map)
   stopPreviewLayer.update(props.stopPreviewPairs)
@@ -193,7 +196,7 @@ watch(
   () => props.stopPreviewPairs,
   (pairs) => {
     if (!isMapLoaded || !pairs) return
-    maybeInitStopPreviewLayer()
+    maybeInitStopInteraction()
     stopPreviewLayer?.update(pairs)
   },
 )
@@ -224,7 +227,7 @@ onMounted(() => {
     isMapLoaded = true
 
     maybeAddRouteLayer()
-    maybeInitStopPreviewLayer()
+    maybeInitStopInteraction()
     applyPlacementMode()
 
     if (props.isochroneData) {

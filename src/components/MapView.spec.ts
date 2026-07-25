@@ -793,6 +793,7 @@ describe('MapView', () => {
       pressPin('0', 37.77, -122.41)
       expect(mockCanvas.style.cursor).toBe('grabbing')
 
+      fireMapEvent('mousemove', { lngLat: { lat: 37.8, lng: -122.4 } })
       releaseAt(37.85, -122.35)
 
       expect(wrapper.emitted('stop-drag-end')).toHaveLength(1)

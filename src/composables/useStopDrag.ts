@@ -25,6 +25,10 @@ function coordOf(event: { lngLat: { lat: number; lng: number } }): LatLng {
 export function useStopDrag(map: Map, callbacks: StopDragCallbacks): void {
   const canvas = map.getCanvas()
   let draggingId: string | null = null
+  let moveEventName: 'mousemove' | 'touchmove' | null = null
+  // Where the pin was last seen. The drag can end on an event that carries no
+  // position (see endFromWindow), and this is the honest answer for that case.
+  let lastCoord: LatLng | null = null
 
   function setCursor(cursor: string): void {
     canvas.style.cursor = cursor
@@ -37,33 +41,59 @@ export function useStopDrag(map: Map, callbacks: StopDragCallbacks): void {
 
   function handleMove(event: MapMouseEvent | MapTouchEvent): void {
     if (!draggingId) return
-    callbacks.onDrag(draggingId, coordOf(event))
+    lastCoord = coordOf(event)
+    callbacks.onDrag(draggingId, lastCoord)
   }
 
-  function handleEnd(moveEventName: 'mousemove' | 'touchmove') {
-    return (event: MapMouseEvent | MapTouchEvent): void => {
-      const id = draggingId
-      draggingId = null
-      map.off(moveEventName, handleMove)
-      setCursor(callbacks.idleCursor())
-      if (id) callbacks.onDragEnd(id, coordOf(event))
-    }
+  // Idempotent, because the release usually arrives twice — once as the map's
+  // own event and once through the window backstop.
+  function endDrag(coord: LatLng | null): void {
+    const id = draggingId
+    if (!id) return
+    // lastCoord is set only by handleMove, so a null one means the pointer
+    // never travelled — the drop position is whatever the pin already had.
+    const settled = lastCoord === null ? null : (coord ?? lastCoord)
+    draggingId = null
+    lastCoord = null
+    if (moveEventName) map.off(moveEventName, handleMove)
+    moveEventName = null
+    window.removeEventListener('mouseup', endFromWindow)
+    window.removeEventListener('touchend', endFromWindow)
+    window.removeEventListener('touchcancel', endFromWindow)
+    setCursor(callbacks.idleCursor())
+    // A press that never moved is a click, not a reposition — reporting it
+    // would rewrite the stop with the coordinates it already has.
+    if (settled) callbacks.onDragEnd(id, settled)
+  }
+
+  // MapLibre only fires its own mouseup for releases over the canvas: a
+  // release anywhere else in the document reaches it as `mouseupWindow`,
+  // which its map-event handler doesn't translate. Without this backstop a
+  // pin dragged past the map's edge and dropped would leave the drag open
+  // forever, and with it every consumer waiting on the drop.
+  function endFromWindow(): void {
+    endDrag(null)
   }
 
   // preventDefault() is what keeps the map from panning underneath the pin:
   // it tells MapLibre's own drag-pan handler that this gesture is spoken for.
   function beginDrag(
     event: MapLayerMouseEvent | MapLayerTouchEvent,
-    moveEventName: 'mousemove' | 'touchmove',
-    endEventName: 'mouseup' | 'touchend',
+    moveEvent: 'mousemove' | 'touchmove',
+    endEvent: 'mouseup' | 'touchend',
   ): void {
     const id = stopIdOf(event)
     if (!id) return
     event.preventDefault()
     draggingId = id
+    moveEventName = moveEvent
+    lastCoord = null
     setCursor('grabbing')
-    map.on(moveEventName, handleMove)
-    map.once(endEventName, handleEnd(moveEventName))
+    map.on(moveEvent, handleMove)
+    map.once(endEvent, (ended: MapMouseEvent | MapTouchEvent) => endDrag(coordOf(ended)))
+    window.addEventListener('mouseup', endFromWindow)
+    window.addEventListener('touchend', endFromWindow)
+    window.addEventListener('touchcancel', endFromWindow)
   }
 
   map.on('mouseenter', RAW_STOP_LAYER_ID, () => setCursor('grab'))

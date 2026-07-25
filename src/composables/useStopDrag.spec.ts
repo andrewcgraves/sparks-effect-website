@@ -163,6 +163,57 @@ describe('useStopDrag', () => {
     expect(onDragEnd.mock.calls).toEqual([['3', { lat: 37.85, lng: -122.35 }]])
   })
 
+  // MapLibre fires its own mouseup only for releases over the canvas, so a pin
+  // dragged past the map's edge and dropped would otherwise leave the drag
+  // open forever — and every consumer waiting on the drop with it.
+  it('ends the drag when the pointer is released outside the map', () => {
+    const { canvas, fire, onDragEnd } = setup(() => 'crosshair')
+
+    fire('mousedown', RAW_STOP_LAYER_ID, pinEvent('0', 37.77, -122.41))
+    fire('mousemove', null, moveEvent(37.8, -122.4))
+    window.dispatchEvent(new MouseEvent('mouseup'))
+
+    expect(onDragEnd.mock.calls).toEqual([['0', { lat: 37.8, lng: -122.4 }]])
+    expect(canvas.style.cursor).toBe('crosshair')
+  })
+
+  it('settles at the last position seen, then accepts a new drag', () => {
+    const { fire, onDrag, onDragEnd } = setup()
+
+    fire('mousedown', RAW_STOP_LAYER_ID, pinEvent('0', 37.77, -122.41))
+    fire('mousemove', null, moveEvent(37.8, -122.4))
+    window.dispatchEvent(new MouseEvent('mouseup'))
+    onDrag.mockClear()
+
+    fire('mousedown', RAW_STOP_LAYER_ID, pinEvent('1', 37.33, -121.88))
+    fire('mousemove', null, moveEvent(37.4, -121.9))
+
+    expect(onDrag.mock.calls).toEqual([['1', { lat: 37.4, lng: -121.9 }]])
+    expect(onDragEnd).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports the drop only once when the release also reaches the window', () => {
+    const { fire, onDragEnd } = setup()
+
+    fire('mousedown', RAW_STOP_LAYER_ID, pinEvent('0', 37.77, -122.41))
+    fire('mousemove', null, moveEvent(37.8, -122.4))
+    fire('mouseup', null, moveEvent(37.85, -122.35))
+    window.dispatchEvent(new MouseEvent('mouseup'))
+
+    expect(onDragEnd.mock.calls).toEqual([['0', { lat: 37.85, lng: -122.35 }]])
+  })
+
+  // Otherwise clicking a pin would rewrite its coordinates to whatever point
+  // sits under the cursor, nudging the stop by a few metres per click.
+  it('does not report a drop for a press that never moved', () => {
+    const { fire, onDragEnd } = setup()
+
+    fire('mousedown', RAW_STOP_LAYER_ID, pinEvent('0', 37.77, -122.41))
+    fire('mouseup', null, moveEvent(37.771, -122.411))
+
+    expect(onDragEnd).not.toHaveBeenCalled()
+  })
+
   it('ignores a multi-touch press, leaving pinch-zoom to the map', () => {
     const { fire, onDrag } = setup()
 
