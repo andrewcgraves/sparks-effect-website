@@ -9,6 +9,7 @@ import type {
   GraphEdge,
   Route,
   RouteSummary,
+  SnapCoord as LatLng,
   SnapStopsResponse,
   VehicleParams,
 } from '../api/authoring'
@@ -37,11 +38,8 @@ const newStopLng = ref<number | null>(null)
 
 // Arming is sticky so a ten-stop line is one toggle and ten clicks.
 const placingStops = ref(false)
-// Highest `Stop N` handed out. Never decremented, so deleting a stop cannot
-// hand its number to a later one — stop slugs are minted from these names
-// server-side, and a reused number would silently move a slug.
-const stopCounter = ref(0)
-const draggingStop = ref(false)
+// Read only by schedulePreview, never rendered, so it stays a plain binding.
+let draggingStop = false
 
 const newWindowStart = ref('06:00')
 const newWindowEnd = ref('22:00')
@@ -138,7 +136,7 @@ function schedulePreview(): void {
   // A drag rewrites a stop's coordinates on every pointer move. Snapping each
   // one would put a burst of requests behind a single gesture for answers
   // nobody reads, so the preview waits for the drop.
-  if (draggingStop.value) return
+  if (draggingStop) return
   previewTimer = setTimeout(() => void runPreview(), PREVIEW_DEBOUNCE_MS)
 }
 
@@ -202,38 +200,25 @@ function handleAddStop(): void {
   newStopLng.value = null
 }
 
-const AUTO_STOP_NAME = /^Stop (\d+)$/
-
-// Seeded from the draft as well as the counter, because a draft restored from
-// localStorage brings its `Stop N` names back while the counter starts at zero.
-function nextStopName(): string {
-  const highestInDraft = (drafts.serviceDraft?.stops ?? []).reduce((highest, stop) => {
-    const match = AUTO_STOP_NAME.exec(stop.name)
-    return match ? Math.max(highest, Number(match[1])) : highest
-  }, 0)
-  stopCounter.value = Math.max(stopCounter.value, highestInDraft) + 1
-  return `Stop ${stopCounter.value}`
-}
-
 // The clicked point is stored raw, not snapped: clicking is less precise than
 // typing, so the existing off-route feedback is what tells the author they
 // missed the line.
-function handleMapClick(coord: { lat: number; lng: number }): void {
+function handleMapClick(coord: LatLng): void {
   if (!drafts.serviceDraft) return
-  drafts.addStop({ name: nextStopName(), lat: coord.lat, lng: coord.lng, seq: 0 })
+  drafts.addStop({ name: `Stop ${drafts.takeStopNumber()}`, lat: coord.lat, lng: coord.lng, seq: 0 })
 }
 
-// Dragging repositions a stop and nothing else: the id is its index in the
-// list, and only lat/lng are written, so names, ordering and the Stop N
-// counter come through untouched.
-function handleStopDrag(id: string, coord: { lat: number; lng: number }): void {
-  draggingStop.value = true
-  drafts.updateStop(Number(id), coord)
+// Preview pair ids are stop indices (see stopPreviewPairs), so the round trip
+// through a string is this component's own. Dragging writes lat/lng and
+// nothing else, leaving names, ordering and the stop counter untouched.
+function handleStopDrag(pairId: string, coord: LatLng): void {
+  draggingStop = true
+  drafts.updateStop(Number(pairId), coord)
 }
 
-function handleStopDragEnd(id: string, coord: { lat: number; lng: number }): void {
-  draggingStop.value = false
-  drafts.updateStop(Number(id), coord)
+function handleStopDragEnd(pairId: string, coord: LatLng): void {
+  draggingStop = false
+  drafts.updateStop(Number(pairId), coord)
 }
 
 function handleKeydown(event: KeyboardEvent): void {
