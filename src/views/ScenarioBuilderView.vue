@@ -1,51 +1,22 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useDraftsStore } from '../stores/drafts'
-import { useScenarioIsochrone } from '../composables/useScenarioIsochrone'
 import { ApiError } from '../api/authoring/client'
 import { fetchMyServices } from '../api/authoring/services'
 import { createScenario } from '../api/authoring/scenarios'
 import type { Service } from '../api/authoring/types'
-import ScenarioPreviewPanel from '../components/ScenarioPreviewPanel.vue'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
 
+const router = useRouter()
 const drafts = useDraftsStore()
 
 const services = ref<Service[]>([])
 const servicesLoading = ref(true)
 const servicesError = ref(false)
 
-// Doubles as "has this draft been saved" (gates the builder form) and the
-// record's identity for the compile/isochrone calls that follow — a separate
-// boolean would just track the same transition redundantly.
-const savedSlug = ref<string | null>(null)
 const submitting = ref(false)
 const submitError = ref('')
-
-// True once the post-save compile has succeeded at least once. Distinguishes
-// that first compile (shown full-screen, replacing the builder form) from any
-// later recompile triggered by a stale-graph isochrone retry (shown inline,
-// alongside the still-visible map and form — see isochroneFormLoading below).
-const hasCompiledOnce = ref(false)
-
-// The compile + isochrone half is shared with the preview page at
-// /authoring/scenarios/:slug, which plots the same way against a scenario it
-// loaded rather than one it just saved.
-const {
-  compiling,
-  compileError,
-  triggerCompile,
-  origin,
-  isochroneData,
-  isochroneError,
-  isochroneFormLoading,
-  nearMisses,
-  realisedClusters,
-  mapStations,
-  mapRoutes,
-  onOriginChange,
-  handleIsochroneSubmit,
-} = useScenarioIsochrone(() => savedSlug.value)
 
 onMounted(async () => {
   if (!drafts.hasScenarioDraft) drafts.startScenarioDraft()
@@ -78,6 +49,11 @@ const canSubmit = computed(() => {
   return draft.name.trim() !== '' && draft.service_ids.length > 0
 })
 
+// After saving, hand off to the scenario's own preview page rather than
+// plotting the isochrone inline here: /authoring/scenarios/:slug loads the
+// saved scenario, compiles it if needed, and plots against it — the same
+// experience, but reachable again later instead of only in this one post-save
+// session (and it opens on the drawn map rather than an empty one).
 async function handleSave(): Promise<void> {
   const draft = drafts.scenarioDraft
   if (!draft || !canSubmit.value) return
@@ -86,12 +62,9 @@ async function handleSave(): Promise<void> {
   try {
     const created = await createScenario(draft)
     drafts.clearScenarioDraft()
-    savedSlug.value = created.slug
-    await triggerCompile(created.slug)
-    if (!compileError.value) hasCompiledOnce.value = true
+    await router.push({ name: 'scenario-detail', params: { slug: created.slug } })
   } catch (err) {
     submitError.value = err instanceof ApiError ? err.message : 'Something went wrong saving the scenario.'
-  } finally {
     submitting.value = false
   }
 }
@@ -104,130 +77,94 @@ async function handleSave(): Promise<void> {
       New scenario
     </h1>
 
-    <template v-if="!savedSlug">
-      <form
-        class="mt-8 flex max-w-[560px] flex-col gap-6"
-        @submit.prevent="handleSave"
-      >
-        <label :class="FIELD_LABEL_CLASS">
-          Scenario name
-          <input
-            v-model="name"
-            :class="FIELD_INPUT_CLASS"
-            data-testid="scenario-name"
-            type="text"
-          >
-        </label>
-
-        <label :class="FIELD_LABEL_CLASS">
-          Description
-          <textarea
-            v-model="description"
-            :class="FIELD_INPUT_CLASS"
-            data-testid="scenario-description"
-            rows="3"
-          />
-        </label>
-
-        <section class="rounded-(--radius-box) border border-border bg-surface p-4">
-          <h2 class="font-display text-h3 text-ink-true">
-            Services
-          </h2>
-          <p
-            v-if="servicesLoading"
-            class="font-body text-caption mt-2 text-ink-muted italic"
-          >
-            Loading your services…
-          </p>
-          <p
-            v-else-if="servicesError"
-            class="font-body text-caption mt-2 text-coral"
-            role="alert"
-            data-testid="services-error"
-          >
-            Couldn't load your services.
-          </p>
-          <p
-            v-else-if="services.length === 0"
-            class="font-body text-caption mt-2 text-ink-muted italic"
-            data-testid="services-empty"
-          >
-            You haven't created any services yet.
-          </p>
-          <ul
-            v-else
-            class="mt-3 flex flex-col gap-2"
-            data-testid="service-checklist"
-          >
-            <li
-              v-for="service in services"
-              :key="service.id"
-            >
-              <label class="font-body text-body flex cursor-pointer items-center gap-2 rounded-(--radius-field) border border-border bg-white px-3 py-2 text-ink">
-                <input
-                  type="checkbox"
-                  :checked="isSelected(service.id)"
-                  :data-testid="`service-checkbox-${service.id}`"
-                  @change="drafts.toggleService(service.id)"
-                >
-                {{ service.name }}
-              </label>
-            </li>
-          </ul>
-        </section>
-
-        <button
-          type="submit"
-          class="font-display text-btn cursor-pointer rounded-(--radius-field) bg-coral px-4 py-2.5 text-white uppercase transition-colors duration-200 ease-(--ease-smooth) hover:bg-ink disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-coral"
-          data-testid="save-scenario"
-          :disabled="!canSubmit"
+    <form
+      class="mt-8 flex max-w-[560px] flex-col gap-6"
+      @submit.prevent="handleSave"
+    >
+      <label :class="FIELD_LABEL_CLASS">
+        Scenario name
+        <input
+          v-model="name"
+          :class="FIELD_INPUT_CLASS"
+          data-testid="scenario-name"
+          type="text"
         >
-          {{ submitting ? 'Saving…' : 'Save scenario' }}
-        </button>
+      </label>
 
+      <label :class="FIELD_LABEL_CLASS">
+        Description
+        <textarea
+          v-model="description"
+          :class="FIELD_INPUT_CLASS"
+          data-testid="scenario-description"
+          rows="3"
+        />
+      </label>
+
+      <section class="rounded-(--radius-box) border border-border bg-surface p-4">
+        <h2 class="font-display text-h3 text-ink-true">
+          Services
+        </h2>
         <p
-          v-if="submitError"
-          class="font-body text-caption text-coral"
-          role="alert"
-          data-testid="submit-error"
+          v-if="servicesLoading"
+          class="font-body text-caption mt-2 text-ink-muted italic"
         >
-          {{ submitError }}
+          Loading your services…
         </p>
-      </form>
-    </template>
+        <p
+          v-else-if="servicesError"
+          class="font-body text-caption mt-2 text-coral"
+          role="alert"
+          data-testid="services-error"
+        >
+          Couldn't load your services.
+        </p>
+        <p
+          v-else-if="services.length === 0"
+          class="font-body text-caption mt-2 text-ink-muted italic"
+          data-testid="services-empty"
+        >
+          You haven't created any services yet.
+        </p>
+        <ul
+          v-else
+          class="mt-3 flex flex-col gap-2"
+          data-testid="service-checklist"
+        >
+          <li
+            v-for="service in services"
+            :key="service.id"
+          >
+            <label class="font-body text-body flex cursor-pointer items-center gap-2 rounded-(--radius-field) border border-border bg-white px-3 py-2 text-ink">
+              <input
+                type="checkbox"
+                :checked="isSelected(service.id)"
+                :data-testid="`service-checkbox-${service.id}`"
+                @change="drafts.toggleService(service.id)"
+              >
+              {{ service.name }}
+            </label>
+          </li>
+        </ul>
+      </section>
 
-    <template v-else>
-      <p
-        v-if="compiling && !hasCompiledOnce"
-        class="font-body text-caption mt-8 text-ink-muted italic"
-        data-testid="compiling-status"
+      <button
+        type="submit"
+        class="font-display text-btn cursor-pointer rounded-(--radius-field) bg-coral px-4 py-2.5 text-white uppercase transition-colors duration-200 ease-(--ease-smooth) hover:bg-ink disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-coral"
+        data-testid="save-scenario"
+        :disabled="!canSubmit"
       >
-        Scenario saved. Compiling…
-      </p>
+        {{ submitting ? 'Saving…' : 'Save scenario' }}
+      </button>
+
       <p
-        v-else-if="compileError"
-        class="font-body text-caption mt-8 text-coral"
+        v-if="submitError"
+        class="font-body text-caption text-coral"
         role="alert"
-        data-testid="compile-error"
+        data-testid="submit-error"
       >
-        {{ compileError }}
+        {{ submitError }}
       </p>
-
-      <ScenarioPreviewPanel
-        v-else
-        :origin="origin"
-        :isochrone-data="isochroneData"
-        :loading="isochroneFormLoading"
-        :error="isochroneError"
-        :near-misses="nearMisses"
-        :realised-clusters="realisedClusters"
-        :services="services"
-        :map-stations="mapStations"
-        :map-routes="mapRoutes"
-        :status-note="compiling ? 'A member service changed — recompiling…' : null"
-        @submit="handleIsochroneSubmit"
-        @origin-change="onOriginChange"
-      />
-    </template>
+    </form>
   </main>
 </template>
