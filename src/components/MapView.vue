@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, toRef, watch } from 'vue'
 import { Map, FullscreenControl } from 'maplibre-gl'
-import type { GeoJSONSource } from 'maplibre-gl'
+import type { GeoJSONSource, MapMouseEvent } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { ISOCHRONE_SOURCE_ID, isochroneLegend, resolveIsochroneColors, useIsochroneLayer } from '../composables/useIsochroneLayer'
 import { centerFromCorners, routeBoundsCorners, useRouteLayer } from '../composables/useRouteLayer'
@@ -25,6 +25,14 @@ const props = defineProps<{
   // pin, the snapped pin, and a leader line between them). Absent by default
   // — every other caller of this component leaves it unset.
   stopPreviewPairs?: StopPreviewPair[]
+  // Arms click-to-place: while set, a click on the map reports its coordinates
+  // through map-click instead of being ignored. Sticky — the caller owns when
+  // it turns off, so a run of stops is a run of clicks.
+  stopPlacementArmed?: boolean
+}>()
+
+const emit = defineEmits<{
+  'map-click': [coord: { lat: number; lng: number }]
 }>()
 
 const ORIGIN_SNAP_ZOOM = 9
@@ -121,6 +129,27 @@ function maybeInitStopPreviewLayer(): void {
   stopPreviewLayer.update(props.stopPreviewPairs)
 }
 
+// MapLibre suppresses its own click event when the pointer travelled further
+// than its click tolerance between press and release, so a drag-pan can never
+// reach here — panning an armed map does not drop a stop. Placing one only
+// mutates the caller's stop list; nothing here re-fits or re-centres the view.
+function handleMapClick(event: MapMouseEvent): void {
+  if (!props.stopPlacementArmed) return
+  emit('map-click', { lat: event.lngLat.lat, lng: event.lngLat.lng })
+}
+
+// A crosshair marks the armed map, and double-click zoom steps aside so a
+// double-click cannot both place a stop and zoom. The cursor is set on the
+// canvas because MapLibre writes it inline, where a stylesheet can't reach.
+function applyPlacementMode(): void {
+  if (!map) return
+  map.getCanvas().style.cursor = props.stopPlacementArmed ? 'crosshair' : ''
+  if (props.stopPlacementArmed) map.doubleClickZoom.disable()
+  else map.doubleClickZoom.enable()
+}
+
+watch(() => props.stopPlacementArmed, applyPlacementMode)
+
 watch(
   () => props.isochroneData,
   (data) => {
@@ -174,12 +203,15 @@ onMounted(() => {
 
   useOriginMarker(map, toRef(props, 'origin'))
 
+  map.on('click', handleMapClick)
+
   map.on('load', () => {
     if (!map) return
     isMapLoaded = true
 
     maybeAddRouteLayer()
     maybeInitStopPreviewLayer()
+    applyPlacementMode()
 
     if (props.isochroneData) {
       applyIsochroneData(props.isochroneData)
@@ -226,6 +258,18 @@ onUnmounted(() => {
       <span class="size-5 shrink-0 animate-spin rounded-full border-3 border-border border-t-coral" />
       <span>Generating isochrone…</span>
     </div>
+    <!-- Persistent while armed, because arming is sticky: without a standing
+         cue there is nothing on screen to explain why clicks keep dropping
+         pins. Shares the free top-left corner with the isochrone key, which
+         the authoring screen hides. -->
+    <p
+      v-if="stopPlacementArmed"
+      class="font-body text-caption pointer-events-none absolute top-3 left-3 z-1 rounded-(--radius-field) bg-white/92 px-3 py-2 text-ink shadow-(--shadow-panel)"
+      data-testid="map-placement-cue"
+      aria-live="polite"
+    >
+      Click the map to add a stop — Esc when done
+    </p>
     <!-- Top-left is the only corner MapLibre leaves free: attribution takes the
          bottom (wrapping to two lines when narrow) and the fullscreen control
          the top-right. Anywhere else the key's second row gets covered. -->

@@ -35,6 +35,13 @@ const newStopName = ref('')
 const newStopLat = ref<number | null>(null)
 const newStopLng = ref<number | null>(null)
 
+// Arming is sticky so a ten-stop line is one toggle and ten clicks.
+const placingStops = ref(false)
+// Highest `Stop N` handed out. Never decremented, so deleting a stop cannot
+// hand its number to a later one — stop slugs are minted from these names
+// server-side, and a reused number would silently move a slug.
+const stopCounter = ref(0)
+
 const newWindowStart = ref('06:00')
 const newWindowEnd = ref('22:00')
 const newWindowHeadwayMin = ref<number | null>(null)
@@ -50,6 +57,7 @@ const PREVIEW_DEBOUNCE_MS = 400
 let previewTimer: ReturnType<typeof setTimeout> | null = null
 
 onMounted(async () => {
+  window.addEventListener('keydown', handleKeydown)
   if (!drafts.hasServiceDraft) drafts.startServiceDraft()
   try {
     routes.value = await listRoutes()
@@ -61,6 +69,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleKeydown)
   if (previewTimer) clearTimeout(previewTimer)
 })
 
@@ -186,6 +195,31 @@ function handleAddStop(): void {
   newStopName.value = ''
   newStopLat.value = null
   newStopLng.value = null
+}
+
+const AUTO_STOP_NAME = /^Stop (\d+)$/
+
+// Seeded from the draft as well as the counter, because a draft restored from
+// localStorage brings its `Stop N` names back while the counter starts at zero.
+function nextStopName(): string {
+  const highestInDraft = (drafts.serviceDraft?.stops ?? []).reduce((highest, stop) => {
+    const match = AUTO_STOP_NAME.exec(stop.name)
+    return match ? Math.max(highest, Number(match[1])) : highest
+  }, 0)
+  stopCounter.value = Math.max(stopCounter.value, highestInDraft) + 1
+  return `Stop ${stopCounter.value}`
+}
+
+// The clicked point is stored raw, not snapped: clicking is less precise than
+// typing, so the existing off-route feedback is what tells the author they
+// missed the line.
+function handleMapClick(coord: { lat: number; lng: number }): void {
+  if (!drafts.serviceDraft) return
+  drafts.addStop({ name: nextStopName(), lat: coord.lat, lng: coord.lng, seq: 0 })
+}
+
+function handleKeydown(event: KeyboardEvent): void {
+  if (event.key === 'Escape') placingStops.value = false
 }
 
 function handleAddFrequencyWindow(): void {
@@ -316,9 +350,20 @@ function formatSeconds(total: number): string {
           </section>
 
           <section class="rounded-(--radius-box) border border-border bg-surface p-4">
-            <h2 class="font-display text-h3 text-ink-true">
-              Stops
-            </h2>
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <h2 class="font-display text-h3 text-ink-true">
+                Stops
+              </h2>
+              <button
+                type="button"
+                class="font-display text-btn cursor-pointer rounded-(--radius-field) border border-border px-3 py-1.5 uppercase hover:bg-white aria-pressed:border-coral aria-pressed:bg-coral aria-pressed:text-white"
+                data-testid="toggle-place-stops"
+                :aria-pressed="placingStops"
+                @click="placingStops = !placingStops"
+              >
+                {{ placingStops ? 'Done adding' : 'Add stops by clicking' }}
+              </button>
+            </div>
 
             <ul
               v-if="drafts.serviceDraft?.stops.length"
@@ -619,7 +664,9 @@ function formatSeconds(total: number): string {
             :stations="[]"
             :services="[]"
             :stop-preview-pairs="stopPreviewPairs"
+            :stop-placement-armed="placingStops"
             hide-isochrone-legend
+            @map-click="handleMapClick"
           />
         </div>
       </div>

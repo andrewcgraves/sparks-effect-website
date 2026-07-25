@@ -310,4 +310,121 @@ describe('ServiceAuthoringView', () => {
     expect(wrapper.find('[data-testid="submit-error"]').text()).toContain('620 m from route')
     expect(compileService).not.toHaveBeenCalled()
   })
+
+  describe('placing stops by clicking the map', () => {
+    function toggle(wrapper: ReturnType<typeof mountView>) {
+      return wrapper.find('[data-testid="toggle-place-stops"]')
+    }
+
+    function mapStub(wrapper: ReturnType<typeof mountView>) {
+      return wrapper.findComponent({ name: 'MapView' })
+    }
+
+    async function clickMap(wrapper: ReturnType<typeof mountView>, lat: number, lng: number) {
+      mapStub(wrapper).vm.$emit('map-click', { lat, lng })
+      await flushPromises()
+    }
+
+    function stopNames(wrapper: ReturnType<typeof mountView>): string[] {
+      return wrapper.findAll('[data-testid="stop-row"]').map(stopRowName)
+    }
+
+    it('arms and disarms the map from the Stops-section toggle', async () => {
+      const wrapper = mountView()
+      await flushPromises()
+
+      expect(mapStub(wrapper).props('stopPlacementArmed')).toBe(false)
+
+      await toggle(wrapper).trigger('click')
+      expect(mapStub(wrapper).props('stopPlacementArmed')).toBe(true)
+
+      await toggle(wrapper).trigger('click')
+      expect(mapStub(wrapper).props('stopPlacementArmed')).toBe(false)
+    })
+
+    it('appends a stop at the clicked point, auto-named from a counter', async () => {
+      const wrapper = mountView()
+      await flushPromises()
+      await toggle(wrapper).trigger('click')
+
+      await clickMap(wrapper, 37.77, -122.41)
+      await clickMap(wrapper, 37.33, -121.88)
+
+      const stops = useDraftsStore().serviceDraft!.stops
+      expect(stops).toEqual([
+        { name: 'Stop 1', lat: 37.77, lng: -122.41, seq: 0 },
+        { name: 'Stop 2', lat: 37.33, lng: -121.88, seq: 1 },
+      ])
+      expect(stopNames(wrapper)).toEqual(['Stop 1', 'Stop 2'])
+    })
+
+    it('appends clicked stops after typed ones rather than replacing them', async () => {
+      const wrapper = mountView()
+      await flushPromises()
+      await addStop(wrapper, 'SF', 37.77, -122.41)
+      await toggle(wrapper).trigger('click')
+
+      await clickMap(wrapper, 37.33, -121.88)
+
+      expect(stopNames(wrapper)).toEqual(['SF', 'Stop 1'])
+    })
+
+    it('never reuses a stop number after a delete', async () => {
+      const wrapper = mountView()
+      await flushPromises()
+      await toggle(wrapper).trigger('click')
+
+      await clickMap(wrapper, 37.77, -122.41)
+      await clickMap(wrapper, 37.33, -121.88)
+      await wrapper.find('[data-testid="stop-remove-1"]').trigger('click')
+      await clickMap(wrapper, 38.0, -122.0)
+
+      expect(stopNames(wrapper)).toEqual(['Stop 1', 'Stop 3'])
+    })
+
+    it('stays armed while the rest of the form is used', async () => {
+      const wrapper = mountView()
+      await flushPromises()
+      await toggle(wrapper).trigger('click')
+
+      await wrapper.find('[data-testid="service-name"]').setValue('Northbound Express')
+      await wrapper.find('[data-testid="vehicle-dwell"]').setValue(45)
+
+      expect(mapStub(wrapper).props('stopPlacementArmed')).toBe(true)
+    })
+
+    it('disarms on Escape', async () => {
+      const wrapper = mountView()
+      await flushPromises()
+      await toggle(wrapper).trigger('click')
+
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+      await flushPromises()
+
+      expect(mapStub(wrapper).props('stopPlacementArmed')).toBe(false)
+    })
+
+    it('stores the raw clicked coordinates and feeds them to the snap preview', async () => {
+      const wrapper = mountView()
+      await flushPromises()
+      await wrapper.find('[data-testid="route-select"]').setValue('main-line')
+      await flushPromises()
+      await toggle(wrapper).trigger('click')
+
+      await clickMap(wrapper, 37.77, -122.41)
+      await vi.advanceTimersByTimeAsync(400)
+
+      expect(snapStops).toHaveBeenCalledWith('main-line', [{ lat: 37.77, lng: -122.41 }])
+    })
+
+    it('leaves the typed Name / Lat / Lng row usable while armed', async () => {
+      const wrapper = mountView()
+      await flushPromises()
+      await toggle(wrapper).trigger('click')
+
+      await addStop(wrapper, 'SF', 37.77, -122.41)
+
+      expect(stopNames(wrapper)).toEqual(['SF'])
+    })
+  })
 })

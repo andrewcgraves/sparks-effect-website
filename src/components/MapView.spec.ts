@@ -39,20 +39,31 @@ const {
   mockMarkerAddTo,
   mockMarkerRemove,
   mockAddControl,
-} = vi.hoisted(() => ({
-  mockAddSource: vi.fn(),
-  mockAddLayer: vi.fn(),
-  mockFitBounds: vi.fn(),
-  mockFlyTo: vi.fn(),
-  mockOn: vi.fn(),
-  mockRemove: vi.fn(),
-  mockResize: vi.fn(),
-  mockGetSource: vi.fn(),
-  mockSetLngLat: vi.fn(),
-  mockMarkerAddTo: vi.fn(),
-  mockMarkerRemove: vi.fn(),
-  mockAddControl: vi.fn(),
-}))
+  mockCanvas,
+  mockGetCanvas,
+  mockDoubleClickZoomEnable,
+  mockDoubleClickZoomDisable,
+} = vi.hoisted(() => {
+  const canvas = { style: { cursor: '' } }
+  return {
+    mockAddSource: vi.fn(),
+    mockAddLayer: vi.fn(),
+    mockFitBounds: vi.fn(),
+    mockFlyTo: vi.fn(),
+    mockOn: vi.fn(),
+    mockRemove: vi.fn(),
+    mockResize: vi.fn(),
+    mockGetSource: vi.fn(),
+    mockSetLngLat: vi.fn(),
+    mockMarkerAddTo: vi.fn(),
+    mockMarkerRemove: vi.fn(),
+    mockAddControl: vi.fn(),
+    mockCanvas: canvas,
+    mockGetCanvas: vi.fn(() => canvas),
+    mockDoubleClickZoomEnable: vi.fn(),
+    mockDoubleClickZoomDisable: vi.fn(),
+  }
+})
 
 class ResizeObserverStub {
   observe = vi.fn()
@@ -73,6 +84,11 @@ vi.mock('maplibre-gl', () => ({
     this['resize'] = mockResize
     this['getSource'] = mockGetSource
     this['addControl'] = mockAddControl
+    this['getCanvas'] = mockGetCanvas
+    this['doubleClickZoom'] = {
+      enable: mockDoubleClickZoomEnable,
+      disable: mockDoubleClickZoomDisable,
+    }
   }),
   Marker: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
     this['setLngLat'] = mockSetLngLat
@@ -125,11 +141,26 @@ async function triggerMapLoad() {
   if (typeof cb === 'function') await cb()
 }
 
+// Fires a map-level (unscoped) MapLibre event registered through map.on().
+function fireMapEvent(type: string, event: unknown) {
+  const call = mockOn.mock.calls.find(
+    (args: unknown[]) => args[0] === type && typeof args[1] === 'function',
+  )
+  const cb = call?.[1] as ((e: unknown) => void) | undefined
+  cb?.(event)
+}
+
+function clickEventAt(lat: number, lng: number) {
+  return { lngLat: { lat, lng }, point: { x: 10, y: 10 } }
+}
+
 describe('MapView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetSource.mockReturnValue(null)
     mockSetLngLat.mockReturnValue({ addTo: mockMarkerAddTo })
+    mockGetCanvas.mockReturnValue(mockCanvas)
+    mockCanvas.style.cursor = ''
   })
 
   it('does not add isochrone source or layer on load when no isochroneData prop is provided', async () => {
@@ -580,6 +611,84 @@ describe('MapView', () => {
       expect(mockSetData).toHaveBeenCalled()
       const rawCall = mockSetData.mock.calls.find((_, i) => i === 0)
       expect(rawCall).toBeDefined()
+    })
+  })
+
+  describe('stopPlacementArmed', () => {
+    it('emits map-click with the clicked coordinates while armed', async () => {
+      const wrapper = mount(MapView, { props: { ...defaultProps, stopPlacementArmed: true } })
+      await triggerMapLoad()
+
+      fireMapEvent('click', clickEventAt(37.77, -122.41))
+
+      expect(wrapper.emitted('map-click')).toEqual([[{ lat: 37.77, lng: -122.41 }]])
+    })
+
+    it('keeps emitting across consecutive clicks, so arming is sticky', async () => {
+      const wrapper = mount(MapView, { props: { ...defaultProps, stopPlacementArmed: true } })
+      await triggerMapLoad()
+
+      fireMapEvent('click', clickEventAt(37.77, -122.41))
+      fireMapEvent('click', clickEventAt(37.33, -121.88))
+
+      expect(wrapper.emitted('map-click')).toHaveLength(2)
+    })
+
+    it('does not emit map-click when the map is not armed', async () => {
+      const wrapper = mount(MapView, { props: defaultProps })
+      await triggerMapLoad()
+
+      fireMapEvent('click', clickEventAt(37.77, -122.41))
+
+      expect(wrapper.emitted('map-click')).toBeUndefined()
+    })
+
+    it('shows a crosshair cursor and disables double-click zoom while armed', async () => {
+      mount(MapView, { props: { ...defaultProps, stopPlacementArmed: true } })
+      await triggerMapLoad()
+
+      expect(mockCanvas.style.cursor).toBe('crosshair')
+      expect(mockDoubleClickZoomDisable).toHaveBeenCalled()
+    })
+
+    it('restores the cursor and re-enables double-click zoom when disarmed', async () => {
+      const wrapper = mount(MapView, { props: { ...defaultProps, stopPlacementArmed: true } })
+      await triggerMapLoad()
+
+      await wrapper.setProps({ stopPlacementArmed: false })
+
+      expect(mockCanvas.style.cursor).toBe('')
+      expect(mockDoubleClickZoomEnable).toHaveBeenCalled()
+    })
+
+    it('leaves the cursor and double-click zoom alone when never armed', async () => {
+      mount(MapView, { props: defaultProps })
+      await triggerMapLoad()
+
+      expect(mockCanvas.style.cursor).toBe('')
+      expect(mockDoubleClickZoomDisable).not.toHaveBeenCalled()
+    })
+
+    it('renders a persistent on-map cue while armed', async () => {
+      const wrapper = mount(MapView, { props: { ...defaultProps, stopPlacementArmed: true } })
+      await triggerMapLoad()
+
+      expect(wrapper.find('[data-testid="map-placement-cue"]').exists()).toBe(true)
+
+      await wrapper.setProps({ stopPlacementArmed: false })
+      expect(wrapper.find('[data-testid="map-placement-cue"]').exists()).toBe(false)
+    })
+
+    it('does not re-fit or fly the map when a stop is placed', async () => {
+      mount(MapView, { props: { ...defaultProps, stopPlacementArmed: true } })
+      await triggerMapLoad()
+      mockFitBounds.mockClear()
+      mockFlyTo.mockClear()
+
+      fireMapEvent('click', clickEventAt(37.77, -122.41))
+
+      expect(mockFitBounds).not.toHaveBeenCalled()
+      expect(mockFlyTo).not.toHaveBeenCalled()
     })
   })
 })
