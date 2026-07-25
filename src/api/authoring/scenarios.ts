@@ -4,7 +4,7 @@
 // API), which this module does not touch.
 import { apiRequest } from './client'
 import type { ChainResponse } from '../../fixtures/isochrone'
-import type { Job, Scenario, ScenarioInput, UserScenarioIsochroneRequest } from './types'
+import type { Job, Scenario, ScenarioInput, TransitGraph, UserScenarioIsochroneRequest } from './types'
 
 // Lists the signed-in user's own scenarios. There is no "all scenarios" read
 // here: /api/user-scenarios is owner-scoped.
@@ -49,6 +49,13 @@ export async function deleteScenario(slug: string): Promise<void> {
 // pollJobToResult (or the jobs store's track) to reach the compiled graph.
 export async function compileScenario(slug: string): Promise<Job> {
   return apiRequest<Job>(`/api/user-scenarios/${slug}/compile`, { method: 'POST' })
+}
+
+// Reads a scenario's latest compiled graph without recompiling. 404s when the
+// scenario has never compiled successfully — the caller's cue to fire
+// compileScenario rather than an error to surface.
+export async function fetchScenarioGraph(slug: string): Promise<TransitGraph> {
+  return apiRequest<TransitGraph>(`/api/user-scenarios/${slug}/graph`)
 }
 
 // Computes an isochrone over a scenario's latest compiled graph. Distinct

@@ -23,6 +23,8 @@ function makeRouter() {
     history: createMemoryHistory(),
     routes: [
       { path: '/authoring', name: 'authoring', component: AuthoringView },
+      { path: '/authoring/services/:slug', name: 'service-detail', component: LoginStub },
+      { path: '/authoring/scenarios/:slug', name: 'scenario-detail', component: LoginStub },
       { path: '/login', name: 'login', component: LoginStub },
     ],
   })
@@ -109,6 +111,26 @@ describe('AuthoringView', () => {
     const { wrapper } = await mountAuthoring()
     await flushPromises()
     expect(wrapper.text()).toContain('CA HSR')
+  })
+
+  it('shows each service slug and links to its detail page', async () => {
+    vi.mocked(fetchMyServices).mockResolvedValue([stubService])
+    vi.mocked(fetchMyScenarios).mockResolvedValue([])
+    const { wrapper } = await mountAuthoring()
+    await flushPromises()
+    const link = wrapper.find('[data-testid="service-link"]')
+    expect(link.attributes('href')).toBe('/authoring/services/northbound-express')
+    expect(link.text()).toContain('northbound-express')
+  })
+
+  it('shows each scenario slug and links to its detail page', async () => {
+    vi.mocked(fetchMyServices).mockResolvedValue([])
+    vi.mocked(fetchMyScenarios).mockResolvedValue([stubScenario])
+    const { wrapper } = await mountAuthoring()
+    await flushPromises()
+    const link = wrapper.find('[data-testid="scenario-link"]')
+    expect(link.attributes('href')).toBe('/authoring/scenarios/ca-hsr')
+    expect(link.text()).toContain('ca-hsr')
   })
 
   it('shows an empty state when there are no services', async () => {

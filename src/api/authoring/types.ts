@@ -220,6 +220,10 @@ export interface TransitGraph {
   services: ServiceGraph[]
   merge?: MergeReport
   nodes?: GraphNode[]
+  // The member services' routes, bundled by the user-scenario graph read so a
+  // client can draw each service along its alignment. Absent on the persisted
+  // compile result; present on GET /api/user-scenarios/{slug}/graph.
+  routes?: Route[]
 }
 
 // An async compile job: trigger, poll by id, then read the result off the job

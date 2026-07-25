@@ -1,21 +1,23 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import type { Job, Scenario, Service } from '../api/authoring/types'
-import type { ChainResponse } from '../fixtures/isochrone'
+import type { Scenario, Service } from '../api/authoring/types'
 
 vi.mock('../api/authoring/services', () => ({
   fetchMyServices: vi.fn(),
 }))
 vi.mock('../api/authoring/scenarios', () => ({
   createScenario: vi.fn(),
-  compileScenario: vi.fn(),
-  fetchScenarioIsochrone: vi.fn(),
+}))
+
+const push = vi.fn()
+vi.mock('vue-router', () => ({
+  useRouter: () => ({ push }),
 }))
 
 import ScenarioBuilderView from './ScenarioBuilderView.vue'
 import { fetchMyServices } from '../api/authoring/services'
-import { createScenario, compileScenario, fetchScenarioIsochrone } from '../api/authoring/scenarios'
+import { createScenario } from '../api/authoring/scenarios'
 import { ApiError } from '../api/authoring/client'
 import { useDraftsStore } from '../stores/drafts'
 
@@ -47,23 +49,8 @@ const stubScenario: Scenario = {
   service_ids: ['svc1', 'svc2'],
 }
 
-const stubChainResponse = {
-  type: 'FeatureCollection',
-  features: [],
-  metadata: {
-    reachable_stations: [],
-    origin_budget_mins: 30,
-    scenario_slug: 'ca-hsr',
-    mode: 'walk',
-    wait_model: 'boarding-only',
-    origin_iso_available: true,
-  },
-} as unknown as ChainResponse
-
 function mountView() {
-  return mount(ScenarioBuilderView, {
-    global: { stubs: { MapView: true } },
-  })
+  return mount(ScenarioBuilderView)
 }
 
 async function fillAndSelect(wrapper: ReturnType<typeof mountView>) {
@@ -72,25 +59,16 @@ async function fillAndSelect(wrapper: ReturnType<typeof mountView>) {
   await wrapper.find('[data-testid="service-checkbox-svc2"]').setValue(true)
 }
 
-async function submitIsochroneForm(wrapper: ReturnType<typeof mountView>) {
-  await wrapper.find('[data-testid="lat"]').setValue('37.7')
-  await wrapper.find('[data-testid="lng"]').setValue('-122.4')
-  await wrapper.find('form').trigger('submit')
-}
-
 describe('ScenarioBuilderView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     setActivePinia(createPinia())
     vi.mocked(fetchMyServices).mockResolvedValue([stubServiceA, stubServiceB])
     vi.mocked(createScenario).mockResolvedValue(stubScenario)
-    vi.mocked(compileScenario).mockResolvedValue({ id: 'job1', kind: 'compile_user_scenario', status: 'queued' } as Job)
-    vi.stubGlobal('fetch', vi.fn())
   })
 
   afterEach(() => {
     vi.restoreAllMocks()
-    vi.unstubAllGlobals()
   })
 
   it('loads the caller\'s services and offers them as a checklist', async () => {
@@ -127,13 +105,7 @@ describe('ScenarioBuilderView', () => {
     expect(useDraftsStore().scenarioDraft?.service_ids).toEqual([])
   })
 
-  it('saves, triggers a compile, polls the job, and reveals the isochrone form once compiled', async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({ id: 'job1', kind: 'compile_user_scenario', status: 'succeeded', result: { services: [] } }),
-    } as Response)
-
+  it('saves the scenario and redirects to its preview page', async () => {
     const wrapper = mountView()
     await flushPromises()
     await fillAndSelect(wrapper)
@@ -142,28 +114,21 @@ describe('ScenarioBuilderView', () => {
     await flushPromises()
 
     expect(createScenario).toHaveBeenCalledWith(expect.objectContaining({ name: 'CA HSR', service_ids: ['svc1', 'svc2'] }))
-    expect(compileScenario).toHaveBeenCalledWith('ca-hsr')
-    expect(wrapper.find('[data-testid="compiling-status"]').exists()).toBe(false)
-    expect(wrapper.findComponent({ name: 'IsochroneForm' }).exists()).toBe(true)
+    expect(push).toHaveBeenCalledWith({ name: 'scenario-detail', params: { slug: 'ca-hsr' } })
   })
 
   it('clears the scenario draft once saved', async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({ id: 'job1', kind: 'compile_user_scenario', status: 'succeeded', result: { services: [] } }),
-    } as Response)
-
     const wrapper = mountView()
     await flushPromises()
     await fillAndSelect(wrapper)
+
     await wrapper.find('form').trigger('submit')
     await flushPromises()
 
     expect(useDraftsStore().scenarioDraft).toBeNull()
   })
 
-  it('shows the save error from the API when creation is rejected', async () => {
+  it('shows the save error from the API and does not navigate when creation is rejected', async () => {
     vi.mocked(createScenario).mockRejectedValue(new ApiError('POST /api/user-scenarios failed: 422: name required', 422))
     const wrapper = mountView()
     await flushPromises()
@@ -173,155 +138,6 @@ describe('ScenarioBuilderView', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-testid="submit-error"]').text()).toContain('name required')
-    expect(compileScenario).not.toHaveBeenCalled()
-  })
-
-  async function saveAndCompile(wrapper: ReturnType<typeof mountView>) {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({ id: 'job1', kind: 'compile_user_scenario', status: 'succeeded', result: { services: [] } }),
-    } as Response)
-    await flushPromises()
-    await fillAndSelect(wrapper)
-    await wrapper.find('form').trigger('submit')
-    await flushPromises()
-  }
-
-  it('renders the isochrone once the form is submitted, hitting the user-scenario isochrone endpoint', async () => {
-    vi.mocked(fetchScenarioIsochrone).mockResolvedValue(stubChainResponse)
-    const wrapper = mountView()
-    await saveAndCompile(wrapper)
-
-    await submitIsochroneForm(wrapper)
-    await flushPromises()
-
-    expect(fetchScenarioIsochrone).toHaveBeenCalledWith('ca-hsr', expect.objectContaining({ lat: 37.7, lng: -122.4 }))
-  })
-
-  it('transparently recompiles and retries on a stale-graph 409, showing "recompiling…" while it does so, then rendering the retried result', async () => {
-    vi.mocked(fetchScenarioIsochrone)
-      .mockRejectedValueOnce(new ApiError('stale', 409, 'stale_graph'))
-      .mockResolvedValueOnce(stubChainResponse)
-
-    const wrapper = mountView()
-    await saveAndCompile(wrapper)
-    vi.mocked(compileScenario).mockClear()
-
-    // Hold the recompile's job-status poll open so the mid-flight DOM state
-    // (the isochrone form/map staying mounted, with an inline "recompiling…"
-    // note) can be asserted before it resolves.
-    let resolveJobFetch!: (value: Response) => void
-    vi.mocked(fetch).mockImplementationOnce(
-      () => new Promise<Response>((resolve) => { resolveJobFetch = resolve }),
-    )
-
-    await wrapper.find('[data-testid="lat"]').setValue('37.7')
-    await wrapper.find('[data-testid="lng"]').setValue('-122.4')
-    await wrapper.find('form').trigger('submit')
-    await flushPromises()
-
-    expect(wrapper.find('[data-testid="recompiling-status"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="compiling-status"]').exists()).toBe(false)
-    expect(wrapper.findComponent({ name: 'IsochroneForm' }).exists()).toBe(true)
-
-    resolveJobFetch({
-      ok: true,
-      status: 200,
-      json: async () => ({ id: 'job2', kind: 'compile_user_scenario', status: 'succeeded', result: { services: [] } }),
-    } as Response)
-    await flushPromises()
-
-    expect(compileScenario).toHaveBeenCalledWith('ca-hsr')
-    expect(fetchScenarioIsochrone).toHaveBeenCalledTimes(2)
-    expect(wrapper.find('[data-testid="recompiling-status"]').exists()).toBe(false)
-    expect(wrapper.find('[data-testid="fetch-error"]').exists()).toBe(false)
-  })
-
-  it('shows an error when the isochrone request fails for a non-stale reason', async () => {
-    vi.mocked(fetchScenarioIsochrone).mockRejectedValue(new ApiError('boom', 500))
-    const wrapper = mountView()
-    await saveAndCompile(wrapper)
-
-    await submitIsochroneForm(wrapper)
-    await flushPromises()
-
-    expect(wrapper.find('[data-testid="fetch-error"]').text()).toContain('Failed to generate isochrone')
-  })
-
-  it('shows a "did not connect" notice for each near-miss cross-service pair, naming both stops and services', async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({
-        id: 'job1',
-        kind: 'compile_user_scenario',
-        status: 'succeeded',
-        result: {
-          services: [],
-          merge: {
-            near_misses: [
-              {
-                a: { service_id: 'svc1', slug: 'northbound-express-transbay', name: 'Transbay' },
-                b: { service_id: 'svc2', slug: 'southbound-local-transbay', name: 'Transbay' },
-                distance_m: 78,
-              },
-            ],
-          },
-        },
-      }),
-    } as Response)
-
-    const wrapper = mountView()
-    await flushPromises()
-    await fillAndSelect(wrapper)
-    await wrapper.find('form').trigger('submit')
-    await flushPromises()
-
-    const rows = wrapper.findAll('[data-testid="near-miss-row"]')
-    expect(rows).toHaveLength(1)
-    expect(rows[0].text()).toContain('Transbay (Northbound Express)')
-    expect(rows[0].text()).toContain('Transbay (Southbound Local)')
-    expect(rows[0].text()).toContain('78')
-    expect(rows[0].text()).toContain('did not connect')
-  })
-
-  it('shows a realised-interchange summary listing each multi-member cluster\'s stop names', async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({
-        id: 'job1',
-        kind: 'compile_user_scenario',
-        status: 'succeeded',
-        result: {
-          services: [],
-          merge: {
-            clusters: [
-              { key: 'northbound-express-transbay', names: ['Transbay', 'Salesforce Center'], members: [] },
-            ],
-          },
-        },
-      }),
-    } as Response)
-
-    const wrapper = mountView()
-    await flushPromises()
-    await fillAndSelect(wrapper)
-    await wrapper.find('form').trigger('submit')
-    await flushPromises()
-
-    const rows = wrapper.findAll('[data-testid="realised-cluster-row"]')
-    expect(rows).toHaveLength(1)
-    expect(rows[0].text()).toContain('Transbay')
-    expect(rows[0].text()).toContain('Salesforce Center')
-  })
-
-  it('renders neither report section when the compile result carries no merge diagnostics', async () => {
-    const wrapper = mountView()
-    await saveAndCompile(wrapper)
-
-    expect(wrapper.find('[data-testid="near-miss-list"]').exists()).toBe(false)
-    expect(wrapper.find('[data-testid="realised-clusters"]').exists()).toBe(false)
+    expect(push).not.toHaveBeenCalled()
   })
 })
