@@ -9,6 +9,7 @@ import type {
   GraphEdge,
   Route,
   RouteSummary,
+  SnapCoord as LatLng,
   SnapStopsResponse,
   VehicleParams,
 } from '../api/authoring'
@@ -35,6 +36,11 @@ const newStopName = ref('')
 const newStopLat = ref<number | null>(null)
 const newStopLng = ref<number | null>(null)
 
+// Arming is sticky so a ten-stop line is one toggle and ten clicks.
+const placingStops = ref(false)
+// Read only by schedulePreview, never rendered, so it stays a plain binding.
+let draggingStop = false
+
 const newWindowStart = ref('06:00')
 const newWindowEnd = ref('22:00')
 const newWindowHeadwayMin = ref<number | null>(null)
@@ -50,6 +56,7 @@ const PREVIEW_DEBOUNCE_MS = 400
 let previewTimer: ReturnType<typeof setTimeout> | null = null
 
 onMounted(async () => {
+  window.addEventListener('keydown', handleKeydown)
   if (!drafts.hasServiceDraft) drafts.startServiceDraft()
   try {
     routes.value = await listRoutes()
@@ -61,6 +68,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleKeydown)
   if (previewTimer) clearTimeout(previewTimer)
 })
 
@@ -125,6 +133,10 @@ async function handleRouteChange(): Promise<void> {
 
 function schedulePreview(): void {
   if (previewTimer) clearTimeout(previewTimer)
+  // A drag rewrites a stop's coordinates on every pointer move. Snapping each
+  // one would put a burst of requests behind a single gesture for answers
+  // nobody reads, so the preview waits for the drop.
+  if (draggingStop) return
   previewTimer = setTimeout(() => void runPreview(), PREVIEW_DEBOUNCE_MS)
 }
 
@@ -186,6 +198,31 @@ function handleAddStop(): void {
   newStopName.value = ''
   newStopLat.value = null
   newStopLng.value = null
+}
+
+// The clicked point is stored raw, not snapped: clicking is less precise than
+// typing, so the existing off-route feedback is what tells the author they
+// missed the line.
+function handleMapClick(coord: LatLng): void {
+  if (!drafts.serviceDraft) return
+  drafts.addStop({ name: `Stop ${drafts.takeStopNumber()}`, lat: coord.lat, lng: coord.lng, seq: 0 })
+}
+
+// Preview pair ids are stop indices (see stopPreviewPairs), so the round trip
+// through a string is this component's own. Dragging writes lat/lng and
+// nothing else, leaving names, ordering and the stop counter untouched.
+function handleStopDrag(pairId: string, coord: LatLng): void {
+  draggingStop = true
+  drafts.updateStop(Number(pairId), coord)
+}
+
+function handleStopDragEnd(pairId: string, coord: LatLng): void {
+  draggingStop = false
+  drafts.updateStop(Number(pairId), coord)
+}
+
+function handleKeydown(event: KeyboardEvent): void {
+  if (event.key === 'Escape') placingStops.value = false
 }
 
 function handleAddFrequencyWindow(): void {
@@ -316,9 +353,20 @@ function formatSeconds(total: number): string {
           </section>
 
           <section class="rounded-(--radius-box) border border-border bg-surface p-4">
-            <h2 class="font-display text-h3 text-ink-true">
-              Stops
-            </h2>
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <h2 class="font-display text-h3 text-ink-true">
+                Stops
+              </h2>
+              <button
+                type="button"
+                class="font-display text-btn cursor-pointer rounded-(--radius-field) border border-border px-3 py-1.5 uppercase hover:bg-white aria-pressed:border-coral aria-pressed:bg-coral aria-pressed:text-white"
+                data-testid="toggle-place-stops"
+                :aria-pressed="placingStops"
+                @click="placingStops = !placingStops"
+              >
+                {{ placingStops ? 'Done adding' : 'Add stops by clicking' }}
+              </button>
+            </div>
 
             <ul
               v-if="drafts.serviceDraft?.stops.length"
@@ -619,7 +667,11 @@ function formatSeconds(total: number): string {
             :stations="[]"
             :services="[]"
             :stop-preview-pairs="stopPreviewPairs"
+            :stop-placement-armed="placingStops"
             hide-isochrone-legend
+            @map-click="handleMapClick"
+            @stop-drag="handleStopDrag"
+            @stop-drag-end="handleStopDragEnd"
           />
         </div>
       </div>

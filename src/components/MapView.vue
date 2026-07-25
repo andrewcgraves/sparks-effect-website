@@ -1,17 +1,19 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, toRef, watch } from 'vue'
 import { Map, FullscreenControl } from 'maplibre-gl'
-import type { GeoJSONSource } from 'maplibre-gl'
+import type { GeoJSONSource, MapMouseEvent } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { ISOCHRONE_SOURCE_ID, isochroneLegend, resolveIsochroneColors, useIsochroneLayer } from '../composables/useIsochroneLayer'
 import { centerFromCorners, routeBoundsCorners, useRouteLayer } from '../composables/useRouteLayer'
 import { useOriginMarker } from '../composables/useOriginMarker'
-import { useStopPreviewLayer } from '../composables/useStopPreviewLayer'
+import { RAW_STOP_LAYER_ID, useStopPreviewLayer } from '../composables/useStopPreviewLayer'
 import type { StopPreviewPair } from '../composables/useStopPreviewLayer'
+import { useStopDrag } from '../composables/useStopDrag'
 import { ISOCHRONE_BOUNDS_CORNERS, ISOCHRONE_CENTER, isochroneBoundsCorners } from '../fixtures/isochrone'
 import type { ChainResponse } from '../fixtures/isochrone'
 import { resolveMapStyleUrl } from '../mapStyle'
 import type { Route, Station, Service } from '../api/scenarios'
+import type { SnapCoord as LatLng } from '../api/authoring/types'
 
 const props = defineProps<{
   isochroneData: ChainResponse | null
@@ -25,6 +27,16 @@ const props = defineProps<{
   // pin, the snapped pin, and a leader line between them). Absent by default
   // — every other caller of this component leaves it unset.
   stopPreviewPairs?: StopPreviewPair[]
+  // Arms click-to-place: while set, a click on the map reports its coordinates
+  // through map-click instead of being ignored. Sticky — the caller owns when
+  // it turns off, so a run of stops is a run of clicks.
+  stopPlacementArmed?: boolean
+}>()
+
+const emit = defineEmits<{
+  'map-click': [coord: LatLng]
+  'stop-drag': [id: string, coord: LatLng]
+  'stop-drag-end': [id: string, coord: LatLng]
 }>()
 
 const ORIGIN_SNAP_ZOOM = 9
@@ -113,13 +125,47 @@ function maybeAddRouteLayer(): void {
   routeLayerAdded = true
 }
 
-// Absent by default for every caller but the service-authoring form, so this
-// stays a no-op unless stopPreviewPairs is actually passed.
-function maybeInitStopPreviewLayer(): void {
+// Draws the stop preview and makes its pins draggable — the two go together,
+// since dragging is wired against the layer the preview creates. Absent by
+// default for every caller but the service-authoring form, so this stays a
+// no-op unless stopPreviewPairs is actually passed.
+function maybeInitStopInteraction(): void {
   if (!map || !isMapLoaded || stopPreviewLayer || !props.stopPreviewPairs) return
   stopPreviewLayer = useStopPreviewLayer(map)
   stopPreviewLayer.update(props.stopPreviewPairs)
+  useStopDrag(map, {
+    onDrag: (id, coord) => emit('stop-drag', id, coord),
+    onDragEnd: (id, coord) => emit('stop-drag-end', id, coord),
+    idleCursor: () => (props.stopPlacementArmed ? 'crosshair' : ''),
+  })
 }
+
+// MapLibre suppresses its own click event when the pointer travelled further
+// than its click tolerance between press and release, so a drag-pan can never
+// reach here — panning an armed map does not drop a stop. Placing one only
+// mutates the caller's stop list; nothing here re-fits or re-centres the view.
+function handleMapClick(event: MapMouseEvent): void {
+  if (!props.stopPlacementArmed) return
+  // A press on a pin is a reposition, not a placement — a drag shorter than
+  // MapLibre's click tolerance still arrives here as a click, and stacking a
+  // new stop on top of the one being nudged is never what was meant.
+  if (map?.getLayer(RAW_STOP_LAYER_ID) && map.queryRenderedFeatures(event.point, { layers: [RAW_STOP_LAYER_ID] }).length > 0) {
+    return
+  }
+  emit('map-click', { lat: event.lngLat.lat, lng: event.lngLat.lng })
+}
+
+// A crosshair marks the armed map, and double-click zoom steps aside so a
+// double-click cannot both place a stop and zoom. The cursor is set on the
+// canvas because MapLibre writes it inline, where a stylesheet can't reach.
+function applyPlacementMode(): void {
+  if (!map) return
+  map.getCanvas().style.cursor = props.stopPlacementArmed ? 'crosshair' : ''
+  if (props.stopPlacementArmed) map.doubleClickZoom.disable()
+  else map.doubleClickZoom.enable()
+}
+
+watch(() => props.stopPlacementArmed, applyPlacementMode)
 
 watch(
   () => props.isochroneData,
@@ -150,7 +196,7 @@ watch(
   () => props.stopPreviewPairs,
   (pairs) => {
     if (!isMapLoaded || !pairs) return
-    maybeInitStopPreviewLayer()
+    maybeInitStopInteraction()
     stopPreviewLayer?.update(pairs)
   },
 )
@@ -174,12 +220,15 @@ onMounted(() => {
 
   useOriginMarker(map, toRef(props, 'origin'))
 
+  map.on('click', handleMapClick)
+
   map.on('load', () => {
     if (!map) return
     isMapLoaded = true
 
     maybeAddRouteLayer()
-    maybeInitStopPreviewLayer()
+    maybeInitStopInteraction()
+    applyPlacementMode()
 
     if (props.isochroneData) {
       applyIsochroneData(props.isochroneData)
@@ -226,6 +275,18 @@ onUnmounted(() => {
       <span class="size-5 shrink-0 animate-spin rounded-full border-3 border-border border-t-coral" />
       <span>Generating isochrone…</span>
     </div>
+    <!-- Persistent while armed, because arming is sticky: without a standing
+         cue there is nothing on screen to explain why clicks keep dropping
+         pins. Shares the free top-left corner with the isochrone key, which
+         the authoring screen hides. -->
+    <p
+      v-if="stopPlacementArmed"
+      class="font-body text-caption pointer-events-none absolute top-3 left-3 z-1 rounded-(--radius-field) bg-white/92 px-3 py-2 text-ink shadow-(--shadow-panel)"
+      data-testid="map-placement-cue"
+      aria-live="polite"
+    >
+      Click the map to add a stop — Esc when done
+    </p>
     <!-- Top-left is the only corner MapLibre leaves free: attribution takes the
          bottom (wrapping to two lines when narrow) and the fullscreen control
          the top-right. Anywhere else the key's second row gets covered. -->

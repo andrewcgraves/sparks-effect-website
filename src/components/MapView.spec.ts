@@ -11,6 +11,7 @@ import {
   routeBoundsCorners,
 } from '../composables/useRouteLayer'
 import {
+  RAW_STOP_LAYER_ID,
   RAW_STOP_SOURCE_ID,
   SNAPPED_STOP_SOURCE_ID,
   LEADER_SOURCE_ID,
@@ -39,20 +40,39 @@ const {
   mockMarkerAddTo,
   mockMarkerRemove,
   mockAddControl,
-} = vi.hoisted(() => ({
-  mockAddSource: vi.fn(),
-  mockAddLayer: vi.fn(),
-  mockFitBounds: vi.fn(),
-  mockFlyTo: vi.fn(),
-  mockOn: vi.fn(),
-  mockRemove: vi.fn(),
-  mockResize: vi.fn(),
-  mockGetSource: vi.fn(),
-  mockSetLngLat: vi.fn(),
-  mockMarkerAddTo: vi.fn(),
-  mockMarkerRemove: vi.fn(),
-  mockAddControl: vi.fn(),
-}))
+  mockCanvas,
+  mockGetCanvas,
+  mockDoubleClickZoomEnable,
+  mockDoubleClickZoomDisable,
+  mockOnce,
+  mockOff,
+  mockGetLayer,
+  mockQueryRenderedFeatures,
+} = vi.hoisted(() => {
+  const canvas = { style: { cursor: '' } }
+  return {
+    mockAddSource: vi.fn(),
+    mockAddLayer: vi.fn(),
+    mockFitBounds: vi.fn(),
+    mockFlyTo: vi.fn(),
+    mockOn: vi.fn(),
+    mockRemove: vi.fn(),
+    mockResize: vi.fn(),
+    mockGetSource: vi.fn(),
+    mockSetLngLat: vi.fn(),
+    mockMarkerAddTo: vi.fn(),
+    mockMarkerRemove: vi.fn(),
+    mockAddControl: vi.fn(),
+    mockCanvas: canvas,
+    mockGetCanvas: vi.fn(() => canvas),
+    mockDoubleClickZoomEnable: vi.fn(),
+    mockDoubleClickZoomDisable: vi.fn(),
+    mockOnce: vi.fn(),
+    mockOff: vi.fn(),
+    mockGetLayer: vi.fn(),
+    mockQueryRenderedFeatures: vi.fn(),
+  }
+})
 
 class ResizeObserverStub {
   observe = vi.fn()
@@ -73,6 +93,15 @@ vi.mock('maplibre-gl', () => ({
     this['resize'] = mockResize
     this['getSource'] = mockGetSource
     this['addControl'] = mockAddControl
+    this['getCanvas'] = mockGetCanvas
+    this['once'] = mockOnce
+    this['off'] = mockOff
+    this['getLayer'] = mockGetLayer
+    this['queryRenderedFeatures'] = mockQueryRenderedFeatures
+    this['doubleClickZoom'] = {
+      enable: mockDoubleClickZoomEnable,
+      disable: mockDoubleClickZoomDisable,
+    }
   }),
   Marker: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
     this['setLngLat'] = mockSetLngLat
@@ -125,11 +154,36 @@ async function triggerMapLoad() {
   if (typeof cb === 'function') await cb()
 }
 
+// Fires a map-level (unscoped) MapLibre event registered through map.on().
+function fireMapEvent(type: string, event: unknown) {
+  const call = mockOn.mock.calls.find(
+    (args: unknown[]) => args[0] === type && typeof args[1] === 'function',
+  )
+  const cb = call?.[1] as ((e: unknown) => void) | undefined
+  cb?.(event)
+}
+
+// Fires a layer-scoped MapLibre event, i.e. one registered as
+// map.on(type, layerId, handler).
+function fireLayerEvent(type: string, layer: string, event: unknown) {
+  const call = mockOn.mock.calls.find((args: unknown[]) => args[0] === type && args[1] === layer)
+  const cb = call?.[2] as ((e: unknown) => void) | undefined
+  cb?.(event)
+}
+
+function clickEventAt(lat: number, lng: number) {
+  return { lngLat: { lat, lng }, point: { x: 10, y: 10 } }
+}
+
 describe('MapView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetSource.mockReturnValue(null)
     mockSetLngLat.mockReturnValue({ addTo: mockMarkerAddTo })
+    mockGetCanvas.mockReturnValue(mockCanvas)
+    mockCanvas.style.cursor = ''
+    mockGetLayer.mockReturnValue(undefined)
+    mockQueryRenderedFeatures.mockReturnValue([])
   })
 
   it('does not add isochrone source or layer on load when no isochroneData prop is provided', async () => {
@@ -580,6 +634,170 @@ describe('MapView', () => {
       expect(mockSetData).toHaveBeenCalled()
       const rawCall = mockSetData.mock.calls.find((_, i) => i === 0)
       expect(rawCall).toBeDefined()
+    })
+  })
+
+  describe('stopPlacementArmed', () => {
+    it('emits map-click with the clicked coordinates while armed', async () => {
+      const wrapper = mount(MapView, { props: { ...defaultProps, stopPlacementArmed: true } })
+      await triggerMapLoad()
+
+      fireMapEvent('click', clickEventAt(37.77, -122.41))
+
+      expect(wrapper.emitted('map-click')).toEqual([[{ lat: 37.77, lng: -122.41 }]])
+    })
+
+    it('keeps emitting across consecutive clicks, so arming is sticky', async () => {
+      const wrapper = mount(MapView, { props: { ...defaultProps, stopPlacementArmed: true } })
+      await triggerMapLoad()
+
+      fireMapEvent('click', clickEventAt(37.77, -122.41))
+      fireMapEvent('click', clickEventAt(37.33, -121.88))
+
+      expect(wrapper.emitted('map-click')).toHaveLength(2)
+    })
+
+    it('does not emit map-click when the map is not armed', async () => {
+      const wrapper = mount(MapView, { props: defaultProps })
+      await triggerMapLoad()
+
+      fireMapEvent('click', clickEventAt(37.77, -122.41))
+
+      expect(wrapper.emitted('map-click')).toBeUndefined()
+    })
+
+    it('shows a crosshair cursor and disables double-click zoom while armed', async () => {
+      mount(MapView, { props: { ...defaultProps, stopPlacementArmed: true } })
+      await triggerMapLoad()
+
+      expect(mockCanvas.style.cursor).toBe('crosshair')
+      expect(mockDoubleClickZoomDisable).toHaveBeenCalled()
+    })
+
+    it('restores the cursor and re-enables double-click zoom when disarmed', async () => {
+      const wrapper = mount(MapView, { props: { ...defaultProps, stopPlacementArmed: true } })
+      await triggerMapLoad()
+
+      await wrapper.setProps({ stopPlacementArmed: false })
+
+      expect(mockCanvas.style.cursor).toBe('')
+      expect(mockDoubleClickZoomEnable).toHaveBeenCalled()
+    })
+
+    it('leaves the cursor and double-click zoom alone when never armed', async () => {
+      mount(MapView, { props: defaultProps })
+      await triggerMapLoad()
+
+      expect(mockCanvas.style.cursor).toBe('')
+      expect(mockDoubleClickZoomDisable).not.toHaveBeenCalled()
+    })
+
+    it('renders a persistent on-map cue while armed', async () => {
+      const wrapper = mount(MapView, { props: { ...defaultProps, stopPlacementArmed: true } })
+      await triggerMapLoad()
+
+      expect(wrapper.find('[data-testid="map-placement-cue"]').exists()).toBe(true)
+
+      await wrapper.setProps({ stopPlacementArmed: false })
+      expect(wrapper.find('[data-testid="map-placement-cue"]').exists()).toBe(false)
+    })
+
+    it('does not place a stop when an armed click lands on an existing pin', async () => {
+      mockGetSource.mockReturnValue({ setData: mockSetData })
+      mockGetLayer.mockReturnValue({ id: RAW_STOP_LAYER_ID })
+      mockQueryRenderedFeatures.mockReturnValue([{ properties: { id: '0' } }])
+      const wrapper = mount(MapView, {
+        props: {
+          ...defaultProps,
+          stopPlacementArmed: true,
+          stopPreviewPairs: [{ id: '0', raw: { lat: 37.77, lng: -122.41 }, snapped: null }],
+        },
+      })
+      await triggerMapLoad()
+
+      fireMapEvent('click', clickEventAt(37.77, -122.41))
+
+      expect(wrapper.emitted('map-click')).toBeUndefined()
+    })
+
+    it('does not re-fit or fly the map when a stop is placed', async () => {
+      mount(MapView, { props: { ...defaultProps, stopPlacementArmed: true } })
+      await triggerMapLoad()
+      mockFitBounds.mockClear()
+      mockFlyTo.mockClear()
+
+      fireMapEvent('click', clickEventAt(37.77, -122.41))
+
+      expect(mockFitBounds).not.toHaveBeenCalled()
+      expect(mockFlyTo).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('dragging stop pins', () => {
+    const stubPairs: StopPreviewPair[] = [
+      { id: '0', raw: { lat: 37.77, lng: -122.41 }, snapped: null },
+    ]
+
+    async function mountWithPins(extraProps: Record<string, unknown> = {}) {
+      mockGetSource.mockReturnValue({ setData: mockSetData })
+      const wrapper = mount(MapView, {
+        props: { ...defaultProps, stopPreviewPairs: stubPairs, ...extraProps },
+      })
+      await triggerMapLoad()
+      return wrapper
+    }
+
+    function pressPin(id: string, lat: number, lng: number) {
+      fireLayerEvent('mousedown', RAW_STOP_LAYER_ID, {
+        features: [{ properties: { id } }],
+        lngLat: { lat, lng },
+        preventDefault: vi.fn(),
+      })
+    }
+
+    function releaseAt(lat: number, lng: number) {
+      const call = mockOnce.mock.calls.find((args: unknown[]) => args[0] === 'mouseup')
+      const cb = call?.[1] as ((e: unknown) => void) | undefined
+      cb?.({ lngLat: { lat, lng } })
+    }
+
+    it('does not wire dragging when no stop pins are drawn', async () => {
+      mount(MapView, { props: defaultProps })
+      await triggerMapLoad()
+
+      expect(mockOn.mock.calls.some((args: unknown[]) => args[1] === RAW_STOP_LAYER_ID)).toBe(false)
+    })
+
+    it('emits stop-drag while a pin is being dragged', async () => {
+      const wrapper = await mountWithPins()
+
+      pressPin('0', 37.77, -122.41)
+      fireMapEvent('mousemove', { lngLat: { lat: 37.8, lng: -122.4 } })
+
+      expect(wrapper.emitted('stop-drag')).toEqual([['0', { lat: 37.8, lng: -122.4 }]])
+    })
+
+    it('emits stop-drag-end once when the pin is dropped', async () => {
+      const wrapper = await mountWithPins()
+
+      pressPin('0', 37.77, -122.41)
+      fireMapEvent('mousemove', { lngLat: { lat: 37.8, lng: -122.4 } })
+      releaseAt(37.85, -122.35)
+
+      expect(wrapper.emitted('stop-drag-end')).toEqual([['0', { lat: 37.85, lng: -122.35 }]])
+    })
+
+    it('drags with click-to-place armed, and returns the cursor to the crosshair', async () => {
+      const wrapper = await mountWithPins({ stopPlacementArmed: true })
+
+      pressPin('0', 37.77, -122.41)
+      expect(mockCanvas.style.cursor).toBe('grabbing')
+
+      fireMapEvent('mousemove', { lngLat: { lat: 37.8, lng: -122.4 } })
+      releaseAt(37.85, -122.35)
+
+      expect(wrapper.emitted('stop-drag-end')).toHaveLength(1)
+      expect(mockCanvas.style.cursor).toBe('crosshair')
     })
   })
 })

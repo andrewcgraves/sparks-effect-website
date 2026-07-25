@@ -284,6 +284,59 @@ describe('useDraftsStore', () => {
     expect(source.name).toBe('Blue Line')
   })
 
+  // Numbers name the stops placed by clicking the map. Reusing one would move
+  // a stop slug underneath whatever already holds it, so the counter only ever
+  // climbs — including across a reload, since the draft outlives the tab.
+  describe('takeStopNumber', () => {
+    it('counts up from one', () => {
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft()
+      expect([drafts.takeStopNumber(), drafts.takeStopNumber()]).toEqual([1, 2])
+    })
+
+    it('does not reissue the number of a deleted stop', () => {
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft()
+      drafts.addStop(stop(`Stop ${drafts.takeStopNumber()}`, 0))
+      drafts.addStop(stop(`Stop ${drafts.takeStopNumber()}`, 1))
+      drafts.removeStop(1)
+
+      expect(drafts.takeStopNumber()).toBe(3)
+    })
+
+    it('does not reissue a number after a reload', async () => {
+      useAuthStore().signIn('tok-u1', { id: 'u1' })
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft()
+      drafts.addStop(stop(`Stop ${drafts.takeStopNumber()}`, 0))
+      drafts.addStop(stop(`Stop ${drafts.takeStopNumber()}`, 1))
+      await nextTick()
+
+      const restored = reloadAs('u1')
+      restored.removeStop(1)
+
+      expect(restored.takeStopNumber()).toBe(3)
+    })
+
+    // A draft seeded from an existing service arrives with names the counter
+    // has never issued; handing one out again would duplicate it in the list.
+    it('clears the names a seeded draft already carries', () => {
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft({ ...service('Blue Line'), stops: [stop('Stop 4', 0)] })
+
+      expect(drafts.takeStopNumber()).toBe(5)
+    })
+
+    it('starts over for a new draft', () => {
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft()
+      drafts.takeStopNumber()
+      drafts.startServiceDraft()
+
+      expect(drafts.takeStopNumber()).toBe(1)
+    })
+  })
+
   describe('persistence', () => {
     beforeEach(() => {
       useAuthStore().signIn('tok-u1', { id: 'u1' })

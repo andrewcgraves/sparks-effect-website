@@ -39,6 +39,9 @@ function emptyScenarioDraft(): ScenarioInput {
   return { name: '', description: '', service_ids: [] }
 }
 
+// The auto-generated name a click-placed stop gets, e.g. `Stop 3`.
+const AUTO_STOP_NAME = /^Stop (\d+)$/
+
 // Rewrites seq to match array order, keeping stop ordering canonical after edits.
 function renumber(stops: Stop[]): Stop[] {
   return stops.map((stop, index) => ({ ...stop, seq: index }))
@@ -50,10 +53,17 @@ export interface PersistedDrafts {
   scenarioDraft: ScenarioInput | null
   editingServiceId: string | null
   editingScenarioId: string | null
+  serviceStopCounter: number
 }
 
 function emptyPersistedDrafts(): PersistedDrafts {
-  return { serviceDraft: null, scenarioDraft: null, editingServiceId: null, editingScenarioId: null }
+  return {
+    serviceDraft: null,
+    scenarioDraft: null,
+    editingServiceId: null,
+    editingScenarioId: null,
+    serviceStopCounter: 0,
+  }
 }
 
 // Persisted drafts are validated field by field on the way in: a draft written
@@ -130,6 +140,10 @@ function readPersistedDrafts(userId: string): PersistedDrafts {
       serviceDraft && typeof parsed.editingServiceId === 'string' ? parsed.editingServiceId : null,
     editingScenarioId:
       scenarioDraft && typeof parsed.editingScenarioId === 'string' ? parsed.editingScenarioId : null,
+    // Falls back to zero rather than discarding the draft: a lost counter
+    // costs a repeated stop number, which takeStopNumber's floor then fixes.
+    serviceStopCounter:
+      serviceDraft && typeof parsed.serviceStopCounter === 'number' ? parsed.serviceStopCounter : 0,
   }
 }
 
@@ -141,6 +155,8 @@ export const useDraftsStore = defineStore('drafts', () => {
   // Set when the draft edits an existing record; null means "creating new".
   const editingServiceId = ref<string | null>(null)
   const editingScenarioId = ref<string | null>(null)
+  // Highest `Stop N` handed out for the service draft. See takeStopNumber.
+  const serviceStopCounter = ref(0)
 
   // Who the in-memory drafts belong to, null while signed out. Writes go under
   // this id rather than reading auth again, so drafts can never land under the
@@ -165,6 +181,7 @@ export const useDraftsStore = defineStore('drafts', () => {
       scenarioDraft: scenarioDraft.value,
       editingServiceId: editingServiceId.value,
       editingScenarioId: editingScenarioId.value,
+      serviceStopCounter: serviceStopCounter.value,
     }
     writeJson(draftsStorageKey(owner), snapshot)
   }
@@ -172,7 +189,11 @@ export const useDraftsStore = defineStore('drafts', () => {
   // Drafts are edited as much through form bindings writing into them as
   // through the actions below, so persistence hangs off a deep watcher rather
   // than each mutator — a v-model must not be able to slip past it.
-  watch([serviceDraft, scenarioDraft, editingServiceId, editingScenarioId], persist, { deep: true })
+  watch(
+    [serviceDraft, scenarioDraft, editingServiceId, editingScenarioId, serviceStopCounter],
+    persist,
+    { deep: true },
+  )
 
   // Keyed on auth.userId, not auth.user: the full record arrives only once
   // /api/auth/me answers, and a draft must not hang on a network call that may
@@ -190,6 +211,7 @@ export const useDraftsStore = defineStore('drafts', () => {
       scenarioDraft.value = adopted.scenarioDraft
       editingServiceId.value = adopted.editingServiceId
       editingScenarioId.value = adopted.editingScenarioId
+      serviceStopCounter.value = adopted.serviceStopCounter
     },
     { immediate: true },
   )
@@ -198,6 +220,23 @@ export const useDraftsStore = defineStore('drafts', () => {
     // Cloned so editing the draft never mutates the caller's service.
     serviceDraft.value = seed ? structuredClone(seed) : emptyServiceDraft()
     editingServiceId.value = serviceId
+    serviceStopCounter.value = 0
+  }
+
+  // Hands out the next number for a click-placed `Stop N`. Monotonic and
+  // persisted alongside the draft, so neither deleting a stop nor reloading
+  // the page can issue a number twice — stop slugs are minted from these
+  // names server-side, and a reused number would move a slug underneath
+  // whatever already holds it. Floored by the names the draft already carries,
+  // which is what stops a draft seeded from an existing service colliding
+  // with numbers this counter never issued.
+  function takeStopNumber(): number {
+    const highestInDraft = (serviceDraft.value?.stops ?? []).reduce((highest, stop) => {
+      const match = AUTO_STOP_NAME.exec(stop.name)
+      return match ? Math.max(highest, Number(match[1])) : highest
+    }, 0)
+    serviceStopCounter.value = Math.max(serviceStopCounter.value, highestInDraft) + 1
+    return serviceStopCounter.value
   }
 
   function patchServiceDraft(patch: Partial<ServiceInput>): void {
@@ -257,6 +296,7 @@ export const useDraftsStore = defineStore('drafts', () => {
   function clearServiceDraft(): void {
     serviceDraft.value = null
     editingServiceId.value = null
+    serviceStopCounter.value = 0
   }
 
   function startScenarioDraft(seed?: ScenarioInput, scenarioId: string | null = null): void {
@@ -293,6 +333,7 @@ export const useDraftsStore = defineStore('drafts', () => {
     hasScenarioDraft,
     startServiceDraft,
     patchServiceDraft,
+    takeStopNumber,
     addStop,
     removeStop,
     updateStop,

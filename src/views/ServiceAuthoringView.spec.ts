@@ -72,6 +72,10 @@ function stopRowName(row: DOMWrapper<Element>): string {
   return (row.find('input[type="text"]').element as HTMLInputElement).value
 }
 
+function mapStub(wrapper: ReturnType<typeof mountView>) {
+  return wrapper.findComponent({ name: 'MapView' })
+}
+
 describe('ServiceAuthoringView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -309,5 +313,240 @@ describe('ServiceAuthoringView', () => {
 
     expect(wrapper.find('[data-testid="submit-error"]').text()).toContain('620 m from route')
     expect(compileService).not.toHaveBeenCalled()
+  })
+
+  describe('placing stops by clicking the map', () => {
+    function toggle(wrapper: ReturnType<typeof mountView>) {
+      return wrapper.find('[data-testid="toggle-place-stops"]')
+    }
+
+    async function clickMap(wrapper: ReturnType<typeof mountView>, lat: number, lng: number) {
+      mapStub(wrapper).vm.$emit('map-click', { lat, lng })
+      await flushPromises()
+    }
+
+    function stopNames(wrapper: ReturnType<typeof mountView>): string[] {
+      return wrapper.findAll('[data-testid="stop-row"]').map(stopRowName)
+    }
+
+    it('arms and disarms the map from the Stops-section toggle', async () => {
+      const wrapper = mountView()
+      await flushPromises()
+
+      expect(mapStub(wrapper).props('stopPlacementArmed')).toBe(false)
+
+      await toggle(wrapper).trigger('click')
+      expect(mapStub(wrapper).props('stopPlacementArmed')).toBe(true)
+
+      await toggle(wrapper).trigger('click')
+      expect(mapStub(wrapper).props('stopPlacementArmed')).toBe(false)
+    })
+
+    it('appends a stop at the clicked point, auto-named from a counter', async () => {
+      const wrapper = mountView()
+      await flushPromises()
+      await toggle(wrapper).trigger('click')
+
+      await clickMap(wrapper, 37.77, -122.41)
+      await clickMap(wrapper, 37.33, -121.88)
+
+      const stops = useDraftsStore().serviceDraft!.stops
+      expect(stops).toEqual([
+        { name: 'Stop 1', lat: 37.77, lng: -122.41, seq: 0 },
+        { name: 'Stop 2', lat: 37.33, lng: -121.88, seq: 1 },
+      ])
+      expect(stopNames(wrapper)).toEqual(['Stop 1', 'Stop 2'])
+    })
+
+    it('appends clicked stops after typed ones rather than replacing them', async () => {
+      const wrapper = mountView()
+      await flushPromises()
+      await addStop(wrapper, 'SF', 37.77, -122.41)
+      await toggle(wrapper).trigger('click')
+
+      await clickMap(wrapper, 37.33, -121.88)
+
+      expect(stopNames(wrapper)).toEqual(['SF', 'Stop 1'])
+    })
+
+    it('never reuses a stop number after a delete', async () => {
+      const wrapper = mountView()
+      await flushPromises()
+      await toggle(wrapper).trigger('click')
+
+      await clickMap(wrapper, 37.77, -122.41)
+      await clickMap(wrapper, 37.33, -121.88)
+      await wrapper.find('[data-testid="stop-remove-1"]').trigger('click')
+      await clickMap(wrapper, 38.0, -122.0)
+
+      expect(stopNames(wrapper)).toEqual(['Stop 1', 'Stop 3'])
+    })
+
+    it('stays armed while the rest of the form is used', async () => {
+      const wrapper = mountView()
+      await flushPromises()
+      await toggle(wrapper).trigger('click')
+
+      await wrapper.find('[data-testid="service-name"]').setValue('Northbound Express')
+      await wrapper.find('[data-testid="vehicle-dwell"]').setValue(45)
+
+      expect(mapStub(wrapper).props('stopPlacementArmed')).toBe(true)
+    })
+
+    it('disarms on Escape', async () => {
+      const wrapper = mountView()
+      await flushPromises()
+      await toggle(wrapper).trigger('click')
+
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+      await flushPromises()
+
+      expect(mapStub(wrapper).props('stopPlacementArmed')).toBe(false)
+    })
+
+    it('stores the raw clicked coordinates and feeds them to the snap preview', async () => {
+      const wrapper = mountView()
+      await flushPromises()
+      await wrapper.find('[data-testid="route-select"]').setValue('main-line')
+      await flushPromises()
+      await toggle(wrapper).trigger('click')
+
+      await clickMap(wrapper, 37.77, -122.41)
+      await vi.advanceTimersByTimeAsync(400)
+
+      expect(snapStops).toHaveBeenCalledWith('main-line', [{ lat: 37.77, lng: -122.41 }])
+    })
+
+    it('leaves the typed Name / Lat / Lng row usable while armed', async () => {
+      const wrapper = mountView()
+      await flushPromises()
+      await toggle(wrapper).trigger('click')
+
+      await addStop(wrapper, 'SF', 37.77, -122.41)
+
+      expect(stopNames(wrapper)).toEqual(['SF'])
+    })
+  })
+
+  describe('dragging a stop pin to reposition it', () => {
+    async function mountWithTwoStops() {
+      const wrapper = mountView()
+      await flushPromises()
+      await wrapper.find('[data-testid="route-select"]').setValue('main-line')
+      await flushPromises()
+      await addStop(wrapper, 'SF', 37.77, -122.41)
+      await addStop(wrapper, 'SJ', 37.33, -121.88)
+      await vi.advanceTimersByTimeAsync(400)
+      await flushPromises()
+      vi.mocked(snapStops).mockClear()
+      return wrapper
+    }
+
+    async function drag(
+      wrapper: ReturnType<typeof mountView>,
+      id: string,
+      moves: { lat: number; lng: number }[],
+      drop: { lat: number; lng: number },
+    ) {
+      for (const move of moves) mapStub(wrapper).vm.$emit('stop-drag', id, move)
+      await flushPromises()
+      mapStub(wrapper).vm.$emit('stop-drag-end', id, drop)
+      await flushPromises()
+    }
+
+    it('moves the dragged stop and leaves names and ordering alone', async () => {
+      const wrapper = await mountWithTwoStops()
+
+      await drag(wrapper, '0', [{ lat: 37.8, lng: -122.4 }], { lat: 37.85, lng: -122.35 })
+
+      expect(useDraftsStore().serviceDraft!.stops).toEqual([
+        { name: 'SF', lat: 37.85, lng: -122.35, seq: 0 },
+        { name: 'SJ', lat: 37.33, lng: -121.88, seq: 1 },
+      ])
+    })
+
+    it('reflects the dropped position in the inline lat/lng editors', async () => {
+      const wrapper = await mountWithTwoStops()
+
+      await drag(wrapper, '0', [], { lat: 37.85, lng: -122.35 })
+
+      const lat = wrapper.find('[data-testid="stop-edit-lat-0"]').element as HTMLInputElement
+      const lng = wrapper.find('[data-testid="stop-edit-lng-0"]').element as HTMLInputElement
+      expect(Number(lat.value)).toBe(37.85)
+      expect(Number(lng.value)).toBe(-122.35)
+    })
+
+    it('re-runs the snap preview once on drop, not during the drag', async () => {
+      const wrapper = await mountWithTwoStops()
+
+      for (const move of [{ lat: 37.8, lng: -122.4 }, { lat: 37.82, lng: -122.38 }]) {
+        mapStub(wrapper).vm.$emit('stop-drag', '0', move)
+        await flushPromises()
+        await vi.advanceTimersByTimeAsync(400)
+      }
+      expect(snapStops).not.toHaveBeenCalled()
+
+      mapStub(wrapper).vm.$emit('stop-drag-end', '0', { lat: 37.85, lng: -122.35 })
+      await flushPromises()
+      await vi.advanceTimersByTimeAsync(400)
+      await flushPromises()
+
+      expect(snapStops).toHaveBeenCalledTimes(1)
+      expect(snapStops).toHaveBeenCalledWith('main-line', [
+        { lat: 37.85, lng: -122.35 },
+        { lat: 37.33, lng: -121.88 },
+      ])
+    })
+
+    it('follows the pointer during the drag', async () => {
+      const wrapper = await mountWithTwoStops()
+
+      mapStub(wrapper).vm.$emit('stop-drag', '0', { lat: 37.8, lng: -122.4 })
+      await flushPromises()
+
+      expect(useDraftsStore().serviceDraft!.stops[0]).toMatchObject({ lat: 37.8, lng: -122.4 })
+      expect(mapStub(wrapper).props('stopPreviewPairs')[0].raw).toEqual({ lat: 37.8, lng: -122.4 })
+    })
+
+    it('clears the off-route warning when a stop is dragged onto the line', async () => {
+      vi.mocked(snapStops).mockResolvedValue(
+        snapResponse({
+          stops: [
+            { input: { lat: 38.5, lng: -123.5 }, snapped: { lat: 37.77, lng: -122.41 }, chainage_m: 0, offset_m: 620, off_route: true },
+            { input: { lat: 37.33, lng: -121.88 }, snapped: { lat: 37.33, lng: -121.88 }, chainage_m: 1000, offset_m: 0, off_route: false },
+          ],
+        }),
+      )
+      const wrapper = mountView()
+      await flushPromises()
+      await wrapper.find('[data-testid="route-select"]').setValue('main-line')
+      await flushPromises()
+      await addStop(wrapper, 'SF', 38.5, -123.5)
+      await addStop(wrapper, 'SJ', 37.33, -121.88)
+      await vi.advanceTimersByTimeAsync(400)
+      await flushPromises()
+      expect(wrapper.find('[data-testid="stop-off-route"]').exists()).toBe(true)
+
+      vi.mocked(snapStops).mockResolvedValue(snapResponse())
+      await drag(wrapper, '0', [], { lat: 37.77, lng: -122.41 })
+      await vi.advanceTimersByTimeAsync(400)
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="stop-off-route"]').exists()).toBe(false)
+    })
+
+    it('does not touch the Stop N counter, so a later click keeps counting up', async () => {
+      const wrapper = mountView()
+      await flushPromises()
+      await wrapper.find('[data-testid="toggle-place-stops"]').trigger('click')
+      mapStub(wrapper).vm.$emit('map-click', { lat: 37.77, lng: -122.41 })
+      await flushPromises()
+
+      await drag(wrapper, '0', [], { lat: 37.85, lng: -122.35 })
+      mapStub(wrapper).vm.$emit('map-click', { lat: 37.33, lng: -121.88 })
+      await flushPromises()
+
+      expect(wrapper.findAll('[data-testid="stop-row"]').map(stopRowName)).toEqual(['Stop 1', 'Stop 2'])
+    })
   })
 })
