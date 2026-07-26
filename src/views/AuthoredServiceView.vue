@@ -6,6 +6,8 @@ import type { Service } from '../api/authoring/types'
 import { useOwnedDetail } from '../composables/useOwnedDetail'
 import { useAuthoredIsochrone } from '../composables/useAuthoredIsochrone'
 import ScenarioPreviewPanel from '../components/ScenarioPreviewPanel.vue'
+import TimeBetweenStations from '../components/TimeBetweenStations.vue'
+import { graphStationTimeGroups } from '../components/stationTimes'
 import { ACTION_LINK_CLASS } from '../components/linkStyles'
 
 const props = defineProps<{ slug: string }>()
@@ -42,6 +44,12 @@ const {
 const services = computed(() => (service.value ? [service.value] : []))
 
 const graphError = ref('')
+
+const stationTimeGroups = computed(() => graphStationTimeGroups(graph.value, services.value))
+
+// Run times are read off the compiled graph, so a graph that never arrives
+// takes the section with it rather than leaving it loading for good.
+const stationTimesFailed = computed(() => Boolean(graphError.value || (compileError.value && !graph.value)))
 
 // Read the existing compiled graph rather than recompiling on every visit. A
 // 404 means this service has never compiled, which is a reason to compile, not
@@ -158,13 +166,16 @@ watch(service, async (loaded) => {
         :services="services"
         :map-stations="mapStations"
         :map-routes="mapRoutes"
-        :graph="graph"
         :status-note="compiling ? 'This service changed — recompiling…' : null"
         @submit="handleIsochroneSubmit"
         @origin-change="onOriginChange"
       />
 
-      <div class="mt-8 grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+      <!-- The supporting detail, as equal cards that flow into as many columns
+           as the viewport has room for rather than one stack per column.
+           auto-fill, not auto-fit: a leftover track stays empty so the cards
+           keep a readable width instead of stretching to fill the row. -->
+      <div class="mt-8 grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] items-start gap-4">
         <section class="rounded-(--radius-box) border border-border bg-surface p-4">
           <h2 class="font-display text-h3 text-ink-true">
             Stops
@@ -192,65 +203,69 @@ watch(service, async (loaded) => {
           </ol>
         </section>
 
-        <div class="flex flex-col gap-4">
-          <section class="rounded-(--radius-box) border border-border bg-surface p-4">
-            <h2 class="font-display text-h3 text-ink-true">
-              Vehicle
-            </h2>
-            <dl class="font-body text-caption mt-3 flex flex-col gap-1 text-ink">
-              <div class="flex justify-between gap-3">
-                <dt class="text-ink-muted">
-                  Max speed
-                </dt>
-                <dd>{{ service.vehicle.max_speed_kmh }} km/h</dd>
-              </div>
-              <div class="flex justify-between gap-3">
-                <dt class="text-ink-muted">
-                  Acceleration
-                </dt>
-                <dd>{{ service.vehicle.acceleration_ms2 }} m/s²</dd>
-              </div>
-              <div class="flex justify-between gap-3">
-                <dt class="text-ink-muted">
-                  Deceleration
-                </dt>
-                <dd>{{ service.vehicle.deceleration_ms2 }} m/s²</dd>
-              </div>
-              <div class="flex justify-between gap-3">
-                <dt class="text-ink-muted">
-                  Dwell
-                </dt>
-                <dd>{{ service.vehicle.dwell_s }} s</dd>
-              </div>
-            </dl>
-          </section>
+        <TimeBetweenStations
+          v-if="!stationTimesFailed"
+          :groups="stationTimeGroups"
+          :loading="!graph"
+        />
 
-          <section class="rounded-(--radius-box) border border-border bg-surface p-4">
-            <h2 class="font-display text-h3 text-ink-true">
-              Frequency
-            </h2>
-            <p
-              v-if="service.frequency_windows.length === 0"
-              class="font-body text-caption mt-3 text-ink-muted italic"
-              data-testid="service-windows-empty"
+        <section class="rounded-(--radius-box) border border-border bg-surface p-4">
+          <h2 class="font-display text-h3 text-ink-true">
+            Vehicle
+          </h2>
+          <dl class="font-body text-caption mt-3 flex flex-col gap-1 text-ink">
+            <div class="flex justify-between gap-3">
+              <dt class="text-ink-muted">
+                Max speed
+              </dt>
+              <dd>{{ service.vehicle.max_speed_kmh }} km/h</dd>
+            </div>
+            <div class="flex justify-between gap-3">
+              <dt class="text-ink-muted">
+                Acceleration
+              </dt>
+              <dd>{{ service.vehicle.acceleration_ms2 }} m/s²</dd>
+            </div>
+            <div class="flex justify-between gap-3">
+              <dt class="text-ink-muted">
+                Deceleration
+              </dt>
+              <dd>{{ service.vehicle.deceleration_ms2 }} m/s²</dd>
+            </div>
+            <div class="flex justify-between gap-3">
+              <dt class="text-ink-muted">
+                Dwell
+              </dt>
+              <dd>{{ service.vehicle.dwell_s }} s</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section class="rounded-(--radius-box) border border-border bg-surface p-4">
+          <h2 class="font-display text-h3 text-ink-true">
+            Frequency
+          </h2>
+          <p
+            v-if="service.frequency_windows.length === 0"
+            class="font-body text-caption mt-3 text-ink-muted italic"
+            data-testid="service-windows-empty"
+          >
+            No frequency windows yet.
+          </p>
+          <ul
+            v-else
+            class="mt-3 flex flex-col gap-1"
+          >
+            <li
+              v-for="(window, index) in service.frequency_windows"
+              :key="index"
+              class="font-body text-caption text-ink"
+              data-testid="service-window-row"
             >
-              No frequency windows yet.
-            </p>
-            <ul
-              v-else
-              class="mt-3 flex flex-col gap-1"
-            >
-              <li
-                v-for="(window, index) in service.frequency_windows"
-                :key="index"
-                class="font-body text-caption text-ink"
-                data-testid="service-window-row"
-              >
-                {{ window.start_time }}–{{ window.end_time }}, every {{ Math.round(window.headway_s / 60) }} min
-              </li>
-            </ul>
-          </section>
-        </div>
+              {{ window.start_time }}–{{ window.end_time }}, every {{ Math.round(window.headway_s / 60) }} min
+            </li>
+          </ul>
+        </section>
       </div>
     </template>
   </main>

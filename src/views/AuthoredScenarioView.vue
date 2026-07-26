@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { compileScenario, fetchScenario, fetchScenarioGraph, fetchScenarioIsochrone } from '../api/authoring/scenarios'
 import { fetchMyServices } from '../api/authoring/services'
 import { ApiError } from '../api/authoring/client'
@@ -8,6 +8,8 @@ import { useOwnedDetail } from '../composables/useOwnedDetail'
 import { useOwnedList } from '../composables/useOwnedList'
 import { useAuthoredIsochrone } from '../composables/useAuthoredIsochrone'
 import ScenarioPreviewPanel from '../components/ScenarioPreviewPanel.vue'
+import TimeBetweenStations from '../components/TimeBetweenStations.vue'
+import { graphStationTimeGroups } from '../components/stationTimes'
 import { ACTION_LINK_CLASS } from '../components/linkStyles'
 
 const props = defineProps<{ slug: string }>()
@@ -37,6 +39,12 @@ const {
 const { items: services } = useOwnedList(fetchMyServices)
 
 const graphError = ref('')
+
+const stationTimeGroups = computed(() => graphStationTimeGroups(graph.value, services.value))
+
+// Run times are read off the compiled graph, so a graph that never arrives
+// takes the section with it rather than leaving it loading for good.
+const stationTimesFailed = computed(() => Boolean(graphError.value || (compileError.value && !graph.value)))
 
 // Read the existing compiled graph rather than recompiling on every visit. A
 // 404 means this scenario has never compiled, which is a reason to compile,
@@ -156,6 +164,19 @@ watch(scenario, async (loaded) => {
         @submit="handleIsochroneSubmit"
         @origin-change="onOriginChange"
       />
+
+      <!-- Sized as one card in the same flowing grid the service page uses, so
+           the run times sit at a readable width rather than spanning the page
+           and so later cards slot in beside them. -->
+      <div
+        v-if="!stationTimesFailed"
+        class="mt-8 grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] items-start gap-4"
+      >
+        <TimeBetweenStations
+          :groups="stationTimeGroups"
+          :loading="!graph"
+        />
+      </div>
     </template>
   </main>
 </template>

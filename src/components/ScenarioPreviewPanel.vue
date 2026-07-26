@@ -1,10 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue'
 import IsochroneForm from '../IsochroneForm.vue'
 import MapView from './MapView.vue'
-import TimeBetweenStations from './TimeBetweenStations.vue'
-import { graphStationTimeGroups } from './stationTimes'
-import type { NearMiss, Service, StopCluster, TransitGraph } from '../api/authoring/types'
+import type { NearMiss, Service, StopCluster } from '../api/authoring/types'
 import type { Route, Station } from '../api/scenarios'
 import type { ChainResponse } from '../fixtures/isochrone'
 import type { IsochronePayload } from '../composables/useAuthoredIsochrone'
@@ -27,15 +24,7 @@ const props = defineProps<{
   mapStations?: Station[]
   mapRoutes?: Route[]
   statusNote?: string | null
-  // The same compiled graph the map layers came from, read for its per-service
-  // edge run times rather than its geometry. Null while it is still being
-  // read, which the run-time table reports as loading rather than as empty.
-  graph: TransitGraph | null
 }>()
-
-const stationTimeGroups = computed(() =>
-  props.graph ? graphStationTimeGroups(props.graph, props.services) : [],
-)
 
 defineEmits<{
   submit: [payload: IsochronePayload]
@@ -55,82 +44,75 @@ function formatMeters(total: number): string {
 </script>
 
 <template>
-  <div class="mt-8 flex flex-col gap-4">
-    <div class="grid grid-cols-1 items-start gap-4 lg:grid-cols-[2fr_1fr]">
-      <div class="h-[70vh] overflow-hidden rounded-(--radius-box) border border-border">
-        <MapView
-          :origin="props.origin"
-          :isochrone-data="props.isochroneData"
-          :loading="props.loading"
-          :routes="props.mapRoutes ?? []"
-          :stations="props.mapStations ?? []"
-          :services="[]"
-        />
-      </div>
-
-      <div class="flex flex-col gap-4">
-        <IsochroneForm
-          :error="props.error"
-          :loading="props.loading"
-          @submit="$emit('submit', $event)"
-          @origin-change="$emit('origin-change', $event)"
-        />
-        <p
-          v-if="props.statusNote"
-          class="font-body text-caption text-ink-muted italic"
-          role="status"
-          data-testid="recompiling-status"
-        >
-          {{ props.statusNote }}
-        </p>
-
-        <section
-          v-if="props.nearMisses.length"
-          class="rounded-(--radius-box) border border-border bg-surface p-4"
-          data-testid="near-miss-list"
-        >
-          <h2 class="font-display text-h3 text-ink-true">
-            Did not connect
-          </h2>
-          <ul class="mt-3 flex flex-col gap-2">
-            <li
-              v-for="(nearMiss, index) in props.nearMisses"
-              :key="index"
-              class="font-body text-caption text-ink"
-              data-testid="near-miss-row"
-            >
-              {{ nearMiss.a.name }} ({{ serviceName(nearMiss.a.service_id) }}) and
-              {{ nearMiss.b.name }} ({{ serviceName(nearMiss.b.service_id) }})
-              are {{ formatMeters(nearMiss.distance_m) }} apart and did not connect
-            </li>
-          </ul>
-        </section>
-
-        <section
-          v-if="props.realisedClusters.length"
-          class="rounded-(--radius-box) border border-border bg-surface p-4"
-          data-testid="realised-clusters"
-        >
-          <h2 class="font-display text-h3 text-ink-true">
-            Realised interchanges
-          </h2>
-          <ul class="mt-3 flex flex-col gap-2">
-            <li
-              v-for="cluster in props.realisedClusters"
-              :key="cluster.key"
-              class="font-body text-caption text-ink"
-              data-testid="realised-cluster-row"
-            >
-              {{ cluster.names.join(', ') }}
-            </li>
-          </ul>
-        </section>
-      </div>
+  <div class="mt-8 grid grid-cols-1 items-start gap-4 lg:grid-cols-[2fr_1fr]">
+    <div class="h-[70vh] overflow-hidden rounded-(--radius-box) border border-border">
+      <MapView
+        :origin="props.origin"
+        :isochrone-data="props.isochroneData"
+        :loading="props.loading"
+        :routes="props.mapRoutes ?? []"
+        :stations="props.mapStations ?? []"
+        :services="[]"
+      />
     </div>
 
-    <TimeBetweenStations
-      :groups="stationTimeGroups"
-      :loading="!props.graph"
-    />
+    <div class="flex flex-col gap-4">
+      <IsochroneForm
+        :error="props.error"
+        :loading="props.loading"
+        @submit="$emit('submit', $event)"
+        @origin-change="$emit('origin-change', $event)"
+      />
+      <p
+        v-if="props.statusNote"
+        class="font-body text-caption text-ink-muted italic"
+        role="status"
+        data-testid="recompiling-status"
+      >
+        {{ props.statusNote }}
+      </p>
+
+      <section
+        v-if="props.nearMisses.length"
+        class="rounded-(--radius-box) border border-border bg-surface p-4"
+        data-testid="near-miss-list"
+      >
+        <h2 class="font-display text-h3 text-ink-true">
+          Did not connect
+        </h2>
+        <ul class="mt-3 flex flex-col gap-2">
+          <li
+            v-for="(nearMiss, index) in props.nearMisses"
+            :key="index"
+            class="font-body text-caption text-ink"
+            data-testid="near-miss-row"
+          >
+            {{ nearMiss.a.name }} ({{ serviceName(nearMiss.a.service_id) }}) and
+            {{ nearMiss.b.name }} ({{ serviceName(nearMiss.b.service_id) }})
+            are {{ formatMeters(nearMiss.distance_m) }} apart and did not connect
+          </li>
+        </ul>
+      </section>
+
+      <section
+        v-if="props.realisedClusters.length"
+        class="rounded-(--radius-box) border border-border bg-surface p-4"
+        data-testid="realised-clusters"
+      >
+        <h2 class="font-display text-h3 text-ink-true">
+          Realised interchanges
+        </h2>
+        <ul class="mt-3 flex flex-col gap-2">
+          <li
+            v-for="cluster in props.realisedClusters"
+            :key="cluster.key"
+            class="font-body text-caption text-ink"
+            data-testid="realised-cluster-row"
+          >
+            {{ cluster.names.join(', ') }}
+          </li>
+        </ul>
+      </section>
+    </div>
   </div>
 </template>

@@ -220,6 +220,13 @@ describe('AuthoredScenarioView', () => {
     expect(wrapper.find('[data-testid="station-times-empty"]').exists()).toBe(false)
   })
 
+  it('drops the run-time section when the graph never arrives, rather than loading for good', async () => {
+    vi.mocked(fetchScenarioGraph).mockRejectedValue(new ApiError('boom', 500))
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="time-between-stations"]').exists()).toBe(false)
+  })
+
   it('keeps the map usable when the compiled graph has no run times', async () => {
     const wrapper = mountView()
     await flushPromises()

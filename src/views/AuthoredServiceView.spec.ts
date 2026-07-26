@@ -193,6 +193,26 @@ describe('AuthoredServiceView', () => {
       .toEqual(['Union', 'Midtown', '1:00'])
   })
 
+  it('keeps the run times beside the stops and vehicle cards, not below them', async () => {
+    vi.mocked(fetchService).mockResolvedValue(stubService)
+    const wrapper = mountView()
+    await flushPromises()
+    // One flowing grid of cards, so they slot in side by side when there's room.
+    const grid = wrapper.get('[data-testid="time-between-stations"]').element.parentElement
+    expect(grid?.className).toContain('grid')
+    expect(grid?.querySelectorAll('[data-testid="service-stop-row"]').length).toBeGreaterThan(0)
+  })
+
+  it('drops the run-time section when the graph never arrives, rather than loading for good', async () => {
+    vi.mocked(fetchService).mockResolvedValue(stubService)
+    vi.mocked(fetchServiceGraph).mockRejectedValue(new ApiError('boom', 500))
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="time-between-stations"]').exists()).toBe(false)
+    // The stops and vehicle cards are unaffected.
+    expect(wrapper.find('[data-testid="service-stop-row"]').exists()).toBe(true)
+  })
+
   it('shows the return leg\'s own run time when the other terminus is chosen', async () => {
     vi.mocked(fetchService).mockResolvedValue(stubService)
     const wrapper = mountView()
