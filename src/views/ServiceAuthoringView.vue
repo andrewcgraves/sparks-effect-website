@@ -473,6 +473,8 @@ function formatSeconds(total: number): string {
               {{ orderWarning }}
             </p>
 
+            <!-- sm, not the page's lg: this grid is already inside the lg two-column
+                 split, so it needs its own earlier breakpoint. -->
             <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-[2fr_1fr_1fr_auto]">
               <label :class="[FIELD_LABEL_CLASS, 'col-span-2 sm:col-span-1']">
                 Name
