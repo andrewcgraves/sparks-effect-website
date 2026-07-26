@@ -17,6 +17,7 @@ import type { Route as ScenarioRoute } from '../api/scenarios'
 import MapView from '../components/MapView.vue'
 import type { StopPreviewPair } from '../composables/useStopPreviewLayer'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
+import { STOP_PLACEMENT_CUE } from '../components/placementCues'
 import { extractOffendingStopNames } from './parseServiceError'
 
 const drafts = useDraftsStore()
@@ -669,7 +670,8 @@ function formatSeconds(total: number): string {
             :stations="[]"
             :services="[]"
             :stop-preview-pairs="stopPreviewPairs"
-            :stop-placement-armed="placingStops"
+            :placement-armed="placingStops"
+            :placement-cue="STOP_PLACEMENT_CUE"
             hide-isochrone-legend
             @map-click="handleMapClick"
             @stop-drag="handleStopDrag"

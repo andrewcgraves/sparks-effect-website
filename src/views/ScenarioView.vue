@@ -2,12 +2,15 @@
 import { ref } from 'vue'
 import IsochroneForm from '../IsochroneForm.vue'
 import MapView from '../components/MapView.vue'
+import { ORIGIN_PICK_CUE } from '../components/placementCues'
 import { useScenario } from '../composables/useScenario'
 import { useIsochrone } from '../composables/useIsochrone'
+import { useOriginPick } from '../composables/useOriginPick'
 
 const props = defineProps<{ slug: string }>()
 
 const origin = ref<{ lat: number; lng: number } | null>(null)
+const { pickArmed, onMapClick } = useOriginPick()
 
 const { name, description, routes, stations, services } = useScenario(props.slug)
 const { data: isochroneData, loading: isLoading, error: fetchError, generate } = useIsochrone()
@@ -49,15 +52,20 @@ async function handleFormSubmit(payload: { lat: number; lng: number; duration: n
           :routes="routes"
           :stations="stations"
           :services="services"
+          :placement-armed="pickArmed"
+          :placement-cue="ORIGIN_PICK_CUE"
+          @map-click="onMapClick"
         />
       </div>
 
       <div class="flex flex-col gap-4">
         <IsochroneForm
+          ref="isochroneForm"
           :error="fetchError"
           :loading="isLoading"
           @submit="handleFormSubmit"
           @origin-change="onOriginChange"
+          @pick-armed="pickArmed = $event"
         />
         <section class="rounded-(--radius-box) border border-border bg-surface p-4">
           <h2 class="font-display text-h3 text-ink-true">

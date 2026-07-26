@@ -32,10 +32,10 @@ const stubIsochrone: ChainResponse = {
   },
 }
 
-function mountScenarioView(slug = 'ca-hsr') {
+function mountScenarioView(slug = 'ca-hsr', stubs: Record<string, boolean> = { MapView: true, IsochroneForm: true }) {
   return mount(ScenarioView, {
     props: { slug },
-    global: { stubs: { MapView: true, IsochroneForm: true } },
+    global: { stubs },
   })
 }
 
@@ -176,5 +176,36 @@ describe('ScenarioView', () => {
     await wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('origin-change', { lat: 51.5074, lng: -0.1278 })
     await wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('origin-change', null)
     expect(wrapper.findComponent({ name: 'MapView' }).props('origin')).toBeNull()
+  })
+
+  describe('picking the origin on the map', () => {
+    it('arms MapView with an origin cue when IsochroneForm emits pick-armed', async () => {
+      const wrapper = mountScenarioView()
+      expect(wrapper.findComponent({ name: 'MapView' }).props('placementArmed')).toBe(false)
+
+      await wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('pick-armed', true)
+
+      expect(wrapper.findComponent({ name: 'MapView' }).props('placementArmed')).toBe(true)
+      expect(wrapper.findComponent({ name: 'MapView' }).props('placementCue')).toBe('Click the map to set origin — Esc to cancel')
+    })
+
+    it('disarms MapView when IsochroneForm reports the pick is over', async () => {
+      const wrapper = mountScenarioView()
+      await wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('pick-armed', true)
+      await wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('pick-armed', false)
+
+      expect(wrapper.findComponent({ name: 'MapView' }).props('placementArmed')).toBe(false)
+    })
+
+    it('feeds a map click back into the form as the origin', async () => {
+      const wrapper = mountScenarioView('ca-hsr', { MapView: true })
+      await wrapper.find('[data-testid="pick-on-map"]').trigger('click')
+
+      await wrapper.findComponent({ name: 'MapView' }).vm.$emit('map-click', { lat: 45.5231, lng: -122.6784 })
+
+      expect((wrapper.find('input[data-testid="lat"]').element as HTMLInputElement).value).toBe('45.5231')
+      expect((wrapper.find('input[data-testid="lng"]').element as HTMLInputElement).value).toBe('-122.6784')
+      expect(wrapper.findComponent({ name: 'MapView' }).props('placementArmed')).toBe(false)
+    })
   })
 })
