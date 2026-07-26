@@ -26,7 +26,16 @@ const Stub = { template: '<div>stub</div>' }
 // A compiled single-service graph: one service, its stops as nodes, and the
 // route the API bundles onto the read so the map can follow the alignment.
 const graph = {
-  services: [{ service_id: 'svc1', wait_secs: 0, edges: [{ from_slug: 'a', to_slug: 'b', seconds: 60 }] }],
+  // Each hop compiles with its return leg; the two differ by the dwell at the
+  // stop each one arrives at.
+  services: [{
+    service_id: 'svc1',
+    wait_secs: 0,
+    edges: [
+      { from_slug: 'a', to_slug: 'b', seconds: 60 },
+      { from_slug: 'b', to_slug: 'a', seconds: 75 },
+    ],
+  }],
   nodes: [
     { slug: 'a', lat: 37.7, lng: -122.4, names: ['Union'] },
     { slug: 'b', lat: 37.5, lng: -122.1, names: ['Midtown'] },
@@ -184,14 +193,14 @@ describe('AuthoredServiceView', () => {
       .toEqual(['Union', 'Midtown', '1:00'])
   })
 
-  it('reverses the run times when the other terminus is chosen', async () => {
+  it('shows the return leg\'s own run time when the other terminus is chosen', async () => {
     vi.mocked(fetchService).mockResolvedValue(stubService)
     const wrapper = mountView()
     await flushPromises()
 
     await wrapper.findAll('[data-testid="direction-toggle"]')[1].trigger('click')
     expect(wrapper.get('[data-testid="station-time-row"]').findAll('td').map((td) => td.text()))
-      .toEqual(['Midtown', 'Union', '1:00'])
+      .toEqual(['Midtown', 'Union', '1:15'])
   })
 
   it('draws the service along its route alignment, not chords between stops', async () => {

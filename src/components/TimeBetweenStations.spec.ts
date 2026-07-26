@@ -6,11 +6,28 @@ import type { StationTimeGroup } from './stationTimes'
 const coastLine: StationTimeGroup = {
   key: 'svc1',
   label: 'Coast Line',
-  rows: [
-    { from: 'San Francisco', to: 'San Jose', seconds: 1800 },
-    { from: 'San Jose', to: 'Fresno', seconds: 2445 },
+  directions: [
+    {
+      terminus: 'Fresno',
+      rows: [
+        { from: 'San Francisco', to: 'San Jose', seconds: 1800 },
+        { from: 'San Jose', to: 'Fresno', seconds: 2445 },
+      ],
+    },
+    {
+      terminus: 'San Francisco',
+      rows: [
+        { from: 'Fresno', to: 'San Jose', seconds: 2460 },
+        { from: 'San Jose', to: 'San Francisco', seconds: 1830 },
+      ],
+    },
   ],
-  termini: ['San Francisco', 'Fresno'],
+}
+
+const oneWay: StationTimeGroup = {
+  key: 'svc9',
+  label: 'Shuttle',
+  directions: [coastLine.directions[0]],
 }
 
 function mountSection(groups: StationTimeGroup[], loading = false) {
@@ -52,30 +69,31 @@ describe('TimeBetweenStations', () => {
     expect(wrapper.find('[data-testid="station-time-group-label"]').exists()).toBe(false)
   })
 
-  it('labels the direction toggle with each terminus of the service', () => {
+  it('labels the direction toggle with the terminus each direction heads for', () => {
     const buttons = mountSection([coastLine]).findAll('[data-testid="direction-toggle"]')
     expect(buttons.map((b) => b.text())).toEqual(['To Fresno', 'To San Francisco'])
   })
 
-  it('starts in stop order, with the forward direction pressed', () => {
+  it('starts on the first direction, which the compiler emits in stop order', () => {
     const buttons = mountSection([coastLine]).findAll('[data-testid="direction-toggle"]')
     expect(buttons[0].attributes('aria-pressed')).toBe('true')
     expect(buttons[1].attributes('aria-pressed')).toBe('false')
   })
 
-  it('reverses the hops and swaps their endpoints when the other direction is chosen', async () => {
+  it('shows the chosen direction\'s own hops and run times', async () => {
     const wrapper = mountSection([coastLine])
     await wrapper.findAll('[data-testid="direction-toggle"]')[1].trigger('click')
     const cells = wrapper.findAll('[data-testid="station-time-row"]').map((row) =>
       row.findAll('td').map((td) => td.text()),
     )
+    // 41:00 is the return leg's own time, not the outbound 40:45 mirrored.
     expect(cells).toEqual([
-      ['Fresno', 'San Jose', '40:45'],
-      ['San Jose', 'San Francisco', '30:00'],
+      ['Fresno', 'San Jose', '41:00'],
+      ['San Jose', 'San Francisco', '30:30'],
     ])
   })
 
-  it('reverses only the group whose toggle was used', async () => {
+  it('switches only the group whose toggle was used', async () => {
     const second: StationTimeGroup = { ...coastLine, key: 'svc2', label: 'Valley Line' }
     const wrapper = mountSection([coastLine, second])
     await wrapper.findAll('[data-testid="direction-toggle"]')[1].trigger('click')
@@ -84,9 +102,10 @@ describe('TimeBetweenStations', () => {
     expect(groups[1].findAll('[data-testid="station-time-row"]')[0].text()).toContain('San Francisco')
   })
 
-  it('offers no toggle for a group with no known termini', () => {
-    const wrapper = mountSection([{ ...coastLine, termini: null }])
+  it('offers no toggle for a service compiled in one direction', () => {
+    const wrapper = mountSection([oneWay])
     expect(wrapper.find('[data-testid="direction-toggle"]').exists()).toBe(false)
+    expect(wrapper.findAll('[data-testid="station-time-row"]')).toHaveLength(2)
   })
 
   it('shows muted loading copy instead of a table while run times are in flight', () => {

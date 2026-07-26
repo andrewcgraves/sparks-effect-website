@@ -4,9 +4,8 @@ import IsochroneForm from '../IsochroneForm.vue'
 import MapView from '../components/MapView.vue'
 import TimeBetweenStations from '../components/TimeBetweenStations.vue'
 import { segmentStationTimeGroups } from '../components/stationTimes'
-import { fetchScenarioTravelTimes } from '../api/scenarios'
-import type { SegmentTime } from '../api/scenarios'
 import { useScenario } from '../composables/useScenario'
+import { useScenarioTravelTimes } from '../composables/useScenarioTravelTimes'
 import { useIsochrone } from '../composables/useIsochrone'
 
 const props = defineProps<{ slug: string }>()
@@ -15,19 +14,11 @@ const origin = ref<{ lat: number; lng: number } | null>(null)
 
 const { name, description, routes, stations, services } = useScenario(props.slug)
 
-// Run times are supporting detail, not the reason the page exists: a failure
-// takes the section away and is logged, leaving the map and form untouched.
-const segments = ref<SegmentTime[]>([])
-const travelTimesLoading = ref(true)
-const travelTimesFailed = ref(false)
-
-fetchScenarioTravelTimes(props.slug)
-  .then((travelTimes) => { segments.value = travelTimes.segments })
-  .catch((err) => {
-    travelTimesFailed.value = true
-    console.error(`Failed to load travel times for ${props.slug}`, err)
-  })
-  .finally(() => { travelTimesLoading.value = false })
+const {
+  segments,
+  loading: travelTimesLoading,
+  failed: travelTimesFailed,
+} = useScenarioTravelTimes(props.slug)
 
 const stationTimeGroups = computed(() => segmentStationTimeGroups(segments.value, stations.value))
 const { data: isochroneData, loading: isLoading, error: fetchError, generate } = useIsochrone()

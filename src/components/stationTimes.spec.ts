@@ -3,17 +3,6 @@ import { formatRunTime, graphStationTimeGroups, segmentStationTimeGroups } from 
 import type { Service, TransitGraph } from '../api/authoring/types'
 import type { Station } from '../api/scenarios'
 
-function station(slug: string, name: string): Station {
-  return {
-    id: slug,
-    scenario_id: 'ca-hsr',
-    slug,
-    name,
-    location: { type: 'Point', coordinates: [0, 0] },
-    platform_height: 'high',
-  }
-}
-
 function service(id: string, name: string): Service {
   return {
     id,
@@ -26,22 +15,38 @@ function service(id: string, name: string): Service {
   }
 }
 
+function station(slug: string, name: string): Station {
+  return {
+    id: slug,
+    scenario_id: 'ca-hsr',
+    slug,
+    name,
+    location: { type: 'Point', coordinates: [0, 0] },
+    platform_height: 'high',
+  }
+}
+
+const nodes = [
+  { slug: 'sf', lat: 37.7, lng: -122.4, names: ['San Francisco'] },
+  { slug: 'sj', lat: 37.3, lng: -121.9, names: ['San Jose'] },
+  { slug: 'fresno', lat: 36.7, lng: -119.8, names: ['Fresno'] },
+]
+
+// The compiler emits each hop as an adjacent forward/reverse pair, in stop
+// order, and the two directions differ by the dwell at the stop each one
+// arrives at — so the return leg is not simply a mirror of the outbound.
 const graph: TransitGraph = {
-  services: [
-    {
-      service_id: 'svc1',
-      wait_secs: 0,
-      edges: [
-        { from_slug: 'sf', to_slug: 'sj', seconds: 1800 },
-        { from_slug: 'sj', to_slug: 'fresno', seconds: 2400 },
-      ],
-    },
-  ],
-  nodes: [
-    { slug: 'sf', lat: 37.7, lng: -122.4, names: ['San Francisco'] },
-    { slug: 'sj', lat: 37.3, lng: -121.9, names: ['San Jose'] },
-    { slug: 'fresno', lat: 36.7, lng: -119.8, names: ['Fresno'] },
-  ],
+  services: [{
+    service_id: 'svc1',
+    wait_secs: 0,
+    edges: [
+      { from_slug: 'sf', to_slug: 'sj', seconds: 1800 },
+      { from_slug: 'sj', to_slug: 'sf', seconds: 1830 },
+      { from_slug: 'sj', to_slug: 'fresno', seconds: 2400 },
+      { from_slug: 'fresno', to_slug: 'sj', seconds: 2445 },
+    ],
+  }],
+  nodes,
 }
 
 describe('formatRunTime', () => {
@@ -69,23 +74,47 @@ describe('graphStationTimeGroups', () => {
     expect(group.label).toBe('svc1')
   })
 
-  it('resolves node slugs to display names on each row', () => {
-    const [group] = graphStationTimeGroups(graph, [service('svc1', 'Coast Line')])
-    expect(group.rows).toEqual([
+  it('reads the outbound direction in stop order, one row per hop', () => {
+    const [group] = graphStationTimeGroups(graph, [])
+    expect(group.directions[0].rows).toEqual([
       { from: 'San Francisco', to: 'San Jose', seconds: 1800 },
       { from: 'San Jose', to: 'Fresno', seconds: 2400 },
     ])
   })
 
-  it('falls back to the slug when a node carries no name', () => {
-    const unnamed: TransitGraph = { ...graph, nodes: [] }
-    const [group] = graphStationTimeGroups(unnamed, [])
-    expect(group.rows[0]).toEqual({ from: 'sf', to: 'sj', seconds: 1800 })
+  it('reads the return direction from its own edges, not a mirror of the outbound', () => {
+    const [group] = graphStationTimeGroups(graph, [])
+    expect(group.directions[1].rows).toEqual([
+      { from: 'Fresno', to: 'San Jose', seconds: 2445 },
+      { from: 'San Jose', to: 'San Francisco', seconds: 1830 },
+    ])
   })
 
-  it('labels the direction toggle with the termini of the edge chain', () => {
-    const [group] = graphStationTimeGroups(graph, [service('svc1', 'Coast Line')])
-    expect(group.termini).toEqual(['San Francisco', 'Fresno'])
+  it('names each direction after the terminus it heads for', () => {
+    const [group] = graphStationTimeGroups(graph, [])
+    expect(group.directions.map((d) => d.terminus)).toEqual(['Fresno', 'San Francisco'])
+  })
+
+  it('resolves node slugs to display names, falling back to the slug', () => {
+    const unnamed: TransitGraph = { ...graph, nodes: [] }
+    const [group] = graphStationTimeGroups(unnamed, [])
+    expect(group.directions[0].rows[0]).toEqual({ from: 'sf', to: 'sj', seconds: 1800 })
+  })
+
+  it('offers only one direction for a service compiled one way', () => {
+    const oneWay: TransitGraph = {
+      services: [{
+        service_id: 'svc1',
+        wait_secs: 0,
+        edges: [{ from_slug: 'sf', to_slug: 'sj', seconds: 1800 }],
+      }],
+      nodes,
+    }
+    const [group] = graphStationTimeGroups(oneWay, [])
+    expect(group.directions).toHaveLength(1)
+    expect(group.directions[0].rows).toEqual([
+      { from: 'San Francisco', to: 'San Jose', seconds: 1800 },
+    ])
   })
 
   it('drops services that compiled no edges', () => {
@@ -110,15 +139,15 @@ describe('segmentStationTimeGroups', () => {
 
   it('resolves station slugs to names and falls back to the slug', () => {
     const [group] = segmentStationTimeGroups(segments, stations)
-    expect(group.rows).toEqual([
+    expect(group.directions[0].rows).toEqual([
       { from: 'San Francisco', to: 'San Jose', seconds: 1800 },
       { from: 'San Jose', to: 'fresno', seconds: 2400 },
     ])
   })
 
-  it('offers no direction toggle, since only the stored direction is known', () => {
+  it('offers the stored direction only, since the reverse is not served', () => {
     const [group] = segmentStationTimeGroups(segments, stations)
-    expect(group.termini).toBeNull()
+    expect(group.directions).toHaveLength(1)
   })
 
   it('leaves the group unlabelled, since segments carry no service id yet', () => {

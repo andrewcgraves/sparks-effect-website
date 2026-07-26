@@ -182,11 +182,16 @@ describe('AuthoredScenarioView', () => {
   })
 
   it('offers a direction toggle per service group, defaulting to stop order', async () => {
+    // The compiler emits each hop with its return leg, which carries the dwell
+    // of the stop it arrives at and so has its own run time.
     vi.mocked(fetchScenarioGraph).mockResolvedValue({
       services: [{
         service_id: 'svc2',
         wait_secs: 0,
-        edges: [{ from_slug: 'a', to_slug: 'b', seconds: 125 }],
+        edges: [
+          { from_slug: 'a', to_slug: 'b', seconds: 125 },
+          { from_slug: 'b', to_slug: 'a', seconds: 140 },
+        ],
       }],
       nodes: [
         { slug: 'a', lat: 35.39, lng: -119.02, names: ['Bakersfield'] },
@@ -198,9 +203,21 @@ describe('AuthoredScenarioView', () => {
 
     const toggles = wrapper.findAll('[data-testid="direction-toggle"]')
     expect(toggles.map((t) => t.text())).toEqual(['To Los Angeles', 'To Bakersfield'])
+    expect(wrapper.get('[data-testid="station-time-row"]').findAll('td').map((td) => td.text()))
+      .toEqual(['Bakersfield', 'Los Angeles', '2:05'])
+
     await toggles[1].trigger('click')
     expect(wrapper.get('[data-testid="station-time-row"]').findAll('td').map((td) => td.text()))
-      .toEqual(['Los Angeles', 'Bakersfield', '2:05'])
+      .toEqual(['Los Angeles', 'Bakersfield', '2:20'])
+  })
+
+  it('shows muted loading copy for run times while the graph is still being read', async () => {
+    vi.mocked(fetchScenarioGraph).mockReturnValue(new Promise(() => {}))
+    const wrapper = mountView()
+    await flushPromises()
+    // Not yet knowing the run times must not read as "there are none".
+    expect(wrapper.get('[data-testid="station-times-loading"]').classes()).toContain('text-ink-muted')
+    expect(wrapper.find('[data-testid="station-times-empty"]').exists()).toBe(false)
   })
 
   it('keeps the map usable when the compiled graph has no run times', async () => {

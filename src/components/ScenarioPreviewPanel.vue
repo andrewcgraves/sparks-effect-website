@@ -28,8 +28,9 @@ const props = defineProps<{
   mapRoutes?: Route[]
   statusNote?: string | null
   // The same compiled graph the map layers came from, read for its per-service
-  // edge run times rather than its geometry.
-  graph?: TransitGraph | null
+  // edge run times rather than its geometry. Null while it is still being
+  // read, which the run-time table reports as loading rather than as empty.
+  graph: TransitGraph | null
 }>()
 
 const stationTimeGroups = computed(() =>
@@ -127,6 +128,9 @@ function formatMeters(total: number): string {
       </div>
     </div>
 
-    <TimeBetweenStations :groups="stationTimeGroups" />
+    <TimeBetweenStations
+      :groups="stationTimeGroups"
+      :loading="!props.graph"
+    />
   </div>
 </template>
