@@ -473,8 +473,8 @@ function formatSeconds(total: number): string {
               {{ orderWarning }}
             </p>
 
-            <div class="mt-3 grid grid-cols-[2fr_1fr_1fr_auto] gap-2">
-              <label :class="FIELD_LABEL_CLASS">
+            <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-[2fr_1fr_1fr_auto]">
+              <label :class="[FIELD_LABEL_CLASS, 'col-span-2 sm:col-span-1']">
                 Name
                 <input
                   v-model="newStopName"
@@ -505,7 +505,7 @@ function formatSeconds(total: number): string {
               </label>
               <button
                 type="button"
-                class="font-display text-btn mt-auto cursor-pointer rounded-(--radius-field) border border-border px-3 py-1.5 uppercase hover:bg-white"
+                class="font-display text-btn col-span-2 mt-2 cursor-pointer rounded-(--radius-field) border border-border px-3 py-1.5 uppercase hover:bg-white sm:col-span-1 sm:mt-auto"
                 data-testid="add-stop"
                 @click="handleAddStop"
               >
@@ -590,7 +590,7 @@ function formatSeconds(total: number): string {
               </li>
             </ul>
 
-            <div class="mt-3 grid grid-cols-[1fr_1fr_1fr_auto] gap-2">
+            <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-[1fr_1fr_1fr_auto]">
               <label :class="FIELD_LABEL_CLASS">
                 Start
                 <input
@@ -621,7 +621,7 @@ function formatSeconds(total: number): string {
               </label>
               <button
                 type="button"
-                class="font-display text-btn mt-auto cursor-pointer rounded-(--radius-field) border border-border px-3 py-1.5 uppercase hover:bg-white"
+                class="font-display text-btn mt-2 cursor-pointer rounded-(--radius-field) border border-border px-3 py-1.5 uppercase hover:bg-white sm:mt-auto"
                 data-testid="add-frequency"
                 @click="handleAddFrequencyWindow"
               >
