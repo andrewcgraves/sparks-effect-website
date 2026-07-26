@@ -395,4 +395,160 @@ describe('IsochroneForm', () => {
     await flushPromises()
     expect((button.element as HTMLButtonElement).disabled).toBe(false)
   })
+
+  describe('picking the origin on the map', () => {
+    function pickButton(wrapper: ReturnType<typeof mount>) {
+      return wrapper.find('[data-testid="pick-on-map"]')
+    }
+
+    function lastPickArmed(wrapper: ReturnType<typeof mount>): boolean | undefined {
+      const emissions = wrapper.emitted<[boolean]>('pick-armed')
+      return emissions?.[emissions.length - 1][0]
+    }
+
+    it('renders a pick-on-map button alongside use-current-location', () => {
+      const wrapper = mount(IsochroneForm)
+      const button = pickButton(wrapper)
+      expect(button.exists()).toBe(true)
+      expect(button.attributes('type')).toBe('button')
+      expect(button.text()).toContain('Pick location on map')
+    })
+
+    it('arms on click and reports it, so the parent can arm the map', async () => {
+      const wrapper = mount(IsochroneForm)
+      await pickButton(wrapper).trigger('click')
+
+      expect(lastPickArmed(wrapper)).toBe(true)
+      expect(pickButton(wrapper).text()).toBe('Cancel')
+    })
+
+    it('disarms when the armed button is clicked again', async () => {
+      const wrapper = mount(IsochroneForm)
+      await pickButton(wrapper).trigger('click')
+      await pickButton(wrapper).trigger('click')
+
+      expect(lastPickArmed(wrapper)).toBe(false)
+      expect(pickButton(wrapper).text()).toContain('Pick location on map')
+    })
+
+    it('disarms on Escape without touching the origin', async () => {
+      const wrapper = mount(IsochroneForm, { attachTo: document.body })
+      await wrapper.find('input[data-testid="lat"]').setValue('45.5231')
+      await pickButton(wrapper).trigger('click')
+
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+      await wrapper.vm.$nextTick()
+
+      expect(lastPickArmed(wrapper)).toBe(false)
+      expect((wrapper.find('input[data-testid="lat"]').element as HTMLInputElement).value).toBe('45.5231')
+      wrapper.unmount()
+    })
+
+    it('stops listening for Escape once unmounted', async () => {
+      const wrapper = mount(IsochroneForm)
+      await pickButton(wrapper).trigger('click')
+      wrapper.unmount()
+
+      expect(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))).not.toThrow()
+    })
+
+    it('fills lat and lng from a map pick and emits origin-change', async () => {
+      const wrapper = mount(IsochroneForm)
+      await pickButton(wrapper).trigger('click')
+
+      ;(wrapper.vm as unknown as { setOriginFromMap: (coord: { lat: number; lng: number }) => void })
+        .setOriginFromMap({ lat: 45.5231, lng: -122.6784 })
+      await wrapper.vm.$nextTick()
+
+      expect((wrapper.find('input[data-testid="lat"]').element as HTMLInputElement).value).toBe('45.5231')
+      expect((wrapper.find('input[data-testid="lng"]').element as HTMLInputElement).value).toBe('-122.6784')
+      const emissions = wrapper.emitted<[{ lat: number; lng: number } | null]>('origin-change')!
+      expect(emissions[emissions.length - 1][0]).toEqual({ lat: 45.5231, lng: -122.6784 })
+    })
+
+    it('does not submit on a map pick — generating stays an explicit action', async () => {
+      const wrapper = mount(IsochroneForm)
+      await pickButton(wrapper).trigger('click')
+
+      ;(wrapper.vm as unknown as { setOriginFromMap: (coord: { lat: number; lng: number }) => void })
+        .setOriginFromMap({ lat: 45.5231, lng: -122.6784 })
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.emitted('submit')).toBeUndefined()
+    })
+
+    it('clears the address field and label on a map pick, so no stale name contradicts the coords', async () => {
+      vi.mocked(getCurrentPosition).mockResolvedValue({ lat: 51.5074, lng: -0.1278 })
+      vi.mocked(reverseGeocode).mockResolvedValue({ label: 'London, England', lat: 51.5074, lng: -0.1278 })
+
+      const wrapper = mount(IsochroneForm)
+      await wrapper.find('[data-testid="use-current-location"]').trigger('click')
+      await flushPromises()
+      expect(wrapper.find('[data-testid="selected-label"]').exists()).toBe(true)
+
+      await pickButton(wrapper).trigger('click')
+
+      ;(wrapper.vm as unknown as { setOriginFromMap: (coord: { lat: number; lng: number }) => void })
+        .setOriginFromMap({ lat: 45.5231, lng: -122.6784 })
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('[data-testid="selected-label"]').exists()).toBe(false)
+      expect((wrapper.find('.address-autocomplete input').element as HTMLInputElement).value).toBe('')
+    })
+
+    it('disarms after a single pick', async () => {
+      const wrapper = mount(IsochroneForm)
+      await pickButton(wrapper).trigger('click')
+
+      ;(wrapper.vm as unknown as { setOriginFromMap: (coord: { lat: number; lng: number }) => void })
+        .setOriginFromMap({ lat: 45.5231, lng: -122.6784 })
+      await wrapper.vm.$nextTick()
+
+      expect(lastPickArmed(wrapper)).toBe(false)
+      expect(pickButton(wrapper).text()).toContain('Pick location on map')
+    })
+
+    it('disarms when the origin is set by autocomplete instead', async () => {
+      const wrapper = mount(IsochroneForm, {
+        global: { stubs: { AddressAutocomplete: true } },
+      })
+      await pickButton(wrapper).trigger('click')
+
+      const suggestion: GeocodingSuggestion = { label: 'Portland, OR, USA', lat: 45.5231, lng: -122.6784 }
+      await wrapper.findComponent({ name: 'AddressAutocomplete' }).vm.$emit('select', suggestion)
+
+      expect(lastPickArmed(wrapper)).toBe(false)
+    })
+
+    it('disarms when the origin is typed into lat/lng instead', async () => {
+      const wrapper = mount(IsochroneForm)
+      await pickButton(wrapper).trigger('click')
+
+      await wrapper.find('input[data-testid="lat"]').setValue('45.5231')
+
+      expect(lastPickArmed(wrapper)).toBe(false)
+    })
+
+    it('disarms when use-current-location is clicked instead', async () => {
+      vi.mocked(getCurrentPosition).mockResolvedValue({ lat: 51.5074, lng: -0.1278 })
+      vi.mocked(reverseGeocode).mockResolvedValue(null)
+
+      const wrapper = mount(IsochroneForm)
+      await pickButton(wrapper).trigger('click')
+      await wrapper.find('[data-testid="use-current-location"]').trigger('click')
+
+      expect(lastPickArmed(wrapper)).toBe(false)
+      await flushPromises()
+    })
+
+    it('ignores a map pick that arrives while disarmed', async () => {
+      const wrapper = mount(IsochroneForm)
+
+      ;(wrapper.vm as unknown as { setOriginFromMap: (coord: { lat: number; lng: number }) => void })
+        .setOriginFromMap({ lat: 45.5231, lng: -122.6784 })
+      await wrapper.vm.$nextTick()
+
+      expect((wrapper.find('input[data-testid="lat"]').element as HTMLInputElement).value).toBe('')
+    })
+  })
 })

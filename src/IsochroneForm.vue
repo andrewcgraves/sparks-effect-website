@@ -1,5 +1,12 @@
+<script lang="ts">
+// Lives with the form that arms the pick, but is rendered by MapView, which is
+// the form's sibling — so every page wiring the two together imports it from here
+// rather than retyping the sentence.
+export const ORIGIN_PICK_CUE = 'Click the map to set origin — Esc to cancel'
+</script>
+
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AddressAutocomplete from './components/AddressAutocomplete.vue'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from './components/fieldStyles'
 import type { GeocodingSuggestion } from './api/geocoding'
@@ -29,6 +36,9 @@ const props = withDefaults(
 const emit = defineEmits<{
   submit: [payload: { lat: number; lng: number; duration: number; mode: Mode }]
   'origin-change': [origin: { lat: number; lng: number } | null]
+  // Reported rather than owned: the map that has to go into crosshair mode is
+  // the form's sibling, not its child, so the parent mirrors this onto MapView.
+  'pick-armed': [armed: boolean]
 }>()
 
 const lat = ref('')
@@ -39,6 +49,7 @@ const selectedLabel = ref('')
 const locationError = ref('')
 const locating = ref(false)
 const mode = ref<Mode>('walk')
+const pickArmed = ref(false)
 const addressAutocompleteRef = ref<InstanceType<typeof AddressAutocomplete> | null>(null)
 let locationRequestId = 0
 
@@ -87,6 +98,45 @@ watch([lat, lng], ([newLat, newLng]) => {
   emit('origin-change', parseOrigin(newLat, newLng))
 })
 
+watch(pickArmed, (armed) => {
+  emit('pick-armed', armed)
+})
+
+// An origin arriving by any route ends the pick, because the map is no longer
+// waiting on the user: a search hit, a typed coordinate, and the picked point
+// itself all land here. The last of those is what makes a pick one click.
+watch([lat, lng], () => {
+  pickArmed.value = false
+})
+
+// Global rather than scoped to the form: the click being cancelled is aimed at
+// the map, so that is where the user's attention (and often the focus) is.
+function handleKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') pickArmed.value = false
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', handleKeydown)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleKeydown)
+})
+
+// Called by the parent when a click lands on the armed map. Coordinates only —
+// no reverse geocode — so the address field is cleared rather than left naming
+// somewhere the origin no longer is. Setting lat/lng disarms via the watcher
+// above, and deliberately does not submit: generating stays an explicit act.
+function setOriginFromMap(coord: { lat: number; lng: number }) {
+  if (!pickArmed.value) return
+  lat.value = String(coord.lat)
+  lng.value = String(coord.lng)
+  selectedLabel.value = ''
+  addressAutocompleteRef.value?.setInputValue('')
+}
+
+defineExpose({ setOriginFromMap })
+
 function onAutocompleteSelect(suggestion: GeocodingSuggestion) {
   lat.value = String(suggestion.lat)
   lng.value = String(suggestion.lng)
@@ -95,6 +145,9 @@ function onAutocompleteSelect(suggestion: GeocodingSuggestion) {
 
 async function onUseCurrentLocation() {
   if (locating.value) return
+  // Disarm on the click, not on the fix: the user has visibly switched methods,
+  // and a stray map click while the lookup is in flight would only be overwritten.
+  pickArmed.value = false
   locating.value = true
   locationError.value = ''
   const requestId = ++locationRequestId
@@ -162,6 +215,15 @@ function handleSubmit() {
         @click="onUseCurrentLocation"
       >
         📍 Use my location
+      </button>
+      <button
+        type="button"
+        class="font-display text-btn self-start uppercase transition-colors duration-200 ease-(--ease-smooth) hover:text-coral"
+        :class="pickArmed ? 'text-coral' : 'text-ink-muted'"
+        data-testid="pick-on-map"
+        @click="pickArmed = !pickArmed"
+      >
+        {{ pickArmed ? 'Cancel' : '📍 Pick location on map' }}
       </button>
       <p
         v-if="locationError"

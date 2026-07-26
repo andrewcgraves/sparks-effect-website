@@ -333,13 +333,13 @@ describe('ServiceAuthoringView', () => {
       const wrapper = mountView()
       await flushPromises()
 
-      expect(mapStub(wrapper).props('stopPlacementArmed')).toBe(false)
+      expect(mapStub(wrapper).props('placementArmed')).toBe(false)
 
       await toggle(wrapper).trigger('click')
-      expect(mapStub(wrapper).props('stopPlacementArmed')).toBe(true)
+      expect(mapStub(wrapper).props('placementArmed')).toBe(true)
 
       await toggle(wrapper).trigger('click')
-      expect(mapStub(wrapper).props('stopPlacementArmed')).toBe(false)
+      expect(mapStub(wrapper).props('placementArmed')).toBe(false)
     })
 
     it('appends a stop at the clicked point, auto-named from a counter', async () => {
@@ -390,7 +390,7 @@ describe('ServiceAuthoringView', () => {
       await wrapper.find('[data-testid="service-name"]').setValue('Northbound Express')
       await wrapper.find('[data-testid="vehicle-dwell"]').setValue(45)
 
-      expect(mapStub(wrapper).props('stopPlacementArmed')).toBe(true)
+      expect(mapStub(wrapper).props('placementArmed')).toBe(true)
     })
 
     it('disarms on Escape', async () => {
@@ -401,7 +401,7 @@ describe('ServiceAuthoringView', () => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
       await flushPromises()
 
-      expect(mapStub(wrapper).props('stopPlacementArmed')).toBe(false)
+      expect(mapStub(wrapper).props('placementArmed')).toBe(false)
     })
 
     it('stores the raw clicked coordinates and feeds them to the snap preview', async () => {

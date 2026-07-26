@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import IsochroneForm from '../IsochroneForm.vue'
+import { ref } from 'vue'
+import IsochroneForm, { ORIGIN_PICK_CUE } from '../IsochroneForm.vue'
 import MapView from './MapView.vue'
 import type { NearMiss, Service, StopCluster } from '../api/authoring/types'
 import type { Route, Station } from '../api/scenarios'
@@ -31,6 +32,16 @@ defineEmits<{
   'origin-change': [coords: { lat: number; lng: number } | null]
 }>()
 
+// The form owns the pick; this panel only relays it to its sibling map, and the
+// clicked point back to the form. The picked origin reaches the page above the
+// usual way, as an origin-change out of the form.
+const pickArmed = ref(false)
+const isochroneFormRef = ref<InstanceType<typeof IsochroneForm> | null>(null)
+
+function onMapClick(coord: { lat: number; lng: number }) {
+  isochroneFormRef.value?.setOriginFromMap(coord)
+}
+
 // Near-misses and clusters name stops by service_id; the compile result does
 // not carry display names, so resolve them against the caller's service list
 // rather than have the result carry names twice.
@@ -53,15 +64,20 @@ function formatMeters(total: number): string {
         :routes="props.mapRoutes ?? []"
         :stations="props.mapStations ?? []"
         :services="[]"
+        :placement-armed="pickArmed"
+        :placement-cue="ORIGIN_PICK_CUE"
+        @map-click="onMapClick"
       />
     </div>
 
     <div class="flex flex-col gap-4">
       <IsochroneForm
+        ref="isochroneFormRef"
         :error="props.error"
         :loading="props.loading"
         @submit="$emit('submit', $event)"
         @origin-change="$emit('origin-change', $event)"
+        @pick-armed="pickArmed = $event"
       />
       <p
         v-if="props.statusNote"

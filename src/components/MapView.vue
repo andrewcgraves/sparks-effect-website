@@ -28,9 +28,11 @@ const props = defineProps<{
   // — every other caller of this component leaves it unset.
   stopPreviewPairs?: StopPreviewPair[]
   // Arms click-to-place: while set, a click on the map reports its coordinates
-  // through map-click instead of being ignored. Sticky — the caller owns when
-  // it turns off, so a run of stops is a run of clicks.
-  stopPlacementArmed?: boolean
+  // through map-click instead of being ignored. The caller owns when it turns
+  // off — stop authoring keeps it on for a run of clicks, origin picking drops
+  // it after one — and says what the map is armed for through placementCue.
+  placementArmed?: boolean
+  placementCue?: string
 }>()
 
 const emit = defineEmits<{
@@ -136,7 +138,7 @@ function maybeInitStopInteraction(): void {
   useStopDrag(map, {
     onDrag: (id, coord) => emit('stop-drag', id, coord),
     onDragEnd: (id, coord) => emit('stop-drag-end', id, coord),
-    idleCursor: () => (props.stopPlacementArmed ? 'crosshair' : ''),
+    idleCursor: () => (props.placementArmed ? 'crosshair' : ''),
   })
 }
 
@@ -145,7 +147,7 @@ function maybeInitStopInteraction(): void {
 // reach here — panning an armed map does not drop a stop. Placing one only
 // mutates the caller's stop list; nothing here re-fits or re-centres the view.
 function handleMapClick(event: MapMouseEvent): void {
-  if (!props.stopPlacementArmed) return
+  if (!props.placementArmed) return
   // A press on a pin is a reposition, not a placement — a drag shorter than
   // MapLibre's click tolerance still arrives here as a click, and stacking a
   // new stop on top of the one being nudged is never what was meant.
@@ -160,12 +162,12 @@ function handleMapClick(event: MapMouseEvent): void {
 // canvas because MapLibre writes it inline, where a stylesheet can't reach.
 function applyPlacementMode(): void {
   if (!map) return
-  map.getCanvas().style.cursor = props.stopPlacementArmed ? 'crosshair' : ''
-  if (props.stopPlacementArmed) map.doubleClickZoom.disable()
+  map.getCanvas().style.cursor = props.placementArmed ? 'crosshair' : ''
+  if (props.placementArmed) map.doubleClickZoom.disable()
   else map.doubleClickZoom.enable()
 }
 
-watch(() => props.stopPlacementArmed, applyPlacementMode)
+watch(() => props.placementArmed, applyPlacementMode)
 
 watch(
   () => props.isochroneData,
@@ -275,23 +277,23 @@ onUnmounted(() => {
       <span class="size-5 shrink-0 animate-spin rounded-full border-3 border-border border-t-coral" />
       <span>Generating isochrone…</span>
     </div>
-    <!-- Persistent while armed, because arming is sticky: without a standing
-         cue there is nothing on screen to explain why clicks keep dropping
-         pins. Shares the free top-left corner with the isochrone key, which
-         the authoring screen hides. -->
+    <!-- Persistent while armed, because arming outlives the click that
+         triggered it: without a standing cue there is nothing on screen to
+         explain why the map is in a different mode. Takes the free top-left
+         corner from the isochrone key, which yields to it while armed. -->
     <p
-      v-if="stopPlacementArmed"
+      v-if="placementArmed && placementCue"
       class="font-body text-caption pointer-events-none absolute top-3 left-3 z-1 rounded-(--radius-field) bg-white/92 px-3 py-2 text-ink shadow-(--shadow-panel)"
       data-testid="map-placement-cue"
       aria-live="polite"
     >
-      Click the map to add a stop — Esc when done
+      {{ placementCue }}
     </p>
     <!-- Top-left is the only corner MapLibre leaves free: attribution takes the
          bottom (wrapping to two lines when narrow) and the fullscreen control
          the top-right. Anywhere else the key's second row gets covered. -->
     <aside
-      v-if="!hideIsochroneLegend"
+      v-if="!hideIsochroneLegend && !placementArmed"
       class="absolute top-3 left-3 z-1 rounded-(--radius-field) bg-white/92 px-3 py-2.5 shadow-(--shadow-panel)"
       aria-label="Isochrone color key"
     >

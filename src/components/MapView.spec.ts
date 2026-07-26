@@ -637,9 +637,9 @@ describe('MapView', () => {
     })
   })
 
-  describe('stopPlacementArmed', () => {
+  describe('placement arming', () => {
     it('emits map-click with the clicked coordinates while armed', async () => {
-      const wrapper = mount(MapView, { props: { ...defaultProps, stopPlacementArmed: true } })
+      const wrapper = mount(MapView, { props: { ...defaultProps, placementArmed: true } })
       await triggerMapLoad()
 
       fireMapEvent('click', clickEventAt(37.77, -122.41))
@@ -648,7 +648,7 @@ describe('MapView', () => {
     })
 
     it('keeps emitting across consecutive clicks, so arming is sticky', async () => {
-      const wrapper = mount(MapView, { props: { ...defaultProps, stopPlacementArmed: true } })
+      const wrapper = mount(MapView, { props: { ...defaultProps, placementArmed: true } })
       await triggerMapLoad()
 
       fireMapEvent('click', clickEventAt(37.77, -122.41))
@@ -667,7 +667,7 @@ describe('MapView', () => {
     })
 
     it('shows a crosshair cursor and disables double-click zoom while armed', async () => {
-      mount(MapView, { props: { ...defaultProps, stopPlacementArmed: true } })
+      mount(MapView, { props: { ...defaultProps, placementArmed: true } })
       await triggerMapLoad()
 
       expect(mockCanvas.style.cursor).toBe('crosshair')
@@ -675,10 +675,10 @@ describe('MapView', () => {
     })
 
     it('restores the cursor and re-enables double-click zoom when disarmed', async () => {
-      const wrapper = mount(MapView, { props: { ...defaultProps, stopPlacementArmed: true } })
+      const wrapper = mount(MapView, { props: { ...defaultProps, placementArmed: true } })
       await triggerMapLoad()
 
-      await wrapper.setProps({ stopPlacementArmed: false })
+      await wrapper.setProps({ placementArmed: false })
 
       expect(mockCanvas.style.cursor).toBe('')
       expect(mockDoubleClickZoomEnable).toHaveBeenCalled()
@@ -693,13 +693,30 @@ describe('MapView', () => {
     })
 
     it('renders a persistent on-map cue while armed', async () => {
-      const wrapper = mount(MapView, { props: { ...defaultProps, stopPlacementArmed: true } })
+      const wrapper = mount(MapView, { props: { ...defaultProps, placementArmed: true, placementCue: 'Click the map to add a stop — Esc when done' } })
       await triggerMapLoad()
 
-      expect(wrapper.find('[data-testid="map-placement-cue"]').exists()).toBe(true)
+      expect(wrapper.get('[data-testid="map-placement-cue"]').text()).toBe('Click the map to add a stop — Esc when done')
 
-      await wrapper.setProps({ stopPlacementArmed: false })
+      await wrapper.setProps({ placementArmed: false })
       expect(wrapper.find('[data-testid="map-placement-cue"]').exists()).toBe(false)
+    })
+
+    it('renders whatever cue the caller passes, so each armed mode can say its own thing', async () => {
+      const wrapper = mount(MapView, { props: { ...defaultProps, placementArmed: true, placementCue: 'Click the map to set origin — Esc to cancel' } })
+      await triggerMapLoad()
+
+      expect(wrapper.get('[data-testid="map-placement-cue"]').text()).toBe('Click the map to set origin — Esc to cancel')
+    })
+
+    it('hides the isochrone legend while armed, since the cue takes the same corner', async () => {
+      const wrapper = mount(MapView, { props: { ...defaultProps, placementArmed: true, placementCue: 'Click the map to set origin — Esc to cancel' } })
+      await triggerMapLoad()
+
+      expect(wrapper.find('[aria-label="Isochrone color key"]').exists()).toBe(false)
+
+      await wrapper.setProps({ placementArmed: false })
+      expect(wrapper.find('[aria-label="Isochrone color key"]').exists()).toBe(true)
     })
 
     it('does not place a stop when an armed click lands on an existing pin', async () => {
@@ -709,7 +726,7 @@ describe('MapView', () => {
       const wrapper = mount(MapView, {
         props: {
           ...defaultProps,
-          stopPlacementArmed: true,
+          placementArmed: true,
           stopPreviewPairs: [{ id: '0', raw: { lat: 37.77, lng: -122.41 }, snapped: null }],
         },
       })
@@ -721,7 +738,7 @@ describe('MapView', () => {
     })
 
     it('does not re-fit or fly the map when a stop is placed', async () => {
-      mount(MapView, { props: { ...defaultProps, stopPlacementArmed: true } })
+      mount(MapView, { props: { ...defaultProps, placementArmed: true } })
       await triggerMapLoad()
       mockFitBounds.mockClear()
       mockFlyTo.mockClear()
@@ -788,7 +805,7 @@ describe('MapView', () => {
     })
 
     it('drags with click-to-place armed, and returns the cursor to the crosshair', async () => {
-      const wrapper = await mountWithPins({ stopPlacementArmed: true })
+      const wrapper = await mountWithPins({ placementArmed: true })
 
       pressPin('0', 37.77, -122.41)
       expect(mockCanvas.style.cursor).toBe('grabbing')

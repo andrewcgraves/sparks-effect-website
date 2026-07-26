@@ -667,7 +667,8 @@ function formatSeconds(total: number): string {
             :stations="[]"
             :services="[]"
             :stop-preview-pairs="stopPreviewPairs"
-            :stop-placement-armed="placingStops"
+            :placement-armed="placingStops"
+            placement-cue="Click the map to add a stop — Esc when done"
             hide-isochrone-legend
             @map-click="handleMapClick"
             @stop-drag="handleStopDrag"
