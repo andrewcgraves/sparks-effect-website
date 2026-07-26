@@ -26,6 +26,38 @@ function emptyFeatureCollection() {
   return { type: 'FeatureCollection' as const, features: [] }
 }
 
+function sameCoord(a: LatLng | null | undefined, b: LatLng | null | undefined): boolean {
+  // An absent snap matches only another absent snap.
+  if (!a || !b) return !a && !b
+  return a.lat === b.lat && a.lng === b.lng
+}
+
+// Compares what the layers actually draw: position, pairing, and off-route
+// state. Anything else a pair carries cannot change a rendered feature.
+function samePairs(a: StopPreviewPair[], b: StopPreviewPair[]): boolean {
+  return (
+    a.length === b.length &&
+    a.every(
+      (pair, index) =>
+        pair.id === b[index].id &&
+        !!pair.offRoute === !!b[index].offRoute &&
+        sameCoord(pair.raw, b[index].raw) &&
+        sameCoord(pair.snapped, b[index].snapped),
+    )
+  )
+}
+
+// Detached from the caller's objects, so a later in-place edit to a stop can't
+// rewrite the record of what was drawn and make a real change look like a no-op.
+function snapshot(pairs: StopPreviewPair[]): StopPreviewPair[] {
+  return pairs.map((pair) => ({
+    id: pair.id,
+    raw: { ...pair.raw },
+    snapped: pair.snapped ? { ...pair.snapped } : null,
+    offRoute: !!pair.offRoute,
+  }))
+}
+
 // Draws the raw pin, the snapped pin, and a leader line between them for each
 // stop being authored — the before/after pairing the amendment calls for,
 // meaningful only while a service is being drafted (the snap is never
@@ -75,7 +107,16 @@ export function useStopPreviewLayer(map: Map): { update: (pairs: StopPreviewPair
     },
   })
 
+  // What was last drawn, so an equal-but-new pair list costs nothing. Every
+  // setData rebuilds a layer, which shows as pins flashing and basemap labels
+  // re-colliding — and unrelated form edits hand over a fresh array constantly.
+  // Tied to the sources added above: whatever re-adds them must re-make this
+  // composable too, or the first update after that would be skipped as a no-op.
+  let drawn: StopPreviewPair[] | null = null
+
   function update(pairs: StopPreviewPair[]): void {
+    if (drawn && samePairs(drawn, pairs)) return
+
     const rawSource = map.getSource(RAW_STOP_SOURCE_ID) as GeoJSONSource
     rawSource.setData({
       type: 'FeatureCollection',
@@ -113,6 +154,10 @@ export function useStopPreviewLayer(map: Map): { update: (pairs: StopPreviewPair
         },
       })),
     })
+
+    // Recorded only once all three sources have taken the data, so a throw
+    // part-way leaves no claim to have drawn something that never landed.
+    drawn = snapshot(pairs)
   }
 
   return { update }

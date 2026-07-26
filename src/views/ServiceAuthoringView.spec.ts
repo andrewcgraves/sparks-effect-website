@@ -76,6 +76,19 @@ function mapStub(wrapper: ReturnType<typeof mountView>) {
   return wrapper.findComponent({ name: 'MapView' })
 }
 
+async function mountWithTwoStops() {
+  const wrapper = mountView()
+  await flushPromises()
+  await wrapper.find('[data-testid="route-select"]').setValue('main-line')
+  await flushPromises()
+  await addStop(wrapper, 'SF', 37.77, -122.41)
+  await addStop(wrapper, 'SJ', 37.33, -121.88)
+  await vi.advanceTimersByTimeAsync(400)
+  await flushPromises()
+  vi.mocked(snapStops).mockClear()
+  return wrapper
+}
+
 describe('ServiceAuthoringView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -428,20 +441,36 @@ describe('ServiceAuthoringView', () => {
     })
   })
 
-  describe('dragging a stop pin to reposition it', () => {
-    async function mountWithTwoStops() {
-      const wrapper = mountView()
-      await flushPromises()
-      await wrapper.find('[data-testid="route-select"]').setValue('main-line')
-      await flushPromises()
-      await addStop(wrapper, 'SF', 37.77, -122.41)
-      await addStop(wrapper, 'SJ', 37.33, -121.88)
-      await vi.advanceTimersByTimeAsync(400)
-      await flushPromises()
-      vi.mocked(snapStops).mockClear()
-      return wrapper
-    }
+  // Handing the map a new pair list redraws every pin, which reads on screen as
+  // a flicker. Editing a service's name or its vehicle moves no stop, so the
+  // map must be given nothing to redraw.
+  describe('stop preview stability', () => {
+    it('leaves the stop preview untouched when unrelated fields change', async () => {
+      const wrapper = await mountWithTwoStops()
+      const before = mapStub(wrapper).props('stopPreviewPairs')
 
+      await wrapper.find('[data-testid="service-name"]').setValue('Northbound Express')
+      await wrapper.find('[data-testid="vehicle-max-speed"]').setValue(120)
+      await flushPromises()
+
+      expect(mapStub(wrapper).props('stopPreviewPairs')).toBe(before)
+      expect(snapStops).not.toHaveBeenCalled()
+    })
+
+    it('still redraws the preview when a stop moves', async () => {
+      const wrapper = await mountWithTwoStops()
+      const before = mapStub(wrapper).props('stopPreviewPairs')
+
+      await wrapper.find('[data-testid="stop-edit-lat-0"]').setValue(37.8)
+      await flushPromises()
+
+      const after = mapStub(wrapper).props('stopPreviewPairs')
+      expect(after).not.toBe(before)
+      expect(after[0].raw).toEqual({ lat: 37.8, lng: -122.41 })
+    })
+  })
+
+  describe('dragging a stop pin to reposition it', () => {
     async function drag(
       wrapper: ReturnType<typeof mountView>,
       id: string,
