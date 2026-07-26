@@ -77,10 +77,12 @@ export interface ScenarioInput {
   service_ids: string[]
 }
 
-// Request body for POST /api/user-scenarios/{slug}/isochrone. The scenario is
-// named in the URL, not the body — unlike the seeded /api/isochrone, which
-// carries scenario_slug alongside these same fields.
-export interface UserScenarioIsochroneRequest {
+// Request body for the owner-scoped isochrones — POST
+// /api/user-scenarios/{slug}/isochrone and POST /api/services/{slug}/isochrone,
+// which take the identical body. The target is named in the URL, not the body,
+// unlike the seeded /api/isochrone, which carries scenario_slug alongside these
+// same fields.
+export interface AuthoredIsochroneRequest {
   lat: number
   lng: number
   budget_mins: number

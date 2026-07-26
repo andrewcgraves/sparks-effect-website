@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { fetchService } from '../api/authoring/services'
+import { computed, ref, watch } from 'vue'
+import { compileService, fetchService, fetchServiceGraph, fetchServiceIsochrone } from '../api/authoring/services'
+import { ApiError } from '../api/authoring/client'
 import type { Service } from '../api/authoring/types'
 import { useOwnedDetail } from '../composables/useOwnedDetail'
+import { useAuthoredIsochrone } from '../composables/useAuthoredIsochrone'
+import ScenarioPreviewPanel from '../components/ScenarioPreviewPanel.vue'
 import { ACTION_LINK_CLASS } from '../components/linkStyles'
 
 const props = defineProps<{ slug: string }>()
@@ -11,6 +14,50 @@ const { item: service, loading, notFound, error } = useOwnedDetail<Service>(fetc
 
 // seq is the authored order; don't trust the array to arrive in it.
 const stops = computed(() => [...(service.value?.stops ?? [])].sort((a, b) => a.seq - b.seq))
+
+// Named by the route, so plotting never waits on the detail fetch. Compiling a
+// service alone is the degenerate one-member scenario, so this is the same
+// stale-graph dance the scenario page does, against the service endpoints.
+const {
+  compiling,
+  compileError,
+  graph,
+  setGraph,
+  triggerCompile,
+  origin,
+  isochroneData,
+  isochroneError,
+  isochroneFormLoading,
+  nearMisses,
+  realisedClusters,
+  mapStations,
+  mapRoutes,
+  onOriginChange,
+  handleIsochroneSubmit,
+} = useAuthoredIsochrone(() => props.slug, { compile: compileService, isochrone: fetchServiceIsochrone })
+
+// The panel resolves service ids to names for its near-miss and cluster rows. A
+// service is its own sole member, so this one record is the whole lookup — no
+// need for the list fetch the scenario page makes.
+const services = computed(() => (service.value ? [service.value] : []))
+
+const graphError = ref('')
+
+// Read the existing compiled graph rather than recompiling on every visit. A
+// 404 means this service has never compiled, which is a reason to compile, not
+// an error to show; anything else is a genuine failure.
+watch(service, async (loaded) => {
+  if (!loaded) return
+  try {
+    setGraph(await fetchServiceGraph(loaded.slug))
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) {
+      await triggerCompile(loaded.slug)
+    } else {
+      graphError.value = "Couldn't load this service's compiled graph."
+    }
+  }
+}, { immediate: true })
 </script>
 
 <template>
@@ -70,6 +117,51 @@ const stops = computed(() => [...(service.value?.stops ?? [])].sort((a, b) => a.
       >
         {{ service.description }}
       </p>
+
+      <!-- The render is why the page gets opened, so it sits above the text
+           sections — the same ordering as the scenario detail page. -->
+      <p
+        v-if="compiling && !graph"
+        class="font-body text-caption mt-8 text-ink-muted italic"
+        data-testid="compiling-status"
+      >
+        Compiling this service…
+      </p>
+      <p
+        v-else-if="graphError"
+        class="font-body text-caption mt-8 text-coral"
+        role="alert"
+        data-testid="graph-error"
+      >
+        {{ graphError }}
+      </p>
+      <!-- A failed compile only replaces the preview while there is no graph
+           to show; once one has loaded, a failed recompile is reported beside
+           the map rather than taking the plotted isochrone with it. -->
+      <p
+        v-else-if="compileError && !graph"
+        class="font-body text-caption mt-8 text-coral"
+        role="alert"
+        data-testid="compile-error"
+      >
+        {{ compileError }}
+      </p>
+
+      <ScenarioPreviewPanel
+        v-else
+        :origin="origin"
+        :isochrone-data="isochroneData"
+        :loading="isochroneFormLoading"
+        :error="isochroneError || compileError || null"
+        :near-misses="nearMisses"
+        :realised-clusters="realisedClusters"
+        :services="services"
+        :map-stations="mapStations"
+        :map-routes="mapRoutes"
+        :status-note="compiling ? 'This service changed — recompiling…' : null"
+        @submit="handleIsochroneSubmit"
+        @origin-change="onOriginChange"
+      />
 
       <div class="mt-8 grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
         <section class="rounded-(--radius-box) border border-border bg-surface p-4">

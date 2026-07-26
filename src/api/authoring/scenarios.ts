@@ -4,7 +4,7 @@
 // API), which this module does not touch.
 import { apiRequest } from './client'
 import type { ChainResponse } from '../../fixtures/isochrone'
-import type { Job, Scenario, ScenarioInput, TransitGraph, UserScenarioIsochroneRequest } from './types'
+import type { Job, Scenario, ScenarioInput, TransitGraph, AuthoredIsochroneRequest } from './types'
 
 // Lists the signed-in user's own scenarios. There is no "all scenarios" read
 // here: /api/user-scenarios is owner-scoped.
@@ -65,7 +65,7 @@ export async function fetchScenarioGraph(slug: string): Promise<TransitGraph> {
 // edit to a member service — the caller should recompile and retry.
 export async function fetchScenarioIsochrone(
   slug: string,
-  request: UserScenarioIsochroneRequest,
+  request: AuthoredIsochroneRequest,
 ): Promise<ChainResponse> {
   return apiRequest<ChainResponse>(`/api/user-scenarios/${slug}/isochrone`, {
     method: 'POST',

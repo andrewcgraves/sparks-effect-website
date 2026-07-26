@@ -1,7 +1,6 @@
 import { computed, ref } from 'vue'
-import { compileScenario, fetchScenarioIsochrone } from '../api/authoring/scenarios'
 import { ApiError } from '../api/authoring/client'
-import type { TransitGraph } from '../api/authoring'
+import type { AuthoredIsochroneRequest, Job, TransitGraph } from '../api/authoring'
 import type { ChainResponse } from '../fixtures/isochrone'
 import { MAX_STALE_GRAPH_RETRIES, useCompileJob } from './useCompileJob'
 import { graphRoutes, graphStations } from './scenarioGraphMap'
@@ -14,18 +13,28 @@ export interface IsochronePayload {
 }
 
 /**
- * The isochrone half of a user scenario: plotting against its compiled graph,
- * and the compile lifecycle that keeps that graph current. Shared by the
- * builder (which plots the scenario it just saved) and the preview page (which
- * plots one loaded by slug), so the stale-graph dance has one implementation.
- *
- * The slug arrives as a getter because both callers resolve it late — the
- * builder only after a save, the preview page from its route props.
+ * The two endpoints this drives, injected rather than imported so one
+ * implementation serves both resources.
  */
-export function useScenarioIsochrone(getSlug: () => string | null) {
-  const { compiling, compileError, result: compiledGraph, trigger: triggerCompile } = useCompileJob(compileScenario)
+export interface IsochroneApi {
+  compile: (slug: string) => Promise<Job>
+  isochrone: (slug: string, request: AuthoredIsochroneRequest) => Promise<ChainResponse>
+}
 
-  // A page that opens an already-compiled scenario reads its graph rather than
+/**
+ * The isochrone half of a compiled scenario or service: plotting against its
+ * graph, and the compile lifecycle that keeps that graph current. Shared by the
+ * scenario detail page and the service detail page, which differ only in which
+ * pair of endpoints they plot against — so the stale-graph dance has one
+ * implementation rather than one per resource.
+ *
+ * The slug arrives as a getter because callers resolve it late, from their route
+ * props rather than at setup time.
+ */
+export function useAuthoredIsochrone(getSlug: () => string | null, api: IsochroneApi) {
+  const { compiling, compileError, result: compiledGraph, trigger: triggerCompile } = useCompileJob(api.compile)
+
+  // A page that opens an already-compiled record reads its graph rather than
   // recompiling; a fresh compile supersedes it.
   const loadedGraph = ref<TransitGraph | null>(null)
   const graph = computed(() => compiledGraph.value ?? loadedGraph.value)
@@ -54,16 +63,16 @@ export function useScenarioIsochrone(getSlug: () => string | null) {
     origin.value = coords
   }
 
-  // A member service edited elsewhere answers 409 (stale_graph) on the
-  // isochrone call itself, not just on compile — recompile and retry rather
-  // than making the user work out why their scenario stopped plotting.
+  // An edit made elsewhere answers 409 (stale_graph) on the isochrone call
+  // itself, not just on compile — recompile and retry rather than making the
+  // user work out why their scenario or service stopped plotting.
   async function generateIsochrone(payload: IsochronePayload, attempt = 1): Promise<void> {
     const slug = getSlug()
     if (!slug) return
     isochroneLoading.value = true
     isochroneError.value = null
     try {
-      isochroneData.value = await fetchScenarioIsochrone(slug, {
+      isochroneData.value = await api.isochrone(slug, {
         lat: payload.lat,
         lng: payload.lng,
         budget_mins: payload.duration,
