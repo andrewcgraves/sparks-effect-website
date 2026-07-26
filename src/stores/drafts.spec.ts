@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-import { nextTick } from 'vue'
+import { computed, nextTick } from 'vue'
 import { draftsStorageKey, useDraftsStore, type PersistedDrafts } from './drafts'
 import { AUTH_STORAGE_KEY, useAuthStore } from './auth'
 import type { ScenarioInput, ServiceInput, Stop } from '../api/authoring'
@@ -88,6 +88,22 @@ describe('useDraftsStore', () => {
       drafts.patchServiceDraft({ name: 'Red Line' })
       expect(drafts.serviceDraft?.name).toBe('Red Line')
       expect(drafts.serviceDraft?.stops).toEqual([])
+    })
+
+    // Editing the name once redrew every stop on the authoring map, because
+    // replacing the draft object invalidated every computed derived from it.
+    it('patchServiceDraft leaves stop-derived computeds untouched', () => {
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft()
+      drafts.addStop(stop('A', 0))
+      const stopCoords = computed(() =>
+        (drafts.serviceDraft?.stops ?? []).map((s) => ({ lat: s.lat, lng: s.lng })),
+      )
+      const before = stopCoords.value
+
+      drafts.patchServiceDraft({ name: 'Red Line' })
+
+      expect(stopCoords.value).toBe(before)
     })
 
     it('patchServiceDraft is a no-op when no draft is open', () => {

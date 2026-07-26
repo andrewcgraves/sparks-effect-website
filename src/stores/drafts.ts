@@ -239,9 +239,13 @@ export const useDraftsStore = defineStore('drafts', () => {
     return serviceStopCounter.value
   }
 
+  // Patched in place rather than replaced: swapping the draft object out
+  // invalidates every computed derived from it, so naming a service redrew all
+  // of its stops on the authoring map. Only the patched fields are reactive
+  // writes, so untouched ones — `stops` above all — stay undisturbed.
   function patchServiceDraft(patch: Partial<ServiceInput>): void {
     if (!serviceDraft.value) return
-    serviceDraft.value = { ...serviceDraft.value, ...patch }
+    Object.assign(serviceDraft.value, patch)
   }
 
   function addStop(stop: Stop): void {
