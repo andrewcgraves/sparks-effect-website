@@ -406,6 +406,14 @@ describe('IsochroneForm', () => {
       return emissions?.[emissions.length - 1][0]
     }
 
+    // The click itself belongs to the map; the parent relays it in through the
+    // form's exposed setter, which is what this stands in for.
+    async function pickOnMap(wrapper: ReturnType<typeof mount>, coord: { lat: number; lng: number }) {
+      ;(wrapper.vm as unknown as { setOriginFromMap: (coord: { lat: number; lng: number }) => void })
+        .setOriginFromMap(coord)
+      await wrapper.vm.$nextTick()
+    }
+
     it('renders a pick-on-map button alongside use-current-location', () => {
       const wrapper = mount(IsochroneForm)
       const button = pickButton(wrapper)
@@ -456,9 +464,7 @@ describe('IsochroneForm', () => {
       const wrapper = mount(IsochroneForm)
       await pickButton(wrapper).trigger('click')
 
-      ;(wrapper.vm as unknown as { setOriginFromMap: (coord: { lat: number; lng: number }) => void })
-        .setOriginFromMap({ lat: 45.5231, lng: -122.6784 })
-      await wrapper.vm.$nextTick()
+      await pickOnMap(wrapper, { lat: 45.5231, lng: -122.6784 })
 
       expect((wrapper.find('input[data-testid="lat"]').element as HTMLInputElement).value).toBe('45.5231')
       expect((wrapper.find('input[data-testid="lng"]').element as HTMLInputElement).value).toBe('-122.6784')
@@ -470,9 +476,7 @@ describe('IsochroneForm', () => {
       const wrapper = mount(IsochroneForm)
       await pickButton(wrapper).trigger('click')
 
-      ;(wrapper.vm as unknown as { setOriginFromMap: (coord: { lat: number; lng: number }) => void })
-        .setOriginFromMap({ lat: 45.5231, lng: -122.6784 })
-      await wrapper.vm.$nextTick()
+      await pickOnMap(wrapper, { lat: 45.5231, lng: -122.6784 })
 
       expect(wrapper.emitted('submit')).toBeUndefined()
     })
@@ -488,9 +492,7 @@ describe('IsochroneForm', () => {
 
       await pickButton(wrapper).trigger('click')
 
-      ;(wrapper.vm as unknown as { setOriginFromMap: (coord: { lat: number; lng: number }) => void })
-        .setOriginFromMap({ lat: 45.5231, lng: -122.6784 })
-      await wrapper.vm.$nextTick()
+      await pickOnMap(wrapper, { lat: 45.5231, lng: -122.6784 })
 
       expect(wrapper.find('[data-testid="selected-label"]').exists()).toBe(false)
       expect((wrapper.find('.address-autocomplete input').element as HTMLInputElement).value).toBe('')
@@ -500,9 +502,7 @@ describe('IsochroneForm', () => {
       const wrapper = mount(IsochroneForm)
       await pickButton(wrapper).trigger('click')
 
-      ;(wrapper.vm as unknown as { setOriginFromMap: (coord: { lat: number; lng: number }) => void })
-        .setOriginFromMap({ lat: 45.5231, lng: -122.6784 })
-      await wrapper.vm.$nextTick()
+      await pickOnMap(wrapper, { lat: 45.5231, lng: -122.6784 })
 
       expect(lastPickArmed(wrapper)).toBe(false)
       expect(pickButton(wrapper).text()).toContain('Pick location on map')
@@ -544,9 +544,7 @@ describe('IsochroneForm', () => {
     it('ignores a map pick that arrives while disarmed', async () => {
       const wrapper = mount(IsochroneForm)
 
-      ;(wrapper.vm as unknown as { setOriginFromMap: (coord: { lat: number; lng: number }) => void })
-        .setOriginFromMap({ lat: 45.5231, lng: -122.6784 })
-      await wrapper.vm.$nextTick()
+      await pickOnMap(wrapper, { lat: 45.5231, lng: -122.6784 })
 
       expect((wrapper.find('input[data-testid="lat"]').element as HTMLInputElement).value).toBe('')
     })

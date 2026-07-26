@@ -737,6 +737,31 @@ describe('MapView', () => {
       expect(wrapper.emitted('map-click')).toBeUndefined()
     })
 
+    it('does not fly when the origin coming back is the point just clicked', async () => {
+      const wrapper = mount(MapView, { props: { ...defaultProps, placementArmed: true, placementCue: 'cue' } })
+      await triggerMapLoad()
+      mockFlyTo.mockClear()
+
+      fireMapEvent('click', clickEventAt(37.77, -122.41))
+      await wrapper.setProps({ origin: { lat: 37.77, lng: -122.41 }, placementArmed: false })
+
+      expect(mockFlyTo).not.toHaveBeenCalled()
+    })
+
+    it('still flies when an origin arrives from somewhere other than the last click', async () => {
+      const wrapper = mount(MapView, { props: { ...defaultProps, placementArmed: true, placementCue: 'cue' } })
+      await triggerMapLoad()
+      fireMapEvent('click', clickEventAt(37.77, -122.41))
+      await wrapper.setProps({ origin: { lat: 37.77, lng: -122.41 }, placementArmed: false })
+      mockFlyTo.mockClear()
+
+      await wrapper.setProps({ origin: { lat: 34.05, lng: -118.25 } })
+
+      expect(mockFlyTo).toHaveBeenCalledWith(
+        expect.objectContaining({ center: [-118.25, 34.05], zoom: 9 }),
+      )
+    })
+
     it('does not re-fit or fly the map when a stop is placed', async () => {
       mount(MapView, { props: { ...defaultProps, placementArmed: true } })
       await triggerMapLoad()

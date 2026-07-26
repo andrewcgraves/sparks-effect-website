@@ -57,6 +57,11 @@ let hasFittedToRoutes = false
 let isMapLoaded = false
 let routeLayerAdded = false
 let stopPreviewLayer: ReturnType<typeof useStopPreviewLayer> | null = null
+// The point last reported through map-click. A caller that turns a click into
+// the origin hands that same point straight back as a prop, and flying to
+// somewhere the user just clicked would only yank the view off what they were
+// aiming at — so that one origin is left to arrive without a camera move.
+let lastClickedPoint: LatLng | null = null
 
 const MAP_FIT_PADDING = { top: 56, bottom: 112, left: 56, right: 56 }
 
@@ -154,7 +159,8 @@ function handleMapClick(event: MapMouseEvent): void {
   if (map?.getLayer(RAW_STOP_LAYER_ID) && map.queryRenderedFeatures(event.point, { layers: [RAW_STOP_LAYER_ID] }).length > 0) {
     return
   }
-  emit('map-click', { lat: event.lngLat.lat, lng: event.lngLat.lng })
+  lastClickedPoint = { lat: event.lngLat.lat, lng: event.lngLat.lng }
+  emit('map-click', lastClickedPoint)
 }
 
 // A crosshair marks the armed map, and double-click zoom steps aside so a
@@ -181,6 +187,9 @@ watch(
   () => props.origin,
   (coords) => {
     if (!coords || !isMapLoaded) return
+    const wasJustClicked = lastClickedPoint?.lat === coords.lat && lastClickedPoint?.lng === coords.lng
+    lastClickedPoint = null
+    if (wasJustClicked) return
     snapMapToOrigin(coords)
   },
 )

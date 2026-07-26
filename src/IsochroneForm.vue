@@ -1,10 +1,3 @@
-<script lang="ts">
-// Lives with the form that arms the pick, but is rendered by MapView, which is
-// the form's sibling — so every page wiring the two together imports it from here
-// rather than retyping the sentence.
-export const ORIGIN_PICK_CUE = 'Click the map to set origin — Esc to cancel'
-</script>
-
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AddressAutocomplete from './components/AddressAutocomplete.vue'
@@ -102,9 +95,10 @@ watch(pickArmed, (armed) => {
   emit('pick-armed', armed)
 })
 
-// An origin arriving by any route ends the pick, because the map is no longer
-// waiting on the user: a search hit, a typed coordinate, and the picked point
-// itself all land here. The last of those is what makes a pick one click.
+// Typing an origin ends the pick, because the map is no longer waiting on the
+// user. The other ways in disarm at their own call sites rather than here, so
+// that re-picking or re-selecting the same coordinates still counts as setting
+// the origin even though the values never changed.
 watch([lat, lng], () => {
   pickArmed.value = false
 })
@@ -123,12 +117,13 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleKeydown)
 })
 
-// Called by the parent when a click lands on the armed map. Coordinates only —
-// no reverse geocode — so the address field is cleared rather than left naming
-// somewhere the origin no longer is. Setting lat/lng disarms via the watcher
-// above, and deliberately does not submit: generating stays an explicit act.
+// Called by the parent when a click lands on the armed map. One click is the
+// whole pick, so this disarms. Coordinates only — no reverse geocode — so the
+// address field is cleared rather than left naming somewhere the origin no
+// longer is, and it deliberately does not submit: generating stays explicit.
 function setOriginFromMap(coord: { lat: number; lng: number }) {
   if (!pickArmed.value) return
+  pickArmed.value = false
   lat.value = String(coord.lat)
   lng.value = String(coord.lng)
   selectedLabel.value = ''
@@ -138,6 +133,7 @@ function setOriginFromMap(coord: { lat: number; lng: number }) {
 defineExpose({ setOriginFromMap })
 
 function onAutocompleteSelect(suggestion: GeocodingSuggestion) {
+  pickArmed.value = false
   lat.value = String(suggestion.lat)
   lng.value = String(suggestion.lng)
   selectedLabel.value = suggestion.label

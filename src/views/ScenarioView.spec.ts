@@ -32,10 +32,10 @@ const stubIsochrone: ChainResponse = {
   },
 }
 
-function mountScenarioView(slug = 'ca-hsr') {
+function mountScenarioView(slug = 'ca-hsr', stubs: Record<string, boolean> = { MapView: true, IsochroneForm: true }) {
   return mount(ScenarioView, {
     props: { slug },
-    global: { stubs: { MapView: true, IsochroneForm: true } },
+    global: { stubs },
   })
 }
 
@@ -198,10 +198,7 @@ describe('ScenarioView', () => {
     })
 
     it('feeds a map click back into the form as the origin', async () => {
-      const wrapper = mount(ScenarioView, {
-        props: { slug: 'ca-hsr' },
-        global: { stubs: { MapView: true } },
-      })
+      const wrapper = mountScenarioView('ca-hsr', { MapView: true })
       await wrapper.find('[data-testid="pick-on-map"]').trigger('click')
 
       await wrapper.findComponent({ name: 'MapView' }).vm.$emit('map-click', { lat: 45.5231, lng: -122.6784 })

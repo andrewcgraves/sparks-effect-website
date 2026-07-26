@@ -1,27 +1,22 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import IsochroneForm, { ORIGIN_PICK_CUE } from '../IsochroneForm.vue'
+import IsochroneForm from '../IsochroneForm.vue'
 import MapView from '../components/MapView.vue'
+import { ORIGIN_PICK_CUE } from '../components/placementCues'
 import { useScenario } from '../composables/useScenario'
 import { useIsochrone } from '../composables/useIsochrone'
+import { useOriginPick } from '../composables/useOriginPick'
 
 const props = defineProps<{ slug: string }>()
 
 const origin = ref<{ lat: number; lng: number } | null>(null)
-// The form owns the pick; this page only relays it to its sibling map, and the
-// clicked point back to the form. See ORIGIN_PICK_CUE for the wording.
-const pickArmed = ref(false)
-const isochroneFormRef = ref<InstanceType<typeof IsochroneForm> | null>(null)
+const { pickArmed, onMapClick } = useOriginPick()
 
 const { name, description, routes, stations, services } = useScenario(props.slug)
 const { data: isochroneData, loading: isLoading, error: fetchError, generate } = useIsochrone()
 
 function onOriginChange(coords: { lat: number; lng: number } | null) {
   origin.value = coords
-}
-
-function onMapClick(coord: { lat: number; lng: number }) {
-  isochroneFormRef.value?.setOriginFromMap(coord)
 }
 
 async function handleFormSubmit(payload: { lat: number; lng: number; duration: number; mode: 'walk' | 'bike' | 'drive' }) {
@@ -65,7 +60,7 @@ async function handleFormSubmit(payload: { lat: number; lng: number; duration: n
 
       <div class="flex flex-col gap-4">
         <IsochroneForm
-          ref="isochroneFormRef"
+          ref="isochroneForm"
           :error="fetchError"
           :loading="isLoading"
           @submit="handleFormSubmit"
