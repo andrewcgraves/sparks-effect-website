@@ -1,7 +1,11 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import IsochroneForm from '../IsochroneForm.vue'
 import MapView from '../components/MapView.vue'
+import TimeBetweenStations from '../components/TimeBetweenStations.vue'
+import { segmentStationTimeGroups } from '../components/stationTimes'
+import { fetchScenarioTravelTimes } from '../api/scenarios'
+import type { SegmentTime } from '../api/scenarios'
 import { useScenario } from '../composables/useScenario'
 import { useIsochrone } from '../composables/useIsochrone'
 
@@ -10,6 +14,22 @@ const props = defineProps<{ slug: string }>()
 const origin = ref<{ lat: number; lng: number } | null>(null)
 
 const { name, description, routes, stations, services } = useScenario(props.slug)
+
+// Run times are supporting detail, not the reason the page exists: a failure
+// takes the section away and is logged, leaving the map and form untouched.
+const segments = ref<SegmentTime[]>([])
+const travelTimesLoading = ref(true)
+const travelTimesFailed = ref(false)
+
+fetchScenarioTravelTimes(props.slug)
+  .then((travelTimes) => { segments.value = travelTimes.segments })
+  .catch((err) => {
+    travelTimesFailed.value = true
+    console.error(`Failed to load travel times for ${props.slug}`, err)
+  })
+  .finally(() => { travelTimesLoading.value = false })
+
+const stationTimeGroups = computed(() => segmentStationTimeGroups(segments.value, stations.value))
 const { data: isochroneData, loading: isLoading, error: fetchError, generate } = useIsochrone()
 
 function onOriginChange(coords: { lat: number; lng: number } | null) {
@@ -59,14 +79,11 @@ async function handleFormSubmit(payload: { lat: number; lng: number; duration: n
           @submit="handleFormSubmit"
           @origin-change="onOriginChange"
         />
-        <section class="rounded-(--radius-box) border border-border bg-surface p-4">
-          <h2 class="font-display text-h3 text-ink-true">
-            Speed graph
-          </h2>
-          <p class="font-body text-caption mt-2 text-ink-muted italic">
-            Placeholder — no data source yet.
-          </p>
-        </section>
+        <TimeBetweenStations
+          v-if="!travelTimesFailed"
+          :groups="stationTimeGroups"
+          :loading="travelTimesLoading"
+        />
       </div>
     </div>
 

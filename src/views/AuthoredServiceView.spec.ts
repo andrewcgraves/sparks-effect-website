@@ -173,6 +173,27 @@ describe('AuthoredServiceView', () => {
     expect(wrapper.findComponent({ name: 'IsochroneForm' }).exists()).toBe(true)
   })
 
+  it('shows time between stations for the service it compiled', async () => {
+    vi.mocked(fetchService).mockResolvedValue(stubService)
+    const wrapper = mountView()
+    await flushPromises()
+
+    const section = wrapper.get('[data-testid="time-between-stations"]')
+    expect(section.get('[data-testid="station-time-group-label"]').text()).toBe('Northbound Express')
+    expect(section.get('[data-testid="station-time-row"]').findAll('td').map((td) => td.text()))
+      .toEqual(['Union', 'Midtown', '1:00'])
+  })
+
+  it('reverses the run times when the other terminus is chosen', async () => {
+    vi.mocked(fetchService).mockResolvedValue(stubService)
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.findAll('[data-testid="direction-toggle"]')[1].trigger('click')
+    expect(wrapper.get('[data-testid="station-time-row"]').findAll('td').map((td) => td.text()))
+      .toEqual(['Midtown', 'Union', '1:00'])
+  })
+
   it('draws the service along its route alignment, not chords between stops', async () => {
     vi.mocked(fetchService).mockResolvedValue(stubService)
     const wrapper = mountView()

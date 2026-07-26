@@ -16,8 +16,44 @@ vi.mock('../composables/useScenario', () => ({
   useScenario: (slug: string) => mockUseScenario(slug),
 }))
 
+vi.mock('../api/scenarios', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../api/scenarios')>()
+  return {
+    ...actual,
+    fetchScenarioTravelTimes: vi.fn(),
+  }
+})
+
 import { fetchIsochrone } from '../api/isochrone'
+import { fetchScenarioTravelTimes } from '../api/scenarios'
+import type { Station, TravelTimes } from '../api/scenarios'
 import type { ChainResponse } from '../fixtures/isochrone'
+
+const stubStations: Station[] = [
+  {
+    id: 'st1',
+    scenario_id: 's1',
+    slug: 'sf',
+    name: 'San Francisco',
+    location: { type: 'Point', coordinates: [-122.4, 37.7] },
+    platform_height: '0',
+  },
+  {
+    id: 'st2',
+    scenario_id: 's1',
+    slug: 'sj',
+    name: 'San Jose',
+    location: { type: 'Point', coordinates: [-121.9, 37.3] },
+    platform_height: '0',
+  },
+]
+
+const stubTravelTimes: TravelTimes = {
+  scenario_slug: 'ca-hsr',
+  provenance: 'calibrated',
+  source: 'seed',
+  segments: [{ from: 'sf', to: 'sj', run_seconds: 2445 }],
+}
 
 const stubIsochrone: ChainResponse = {
   type: 'FeatureCollection',
@@ -42,12 +78,13 @@ function mountScenarioView(slug = 'ca-hsr') {
 describe('ScenarioView', () => {
   beforeEach(() => {
     vi.mocked(fetchIsochrone).mockClear()
+    vi.mocked(fetchScenarioTravelTimes).mockReset().mockResolvedValue(stubTravelTimes)
     mockUseScenario.mockReset()
     mockUseScenario.mockReturnValue({
       name: ref('CA HSR'),
       description: ref('California High-Speed Rail'),
       routes: ref([]),
-      stations: ref([]),
+      stations: ref(stubStations),
       services: ref([]),
     })
   })
@@ -169,6 +206,40 @@ describe('ScenarioView', () => {
     const wrapper = mountScenarioView()
     await wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('origin-change', { lat: 51.5074, lng: -0.1278 })
     expect(wrapper.findComponent({ name: 'MapView' }).props('origin')).toEqual({ lat: 51.5074, lng: -0.1278 })
+  })
+
+  it('shows the scenario travel times in place of the old speed-graph placeholder', async () => {
+    const wrapper = mountScenarioView('ca-hsr')
+    await flushPromises()
+    expect(fetchScenarioTravelTimes).toHaveBeenCalledWith('ca-hsr')
+    expect(wrapper.text()).not.toContain('Speed graph')
+    const section = wrapper.get('[data-testid="time-between-stations"]')
+    expect(section.get('[data-testid="station-time-row"]').findAll('td').map((td) => td.text()))
+      .toEqual(['San Francisco', 'San Jose', '40:45'])
+  })
+
+  it('offers no direction toggle for seeded run times, which have one stored direction', async () => {
+    const wrapper = mountScenarioView()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="direction-toggle"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="station-time-group-label"]').exists()).toBe(false)
+  })
+
+  it('shows muted loading copy while the travel times are in flight', async () => {
+    vi.mocked(fetchScenarioTravelTimes).mockReturnValue(new Promise(() => {}))
+    const wrapper = mountScenarioView()
+    expect(wrapper.get('[data-testid="station-times-loading"]').classes()).toContain('text-ink-muted')
+  })
+
+  it('logs and hides the section when the travel times fail, leaving the map usable', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.mocked(fetchScenarioTravelTimes).mockRejectedValue(new Error('API down'))
+    const wrapper = mountScenarioView()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="time-between-stations"]').exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'MapView' }).exists()).toBe(true)
+    expect(wrapper.findComponent({ name: 'IsochroneForm' }).exists()).toBe(true)
+    expect(logged).toHaveBeenCalled()
   })
 
   it('clears MapView origin when IsochroneForm emits origin-change with null', async () => {
