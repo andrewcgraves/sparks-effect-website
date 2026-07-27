@@ -1,237 +1,94 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useDraftsStore } from '../stores/drafts'
-import { useCompileJob } from '../composables/useCompileJob'
-import { ApiError, stopPlacementFault } from '../api/authoring/client'
-import { fetchRoute, listRoutes, snapStops } from '../api/authoring/routes'
-import { compileService, createService } from '../api/authoring/services'
-import type {
-  FaultedStop,
-  GraphEdge,
-  Route,
-  RouteSummary,
-  SnapCoord as LatLng,
-  SnapStopsResponse,
-  StopPlacementFault,
-  VehicleParams,
-} from '../api/authoring'
-import type { Route as ScenarioRoute } from '../api/scenarios'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useServiceDraft } from '../composables/useServiceDraft'
+import type { GraphEdge, SnapCoord as LatLng } from '../api/authoring'
 import MapView from '../components/MapView.vue'
-import type { StopPreviewPair } from '../composables/useStopPreviewLayer'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
 import { formatRunTime } from '../components/stationTimes'
 import { STOP_PLACEMENT_CUE } from '../components/placementCues'
 
-const drafts = useDraftsStore()
-const { compiling, compileError, result: compiledGraph, trigger: triggerCompile, reset: resetCompile } = useCompileJob(compileService)
-
-const routes = ref<RouteSummary[]>([])
-const routesLoading = ref(true)
-const routesError = ref(false)
-
-const selectedRoute = ref<Route | null>(null)
-
-const preview = ref<SnapStopsResponse | null>(null)
-const previewLoading = ref(false)
-const previewError = ref(false)
+// Every rule about what a draft is, when it can be previewed, and when it can
+// be submitted lives in the composable. What is left here is the form itself:
+// its own inputs, its arming toggle, and how the state renders.
+const {
+  stops,
+  frequencyWindows,
+  routeSlug,
+  name,
+  maxSpeedKmh,
+  accelerationMs2,
+  decelerationMs2,
+  dwellS,
+  routes,
+  routesLoading,
+  routesError,
+  mapRoutes,
+  selectRoute,
+  addStop,
+  addStopAt,
+  updateStop,
+  removeStop,
+  moveStop,
+  dragStop,
+  dropStop,
+  addFrequencyWindow,
+  removeFrequencyWindow,
+  preview,
+  previewLoading,
+  previewError,
+  stopPreviewPairs,
+  orderWarning,
+  canSubmit,
+  submitting,
+  submitted,
+  submitError,
+  faultedStops,
+  stopFaultMessage,
+  submit,
+  startAnother,
+  compiling,
+  compileError,
+  compiledGraph,
+  start,
+  dispose,
+} = useServiceDraft()
 
 const newStopName = ref('')
 const newStopLat = ref<number | null>(null)
 const newStopLng = ref<number | null>(null)
 
-// Arming is sticky so a ten-stop line is one toggle and ten clicks.
-const placingStops = ref(false)
-// Read only by schedulePreview, never rendered, so it stays a plain binding.
-let draggingStop = false
-
 const newWindowStart = ref('06:00')
 const newWindowEnd = ref('22:00')
 const newWindowHeadwayMin = ref<number | null>(null)
 
-const submitted = ref(false)
-const submitting = ref(false)
-const submitError = ref('')
-const submitFault = ref<StopPlacementFault | null>(null)
+// Arming is sticky so a ten-stop line is one toggle and ten clicks.
+const placingStops = ref(false)
 
-// Live preview trades a little latency for not hammering the snap endpoint on
-// every keystroke; 400ms is long enough to coalesce a burst of edits and short
-// enough that the preview still feels immediate.
-const PREVIEW_DEBOUNCE_MS = 400
-let previewTimer: ReturnType<typeof setTimeout> | null = null
-
-onMounted(async () => {
+onMounted(() => {
   window.addEventListener('keydown', handleKeydown)
-  if (!drafts.hasServiceDraft) drafts.startServiceDraft()
-  try {
-    routes.value = await listRoutes()
-  } catch {
-    routesError.value = true
-  } finally {
-    routesLoading.value = false
-  }
+  void start()
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleKeydown)
-  if (previewTimer) clearTimeout(previewTimer)
+  dispose()
 })
-
-const routeSlug = computed({
-  get: () => drafts.serviceDraft?.route_slug ?? '',
-  set: (value: string) => drafts.patchServiceDraft({ route_slug: value }),
-})
-
-const name = computed({
-  get: () => drafts.serviceDraft?.name ?? '',
-  set: (value: string) => drafts.patchServiceDraft({ name: value }),
-})
-
-function patchVehicle(patch: Partial<VehicleParams>): void {
-  if (!drafts.serviceDraft) return
-  drafts.patchServiceDraft({ vehicle: { ...drafts.serviceDraft.vehicle, ...patch } })
-}
-
-const maxSpeedKmh = computed({
-  get: () => drafts.serviceDraft?.vehicle.max_speed_kmh ?? 0,
-  set: (value: number) => patchVehicle({ max_speed_kmh: value }),
-})
-const accelerationMs2 = computed({
-  get: () => drafts.serviceDraft?.vehicle.acceleration_ms2 ?? 0,
-  set: (value: number) => patchVehicle({ acceleration_ms2: value }),
-})
-const decelerationMs2 = computed({
-  get: () => drafts.serviceDraft?.vehicle.deceleration_ms2 ?? 0,
-  set: (value: number) => patchVehicle({ deceleration_ms2: value }),
-})
-const dwellS = computed({
-  get: () => drafts.serviceDraft?.vehicle.dwell_s ?? 0,
-  set: (value: number) => patchVehicle({ dwell_s: value }),
-})
-
-const mapRoutes = computed<ScenarioRoute[]>(() => {
-  if (!selectedRoute.value) return []
-  const r = selectedRoute.value
-  return [{
-    id: r.id,
-    scenario_id: r.scenario_id ?? '',
-    name: r.name,
-    mode: r.mode,
-    geometry: r.geometry,
-    bidirectional: r.bidirectional,
-  }]
-})
-
-async function handleRouteChange(): Promise<void> {
-  selectedRoute.value = null
-  preview.value = null
-  const slug = routeSlug.value
-  if (!slug) return
-  try {
-    selectedRoute.value = await fetchRoute(slug)
-  } catch {
-    // Geometry is a best-effort map preview; the picker itself still works
-    // without it, so a fetch failure here is silently swallowed.
-  }
-  schedulePreview()
-}
-
-function schedulePreview(): void {
-  if (previewTimer) clearTimeout(previewTimer)
-  // A drag rewrites a stop's coordinates on every pointer move. Snapping each
-  // one would put a burst of requests behind a single gesture for answers
-  // nobody reads, so the preview waits for the drop.
-  if (draggingStop) return
-  previewTimer = setTimeout(() => void runPreview(), PREVIEW_DEBOUNCE_MS)
-}
-
-async function runPreview(): Promise<void> {
-  const draft = drafts.serviceDraft
-  if (!draft || !draft.route_slug || draft.stops.length === 0) {
-    preview.value = null
-    return
-  }
-  previewLoading.value = true
-  previewError.value = false
-  try {
-    preview.value = await snapStops(
-      draft.route_slug,
-      draft.stops.map((s) => ({ lat: s.lat, lng: s.lng })),
-    )
-  } catch {
-    previewError.value = true
-  } finally {
-    previewLoading.value = false
-  }
-}
-
-watch(
-  () => [drafts.serviceDraft?.route_slug, drafts.serviceDraft?.stops],
-  () => schedulePreview(),
-)
-
-const stopPreviewPairs = computed<StopPreviewPair[]>(() => {
-  const stops = drafts.serviceDraft?.stops ?? []
-  return stops.map((stop, index) => {
-    const snapped = preview.value?.stops[index]
-    return {
-      id: String(index),
-      raw: { lat: stop.lat, lng: stop.lng },
-      snapped: snapped ? snapped.snapped : null,
-      offRoute: snapped?.off_route ?? false,
-    }
-  })
-})
-
-// The preview endpoint reports only whether the order disagrees, not which
-// pair — the write path's 422 names the pair, but by the time that fires the
-// user should already have fixed it here. Rendering the along-the-line order
-// lets them compare it to what they authored and reorder by hand.
-const orderWarning = computed<string | null>(() => {
-  if (!preview.value || preview.value.order_is_consistent) return null
-  const stops = drafts.serviceDraft?.stops ?? []
-  const alongLine = preview.value.chainage_order
-    .map((i) => stops[i]?.name)
-    .filter((n): n is string => !!n)
-  return `Authored order doesn't match the route's direction. Along the line: ${alongLine.join(' → ')}.`
-})
-
-function handleAddStop(): void {
-  if (!drafts.serviceDraft) return
-  if (!newStopName.value.trim() || newStopLat.value === null || newStopLng.value === null) return
-  drafts.addStop({ name: newStopName.value.trim(), lat: newStopLat.value, lng: newStopLng.value, seq: 0 })
-  newStopName.value = ''
-  newStopLat.value = null
-  newStopLng.value = null
-}
-
-// The clicked point is stored raw, not snapped: clicking is less precise than
-// typing, so the existing off-route feedback is what tells the author they
-// missed the line.
-function handleMapClick(coord: LatLng): void {
-  if (!drafts.serviceDraft) return
-  drafts.addStop({ name: `Stop ${drafts.takeStopNumber()}`, lat: coord.lat, lng: coord.lng, seq: 0 })
-}
-
-// Preview pair ids are stop indices (see stopPreviewPairs), so the round trip
-// through a string is this component's own. Dragging writes lat/lng and
-// nothing else, leaving names, ordering and the stop counter untouched.
-function handleStopDrag(pairId: string, coord: LatLng): void {
-  draggingStop = true
-  drafts.updateStop(Number(pairId), coord)
-}
-
-function handleStopDragEnd(pairId: string, coord: LatLng): void {
-  draggingStop = false
-  drafts.updateStop(Number(pairId), coord)
-}
 
 function handleKeydown(event: KeyboardEvent): void {
   if (event.key === 'Escape') placingStops.value = false
 }
 
+function handleAddStop(): void {
+  if (newStopLat.value === null || newStopLng.value === null) return
+  addStop({ name: newStopName.value, lat: newStopLat.value, lng: newStopLng.value })
+  newStopName.value = ''
+  newStopLat.value = null
+  newStopLng.value = null
+}
+
 function handleAddFrequencyWindow(): void {
   if (newWindowHeadwayMin.value === null || newWindowHeadwayMin.value <= 0) return
-  drafts.addFrequencyWindow({
+  addFrequencyWindow({
     start_time: newWindowStart.value,
     end_time: newWindowEnd.value,
     headway_s: Math.round(newWindowHeadwayMin.value * 60),
@@ -239,72 +96,14 @@ function handleAddFrequencyWindow(): void {
   newWindowHeadwayMin.value = null
 }
 
-const canSubmit = computed(() => {
-  const draft = drafts.serviceDraft
-  if (!draft || submitting.value) return false
-  if (!draft.route_slug || !draft.name.trim()) return false
-  if (draft.stops.length < 2) return false
-  if (draft.vehicle.max_speed_kmh <= 0 || draft.vehicle.acceleration_ms2 <= 0 || draft.vehicle.deceleration_ms2 <= 0) {
-    return false
-  }
-  if (draft.frequency_windows.length === 0) return false
-  if (preview.value) {
-    if (preview.value.stops.some((s) => s.off_route)) return false
-    if (!preview.value.order_is_consistent) return false
-  }
-  return true
-})
-
-// The write-time 422 is the backstop behind live preview — preview already
-// catches off-route/order problems before submit, so this only fires when the
-// route changed underneath the draft or preview hasn't run yet. The stops it
-// names get flagged on their own row in addition to the banner; the banner
-// alone wasn't attaching the rejection to "the offending stop".
-//
-// Keyed by seq, which is the position the stop was submitted under, and which
-// the drafts store keeps equal to its row index (see renumber). That is the one
-// field that survives the round trip: a rejected write stores nothing, so the
-// slug it reports is one the client has never seen, and the name is whatever
-// the author may since have retyped.
-const faultedStops = computed<Map<number, FaultedStop>>(
-  () => new Map(submitFault.value?.stops.map((stop) => [stop.seq, stop]) ?? []),
-)
-
-function stopFaultMessage(stop: FaultedStop): string {
-  return submitFault.value?.fault === 'off_route'
-    ? `Rejected: ${Math.round(stop.offset_m)}m off the route`
-    : 'Rejected: out of order along the route'
+// Preview pair ids are stop indices (see stopPreviewPairs), so the round trip
+// through a string is this component's own.
+function handleStopDrag(pairId: string, coord: LatLng): void {
+  dragStop(Number(pairId), coord)
 }
 
-async function handleSubmit(): Promise<void> {
-  const draft = drafts.serviceDraft
-  if (!draft || !canSubmit.value) return
-  submitting.value = true
-  submitError.value = ''
-  submitFault.value = null
-  try {
-    const created = await createService(draft)
-    drafts.clearServiceDraft()
-    submitted.value = true
-    await triggerCompile(created.slug)
-  } catch (err) {
-    submitError.value = err instanceof ApiError ? err.message : 'Something went wrong creating the service.'
-    // Null for anything this build cannot attribute to specific rows, which
-    // leaves the banner above as the whole of the feedback.
-    submitFault.value = stopPlacementFault(err)
-  } finally {
-    submitting.value = false
-  }
-}
-
-function startAnother(): void {
-  submitted.value = false
-  resetCompile()
-  preview.value = null
-  selectedRoute.value = null
-  submitError.value = ''
-  submitFault.value = null
-  drafts.startServiceDraft()
+function handleStopDragEnd(pairId: string, coord: LatLng): void {
+  dropStop(Number(pairId), coord)
 }
 
 const allEdges = computed<GraphEdge[]>(() => compiledGraph.value?.services.flatMap((s) => s.edges) ?? [])
@@ -320,7 +119,7 @@ const allEdges = computed<GraphEdge[]>(() => compiledGraph.value?.services.flatM
       <div class="mt-8 grid grid-cols-1 items-start gap-8 lg:grid-cols-[1fr_1fr]">
         <form
           class="flex flex-col gap-6"
-          @submit.prevent="handleSubmit"
+          @submit.prevent="submit"
         >
           <section class="rounded-(--radius-box) border border-border bg-surface p-4">
             <h2 class="font-display text-h3 text-ink-true">
@@ -346,10 +145,10 @@ const allEdges = computed<GraphEdge[]>(() => compiledGraph.value?.services.flatM
             >
               Pick a route
               <select
-                v-model="routeSlug"
+                :value="routeSlug"
                 :class="FIELD_INPUT_CLASS"
                 data-testid="route-select"
-                @change="handleRouteChange"
+                @change="selectRoute(($event.target as HTMLSelectElement).value)"
               >
                 <option
                   value=""
@@ -385,12 +184,12 @@ const allEdges = computed<GraphEdge[]>(() => compiledGraph.value?.services.flatM
             </div>
 
             <ul
-              v-if="drafts.serviceDraft?.stops.length"
+              v-if="stops.length"
               class="mt-3 flex flex-col gap-2"
               data-testid="stops-list"
             >
               <li
-                v-for="(stop, index) in drafts.serviceDraft.stops"
+                v-for="(stop, index) in stops"
                 :key="index"
                 class="font-body text-caption flex items-center justify-between gap-2 rounded-(--radius-field) border border-border bg-white px-3 py-2 text-ink"
                 data-testid="stop-row"
@@ -401,7 +200,7 @@ const allEdges = computed<GraphEdge[]>(() => compiledGraph.value?.services.flatM
                     class="w-28 border-b border-transparent bg-transparent font-medium not-italic normal-case hover:border-border focus:border-border focus:outline-none"
                     :data-testid="`stop-edit-name-${index}`"
                     type="text"
-                    @change="drafts.updateStop(index, { name: ($event.target as HTMLInputElement).value })"
+                    @change="updateStop(index, { name: ($event.target as HTMLInputElement).value })"
                   >
                   <input
                     :value="stop.lat"
@@ -409,7 +208,7 @@ const allEdges = computed<GraphEdge[]>(() => compiledGraph.value?.services.flatM
                     :data-testid="`stop-edit-lat-${index}`"
                     type="number"
                     step="any"
-                    @change="drafts.updateStop(index, { lat: Number(($event.target as HTMLInputElement).value) })"
+                    @change="updateStop(index, { lat: Number(($event.target as HTMLInputElement).value) })"
                   >
                   <input
                     :value="stop.lng"
@@ -417,7 +216,7 @@ const allEdges = computed<GraphEdge[]>(() => compiledGraph.value?.services.flatM
                     :data-testid="`stop-edit-lng-${index}`"
                     type="number"
                     step="any"
-                    @change="drafts.updateStop(index, { lng: Number(($event.target as HTMLInputElement).value) })"
+                    @change="updateStop(index, { lng: Number(($event.target as HTMLInputElement).value) })"
                   >
                   <span
                     v-if="preview?.stops[index]?.off_route"
@@ -440,7 +239,7 @@ const allEdges = computed<GraphEdge[]>(() => compiledGraph.value?.services.flatM
                     class="cursor-pointer px-1 text-ink-muted hover:text-ink"
                     :data-testid="`stop-up-${index}`"
                     :disabled="index === 0"
-                    @click="drafts.moveStop(index, -1)"
+                    @click="moveStop(index, -1)"
                   >
                     ↑
                   </button>
@@ -448,8 +247,8 @@ const allEdges = computed<GraphEdge[]>(() => compiledGraph.value?.services.flatM
                     type="button"
                     class="cursor-pointer px-1 text-ink-muted hover:text-ink"
                     :data-testid="`stop-down-${index}`"
-                    :disabled="index === drafts.serviceDraft.stops.length - 1"
-                    @click="drafts.moveStop(index, 1)"
+                    :disabled="index === stops.length - 1"
+                    @click="moveStop(index, 1)"
                   >
                     ↓
                   </button>
@@ -457,7 +256,7 @@ const allEdges = computed<GraphEdge[]>(() => compiledGraph.value?.services.flatM
                     type="button"
                     class="cursor-pointer px-1 text-ink-muted hover:text-coral"
                     :data-testid="`stop-remove-${index}`"
-                    @click="drafts.removeStop(index)"
+                    @click="removeStop(index)"
                   >
                     ✕
                   </button>
@@ -587,12 +386,12 @@ const allEdges = computed<GraphEdge[]>(() => compiledGraph.value?.services.flatM
               Frequency windows
             </h2>
             <ul
-              v-if="drafts.serviceDraft?.frequency_windows.length"
+              v-if="frequencyWindows.length"
               class="mt-3 flex flex-col gap-2"
               data-testid="frequency-list"
             >
               <li
-                v-for="(window, index) in drafts.serviceDraft.frequency_windows"
+                v-for="(window, index) in frequencyWindows"
                 :key="index"
                 class="font-body text-caption flex items-center justify-between gap-2 rounded-(--radius-field) border border-border bg-white px-3 py-2 text-ink"
               >
@@ -601,7 +400,7 @@ const allEdges = computed<GraphEdge[]>(() => compiledGraph.value?.services.flatM
                   type="button"
                   class="cursor-pointer px-1 text-ink-muted hover:text-coral"
                   :data-testid="`frequency-remove-${index}`"
-                  @click="drafts.removeFrequencyWindow(index)"
+                  @click="removeFrequencyWindow(index)"
                 >
                   ✕
                 </button>
@@ -688,7 +487,7 @@ const allEdges = computed<GraphEdge[]>(() => compiledGraph.value?.services.flatM
             :placement-armed="placingStops"
             :placement-cue="STOP_PLACEMENT_CUE"
             hide-isochrone-legend
-            @map-click="handleMapClick"
+            @map-click="addStopAt"
             @stop-drag="handleStopDrag"
             @stop-drag-end="handleStopDragEnd"
           />
