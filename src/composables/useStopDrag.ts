@@ -130,13 +130,16 @@ export function useStopDrag(map: Map, callbacks: StopDragCallbacks): { release: 
  * module — the ordering the list in MapView now states outright.
  */
 export function stopDragModule(
-  enabled: () => boolean,
+  pairs: () => unknown | null,
   callbacks: StopDragCallbacks,
 ): MapModule {
   let drag: { release: () => void } | null = null
 
   return {
-    isReady: ({ styleLoaded }) => styleLoaded && enabled(),
+    // Reads the same getter the preview does, so the two can never disagree
+    // about whether the layer these listeners bind to exists.
+    deps: () => pairs() !== null,
+    isReady: (styleLoaded) => styleLoaded && pairs() !== null,
     attach: (map) => { drag = useStopDrag(map, callbacks) },
     // Listeners are bound to a layer, not to the data drawn in it, so there is
     // nothing to re-apply when the stops move.

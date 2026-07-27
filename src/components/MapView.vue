@@ -119,12 +119,14 @@ function fitMapToIsochrone(data: ChainResponse): void {
 // listeners to the layer the stop preview creates, so the preview comes first.
 // Each entry decides for itself when it is ready and what it owns; this
 // component no longer keeps a flag per module or a guard per call site.
+const stopPreviewPairs = () => props.stopPreviewPairs ?? null
+
 const modules = mapModules([
   routeLayerModule(() => ({ routes: props.routes, stations: props.stations })),
   isochroneLayerModule(() => props.isochroneData, isochroneColors),
   originMarkerModule(() => props.origin),
-  stopPreviewModule(() => props.stopPreviewPairs ?? null),
-  stopDragModule(() => props.stopPreviewPairs !== undefined, {
+  stopPreviewModule(stopPreviewPairs),
+  stopDragModule(stopPreviewPairs, {
     onDrag: (id, coord) => emit('stop-drag', id, coord),
     onDragEnd: (id, coord) => emit('stop-drag-end', id, coord),
     idleCursor: () => (props.placementArmed ? 'crosshair' : ''),
@@ -132,7 +134,7 @@ const modules = mapModules([
 ])
 
 function syncModules(): void {
-  if (map) modules.sync(map, { styleLoaded: isMapLoaded })
+  if (map) modules.sync(map, isMapLoaded)
 }
 
 // MapLibre suppresses its own click event when the pointer travelled further
@@ -160,14 +162,6 @@ function applyPlacementMode(): void {
   if (props.placementArmed) map.doubleClickZoom.disable()
   else map.doubleClickZoom.enable()
 }
-
-// Registered first, so what is drawn is up to date before any watcher below
-// decides where to point the camera. That ordering used to be an implicit
-// property of which watcher happened to be declared where.
-watch(
-  () => [props.routes, props.stations, props.isochroneData, props.origin, props.stopPreviewPairs],
-  syncModules,
-)
 
 watch(() => props.placementArmed, applyPlacementMode)
 

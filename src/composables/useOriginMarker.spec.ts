@@ -39,7 +39,7 @@ describe('originMarkerModule', () => {
   // is the one module that does not have to wait for the style to load.
   it('is ready before the style has loaded', () => {
     const module = originMarkerModule(() => ({ lat: 37.33, lng: -121.89 }))
-    expect(module.isReady({ styleLoaded: false })).toBe(true)
+    expect(module.isReady(false)).toBe(true)
   })
 
   it('places the marker on attach when there is an origin', () => {

@@ -175,12 +175,19 @@ export function stopPreviewModule(pairs: () => StopPreviewPair[] | null): MapMod
   let layer: { update: (pairs: StopPreviewPair[]) => void } | null = null
 
   return {
-    isReady: ({ styleLoaded }) => styleLoaded && pairs() !== null,
+    deps: pairs,
+    isReady: (styleLoaded) => styleLoaded && pairs() !== null,
     attach: (map) => {
       layer = useStopPreviewLayer(map)
-      layer.update(pairs() ?? [])
+      // isReady has already established there are pairs to draw.
+      layer.update(pairs()!)
     },
-    sync: () => layer?.update(pairs() ?? []),
+    // Pairs going away leaves the last drawing up rather than blanking it —
+    // there is no caller that does so, and clearing would be a guess.
+    sync: () => {
+      const current = pairs()
+      if (current) layer?.update(current)
+    },
     detach: () => { layer = null },
   }
 }

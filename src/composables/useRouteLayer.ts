@@ -106,13 +106,17 @@ export function useRouteLayer(map: Map, routes: Route[], stations: Station[]): v
  */
 export function routeLayerModule(inputs: () => { routes: Route[]; stations: Station[] }): MapModule {
   return {
-    isReady: ({ styleLoaded }) => styleLoaded && inputs().routes.length > 0,
+    deps: () => {
+      const { routes, stations } = inputs()
+      return [routes, stations]
+    },
+    isReady: (styleLoaded) => styleLoaded && inputs().routes.length > 0,
     attach: (map) => {
       const { routes, stations } = inputs()
       useRouteLayer(map, routes, stations)
     },
     // A scenario's routes are fetched once and do not change under an open map,
-    // so there is nothing to re-apply. The seam is here if that changes.
+    // so once drawn there is nothing to re-apply.
     sync: () => {},
     detach: () => {},
   }

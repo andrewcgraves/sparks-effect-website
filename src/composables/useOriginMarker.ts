@@ -24,6 +24,7 @@ export function originMarkerModule(origin: () => { lat: number; lng: number } | 
   }
 
   return {
+    deps: origin,
     isReady: () => true,
     attach: place,
     sync: place,

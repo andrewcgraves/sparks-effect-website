@@ -61,8 +61,8 @@ function setup(idleCursor = () => '') {
   const onDrag = vi.fn()
   const onDragEnd = vi.fn()
   const mock = makeMockMap()
-  useStopDrag(mock.map as unknown as Map, { onDrag, onDragEnd, idleCursor })
-  return { ...mock, onDrag, onDragEnd }
+  const drag = useStopDrag(mock.map as unknown as Map, { onDrag, onDragEnd, idleCursor })
+  return { ...mock, onDrag, onDragEnd, drag }
 }
 
 describe('useStopDrag', () => {
@@ -226,5 +226,39 @@ describe('useStopDrag', () => {
     fire('touchmove', null, moveEvent(37.8, -122.4))
 
     expect(onDrag).not.toHaveBeenCalled()
+  })
+
+  // A drag registers listeners on window, which outlive the map. Leaving the
+  // page mid-drag used to strand them holding this closure — and the map with
+  // it — for the rest of the session.
+  describe('release', () => {
+    it('removes the window listeners a drag in flight had registered', () => {
+      const added = vi.spyOn(window, 'addEventListener')
+      const removed = vi.spyOn(window, 'removeEventListener')
+      const { fire, drag } = setup()
+
+      fire('mousedown', RAW_STOP_LAYER_ID, pinEvent('s1', 37.7, -122.4))
+      const registered = added.mock.calls.map(([type]) => type)
+      expect(registered).toEqual(expect.arrayContaining(['mouseup', 'touchend', 'touchcancel']))
+
+      drag.release()
+
+      const released = removed.mock.calls.map(([type]) => type)
+      expect(released).toEqual(expect.arrayContaining(['mouseup', 'touchend', 'touchcancel']))
+      added.mockRestore()
+      removed.mockRestore()
+    })
+
+    // Releasing abandons the gesture rather than completing it: the pointer is
+    // gone, and reporting a drop the user never made would move a stop.
+    it('does not report a drop for the drag it abandoned', () => {
+      const { fire, drag, onDragEnd } = setup()
+      fire('mousedown', RAW_STOP_LAYER_ID, pinEvent('s1', 37.7, -122.4))
+      fire('mousemove', null, moveEvent(37.8, -122.5))
+
+      drag.release()
+
+      expect(onDragEnd).not.toHaveBeenCalled()
+    })
   })
 })

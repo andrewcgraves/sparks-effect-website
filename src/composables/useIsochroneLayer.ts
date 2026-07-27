@@ -60,7 +60,8 @@ export function isochroneLayerModule(
   colors: IsochroneColors,
 ): MapModule {
   return {
-    isReady: ({ styleLoaded }) => styleLoaded && data() !== null,
+    deps: data,
+    isReady: (styleLoaded) => styleLoaded && data() !== null,
     attach: (map) => {
       const geojson = data()
       if (geojson) useIsochroneLayer(map, geojson, colors)
