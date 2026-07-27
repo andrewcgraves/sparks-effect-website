@@ -26,7 +26,16 @@ const Stub = { template: '<div>stub</div>' }
 // A compiled single-service graph: one service, its stops as nodes, and the
 // route the API bundles onto the read so the map can follow the alignment.
 const graph = {
-  services: [{ service_id: 'svc1', wait_secs: 0, edges: [{ from_slug: 'a', to_slug: 'b', seconds: 60 }] }],
+  // Each hop compiles with its return leg; the two differ by the dwell at the
+  // stop each one arrives at.
+  services: [{
+    service_id: 'svc1',
+    wait_secs: 0,
+    edges: [
+      { from_slug: 'a', to_slug: 'b', seconds: 60 },
+      { from_slug: 'b', to_slug: 'a', seconds: 75 },
+    ],
+  }],
   nodes: [
     { slug: 'a', lat: 37.7, lng: -122.4, names: ['Union'] },
     { slug: 'b', lat: 37.5, lng: -122.1, names: ['Midtown'] },
@@ -171,6 +180,47 @@ describe('AuthoredServiceView', () => {
     expect(compileService).not.toHaveBeenCalled()
     expect(wrapper.find('[data-testid="map"]').exists()).toBe(true)
     expect(wrapper.findComponent({ name: 'IsochroneForm' }).exists()).toBe(true)
+  })
+
+  it('shows time between stations for the service it compiled', async () => {
+    vi.mocked(fetchService).mockResolvedValue(stubService)
+    const wrapper = mountView()
+    await flushPromises()
+
+    const section = wrapper.get('[data-testid="time-between-stations"]')
+    expect(section.get('[data-testid="station-time-group-label"]').text()).toBe('Northbound Express')
+    expect(section.get('[data-testid="station-time-row"]').findAll('td').map((td) => td.text()))
+      .toEqual(['Union', 'Midtown', '1:00'])
+  })
+
+  it('keeps the run times beside the stops and vehicle cards, not below them', async () => {
+    vi.mocked(fetchService).mockResolvedValue(stubService)
+    const wrapper = mountView()
+    await flushPromises()
+    // One flowing grid of cards, so they slot in side by side when there's room.
+    const grid = wrapper.get('[data-testid="time-between-stations"]').element.parentElement
+    expect(grid?.className).toContain('grid')
+    expect(grid?.querySelectorAll('[data-testid="service-stop-row"]').length).toBeGreaterThan(0)
+  })
+
+  it('drops the run-time section when the graph never arrives, rather than loading for good', async () => {
+    vi.mocked(fetchService).mockResolvedValue(stubService)
+    vi.mocked(fetchServiceGraph).mockRejectedValue(new ApiError('boom', 500))
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="time-between-stations"]').exists()).toBe(false)
+    // The stops and vehicle cards are unaffected.
+    expect(wrapper.find('[data-testid="service-stop-row"]').exists()).toBe(true)
+  })
+
+  it('shows the return leg\'s own run time when the other terminus is chosen', async () => {
+    vi.mocked(fetchService).mockResolvedValue(stubService)
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.findAll('[data-testid="direction-toggle"]')[1].trigger('click')
+    expect(wrapper.get('[data-testid="station-time-row"]').findAll('td').map((td) => td.text()))
+      .toEqual(['Midtown', 'Union', '1:15'])
   })
 
   it('draws the service along its route alignment, not chords between stops', async () => {

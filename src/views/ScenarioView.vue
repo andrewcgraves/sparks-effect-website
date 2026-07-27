@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import IsochroneForm from '../IsochroneForm.vue'
 import MapView from '../components/MapView.vue'
+import TimeBetweenStations from '../components/TimeBetweenStations.vue'
+import { segmentStationTimeGroups } from '../components/stationTimes'
 import { ORIGIN_PICK_CUE } from '../components/placementCues'
 import { useScenario } from '../composables/useScenario'
+import { useScenarioTravelTimes } from '../composables/useScenarioTravelTimes'
 import { useIsochrone } from '../composables/useIsochrone'
 import { useOriginPick } from '../composables/useOriginPick'
 
@@ -13,6 +16,14 @@ const origin = ref<{ lat: number; lng: number } | null>(null)
 const { pickArmed, onMapClick } = useOriginPick()
 
 const { name, description, routes, stations, services } = useScenario(props.slug)
+
+const {
+  segments,
+  loading: travelTimesLoading,
+  failed: travelTimesFailed,
+} = useScenarioTravelTimes(props.slug)
+
+const stationTimeGroups = computed(() => segmentStationTimeGroups(segments.value, stations.value))
 const { data: isochroneData, loading: isLoading, error: fetchError, generate } = useIsochrone()
 
 function onOriginChange(coords: { lat: number; lng: number } | null) {
@@ -67,14 +78,11 @@ async function handleFormSubmit(payload: { lat: number; lng: number; duration: n
           @origin-change="onOriginChange"
           @pick-armed="pickArmed = $event"
         />
-        <section class="rounded-(--radius-box) border border-border bg-surface p-4">
-          <h2 class="font-display text-h3 text-ink-true">
-            Speed graph
-          </h2>
-          <p class="font-body text-caption mt-2 text-ink-muted italic">
-            Placeholder — no data source yet.
-          </p>
-        </section>
+        <TimeBetweenStations
+          v-if="!travelTimesFailed"
+          :groups="stationTimeGroups"
+          :loading="travelTimesLoading"
+        />
       </div>
     </div>
 

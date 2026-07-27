@@ -1,5 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fetchScenario, type Route, type Station, type Service, type ScenarioDetail } from './scenarios'
+import {
+  fetchScenario,
+  fetchScenarioTravelTimes,
+  type Route,
+  type Station,
+  type Service,
+  type ScenarioDetail,
+  type TravelTimes,
+} from './scenarios'
 
 const stubRoute: Route = {
   id: 'r1',
@@ -85,5 +93,40 @@ describe('fetchScenario', () => {
   it('throws when the response is not ok', async () => {
     vi.mocked(fetch).mockResolvedValueOnce({ ok: false, status: 404 } as Response)
     await expect(fetchScenario('ca-hsr')).rejects.toThrow()
+  })
+})
+
+const stubTravelTimes: TravelTimes = {
+  scenario_slug: 'ca-hsr',
+  provenance: 'calibrated',
+  source: 'seed',
+  segments: [{ from: 'sf', to: 'sj', run_seconds: 1800 }],
+}
+
+describe('fetchScenarioTravelTimes', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn())
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllEnvs()
+  })
+
+  it('fetches from the travel-times endpoint for the scenario', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: true, json: async () => stubTravelTimes } as Response)
+    await fetchScenarioTravelTimes('ca-hsr')
+    expect(vi.mocked(fetch).mock.calls[0][0]).toContain('/api/scenarios/ca-hsr/travel-times')
+  })
+
+  it('returns the parsed segments', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: true, json: async () => stubTravelTimes } as Response)
+    const result = await fetchScenarioTravelTimes('ca-hsr')
+    expect(result.segments).toEqual([{ from: 'sf', to: 'sj', run_seconds: 1800 }])
+  })
+
+  it('throws when the response is not ok', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: false, status: 404 } as Response)
+    await expect(fetchScenarioTravelTimes('ca-hsr')).rejects.toThrow()
   })
 })

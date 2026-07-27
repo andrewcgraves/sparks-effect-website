@@ -17,6 +17,7 @@ import type { Route as ScenarioRoute } from '../api/scenarios'
 import MapView from '../components/MapView.vue'
 import type { StopPreviewPair } from '../composables/useStopPreviewLayer'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
+import { formatRunTime } from '../components/stationTimes'
 import { STOP_PLACEMENT_CUE } from '../components/placementCues'
 import { extractOffendingStopNames } from './parseServiceError'
 
@@ -287,12 +288,6 @@ function startAnother(): void {
 }
 
 const allEdges = computed<GraphEdge[]>(() => compiledGraph.value?.services.flatMap((s) => s.edges) ?? [])
-
-function formatSeconds(total: number): string {
-  const minutes = Math.floor(total / 60)
-  const seconds = total % 60
-  return `${minutes}:${String(seconds).padStart(2, '0')}`
-}
 </script>
 
 <template>
@@ -733,7 +728,7 @@ function formatSeconds(total: number): string {
               >
                 <td>{{ edge.from_slug }}</td>
                 <td>{{ edge.to_slug }}</td>
-                <td>{{ formatSeconds(edge.seconds) }}</td>
+                <td>{{ formatRunTime(edge.seconds) }}</td>
               </tr>
             </tbody>
           </table>
