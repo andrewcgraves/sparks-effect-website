@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, watch } from 'vue'
 import { compileService, fetchService, fetchServiceGraph, fetchServiceIsochrone } from '../api/authoring/services'
-import { ApiError } from '../api/authoring/client'
 import type { Service } from '../api/authoring/types'
 import { useOwnedDetail } from '../composables/useOwnedDetail'
-import { useAuthoredIsochrone } from '../composables/useAuthoredIsochrone'
+import { useAuthoredGraph } from '../composables/useAuthoredGraph'
 import ScenarioPreviewPanel from '../components/ScenarioPreviewPanel.vue'
 import TimeBetweenStations from '../components/TimeBetweenStations.vue'
 import { graphStationTimeGroups } from '../components/stationTimes'
@@ -19,13 +18,13 @@ const stops = computed(() => [...(service.value?.stops ?? [])].sort((a, b) => a.
 
 // Named by the route, so plotting never waits on the detail fetch. Compiling a
 // service alone is the degenerate one-member scenario, so this is the same
-// stale-graph dance the scenario page does, against the service endpoints.
+// workflow the scenario page runs, against the service endpoints.
 const {
   compiling,
   compileError,
   graph,
-  setGraph,
-  triggerCompile,
+  graphFailed,
+  loadGraph,
   origin,
   isochroneData,
   isochroneError,
@@ -36,35 +35,25 @@ const {
   mapRoutes,
   onOriginChange,
   handleIsochroneSubmit,
-} = useAuthoredIsochrone(() => props.slug, { compile: compileService, isochrone: fetchServiceIsochrone })
+} = useAuthoredGraph(() => props.slug, {
+  compile: compileService,
+  fetchGraph: fetchServiceGraph,
+  isochrone: fetchServiceIsochrone,
+})
 
 // The panel resolves service ids to names for its near-miss and cluster rows. A
 // service is its own sole member, so this one record is the whole lookup — no
 // need for the list fetch the scenario page makes.
 const services = computed(() => (service.value ? [service.value] : []))
 
-const graphError = ref('')
-
 const stationTimeGroups = computed(() => graphStationTimeGroups(graph.value, services.value))
 
 // Run times are read off the compiled graph, so a graph that never arrives
 // takes the section with it rather than leaving it loading for good.
-const stationTimesFailed = computed(() => Boolean(graphError.value || (compileError.value && !graph.value)))
+const stationTimesFailed = computed(() => Boolean(graphFailed.value || (compileError.value && !graph.value)))
 
-// Read the existing compiled graph rather than recompiling on every visit. A
-// 404 means this service has never compiled, which is a reason to compile, not
-// an error to show; anything else is a genuine failure.
-watch(service, async (loaded) => {
-  if (!loaded) return
-  try {
-    setGraph(await fetchServiceGraph(loaded.slug))
-  } catch (err) {
-    if (err instanceof ApiError && err.status === 404) {
-      await triggerCompile(loaded.slug)
-    } else {
-      graphError.value = "Couldn't load this service's compiled graph."
-    }
-  }
+watch(service, (loaded) => {
+  if (loaded) void loadGraph(loaded.slug)
 }, { immediate: true })
 </script>
 
@@ -136,12 +125,12 @@ watch(service, async (loaded) => {
         Compiling this service…
       </p>
       <p
-        v-else-if="graphError"
+        v-else-if="graphFailed"
         class="font-body text-caption mt-8 text-coral"
         role="alert"
         data-testid="graph-error"
       >
-        {{ graphError }}
+        Couldn't load this service's compiled graph.
       </p>
       <!-- A failed compile only replaces the preview while there is no graph
            to show; once one has loaded, a failed recompile is reported beside

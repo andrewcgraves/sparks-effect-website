@@ -6,7 +6,7 @@ import { useOriginPick } from '../composables/useOriginPick'
 import type { NearMiss, Service, StopCluster } from '../api/authoring/types'
 import type { Route, Station } from '../api/scenarios'
 import type { ChainResponse } from '../fixtures/isochrone'
-import type { IsochronePayload } from '../composables/useAuthoredIsochrone'
+import type { IsochronePayload } from '../composables/useAuthoredGraph'
 
 // The preview half of a compiled scenario or service — map, plot form, and what
 // the merge did. Shared by the detail pages at /authoring/scenarios/:slug and

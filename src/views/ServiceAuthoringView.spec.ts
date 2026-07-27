@@ -224,28 +224,106 @@ describe('ServiceAuthoringView', () => {
     expect(useDraftsStore().serviceDraft?.stops[0].lat).toBe(40)
   })
 
-  it('flags the offending stop row when a 422 names it', async () => {
-    vi.mocked(createService).mockRejectedValue(
-      new ApiError('POST /api/services failed: 422: stop "B" is 620 m from route "main-line"', 422),
-    )
-    const wrapper = mountView()
-    await flushPromises()
-    await wrapper.find('[data-testid="route-select"]').setValue('main-line')
-    await flushPromises()
-    await addStop(wrapper, 'A', 37.77, -122.41)
-    await addStop(wrapper, 'B', 37.33, -121.88)
-    await vi.advanceTimersByTimeAsync(400)
-    await flushPromises()
-    await wrapper.find('[data-testid="service-name"]').setValue('Northbound Express')
-    await wrapper.find('[data-testid="frequency-headway"]').setValue(15)
-    await wrapper.find('[data-testid="add-frequency"]').trigger('click')
+  describe('a rejected write that names the offending stops', () => {
+    // Drives the form to a submittable state and submits it, so each case below
+    // only has to say what the server answered.
+    async function submitAgainst(rejection: ApiError) {
+      vi.mocked(createService).mockRejectedValue(rejection)
+      const wrapper = mountView()
+      await flushPromises()
+      await wrapper.find('[data-testid="route-select"]').setValue('main-line')
+      await flushPromises()
+      await addStop(wrapper, 'A', 37.77, -122.41)
+      await addStop(wrapper, 'B', 37.33, -121.88)
+      await vi.advanceTimersByTimeAsync(400)
+      await flushPromises()
+      await wrapper.find('[data-testid="service-name"]').setValue('Northbound Express')
+      await wrapper.find('[data-testid="frequency-headway"]').setValue(15)
+      await wrapper.find('[data-testid="add-frequency"]').trigger('click')
 
-    await wrapper.find('form').trigger('submit')
-    await flushPromises()
+      await wrapper.find('form').trigger('submit')
+      await flushPromises()
+      return wrapper
+    }
 
-    const rows = wrapper.findAll('[data-testid="stop-row"]')
-    expect(rows[1].find('[data-testid="stop-submit-error"]').exists()).toBe(true)
-    expect(rows[0].find('[data-testid="stop-submit-error"]').exists()).toBe(false)
+    function flaggedRows(wrapper: ReturnType<typeof mountView>): number[] {
+      return wrapper
+        .findAll('[data-testid="stop-row"]')
+        .flatMap((row, index) => (row.find('[data-testid="stop-submit-error"]').exists() ? [index] : []))
+    }
+
+    it('flags only the stop an off-route fault names', async () => {
+      const wrapper = await submitAgainst(
+        new ApiError('POST /api/services failed: 422: rejected', 422, 'stop_placement', {
+          fault: 'off_route',
+          route_slug: 'main-line',
+          threshold_m: 500,
+          stops: [{ seq: 1, name: 'B', slug: 'b', chainage_m: 12000, offset_m: 620 }],
+        }),
+      )
+      expect(flaggedRows(wrapper)).toEqual([1])
+    })
+
+    it('reports how far off the route the stop landed', async () => {
+      const wrapper = await submitAgainst(
+        new ApiError('POST /api/services failed: 422: rejected', 422, 'stop_placement', {
+          fault: 'off_route',
+          route_slug: 'main-line',
+          threshold_m: 500,
+          stops: [{ seq: 1, name: 'B', slug: 'b', chainage_m: 12000, offset_m: 620 }],
+        }),
+      )
+      const flagged = wrapper.findAll('[data-testid="stop-row"]')[1]
+      expect(flagged.find('[data-testid="stop-submit-error"]').text()).toContain('620')
+    })
+
+    it('flags both stops an order fault names', async () => {
+      const wrapper = await submitAgainst(
+        new ApiError('POST /api/services failed: 422: rejected', 422, 'stop_placement', {
+          fault: 'chainage_order',
+          route_slug: 'main-line',
+          stops: [
+            { seq: 0, name: 'A', slug: 'a', chainage_m: 12000, offset_m: 4 },
+            { seq: 1, name: 'B', slug: 'b', chainage_m: 8000, offset_m: 2 },
+          ],
+        }),
+      )
+      expect(flaggedRows(wrapper)).toEqual([0, 1])
+    })
+
+    // The rows are keyed off seq, so renaming a stop after authoring it cannot
+    // cost it its flag — which is exactly what prose parsing could not promise.
+    it('flags by position rather than by stop name', async () => {
+      const wrapper = await submitAgainst(
+        new ApiError('POST /api/services failed: 422: rejected', 422, 'stop_placement', {
+          fault: 'off_route',
+          route_slug: 'main-line',
+          threshold_m: 500,
+          stops: [{ seq: 1, name: 'renamed since', slug: 'b', chainage_m: 12000, offset_m: 620 }],
+        }),
+      )
+      expect(flaggedRows(wrapper)).toEqual([1])
+    })
+
+    it('falls back to the banner alone when the detail is not one it recognizes', async () => {
+      const wrapper = await submitAgainst(
+        new ApiError('POST /api/services failed: 422: some new rule', 422, 'stop_placement', {
+          fault: 'a_rule_from_the_future',
+          route_slug: 'main-line',
+          stops: [{ seq: 1, name: 'B', slug: 'b', chainage_m: 12000, offset_m: 620 }],
+        }),
+      )
+      expect(flaggedRows(wrapper)).toEqual([])
+      expect(wrapper.find('[data-testid="submit-error"]').text()).toContain('some new rule')
+    })
+
+    it('falls back to the banner alone for a rejection carrying no detail', async () => {
+      const wrapper = await submitAgainst(
+        new ApiError('POST /api/services failed: 422: route_slug is required', 422),
+      )
+      expect(flaggedRows(wrapper)).toEqual([])
+      expect(wrapper.find('[data-testid="submit-error"]').text()).toContain('route_slug is required')
+    })
   })
 
   it('disables submit until a route, two stops, name, and a frequency window are set', async () => {

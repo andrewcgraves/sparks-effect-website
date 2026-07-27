@@ -1,14 +1,15 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, toRef, watch } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { Map, FullscreenControl } from 'maplibre-gl'
-import type { GeoJSONSource, MapMouseEvent } from 'maplibre-gl'
+import type { MapMouseEvent } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { ISOCHRONE_SOURCE_ID, isochroneLegend, resolveIsochroneColors, useIsochroneLayer } from '../composables/useIsochroneLayer'
-import { centerFromCorners, routeBoundsCorners, useRouteLayer } from '../composables/useRouteLayer'
-import { useOriginMarker } from '../composables/useOriginMarker'
-import { RAW_STOP_LAYER_ID, useStopPreviewLayer } from '../composables/useStopPreviewLayer'
+import { isochroneLayerModule, isochroneLegend, resolveIsochroneColors } from '../composables/useIsochroneLayer'
+import { centerFromCorners, routeBoundsCorners, routeLayerModule } from '../composables/useRouteLayer'
+import { originMarkerModule } from '../composables/useOriginMarker'
+import { RAW_STOP_LAYER_ID, stopPreviewModule } from '../composables/useStopPreviewLayer'
 import type { StopPreviewPair } from '../composables/useStopPreviewLayer'
-import { useStopDrag } from '../composables/useStopDrag'
+import { stopDragModule } from '../composables/useStopDrag'
+import { mapModules } from '../composables/mapLifecycle'
 import { ISOCHRONE_BOUNDS_CORNERS, ISOCHRONE_CENTER, isochroneBoundsCorners } from '../fixtures/isochrone'
 import type { ChainResponse } from '../fixtures/isochrone'
 import { resolveMapStyleUrl } from '../mapStyle'
@@ -54,9 +55,9 @@ let map: Map | null = null
 let resizeObserver: ResizeObserver | null = null
 let hasFittedToSegments = false
 let hasFittedToRoutes = false
+// Map state, not module state: whether the style is up. Every module asks for
+// it, and none of them keeps its own copy.
 let isMapLoaded = false
-let routeLayerAdded = false
-let stopPreviewLayer: ReturnType<typeof useStopPreviewLayer> | null = null
 // The point last reported through map-click. A caller that turns a click into
 // the origin hands that same point straight back as a prop, and flying to
 // somewhere the user just clicked would only yank the view off what they were
@@ -114,37 +115,26 @@ function fitMapToIsochrone(data: ChainResponse): void {
   hasFittedToSegments = true
 }
 
-function applyIsochroneData(data: ChainResponse): void {
-  if (!map) return
-  const existing = map.getSource(ISOCHRONE_SOURCE_ID) as GeoJSONSource | undefined
-  if (existing) {
-    existing.setData(data)
-  } else {
-    useIsochroneLayer(map, data, isochroneColors)
-  }
-  fitMapToIsochrone(data)
-}
+// Everything drawn on this map, in dependency order: stop dragging binds its
+// listeners to the layer the stop preview creates, so the preview comes first.
+// Each entry decides for itself when it is ready and what it owns; this
+// component no longer keeps a flag per module or a guard per call site.
+const stopPreviewPairs = () => props.stopPreviewPairs ?? null
 
-function maybeAddRouteLayer(): void {
-  if (!map || !isMapLoaded || routeLayerAdded) return
-  if (props.routes.length === 0) return
-  useRouteLayer(map, props.routes, props.stations)
-  routeLayerAdded = true
-}
-
-// Draws the stop preview and makes its pins draggable — the two go together,
-// since dragging is wired against the layer the preview creates. Absent by
-// default for every caller but the service-authoring form, so this stays a
-// no-op unless stopPreviewPairs is actually passed.
-function maybeInitStopInteraction(): void {
-  if (!map || !isMapLoaded || stopPreviewLayer || !props.stopPreviewPairs) return
-  stopPreviewLayer = useStopPreviewLayer(map)
-  stopPreviewLayer.update(props.stopPreviewPairs)
-  useStopDrag(map, {
+const modules = mapModules([
+  routeLayerModule(() => ({ routes: props.routes, stations: props.stations })),
+  isochroneLayerModule(() => props.isochroneData, isochroneColors),
+  originMarkerModule(() => props.origin),
+  stopPreviewModule(stopPreviewPairs),
+  stopDragModule(stopPreviewPairs, {
     onDrag: (id, coord) => emit('stop-drag', id, coord),
     onDragEnd: (id, coord) => emit('stop-drag-end', id, coord),
     idleCursor: () => (props.placementArmed ? 'crosshair' : ''),
-  })
+  }),
+])
+
+function syncModules(): void {
+  if (map) modules.sync(map, isMapLoaded)
 }
 
 // MapLibre suppresses its own click event when the pointer travelled further
@@ -175,11 +165,13 @@ function applyPlacementMode(): void {
 
 watch(() => props.placementArmed, applyPlacementMode)
 
+// The camera is this component's own: it owns the viewport, and no module has
+// any business moving it. What follows is only about where to look.
 watch(
   () => props.isochroneData,
   (data) => {
     if (!data || !isMapLoaded) return
-    applyIsochroneData(data)
+    fitMapToIsochrone(data)
   },
 )
 
@@ -197,18 +189,8 @@ watch(
 watch(
   () => props.routes,
   (routes) => {
-    maybeAddRouteLayer()
     if (!isMapLoaded || props.isochroneData || props.origin || hasFittedToRoutes) return
     if (routes.length > 0) fitMapToRoutes()
-  },
-)
-
-watch(
-  () => props.stopPreviewPairs,
-  (pairs) => {
-    if (!isMapLoaded || !pairs) return
-    maybeInitStopInteraction()
-    stopPreviewLayer?.update(pairs)
   },
 )
 
@@ -229,20 +211,22 @@ onMounted(() => {
 
   map.addControl(new FullscreenControl())
 
-  useOriginMarker(map, toRef(props, 'origin'))
-
   map.on('click', handleMapClick)
+
+  // Attaches whatever does not need the style — the origin marker is a DOM
+  // element over the canvas, and waiting for load would make the pin arrive
+  // late on a page that already knows where it is.
+  syncModules()
 
   map.on('load', () => {
     if (!map) return
     isMapLoaded = true
 
-    maybeAddRouteLayer()
-    maybeInitStopInteraction()
+    syncModules()
     applyPlacementMode()
 
     if (props.isochroneData) {
-      applyIsochroneData(props.isochroneData)
+      fitMapToIsochrone(props.isochroneData)
     } else if (props.origin) {
       snapMapToOrigin(props.origin)
     } else {
@@ -265,6 +249,9 @@ onMounted(() => {
 onUnmounted(() => {
   resizeObserver?.disconnect()
   resizeObserver = null
+  // Modules first: they release what would outlive the map, and map.remove()
+  // takes the sources, layers, and map-bound listeners with it.
+  modules.detach()
   map?.remove()
   map = null
 })

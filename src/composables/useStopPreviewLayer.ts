@@ -1,4 +1,5 @@
 import type { Map, GeoJSONSource } from 'maplibre-gl'
+import type { MapModule } from './mapLifecycle'
 import { readThemeToken } from '../themeTokens'
 import type { SnapCoord as LatLng } from '../api/authoring/types'
 
@@ -161,4 +162,32 @@ export function useStopPreviewLayer(map: Map): { update: (pairs: StopPreviewPair
   }
 
   return { update }
+}
+
+/**
+ * The raw/snapped stop preview as a map module.
+ *
+ * Absent for every caller but the service-authoring form, so `pairs` returning
+ * null keeps it unattached rather than adding three empty sources to every map
+ * in the app.
+ */
+export function stopPreviewModule(pairs: () => StopPreviewPair[] | null): MapModule {
+  let layer: { update: (pairs: StopPreviewPair[]) => void } | null = null
+
+  return {
+    deps: pairs,
+    isReady: (styleLoaded) => styleLoaded && pairs() !== null,
+    attach: (map) => {
+      layer = useStopPreviewLayer(map)
+      // isReady has already established there are pairs to draw.
+      layer.update(pairs()!)
+    },
+    // Pairs going away leaves the last drawing up rather than blanking it —
+    // there is no caller that does so, and clearing would be a guess.
+    sync: () => {
+      const current = pairs()
+      if (current) layer?.update(current)
+    },
+    detach: () => { layer = null },
+  }
 }

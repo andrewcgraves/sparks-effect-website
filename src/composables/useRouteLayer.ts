@@ -1,4 +1,5 @@
 import type { Map } from 'maplibre-gl'
+import type { MapModule } from './mapLifecycle'
 import type { Route, Station } from '../api/scenarios'
 import { readThemeToken } from '../themeTokens'
 
@@ -94,4 +95,29 @@ export function useRouteLayer(map: Map, routes: Route[], stations: Station[]): v
       'circle-stroke-color': ink,
     },
   })
+}
+
+/**
+ * The route and station layers as a map module.
+ *
+ * Not ready until there is at least one route: adding an empty source would
+ * draw nothing and then never be revisited, and routes arrive from the scenario
+ * fetch well after the map itself.
+ */
+export function routeLayerModule(inputs: () => { routes: Route[]; stations: Station[] }): MapModule {
+  return {
+    deps: () => {
+      const { routes, stations } = inputs()
+      return [routes, stations]
+    },
+    isReady: (styleLoaded) => styleLoaded && inputs().routes.length > 0,
+    attach: (map) => {
+      const { routes, stations } = inputs()
+      useRouteLayer(map, routes, stations)
+    },
+    // A scenario's routes are fetched once and do not change under an open map,
+    // so once drawn there is nothing to re-apply.
+    sync: () => {},
+    detach: () => {},
+  }
 }

@@ -1,12 +1,11 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, watch } from 'vue'
 import { compileScenario, fetchScenario, fetchScenarioGraph, fetchScenarioIsochrone } from '../api/authoring/scenarios'
 import { fetchMyServices } from '../api/authoring/services'
-import { ApiError } from '../api/authoring/client'
 import type { Scenario } from '../api/authoring/types'
 import { useOwnedDetail } from '../composables/useOwnedDetail'
 import { useOwnedList } from '../composables/useOwnedList'
-import { useAuthoredIsochrone } from '../composables/useAuthoredIsochrone'
+import { useAuthoredGraph } from '../composables/useAuthoredGraph'
 import ScenarioPreviewPanel from '../components/ScenarioPreviewPanel.vue'
 import TimeBetweenStations from '../components/TimeBetweenStations.vue'
 import { graphStationTimeGroups } from '../components/stationTimes'
@@ -21,8 +20,8 @@ const {
   compiling,
   compileError,
   graph,
-  setGraph,
-  triggerCompile,
+  graphFailed,
+  loadGraph,
   origin,
   isochroneData,
   isochroneError,
@@ -33,33 +32,23 @@ const {
   mapRoutes,
   onOriginChange,
   handleIsochroneSubmit,
-} = useAuthoredIsochrone(() => props.slug, { compile: compileScenario, isochrone: fetchScenarioIsochrone })
+} = useAuthoredGraph(() => props.slug, {
+  compile: compileScenario,
+  fetchGraph: fetchScenarioGraph,
+  isochrone: fetchScenarioIsochrone,
+})
 
 // Near-miss rows name their services; the panel resolves ids against this.
 const { items: services } = useOwnedList(fetchMyServices)
-
-const graphError = ref('')
 
 const stationTimeGroups = computed(() => graphStationTimeGroups(graph.value, services.value))
 
 // Run times are read off the compiled graph, so a graph that never arrives
 // takes the section with it rather than leaving it loading for good.
-const stationTimesFailed = computed(() => Boolean(graphError.value || (compileError.value && !graph.value)))
+const stationTimesFailed = computed(() => Boolean(graphFailed.value || (compileError.value && !graph.value)))
 
-// Read the existing compiled graph rather than recompiling on every visit. A
-// 404 means this scenario has never compiled, which is a reason to compile,
-// not an error to show; anything else is a genuine failure.
-watch(scenario, async (loaded) => {
-  if (!loaded) return
-  try {
-    setGraph(await fetchScenarioGraph(loaded.slug))
-  } catch (err) {
-    if (err instanceof ApiError && err.status === 404) {
-      await triggerCompile(loaded.slug)
-    } else {
-      graphError.value = "Couldn't load this scenario's compiled graph."
-    }
-  }
+watch(scenario, (loaded) => {
+  if (loaded) void loadGraph(loaded.slug)
 }, { immediate: true })
 </script>
 
@@ -129,12 +118,12 @@ watch(scenario, async (loaded) => {
         Compiling this scenario…
       </p>
       <p
-        v-else-if="graphError"
+        v-else-if="graphFailed"
         class="font-body text-caption mt-8 text-coral"
         role="alert"
         data-testid="graph-error"
       >
-        {{ graphError }}
+        Couldn't load this scenario's compiled graph.
       </p>
       <!-- A failed compile only replaces the preview while there is no graph
            to show; once one has loaded, a failed recompile is reported beside

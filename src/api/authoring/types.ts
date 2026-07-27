@@ -16,6 +16,48 @@ export interface Stop {
   offset_m?: number
 }
 
+// Which placement rules a submitted service can break. The server sends these
+// as stable strings, so a build that meets a kind it does not list here has met
+// a rule it was never taught to attribute — see stopPlacementFault.
+//
+// The array is the single copy: the union type is derived from it, and the
+// runtime check that a value is one of them reads the same array, so a third
+// kind cannot be added to one and forgotten in the other.
+export const STOP_PLACEMENT_FAULT_KINDS = ['off_route', 'chainage_order'] as const
+
+export type StopPlacementFaultKind = typeof STOP_PLACEMENT_FAULT_KINDS[number]
+
+// One stop a placement fault is about, and where it landed once snapped.
+//
+// seq is the key: it is the stop's position in the request, so it maps back to
+// a row the author can actually go and move. name and slug are for display —
+// neither survives a rejected write as an identifier, since the server mints
+// slugs from names and stores nothing when it refuses.
+export interface FaultedStop {
+  seq: number
+  name: string
+  slug: string
+  chainage_m: number
+  offset_m: number
+}
+
+// The `detail` of a 422 refusing a service's stop placement — the machine-
+// readable half of the rejection, alongside the prose a user reads.
+export interface StopPlacementFault {
+  fault: StopPlacementFaultKind
+  // Carried through as the server sent them. Only `fault` and `stops` decide
+  // whether a fault can be attributed to rows, so these two are along for the
+  // ride rather than load-bearing, and their absence is not a reason to throw
+  // an otherwise usable fault away.
+  route_slug?: string
+  // The distance the fault was measured against, echoed on an off-route fault.
+  // An order fault is not measured against a distance, so it carries none.
+  threshold_m?: number
+  // The offending stops in authored order: one for off_route, the adjacent
+  // pair for chainage_order.
+  stops: FaultedStop[]
+}
+
 // User-defined vehicle physics used to simulate a service.
 export interface VehicleParams {
   max_speed_kmh: number
