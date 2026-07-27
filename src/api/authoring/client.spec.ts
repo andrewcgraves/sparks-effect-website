@@ -261,6 +261,14 @@ describe('stopPlacementFault', () => {
     expect(fault?.threshold_m).toBeUndefined()
   })
 
+  // Only fault and stops decide whether the rows can be flagged, so a fault is
+  // still usable without the fields that merely describe it.
+  it('still reads a fault whose descriptive fields are missing', () => {
+    const fault = stopPlacementFault(rejection({ fault: 'off_route', stops: [offRouteStop] }))
+    expect(fault?.stops.map((s) => s.seq)).toEqual([1])
+    expect(fault?.route_slug).toBeUndefined()
+  })
+
   it('ignores a rejection carrying a different code', () => {
     const detail = { fault: 'off_route', route_slug: 'main-line', stops: [offRouteStop] }
     expect(stopPlacementFault(rejection(detail, 'stale_graph'))).toBeNull()

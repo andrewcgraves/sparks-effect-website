@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises } from '@vue/test-utils'
+import { nextTick } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import type { Job, Route, RouteSummary, SnapStopsResponse, Service } from '../api/authoring/types'
 
@@ -392,6 +393,33 @@ describe('useServiceDraft', () => {
 
       expect([...draft.faultedStops.value.keys()]).toEqual([1])
       expect(draft.stopFaultMessage(draft.faultedStops.value.get(1)!)).toContain('620')
+    })
+
+    // The flags name positions in the list that was submitted. Once that list
+    // changes those positions mean different stops, so a flag left in place
+    // would slide onto an innocent row.
+    it('drops the stop flags once the author edits the stop list', async () => {
+      vi.mocked(createService).mockRejectedValue(
+        new ApiError('POST /api/services failed: 422: rejected', 422, 'stop_placement', {
+          fault: 'off_route',
+          route_slug: 'main-line',
+          threshold_m: 500,
+          stops: [{ seq: 1, name: 'B', slug: 'b', chainage_m: 12000, offset_m: 620 }],
+        }),
+      )
+      const draft = useServiceDraft()
+      await submittable(draft)
+      await draft.submit()
+      expect(draft.faultedStops.value.size).toBe(1)
+
+      draft.removeStop(0)
+      // The watcher is pre-flush, so it clears before the next render — which
+      // is what stops a stale flag ever being painted.
+      await nextTick()
+
+      expect(draft.faultedStops.value.size).toBe(0)
+      // The banner is the record of what happened, so it stays.
+      expect(draft.submitError.value).toContain('rejected')
     })
 
     it('leaves no stop flagged when the refusal is not one it recognizes', async () => {

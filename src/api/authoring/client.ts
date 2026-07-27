@@ -1,5 +1,6 @@
 // Shared HTTP helpers for the authoring API client.
-import type { FaultedStop, StopPlacementFault, StopPlacementFaultKind } from './types'
+import { STOP_PLACEMENT_FAULT_KINDS } from './types'
+import type { FaultedStop, StopPlacementFault } from './types'
 
 // Resolves the API base URL, overridable via VITE_API_BASE_URL.
 export function apiBase(): string {
@@ -35,8 +36,6 @@ export class ApiError extends Error {
 // The code on a 422 whose detail names the stops that broke a placement rule.
 export const STOP_PLACEMENT_ERROR_CODE = 'stop_placement'
 
-const STOP_PLACEMENT_FAULT_KINDS: readonly string[] = ['off_route', 'chainage_order']
-
 function isFaultedStop(value: unknown): value is FaultedStop {
   const stop = value as Partial<FaultedStop> | null
   return (
@@ -65,15 +64,18 @@ export function stopPlacementFault(err: unknown): StopPlacementFault | null {
 
   const detail = err.detail as Partial<StopPlacementFault> | null
   if (typeof detail !== 'object' || detail === null) return null
-  if (typeof detail.fault !== 'string' || !STOP_PLACEMENT_FAULT_KINDS.includes(detail.fault)) return null
-  if (typeof detail.route_slug !== 'string') return null
+
+  // Only these two decide whether the fault can be pinned to rows, so only
+  // these two are required. Insisting on the descriptive fields as well would
+  // throw away a perfectly attributable fault over a value nothing reads.
+  const kind = STOP_PLACEMENT_FAULT_KINDS.find((known) => known === detail.fault)
+  if (!kind) return null
   if (!Array.isArray(detail.stops) || !detail.stops.every(isFaultedStop)) return null
-  if (detail.threshold_m !== undefined && typeof detail.threshold_m !== 'number') return null
 
   return {
-    fault: detail.fault as StopPlacementFaultKind,
-    route_slug: detail.route_slug,
-    threshold_m: detail.threshold_m,
+    fault: kind,
+    route_slug: typeof detail.route_slug === 'string' ? detail.route_slug : undefined,
+    threshold_m: typeof detail.threshold_m === 'number' ? detail.threshold_m : undefined,
     stops: detail.stops,
   }
 }

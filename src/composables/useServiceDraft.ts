@@ -11,6 +11,7 @@ import type {
   SnapCoord,
   SnapStopsResponse,
   StopPlacementFault,
+  StopPlacementFaultKind,
   VehicleParams,
 } from '../api/authoring'
 import type { Route as ScenarioRoute } from '../api/scenarios'
@@ -176,10 +177,16 @@ export function useServiceDraft() {
     () => new Map(submitFault.value?.stops.map((stop) => [stop.seq, stop]) ?? []),
   )
 
+  // Keyed by kind so a kind added to StopPlacementFaultKind fails to compile
+  // until it has a sentence, rather than silently falling into someone else's.
+  const STOP_FAULT_MESSAGES: Record<StopPlacementFaultKind, (stop: FaultedStop) => string> = {
+    off_route: (stop) => `Rejected: ${Math.round(stop.offset_m)}m off the route`,
+    chainage_order: () => 'Rejected: out of order along the route',
+  }
+
   function stopFaultMessage(stop: FaultedStop): string {
-    return submitFault.value?.fault === 'off_route'
-      ? `Rejected: ${Math.round(stop.offset_m)}m off the route`
-      : 'Rejected: out of order along the route'
+    const fault = submitFault.value
+    return fault ? STOP_FAULT_MESSAGES[fault.fault](stop) : ''
   }
 
   function schedulePreview(): void {
@@ -216,7 +223,15 @@ export function useServiceDraft() {
     if (!drafts.hasServiceDraft) drafts.startServiceDraft()
     unwatchDraft ??= watch(
       () => [draft.value?.route_slug, draft.value?.stops],
-      () => schedulePreview(),
+      () => {
+        // The fault names positions in the stop list that was submitted. Edit
+        // that list and those positions mean different stops, so the flags stop
+        // being true — delete the stop above a rejected one and the flag would
+        // otherwise slide onto an innocent row. The banner stays: it is the
+        // record of what happened, not a claim about a row.
+        submitFault.value = null
+        schedulePreview()
+      },
     )
     try {
       routes.value = await listRoutes()

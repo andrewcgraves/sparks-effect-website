@@ -3,6 +3,7 @@ import { ApiError } from '../api/authoring/client'
 import type { AuthoredIsochroneRequest, Job, TransitGraph } from '../api/authoring'
 import type { ChainResponse } from '../fixtures/isochrone'
 import { useCompileJob } from './useCompileJob'
+import { latestAttempt } from './latestAttempt'
 import { graphRoutes, graphStations } from './scenarioGraphMap'
 
 // A stale-graph retry should settle in one or two hops in practice; this just
@@ -78,12 +79,12 @@ export function useAuthoredGraph(getSlug: () => string | null, target: AuthoredG
   // The compile is part of the same wait from the user's point of view.
   const isochroneFormLoading = computed(() => isochroneLoading.value || compiling.value)
 
-  // Each concern counts its own attempts, since a graph load and a plot are
-  // independent things to have superseded. An attempt whose number is no longer
-  // current writes nothing: the user is waiting on a later one, and a late
-  // answer to a question they have already re-asked is worse than none.
-  let graphGeneration = 0
-  let isochroneGeneration = 0
+  // A graph load and a plot are independent things to have superseded, so they
+  // count separately. An attempt whose number is no longer current writes
+  // nothing: a late answer to a question the user has already re-asked is worse
+  // than no answer at all.
+  const loads = latestAttempt()
+  const plots = latestAttempt()
 
   /**
    * Reads the graph this target already compiled, compiling it for the first
@@ -93,14 +94,19 @@ export function useAuthoredGraph(getSlug: () => string | null, target: AuthoredG
    * an error to show. Anything else is a genuine failure.
    */
   async function loadGraph(slug: string): Promise<void> {
-    const attempt = ++graphGeneration
+    const attempt = loads.begin()
     graphFailed.value = false
+    // A load can end in a compile, so abandoning a load has to abandon the
+    // compile it started too. Without this the older load's compile still
+    // resolves into compiledGraph, which `graph` prefers — the newer load's
+    // answer would be the one thrown away.
+    resetCompile()
     try {
       const loaded = await target.fetchGraph(slug)
-      if (attempt !== graphGeneration) return
+      if (!loads.isCurrent(attempt)) return
       loadedGraph.value = loaded
     } catch (err) {
-      if (attempt !== graphGeneration) return
+      if (!loads.isCurrent(attempt)) return
       if (err instanceof ApiError && err.status === 404) {
         await triggerCompile(slug)
         return
@@ -118,14 +124,14 @@ export function useAuthoredGraph(getSlug: () => string | null, target: AuthoredG
    *
    * An edit made elsewhere answers 409 (stale_graph) on the isochrone call
    * itself, not on compile — recompile and retry rather than making the user
-   * work out why their scenario or service stopped plotting. `tries` counts
-   * across the whole gesture rather than per call, so a target that is stale
-   * again the moment it is compiled gives up instead of looping.
+   * work out why their scenario or service stopped plotting. `staleRetries`
+   * counts across the whole gesture rather than per call, so a target that is
+   * stale again the moment it is compiled gives up instead of looping.
    *
    * The slug is fixed for the duration of an attempt: it is the target the user
    * asked about, and re-reading it mid-retry could answer about another one.
    */
-  async function plot(slug: string, payload: IsochronePayload, attempt: number, tries: number): Promise<void> {
+  async function plot(slug: string, payload: IsochronePayload, attempt: number, staleRetries: number): Promise<void> {
     isochroneLoading.value = true
     isochroneError.value = null
     try {
@@ -135,15 +141,15 @@ export function useAuthoredGraph(getSlug: () => string | null, target: AuthoredG
         budget_mins: payload.duration,
         mode: payload.mode,
       })
-      if (attempt !== isochroneGeneration) return
+      if (!plots.isCurrent(attempt)) return
       isochroneData.value = data
     } catch (err) {
-      if (attempt !== isochroneGeneration) return
-      if (err instanceof ApiError && err.code === 'stale_graph' && tries < MAX_STALE_GRAPH_RETRIES) {
+      if (!plots.isCurrent(attempt)) return
+      if (err instanceof ApiError && err.code === 'stale_graph' && staleRetries < MAX_STALE_GRAPH_RETRIES) {
         await triggerCompile(slug)
-        if (attempt !== isochroneGeneration) return
+        if (!plots.isCurrent(attempt)) return
         if (!compileError.value) {
-          await plot(slug, payload, attempt, tries + 1)
+          await plot(slug, payload, attempt, staleRetries + 1)
           return
         }
       }
@@ -151,7 +157,7 @@ export function useAuthoredGraph(getSlug: () => string | null, target: AuthoredG
     } finally {
       // Left alone when superseded: the attempt that replaced this one set it,
       // and owns clearing it.
-      if (attempt === isochroneGeneration) isochroneLoading.value = false
+      if (plots.isCurrent(attempt)) isochroneLoading.value = false
     }
   }
 
@@ -161,15 +167,15 @@ export function useAuthoredGraph(getSlug: () => string | null, target: AuthoredG
     // Checked before the attempt is numbered, so a submit that cannot go
     // anywhere does not supersede one that is still in flight.
     if (!slug) return
-    await plot(slug, payload, ++isochroneGeneration, 1)
+    await plot(slug, payload, plots.begin(), 1)
   }
 
   // Abandons everything in flight and returns to the state of a page that has
   // just opened. Bumping both counters is what makes the abandonment stick:
   // requests already issued cannot be recalled, only ignored when they land.
   function reset(): void {
-    graphGeneration++
-    isochroneGeneration++
+    loads.supersede()
+    plots.supersede()
     resetCompile()
     loadedGraph.value = null
     graphFailed.value = false

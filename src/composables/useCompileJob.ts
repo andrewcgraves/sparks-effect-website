@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import { useJobsStore } from '../stores/jobs'
+import { latestAttempt } from './latestAttempt'
 import type { Job, TransitGraph } from '../api/authoring'
 
 /**
@@ -20,33 +21,31 @@ export function useCompileJob(compile: (slug: string) => Promise<Job>) {
   const compileError = ref('')
   const result = ref<TransitGraph | null>(null)
 
-  // Bumped by every trigger and by reset. An attempt that is no longer the
-  // current one has been superseded mid-flight, and writing what it eventually
-  // returns would resurrect a compile the caller has already moved on from —
-  // or, worse, report the older attempt's failure over the newer one's result.
-  let generation = 0
+  // A compile superseded mid-flight must not resurrect itself when it lands —
+  // or, worse, report its failure over the newer attempt's result.
+  const attempts = latestAttempt()
 
   async function trigger(slug: string): Promise<void> {
-    const attempt = ++generation
+    const attempt = attempts.begin()
     compiling.value = true
     compileError.value = ''
     try {
       const job = await compile(slug)
       const finished = await jobs.track(job.id)
-      if (attempt !== generation) return
+      if (!attempts.isCurrent(attempt)) return
       result.value = finished.result ?? null
     } catch (err) {
-      if (attempt !== generation) return
+      if (!attempts.isCurrent(attempt)) return
       compileError.value = err instanceof Error ? err.message : 'Compile failed.'
     } finally {
       // Left alone when superseded: the attempt that replaced this one set it,
       // and owns clearing it.
-      if (attempt === generation) compiling.value = false
+      if (attempts.isCurrent(attempt)) compiling.value = false
     }
   }
 
   function reset(): void {
-    generation++
+    attempts.supersede()
     compiling.value = false
     compileError.value = ''
     result.value = null

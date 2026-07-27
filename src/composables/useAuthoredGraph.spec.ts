@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
+import { flushPromises } from '@vue/test-utils'
 import { ApiError } from '../api/authoring/client'
 import type { AuthoredIsochroneRequest, Job, TransitGraph } from '../api/authoring'
 import type { ChainResponse } from '../fixtures/isochrone'
@@ -316,6 +317,27 @@ describe('useAuthoredGraph', () => {
       await staleCompile
 
       expect(compileError.value).toBe('')
+    })
+
+    // A load that 404s ends in a compile, so abandoning the load has to abandon
+    // that compile too — `graph` prefers a compiled graph over a loaded one, so
+    // an older load's compile landing late would win over the newer load.
+    it('ignores the compile an abandoned graph load started', async () => {
+      vi.stubGlobal('fetch', succeedingJobFetch(graphWithMerge))
+      const firstCompile = deferred<Job>()
+      fetchGraph
+        .mockRejectedValueOnce(new ApiError('no compiled graph', 404))
+        .mockResolvedValueOnce({ services: [] } as TransitGraph)
+      compile.mockReturnValueOnce(firstCompile.promise)
+
+      const { loadGraph, graph } = subject()
+      const staleLoad = loadGraph('ca-hsr')
+      await loadGraph('other')
+      firstCompile.release(queuedJob)
+      await staleLoad
+      await flushPromises()
+
+      expect(graph.value).toEqual({ services: [] })
     })
 
     it('ignores a graph load the caller has moved on from', async () => {

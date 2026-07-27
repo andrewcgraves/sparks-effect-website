@@ -16,10 +16,16 @@ export interface Stop {
   offset_m?: number
 }
 
-// Which placement rule a submitted service broke. The server sends these as
-// stable strings, so a build that meets a kind it does not list here has met a
-// rule it was never taught to attribute — see stopPlacementFault.
-export type StopPlacementFaultKind = 'off_route' | 'chainage_order'
+// Which placement rules a submitted service can break. The server sends these
+// as stable strings, so a build that meets a kind it does not list here has met
+// a rule it was never taught to attribute — see stopPlacementFault.
+//
+// The array is the single copy: the union type is derived from it, and the
+// runtime check that a value is one of them reads the same array, so a third
+// kind cannot be added to one and forgotten in the other.
+export const STOP_PLACEMENT_FAULT_KINDS = ['off_route', 'chainage_order'] as const
+
+export type StopPlacementFaultKind = typeof STOP_PLACEMENT_FAULT_KINDS[number]
 
 // One stop a placement fault is about, and where it landed once snapped.
 //
@@ -39,10 +45,13 @@ export interface FaultedStop {
 // readable half of the rejection, alongside the prose a user reads.
 export interface StopPlacementFault {
   fault: StopPlacementFaultKind
-  route_slug: string
-  // The distance the fault was measured against, echoed on an off-route fault
-  // so a client draws the boundary the server enforced. An order fault is not
-  // measured against a distance, so it carries none.
+  // Carried through as the server sent them. Only `fault` and `stops` decide
+  // whether a fault can be attributed to rows, so these two are along for the
+  // ride rather than load-bearing, and their absence is not a reason to throw
+  // an otherwise usable fault away.
+  route_slug?: string
+  // The distance the fault was measured against, echoed on an off-route fault.
+  // An order fault is not measured against a distance, so it carries none.
   threshold_m?: number
   // The offending stops in authored order: one for off_route, the adjacent
   // pair for chainage_order.
