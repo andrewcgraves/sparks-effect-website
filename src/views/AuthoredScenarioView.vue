@@ -159,7 +159,6 @@ watch(scenario, async (loaded) => {
         :services="services"
         :map-stations="mapStations"
         :map-routes="mapRoutes"
-        :graph="graph"
         :status-note="compiling ? 'A member service changed — recompiling…' : null"
         @submit="handleIsochroneSubmit"
         @origin-change="onOriginChange"
