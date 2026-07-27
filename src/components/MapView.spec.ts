@@ -207,12 +207,32 @@ describe('MapView', () => {
     )
   })
 
-  it('calls setData on the existing source when isochroneData prop updates after map loads', async () => {
+  it('adds the isochrone source when the first plot arrives after the map has loaded', async () => {
+    const wrapper = mount(MapView, { props: defaultProps })
+    await triggerMapLoad()
+    await wrapper.setProps({ isochroneData: staticIsochroneResponse })
+    expect(mockAddSource).toHaveBeenCalledWith(ISOCHRONE_SOURCE_ID, {
+      type: 'geojson',
+      data: staticIsochroneResponse,
+    })
+  })
+
+  // Rewriting the one source is what keeps the fill from flashing between
+  // plots, so a second plot must not re-add it.
+  it('rewrites the existing source when a second plot arrives, without re-adding it', async () => {
     mockGetSource.mockReturnValue({ setData: mockSetData })
     const wrapper = mount(MapView, { props: defaultProps })
     await triggerMapLoad()
     await wrapper.setProps({ isochroneData: staticIsochroneResponse })
-    expect(mockSetData).toHaveBeenCalledWith(staticIsochroneResponse)
+
+    const secondPlot = { ...staticIsochroneResponse, features: [] }
+    await wrapper.setProps({ isochroneData: secondPlot })
+
+    expect(mockSetData).toHaveBeenCalledWith(secondPlot)
+    const isochroneAdds = mockAddSource.mock.calls.filter(
+      (args: unknown[]) => args[0] === ISOCHRONE_SOURCE_ID,
+    )
+    expect(isochroneAdds).toHaveLength(1)
   })
 
   it('fits the map to the isochrone frame when isochroneData arrives after load', async () => {

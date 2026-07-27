@@ -1,6 +1,7 @@
 import type { Map, MapLayerMouseEvent, MapLayerTouchEvent, MapMouseEvent, MapTouchEvent } from 'maplibre-gl'
 import type { SnapCoord as LatLng } from '../api/authoring/types'
 import { RAW_STOP_LAYER_ID } from './useStopPreviewLayer'
+import type { MapModule } from './mapLifecycle'
 
 export interface StopDragCallbacks {
   // Fires continuously while the pointer moves, so the pin can follow it.
@@ -22,7 +23,7 @@ function coordOf(event: { lngLat: { lat: number; lng: number } }): LatLng {
 // elements for pins the snapped-pin and leader-line layers already read out of
 // the same GeoJSON source — this way the whole preview keeps rendering from
 // one source of truth, and a drag is just a coordinate edit like any other.
-export function useStopDrag(map: Map, callbacks: StopDragCallbacks): void {
+export function useStopDrag(map: Map, callbacks: StopDragCallbacks): { release: () => void } {
   const canvas = map.getCanvas()
   let draggingId: string | null = null
   let moveEventName: 'mousemove' | 'touchmove' | null = null
@@ -108,4 +109,38 @@ export function useStopDrag(map: Map, callbacks: StopDragCallbacks): void {
     if (event.points.length !== 1) return
     beginDrag(event, 'touchmove', 'touchend')
   })
+
+  // A drag registers listeners on window, which outlive the map. Unmounting
+  // mid-drag would otherwise leave them behind holding this closure — and with
+  // it the map — for the rest of the session.
+  return {
+    release: () => {
+      window.removeEventListener('mouseup', endFromWindow)
+      window.removeEventListener('touchend', endFromWindow)
+      window.removeEventListener('touchcancel', endFromWindow)
+      draggingId = null
+    },
+  }
+}
+
+/**
+ * Stop dragging as a map module.
+ *
+ * Bound to the layer the stop preview creates, so it must be listed after that
+ * module — the ordering the list in MapView now states outright.
+ */
+export function stopDragModule(
+  enabled: () => boolean,
+  callbacks: StopDragCallbacks,
+): MapModule {
+  let drag: { release: () => void } | null = null
+
+  return {
+    isReady: ({ styleLoaded }) => styleLoaded && enabled(),
+    attach: (map) => { drag = useStopDrag(map, callbacks) },
+    // Listeners are bound to a layer, not to the data drawn in it, so there is
+    // nothing to re-apply when the stops move.
+    sync: () => {},
+    detach: () => { drag?.release(); drag = null },
+  }
 }

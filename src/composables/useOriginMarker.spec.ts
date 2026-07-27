@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { ref } from 'vue'
 import type { Map } from 'maplibre-gl'
 
 const mockSetLngLat = vi.fn()
@@ -18,76 +17,91 @@ vi.mock('maplibre-gl', () => ({
 }))
 
 import { Marker } from 'maplibre-gl'
-import { useOriginMarker } from './useOriginMarker'
+import { originMarkerModule } from './useOriginMarker'
 import { THEME_TOKEN_FALLBACKS } from '../themeTokens'
 
 function makeMockMap(): Map {
   return {} as Map
 }
 
-describe('useOriginMarker', () => {
+describe('originMarkerModule', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockSetLngLat.mockReturnValue({ addTo: mockAddTo })
   })
 
   it('paints the marker with the brand coral rather than the MapLibre default', () => {
-    useOriginMarker(makeMockMap(), ref({ lat: 37.33, lng: -121.89 }))
+    originMarkerModule(() => ({ lat: 37.33, lng: -121.89 }))
     expect(Marker).toHaveBeenCalledWith({ color: THEME_TOKEN_FALLBACKS['--color-coral'] })
   })
 
-  it('places the marker immediately when origin is provided', () => {
-    const map = makeMockMap()
-    const origin = ref<{ lat: number; lng: number } | null>({ lat: 37.33, lng: -121.89 })
+  // A Marker is a DOM element over the canvas rather than a style layer, so it
+  // is the one module that does not have to wait for the style to load.
+  it('is ready before the style has loaded', () => {
+    const module = originMarkerModule(() => ({ lat: 37.33, lng: -121.89 }))
+    expect(module.isReady({ styleLoaded: false })).toBe(true)
+  })
 
-    useOriginMarker(map, origin)
+  it('places the marker on attach when there is an origin', () => {
+    const map = makeMockMap()
+    const module = originMarkerModule(() => ({ lat: 37.33, lng: -121.89 }))
+
+    module.attach(map)
 
     expect(mockSetLngLat).toHaveBeenCalledWith([-121.89, 37.33])
     expect(mockAddTo).toHaveBeenCalledWith(map)
   })
 
-  it('does not place the marker when origin is null', () => {
-    const map = makeMockMap()
-    const origin = ref<{ lat: number; lng: number } | null>(null)
+  it('does not place the marker when there is no origin', () => {
+    const module = originMarkerModule(() => null)
 
-    useOriginMarker(map, origin)
+    module.attach(makeMockMap())
 
     expect(mockSetLngLat).not.toHaveBeenCalled()
     expect(mockAddTo).not.toHaveBeenCalled()
   })
 
-  it('updates marker position when origin coordinates change', async () => {
+  it('moves the marker when the origin changes', () => {
     const map = makeMockMap()
-    const origin = ref<{ lat: number; lng: number } | null>({ lat: 37.33, lng: -121.89 })
-
-    useOriginMarker(map, origin)
+    let origin: { lat: number; lng: number } | null = { lat: 37.33, lng: -121.89 }
+    const module = originMarkerModule(() => origin)
+    module.attach(map)
     vi.clearAllMocks()
     mockSetLngLat.mockReturnValue({ addTo: mockAddTo })
 
-    origin.value = { lat: 38.0, lng: -122.5 }
-    await Promise.resolve()
+    origin = { lat: 38.0, lng: -122.5 }
+    module.sync(map)
 
     expect(mockSetLngLat).toHaveBeenCalledWith([-122.5, 38.0])
     expect(mockAddTo).toHaveBeenCalledWith(map)
   })
 
-  it('removes the marker when origin changes to null', async () => {
+  it('removes the marker when the origin goes away', () => {
     const map = makeMockMap()
-    const origin = ref<{ lat: number; lng: number } | null>({ lat: 37.33, lng: -121.89 })
+    let origin: { lat: number; lng: number } | null = { lat: 37.33, lng: -121.89 }
+    const module = originMarkerModule(() => origin)
+    module.attach(map)
 
-    useOriginMarker(map, origin)
+    origin = null
+    module.sync(map)
 
-    origin.value = null
-    await Promise.resolve()
+    expect(mockMarkerRemove).toHaveBeenCalled()
+  })
+
+  // The marker is a DOM element the map's own teardown would not collect.
+  it('removes the marker on detach', () => {
+    const module = originMarkerModule(() => ({ lat: 37.33, lng: -121.89 }))
+    module.attach(makeMockMap())
+
+    module.detach()
 
     expect(mockMarkerRemove).toHaveBeenCalled()
   })
 
   it('passes lng before lat to setLngLat (MapLibre convention)', () => {
-    const map = makeMockMap()
-    const origin = ref<{ lat: number; lng: number } | null>({ lat: 10.0, lng: 20.0 })
+    const module = originMarkerModule(() => ({ lat: 10.0, lng: 20.0 }))
 
-    useOriginMarker(map, origin)
+    module.attach(makeMockMap())
 
     const [lng, lat] = mockSetLngLat.mock.calls[0][0]
     expect(lng).toBe(20.0)

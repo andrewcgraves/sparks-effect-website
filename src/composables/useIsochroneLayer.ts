@@ -1,4 +1,5 @@
-import type { Map } from 'maplibre-gl'
+import type { GeoJSONSource, Map } from 'maplibre-gl'
+import type { MapModule } from './mapLifecycle'
 import type { FeatureCollection } from 'geojson'
 import { readThemeToken } from '../themeTokens'
 
@@ -45,4 +46,31 @@ export function useIsochroneLayer(
       'fill-opacity': ISOCHRONE_FILL_OPACITY,
     },
   })
+}
+
+/**
+ * The isochrone fill as a map module.
+ *
+ * The first plot adds the source and layer; every later one rewrites the same
+ * source's data, which is what keeps the fill from flashing between plots.
+ * MapView used to make that add-or-update choice itself by probing getSource.
+ */
+export function isochroneLayerModule(
+  data: () => FeatureCollection | null,
+  colors: IsochroneColors,
+): MapModule {
+  return {
+    isReady: ({ styleLoaded }) => styleLoaded && data() !== null,
+    attach: (map) => {
+      const geojson = data()
+      if (geojson) useIsochroneLayer(map, geojson, colors)
+    },
+    sync: (map) => {
+      const geojson = data()
+      if (!geojson) return
+      const source = map.getSource(ISOCHRONE_SOURCE_ID) as GeoJSONSource | undefined
+      source?.setData(geojson)
+    },
+    detach: () => {},
+  }
 }
