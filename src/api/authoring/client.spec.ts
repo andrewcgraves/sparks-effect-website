@@ -1,5 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, apiBase, apiRequest, setAuthTokenProvider } from './client'
+import {
+  ApiError,
+  STOP_PLACEMENT_ERROR_CODE,
+  apiBase,
+  apiRequest,
+  setAuthTokenProvider,
+  stopPlacementFault,
+} from './client'
 
 describe('apiBase', () => {
   afterEach(() => {
@@ -133,6 +140,39 @@ describe('apiRequest', () => {
     expect((caught as ApiError).code).toBeUndefined()
   })
 
+  it('carries the structured detail from the error body, when present', async () => {
+    const detail = { fault: 'off_route', route_slug: 'main-line', threshold_m: 500, stops: [] }
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: false,
+      status: 422,
+      json: async () => ({ error: 'stop "B" is 620 m from route "main-line"', code: 'stop_placement', detail }),
+    } as Response)
+
+    let caught: unknown
+    try {
+      await apiRequest('/api/services')
+    } catch (err) {
+      caught = err
+    }
+    expect((caught as ApiError).detail).toEqual(detail)
+  })
+
+  it('leaves detail undefined when the error body has none', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      json: async () => ({ error: 'not found' }),
+    } as Response)
+
+    let caught: unknown
+    try {
+      await apiRequest('/api/things/x')
+    } catch (err) {
+      caught = err
+    }
+    expect((caught as ApiError).detail).toBeUndefined()
+  })
+
   it('still throws when the error body is not JSON', async () => {
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: false,
@@ -185,5 +225,72 @@ describe('auth token injection', () => {
     vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 204 } as Response)
     await apiRequest('/api/services', { headers: { Authorization: 'Bearer caller' } })
     expect(headersOf().get('Authorization')).toBe('Bearer caller')
+  })
+})
+
+describe('stopPlacementFault', () => {
+  const offRouteStop = { seq: 1, name: 'B', slug: 'b', chainage_m: 12000, offset_m: 620 }
+
+  function rejection(detail: unknown, code = STOP_PLACEMENT_ERROR_CODE): ApiError {
+    return new ApiError('POST /api/services failed: 422: rejected', 422, code, detail)
+  }
+
+  it('reads an off-route fault out of the rejection', () => {
+    const fault = stopPlacementFault(
+      rejection({ fault: 'off_route', route_slug: 'main-line', threshold_m: 500, stops: [offRouteStop] }),
+    )
+    expect(fault).toEqual({
+      fault: 'off_route',
+      route_slug: 'main-line',
+      threshold_m: 500,
+      stops: [offRouteStop],
+    })
+  })
+
+  it('reads an order fault naming the adjacent pair', () => {
+    const stops = [offRouteStop, { seq: 2, name: 'C', slug: 'c', chainage_m: 8000, offset_m: 10 }]
+    const fault = stopPlacementFault(rejection({ fault: 'chainage_order', route_slug: 'main-line', stops }))
+    expect(fault?.fault).toBe('chainage_order')
+    expect(fault?.stops.map((s) => s.seq)).toEqual([1, 2])
+  })
+
+  // threshold_m is omitted on an order fault rather than sent as a meaningless
+  // zero, so its absence must not be read as a malformed body.
+  it('accepts an order fault with no threshold', () => {
+    const fault = stopPlacementFault(rejection({ fault: 'chainage_order', route_slug: 'main-line', stops: [] }))
+    expect(fault?.threshold_m).toBeUndefined()
+  })
+
+  it('ignores a rejection carrying a different code', () => {
+    const detail = { fault: 'off_route', route_slug: 'main-line', stops: [offRouteStop] }
+    expect(stopPlacementFault(rejection(detail, 'stale_graph'))).toBeNull()
+  })
+
+  it('ignores a rejection carrying no code at all', () => {
+    expect(stopPlacementFault(new ApiError('failed: 422', 422))).toBeNull()
+  })
+
+  // A kind this build does not know is the server having grown a rule we cannot
+  // attribute to a row, so it degrades to the banner rather than guessing.
+  it('ignores an unrecognized fault kind', () => {
+    expect(
+      stopPlacementFault(rejection({ fault: 'nonsense', route_slug: 'main-line', stops: [offRouteStop] })),
+    ).toBeNull()
+  })
+
+  it('ignores a detail whose stops are malformed', () => {
+    expect(
+      stopPlacementFault(rejection({ fault: 'off_route', route_slug: 'main-line', stops: [{ name: 'B' }] })),
+    ).toBeNull()
+  })
+
+  it('ignores a detail that is not an object', () => {
+    expect(stopPlacementFault(rejection('off_route'))).toBeNull()
+    expect(stopPlacementFault(rejection(null))).toBeNull()
+  })
+
+  it('ignores anything that is not an ApiError', () => {
+    expect(stopPlacementFault(new Error('boom'))).toBeNull()
+    expect(stopPlacementFault(undefined)).toBeNull()
   })
 })

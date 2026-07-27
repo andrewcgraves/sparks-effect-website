@@ -2,15 +2,17 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useDraftsStore } from '../stores/drafts'
 import { useCompileJob } from '../composables/useCompileJob'
-import { ApiError } from '../api/authoring/client'
+import { ApiError, stopPlacementFault } from '../api/authoring/client'
 import { fetchRoute, listRoutes, snapStops } from '../api/authoring/routes'
 import { compileService, createService } from '../api/authoring/services'
 import type {
+  FaultedStop,
   GraphEdge,
   Route,
   RouteSummary,
   SnapCoord as LatLng,
   SnapStopsResponse,
+  StopPlacementFault,
   VehicleParams,
 } from '../api/authoring'
 import type { Route as ScenarioRoute } from '../api/scenarios'
@@ -19,7 +21,6 @@ import type { StopPreviewPair } from '../composables/useStopPreviewLayer'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
 import { formatRunTime } from '../components/stationTimes'
 import { STOP_PLACEMENT_CUE } from '../components/placementCues'
-import { extractOffendingStopNames } from './parseServiceError'
 
 const drafts = useDraftsStore()
 const { compiling, compileError, result: compiledGraph, trigger: triggerCompile, reset: resetCompile } = useCompileJob(compileService)
@@ -50,6 +51,7 @@ const newWindowHeadwayMin = ref<number | null>(null)
 const submitted = ref(false)
 const submitting = ref(false)
 const submitError = ref('')
+const submitFault = ref<StopPlacementFault | null>(null)
 
 // Live preview trades a little latency for not hammering the snap endpoint on
 // every keystroke; 400ms is long enough to coalesce a burst of edits and short
@@ -255,18 +257,31 @@ const canSubmit = computed(() => {
 
 // The write-time 422 is the backstop behind live preview — preview already
 // catches off-route/order problems before submit, so this only fires when the
-// route changed underneath the draft or preview hasn't run yet. Named stops
-// get flagged on their own row in addition to the banner; the banner alone
-// wasn't attaching the rejection to "the offending stop" as the amendment asks.
-const submitErrorStopNames = computed<string[]>(() =>
-  submitError.value ? extractOffendingStopNames(submitError.value) : [],
+// route changed underneath the draft or preview hasn't run yet. The stops it
+// names get flagged on their own row in addition to the banner; the banner
+// alone wasn't attaching the rejection to "the offending stop".
+//
+// Keyed by seq, which is the position the stop was submitted under, and which
+// the drafts store keeps equal to its row index (see renumber). That is the one
+// field that survives the round trip: a rejected write stores nothing, so the
+// slug it reports is one the client has never seen, and the name is whatever
+// the author may since have retyped.
+const faultedStops = computed<Map<number, FaultedStop>>(
+  () => new Map(submitFault.value?.stops.map((stop) => [stop.seq, stop]) ?? []),
 )
+
+function stopFaultMessage(stop: FaultedStop): string {
+  return submitFault.value?.fault === 'off_route'
+    ? `Rejected: ${Math.round(stop.offset_m)}m off the route`
+    : 'Rejected: out of order along the route'
+}
 
 async function handleSubmit(): Promise<void> {
   const draft = drafts.serviceDraft
   if (!draft || !canSubmit.value) return
   submitting.value = true
   submitError.value = ''
+  submitFault.value = null
   try {
     const created = await createService(draft)
     drafts.clearServiceDraft()
@@ -274,6 +289,9 @@ async function handleSubmit(): Promise<void> {
     await triggerCompile(created.slug)
   } catch (err) {
     submitError.value = err instanceof ApiError ? err.message : 'Something went wrong creating the service.'
+    // Null for anything this build cannot attribute to specific rows, which
+    // leaves the banner above as the whole of the feedback.
+    submitFault.value = stopPlacementFault(err)
   } finally {
     submitting.value = false
   }
@@ -284,6 +302,8 @@ function startAnother(): void {
   resetCompile()
   preview.value = null
   selectedRoute.value = null
+  submitError.value = ''
+  submitFault.value = null
   drafts.startServiceDraft()
 }
 
@@ -407,11 +427,11 @@ const allEdges = computed<GraphEdge[]>(() => compiledGraph.value?.services.flatM
                     {{ Math.round(preview!.stops[index].offset_m) }}m off the route
                   </span>
                   <span
-                    v-if="submitErrorStopNames.includes(stop.name)"
+                    v-if="faultedStops.has(stop.seq)"
                     class="text-coral"
                     data-testid="stop-submit-error"
                   >
-                    {{ submitError }}
+                    {{ stopFaultMessage(faultedStops.get(stop.seq)!) }}
                   </span>
                 </div>
                 <div class="flex shrink-0 gap-1">

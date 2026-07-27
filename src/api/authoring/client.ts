@@ -1,4 +1,5 @@
 // Shared HTTP helpers for the authoring API client.
+import type { FaultedStop, StopPlacementFault, StopPlacementFaultKind } from './types'
 
 // Resolves the API base URL, overridable via VITE_API_BASE_URL.
 export function apiBase(): string {
@@ -11,15 +12,69 @@ export function apiBase(): string {
 // code is the handful of 409s and validation failures the server tags with a
 // machine-readable discriminator (e.g. "stale_graph") so a caller can act on
 // them instead of just displaying the message; most error bodies carry none.
+//
+// detail is the payload for the smaller set where knowing *that* it failed is
+// not enough to act. Its shape is fixed by the code, and it is deliberately
+// unknown here: the transport has no business knowing which codes carry what,
+// so a caller reads it only through a narrowing function for a code it
+// recognises, of which stopPlacementFault is the first.
 export class ApiError extends Error {
   readonly status: number
   readonly code?: string
+  readonly detail?: unknown
 
-  constructor(message: string, status: number, code?: string) {
+  constructor(message: string, status: number, code?: string, detail?: unknown) {
     super(message)
     this.name = 'ApiError'
     this.status = status
     this.code = code
+    this.detail = detail
+  }
+}
+
+// The code on a 422 whose detail names the stops that broke a placement rule.
+export const STOP_PLACEMENT_ERROR_CODE = 'stop_placement'
+
+const STOP_PLACEMENT_FAULT_KINDS: readonly string[] = ['off_route', 'chainage_order']
+
+function isFaultedStop(value: unknown): value is FaultedStop {
+  const stop = value as Partial<FaultedStop> | null
+  return (
+    typeof stop?.seq === 'number' &&
+    typeof stop.name === 'string' &&
+    typeof stop.slug === 'string' &&
+    typeof stop.chainage_m === 'number' &&
+    typeof stop.offset_m === 'number'
+  )
+}
+
+// Reads a stop-placement fault out of a rejected write, or null when there
+// isn't one to read.
+//
+// Null is the answer for everything that is not a fault this build can attribute
+// to specific rows — a different code, a kind we have never heard of, a detail
+// whose shape doesn't hold up — because the caller's fallback is the same in
+// every case: show the message and flag nothing. That is strictly better than
+// pointing at the wrong row, and it is what makes the server free to add a
+// third fault kind without breaking anyone.
+//
+// This replaced SPA-146's regular expressions over the message text, where a
+// rewording server-side silently cost the authoring form its per-stop feedback.
+export function stopPlacementFault(err: unknown): StopPlacementFault | null {
+  if (!(err instanceof ApiError) || err.code !== STOP_PLACEMENT_ERROR_CODE) return null
+
+  const detail = err.detail as Partial<StopPlacementFault> | null
+  if (typeof detail !== 'object' || detail === null) return null
+  if (typeof detail.fault !== 'string' || !STOP_PLACEMENT_FAULT_KINDS.includes(detail.fault)) return null
+  if (typeof detail.route_slug !== 'string') return null
+  if (!Array.isArray(detail.stops) || !detail.stops.every(isFaultedStop)) return null
+  if (detail.threshold_m !== undefined && typeof detail.threshold_m !== 'number') return null
+
+  return {
+    fault: detail.fault as StopPlacementFaultKind,
+    route_slug: detail.route_slug,
+    threshold_m: detail.threshold_m,
+    stops: detail.stops,
   }
 }
 
@@ -52,17 +107,19 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
   const method = init?.method ?? 'GET'
 
   if (!res.ok) {
-    // Best-effort extraction of an { error, code? } body.
-    let detail = ''
+    // Best-effort extraction of an { error, code?, detail? } body.
+    let message = ''
     let code: string | undefined
+    let detail: unknown
     try {
-      const body = (await res.json()) as { error?: string; code?: string }
-      if (body?.error) detail = `: ${body.error}`
+      const body = (await res.json()) as { error?: string; code?: string; detail?: unknown }
+      if (body?.error) message = `: ${body.error}`
       code = body?.code
+      detail = body?.detail
     } catch {
       // Non-JSON or empty error body; fall back to status only.
     }
-    throw new ApiError(`${method} ${path} failed: ${res.status}${detail}`, res.status, code)
+    throw new ApiError(`${method} ${path} failed: ${res.status}${message}`, res.status, code, detail)
   }
 
   // 204 No Content carries no body to parse.

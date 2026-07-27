@@ -16,6 +16,39 @@ export interface Stop {
   offset_m?: number
 }
 
+// Which placement rule a submitted service broke. The server sends these as
+// stable strings, so a build that meets a kind it does not list here has met a
+// rule it was never taught to attribute — see stopPlacementFault.
+export type StopPlacementFaultKind = 'off_route' | 'chainage_order'
+
+// One stop a placement fault is about, and where it landed once snapped.
+//
+// seq is the key: it is the stop's position in the request, so it maps back to
+// a row the author can actually go and move. name and slug are for display —
+// neither survives a rejected write as an identifier, since the server mints
+// slugs from names and stores nothing when it refuses.
+export interface FaultedStop {
+  seq: number
+  name: string
+  slug: string
+  chainage_m: number
+  offset_m: number
+}
+
+// The `detail` of a 422 refusing a service's stop placement — the machine-
+// readable half of the rejection, alongside the prose a user reads.
+export interface StopPlacementFault {
+  fault: StopPlacementFaultKind
+  route_slug: string
+  // The distance the fault was measured against, echoed on an off-route fault
+  // so a client draws the boundary the server enforced. An order fault is not
+  // measured against a distance, so it carries none.
+  threshold_m?: number
+  // The offending stops in authored order: one for off_route, the adjacent
+  // pair for chainage_order.
+  stops: FaultedStop[]
+}
+
 // User-defined vehicle physics used to simulate a service.
 export interface VehicleParams {
   max_speed_kmh: number
