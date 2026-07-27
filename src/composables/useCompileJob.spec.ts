@@ -54,30 +54,7 @@ describe('useCompileJob', () => {
     expect(compiling.value).toBe(false)
   })
 
-  it('transparently recompiles on a stale_graph 409 and succeeds without surfacing an error', async () => {
-    vi.stubGlobal('fetch', succeedingJobFetch({ services: [] }))
-    const compile = vi.fn()
-      .mockRejectedValueOnce(new ApiError('stale', 409, 'stale_graph'))
-      .mockResolvedValueOnce({ id: 'job2', kind: 'compile_user_scenario', status: 'queued' } as Job)
-    const { compileError, trigger } = useCompileJob(compile)
-
-    await trigger('ca-hsr')
-
-    expect(compile).toHaveBeenCalledTimes(2)
-    expect(compileError.value).toBe('')
-  })
-
-  it('gives up after the retry bound and surfaces the last error', async () => {
-    const compile = vi.fn().mockRejectedValue(new ApiError('still stale', 409, 'stale_graph'))
-    const { compileError, trigger } = useCompileJob(compile)
-
-    await trigger('ca-hsr')
-
-    expect(compile).toHaveBeenCalledTimes(3)
-    expect(compileError.value).toContain('still stale')
-  })
-
-  it('surfaces a non-stale error immediately, without retrying', async () => {
+  it('surfaces a failure without retrying', async () => {
     const compile = vi.fn().mockRejectedValue(new Error('compile blew up'))
     const { compileError, trigger } = useCompileJob(compile)
 
@@ -85,6 +62,36 @@ describe('useCompileJob', () => {
 
     expect(compile).toHaveBeenCalledTimes(1)
     expect(compileError.value).toBe('compile blew up')
+  })
+
+  // Compile has never answered 409 stale_graph — only the isochrone endpoint
+  // does, and useAuthoredGraph is where that recovery lives. This retried it
+  // anyway, on a branch nothing could reach.
+  it('does not treat a stale_graph refusal as a reason to retry', async () => {
+    const compile = vi.fn().mockRejectedValue(new ApiError('still stale', 409, 'stale_graph'))
+    const { compileError, trigger } = useCompileJob(compile)
+
+    await trigger('ca-hsr')
+
+    expect(compile).toHaveBeenCalledTimes(1)
+    expect(compileError.value).toContain('still stale')
+  })
+
+  it('ignores an attempt that a later trigger has superseded', async () => {
+    vi.stubGlobal('fetch', succeedingJobFetch({ services: [] }))
+    let releaseFirst!: () => void
+    const compile = vi.fn()
+      .mockReturnValueOnce(new Promise((_, reject) => { releaseFirst = () => reject(new Error('the old one')) }))
+      .mockResolvedValueOnce({ id: 'job2', kind: 'compile_user_scenario', status: 'queued' } as Job)
+    const { compileError, result, trigger } = useCompileJob(compile)
+
+    const superseded = trigger('ca-hsr')
+    await trigger('ca-hsr')
+    releaseFirst()
+    await superseded
+
+    expect(compileError.value).toBe('')
+    expect(result.value).toEqual({ services: [] })
   })
 
   it('reset clears compiling, error, and result', async () => {

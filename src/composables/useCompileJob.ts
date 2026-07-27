@@ -1,18 +1,18 @@
 import { ref } from 'vue'
 import { useJobsStore } from '../stores/jobs'
-import { ApiError } from '../api/authoring/client'
 import type { Job, TransitGraph } from '../api/authoring'
 
-// A stale-graph retry should settle in one or two hops in practice; this just
-// bounds it so a persistently stale signal can't spin the UI forever.
-export const MAX_STALE_GRAPH_RETRIES = 3
-
 /**
- * Drives the compile -> poll chain shared by service and scenario authoring:
- * fire the given compile endpoint, track the resulting job to completion, and
- * transparently retry on a stale_graph 409 (SPA-83 decision 4) rather than
- * surfacing it as an error — a compiled graph falling behind an edit is not a
- * failure, it's a reason to recompile.
+ * Fires a compile endpoint and tracks the resulting job to completion.
+ *
+ * This is the compile -> poll adapter beneath useAuthoredGraph, and it is also
+ * the whole of what the service authoring form needs: that form compiles a
+ * service it has just created, so there is no existing graph of its own that
+ * could have gone stale underneath it.
+ *
+ * Stale-graph recovery deliberately does not live here. Only the isochrone
+ * endpoint answers 409 stale_graph, so useAuthoredGraph owns that retry and its
+ * bound (SPA-148). This used to retry it too, on a branch nothing could reach.
  */
 export function useCompileJob(compile: (slug: string) => Promise<Job>) {
   const jobs = useJobsStore()
@@ -20,25 +20,33 @@ export function useCompileJob(compile: (slug: string) => Promise<Job>) {
   const compileError = ref('')
   const result = ref<TransitGraph | null>(null)
 
-  async function trigger(slug: string, attempt = 1): Promise<void> {
+  // Bumped by every trigger and by reset. An attempt that is no longer the
+  // current one has been superseded mid-flight, and writing what it eventually
+  // returns would resurrect a compile the caller has already moved on from —
+  // or, worse, report the older attempt's failure over the newer one's result.
+  let generation = 0
+
+  async function trigger(slug: string): Promise<void> {
+    const attempt = ++generation
     compiling.value = true
     compileError.value = ''
     try {
       const job = await compile(slug)
       const finished = await jobs.track(job.id)
+      if (attempt !== generation) return
       result.value = finished.result ?? null
     } catch (err) {
-      if (err instanceof ApiError && err.code === 'stale_graph' && attempt < MAX_STALE_GRAPH_RETRIES) {
-        await trigger(slug, attempt + 1)
-        return
-      }
+      if (attempt !== generation) return
       compileError.value = err instanceof Error ? err.message : 'Compile failed.'
     } finally {
-      compiling.value = false
+      // Left alone when superseded: the attempt that replaced this one set it,
+      // and owns clearing it.
+      if (attempt === generation) compiling.value = false
     }
   }
 
   function reset(): void {
+    generation++
     compiling.value = false
     compileError.value = ''
     result.value = null
