@@ -1,3 +1,5 @@
+import { listRoutes } from './authoring/routes'
+
 export type Provenance = 'computed' | 'calibrated' | 'frozen'
 
 export interface Route {
@@ -85,4 +87,28 @@ export async function fetchScenarioTravelTimes(scenarioSlug: string): Promise<Tr
   const res = await fetch(`${apiBase()}/api/scenarios/${scenarioSlug}/travel-times`)
   if (!res.ok) throw new Error(`Failed to fetch travel times for ${scenarioSlug}: ${res.status}`)
   return res.json() as Promise<TravelTimes>
+}
+
+export interface ScenarioSummary {
+  slug: string
+  name: string
+  description: string
+}
+
+// The seeded /api/scenarios read has no "list all"; always try this one even
+// if listRoutes (below) comes back empty or fails.
+export const FEATURED_SCENARIO_SLUGS = ['ca-hsr']
+
+// Fetches every scenario worth featuring on the home page: the known slug(s)
+// above, plus one per published route (/api/routes is public and unscoped,
+// unlike the owner-scoped /api/user-scenarios). A route without a same-slug
+// scenario just 404s and is dropped, same as any other unresolved slug.
+export async function fetchFeaturedScenarios(): Promise<ScenarioSummary[]> {
+  const routeSlugs = await listRoutes().then((routes) => routes.map((route) => route.slug)).catch(() => [])
+  const slugs = Array.from(new Set([...FEATURED_SCENARIO_SLUGS, ...routeSlugs]))
+
+  const results = await Promise.allSettled(slugs.map((slug) => fetchScenario(slug)))
+  return results
+    .filter((result): result is PromiseFulfilledResult<ScenarioDetail> => result.status === 'fulfilled')
+    .map(({ value }) => ({ slug: value.slug, name: value.name, description: value.description }))
 }
