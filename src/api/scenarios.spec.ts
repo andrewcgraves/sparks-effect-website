@@ -11,6 +11,13 @@ import {
   type TravelTimes,
 } from './scenarios'
 
+vi.mock('./authoring/routes', () => ({
+  listRoutes: vi.fn(),
+}))
+
+import { listRoutes } from './authoring/routes'
+import type { RouteSummary } from './authoring/types'
+
 const stubRoute: Route = {
   id: 'r1',
   scenario_id: 's1',
@@ -136,6 +143,7 @@ describe('fetchScenarioTravelTimes', () => {
 describe('fetchFeaturedScenarios', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn())
+    vi.mocked(listRoutes).mockReset().mockResolvedValue([])
   })
 
   afterEach(() => {
@@ -159,5 +167,32 @@ describe('fetchFeaturedScenarios', () => {
     vi.mocked(fetch).mockResolvedValue({ ok: false, status: 404 } as Response)
     const result = await fetchFeaturedScenarios()
     expect(result).toEqual([])
+  })
+
+  it('also resolves scenarios for every published route slug from listRoutes', async () => {
+    const routeSummaries: RouteSummary[] = [{ slug: 'other-line', name: 'Other Line', mode: 'rail' }]
+    vi.mocked(listRoutes).mockResolvedValue(routeSummaries)
+    vi.mocked(fetch).mockImplementation(async (url) => {
+      if (String(url).includes('/api/scenarios/other-line')) {
+        return { ok: true, json: async () => ({ ...stubDetail, slug: 'other-line', name: 'Other Line' }) } as Response
+      }
+      return { ok: true, json: async () => stubDetail } as Response
+    })
+    const result = await fetchFeaturedScenarios()
+    expect(result.map((summary) => summary.slug)).toEqual(expect.arrayContaining(['ca-hsr', 'other-line']))
+  })
+
+  it('does not fetch the same scenario slug twice when a route shares a featured slug', async () => {
+    vi.mocked(listRoutes).mockResolvedValue([{ slug: 'ca-hsr', name: 'Main Line', mode: 'hsr' }])
+    vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => stubDetail } as Response)
+    await fetchFeaturedScenarios()
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('still returns the featured scenarios when listRoutes fails', async () => {
+    vi.mocked(listRoutes).mockRejectedValue(new Error('boom'))
+    vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => stubDetail } as Response)
+    const result = await fetchFeaturedScenarios()
+    expect(result).toEqual([{ slug: stubDetail.slug, name: stubDetail.name, description: stubDetail.description }])
   })
 })
