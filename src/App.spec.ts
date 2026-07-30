@@ -21,7 +21,7 @@ describe('App routing', () => {
     await router.push('/')
     const wrapper = mount(App, { global: { plugins: [router] } })
     await flushPromises()
-    expect(wrapper.text()).toContain('Hello')
+    expect(wrapper.text()).toContain('Sparks Effect')
   })
 
   it('renders the not-found view for an unmatched path', async () => {

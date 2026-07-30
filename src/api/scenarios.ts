@@ -86,3 +86,23 @@ export async function fetchScenarioTravelTimes(scenarioSlug: string): Promise<Tr
   if (!res.ok) throw new Error(`Failed to fetch travel times for ${scenarioSlug}: ${res.status}`)
   return res.json() as Promise<TravelTimes>
 }
+
+export interface ScenarioSummary {
+  slug: string
+  name: string
+  description: string
+}
+
+// The seeded /api/scenarios read has no "list all"; feature the slugs we
+// know about individually rather than adding a backend endpoint for this
+// temporary home page.
+export const FEATURED_SCENARIO_SLUGS = ['ca-hsr']
+
+// Fetches each featured slug, silently omitting any that don't resolve
+// (unpublished or not-yet-seeded) rather than failing the whole list.
+export async function fetchFeaturedScenarios(): Promise<ScenarioSummary[]> {
+  const results = await Promise.allSettled(FEATURED_SCENARIO_SLUGS.map((slug) => fetchScenario(slug)))
+  return results
+    .filter((result): result is PromiseFulfilledResult<ScenarioDetail> => result.status === 'fulfilled')
+    .map(({ value }) => ({ slug: value.slug, name: value.name, description: value.description }))
+}

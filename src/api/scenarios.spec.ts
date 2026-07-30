@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   fetchScenario,
   fetchScenarioTravelTimes,
+  fetchFeaturedScenarios,
+  FEATURED_SCENARIO_SLUGS,
   type Route,
   type Station,
   type Service,
@@ -128,5 +130,34 @@ describe('fetchScenarioTravelTimes', () => {
   it('throws when the response is not ok', async () => {
     vi.mocked(fetch).mockResolvedValueOnce({ ok: false, status: 404 } as Response)
     await expect(fetchScenarioTravelTimes('ca-hsr')).rejects.toThrow()
+  })
+})
+
+describe('fetchFeaturedScenarios', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn())
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllEnvs()
+  })
+
+  it('returns a summary for each featured slug that resolves', async () => {
+    vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => stubDetail } as Response)
+    const result = await fetchFeaturedScenarios()
+    expect(result).toEqual(
+      FEATURED_SCENARIO_SLUGS.map(() => ({
+        slug: stubDetail.slug,
+        name: stubDetail.name,
+        description: stubDetail.description,
+      })),
+    )
+  })
+
+  it('omits a featured slug whose fetch fails, without throwing', async () => {
+    vi.mocked(fetch).mockResolvedValue({ ok: false, status: 404 } as Response)
+    const result = await fetchFeaturedScenarios()
+    expect(result).toEqual([])
   })
 })
