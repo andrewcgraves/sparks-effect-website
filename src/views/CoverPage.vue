@@ -9,14 +9,9 @@ const { items: scenarios, loading, error } = useOwnedList(fetchFeaturedScenarios
 <template>
   <main class="flex min-h-svh flex-col p-(--page-padding)">
     <div class="flex-1">
-      <hgroup class="flex flex-col gap-2">
-        <h1 class="font-display text-display text-ink-true">
-          Sparks Effect
-        </h1>
-        <p class="font-body text-micro text-ink-muted italic uppercase">
-          Electrified · High-speed rail · Greenfield
-        </p>
-      </hgroup>
+      <h1 class="font-display text-display text-ink-true">
+        Sparks Effect
+      </h1>
 
       <p class="font-body text-body mt-6 max-w-[560px] text-ink-muted">
         Sparks Effect maps the "splash zone" reachable by walking, biking, transit, and driving
@@ -77,7 +72,7 @@ const { items: scenarios, loading, error } = useOwnedList(fetchFeaturedScenarios
         href="https://www.openstreetmap.org/copyright"
         target="_blank"
         rel="noopener noreferrer"
-      >OpenStreetMap</a> contributors · Tiles via OpenFreeMap and Stadia Maps
+      >OpenStreetMap</a> contributors · Tiles via OpenFreeMap
     </footer>
   </main>
 </template>
