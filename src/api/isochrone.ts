@@ -1,3 +1,5 @@
+import { apiBase, ApiError } from './authoring/client'
+import { awaitIsochrone, type RoutingJob } from './routingJobs'
 import type { ChainResponse } from '../fixtures/isochrone'
 
 export interface IsochroneRequest {
@@ -23,9 +25,18 @@ export class IsochroneApiError extends Error {
   }
 }
 
+/**
+ * Requests the seeded isochrone and resolves with the chain once it is plotted.
+ *
+ * Since SPA-182 the endpoint answers 202 with a routing job rather than a
+ * result — the plotting happens in a worker inside the home cluster, which is
+ * the only place Valhalla is reachable from. The enqueue-then-poll is hidden
+ * here on purpose: this still resolves with a ChainResponse or throws, so the
+ * composable, form, and map layer above are unchanged and go on treating an
+ * isochrone as one request that eventually answers.
+ */
 export async function fetchIsochrone(request: IsochroneRequest): Promise<ChainResponse> {
-  const base = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
-  const response = await fetch(`${base}/api/isochrone`, {
+  const response = await fetch(`${apiBase()}/api/isochrone`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(request),
@@ -33,5 +44,15 @@ export async function fetchIsochrone(request: IsochroneRequest): Promise<ChainRe
   if (!response.ok) {
     throw new IsochroneApiError(response.status)
   }
-  return response.json() as Promise<ChainResponse>
+
+  const job = (await response.json()) as RoutingJob
+  try {
+    return await awaitIsochrone(job)
+  } catch (err) {
+    // A rejected poll is this request failing, so it is reported as one. The
+    // poll goes through the shared API client, which speaks ApiError; callers
+    // here have only ever had a case for IsochroneApiError.
+    if (err instanceof ApiError) throw new IsochroneApiError(err.status)
+    throw err
+  }
 }

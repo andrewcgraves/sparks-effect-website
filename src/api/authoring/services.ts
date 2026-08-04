@@ -1,5 +1,6 @@
 // Service CRUD operations.
 import { apiRequest } from './client'
+import { awaitIsochrone, type RoutingJob } from '../routingJobs'
 import type { ChainResponse } from '../../fixtures/isochrone'
 import type { AuthoredIsochroneRequest, Job, Service, ServiceInput, TransitGraph } from './types'
 
@@ -59,17 +60,22 @@ export async function fetchServiceGraph(slug: string): Promise<TransitGraph> {
   return apiRequest<TransitGraph>(`/api/services/${slug}/graph`)
 }
 
-// Computes an isochrone over a service's latest compiled graph — the
+// Plots an isochrone over a service's latest compiled graph — the
 // single-service counterpart to fetchScenarioIsochrone, for a service compiled
-// alone rather than as a scenario member. A 409 whose ApiError.code is
-// 'stale_graph' means the compiled graph fell behind an edit to the service
-// itself; the caller should recompile and retry.
+// alone rather than as a scenario member.
+//
+// The endpoint enqueues rather than computes (SPA-182), so this waits out the
+// routing job it is answered with and still resolves with the chain. A 409
+// whose ApiError.code is 'stale_graph' means the compiled graph fell behind an
+// edit to the service itself; the caller should recompile and retry. That check
+// runs before anything is enqueued, so it still arrives from this POST.
 export async function fetchServiceIsochrone(
   slug: string,
   request: AuthoredIsochroneRequest,
 ): Promise<ChainResponse> {
-  return apiRequest<ChainResponse>(`/api/services/${slug}/isochrone`, {
+  const job = await apiRequest<RoutingJob>(`/api/services/${slug}/isochrone`, {
     method: 'POST',
     body: JSON.stringify(request),
   })
+  return awaitIsochrone(job)
 }
