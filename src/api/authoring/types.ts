@@ -1,4 +1,5 @@
 // Domain model for the authoring API (services, scenarios, routes, jobs).
+import type { JobStatus } from '../polling'
 
 // A single ordered stop along a service, carrying its own location inline.
 //
@@ -196,8 +197,10 @@ export interface SnapStopsResponse {
   order_is_consistent: boolean
 }
 
-// Lifecycle state of an async job.
-export type JobStatus = 'queued' | 'running' | 'succeeded' | 'failed'
+// Lifecycle state of an async job. Defined with the poller that reads it, and
+// re-exported here because a routing job speaks the same four states — one
+// vocabulary, not a compile copy and a routing copy that must agree forever.
+export type { JobStatus }
 
 // What a compile job compiled — the discriminator for which target id is set.
 export type JobKind = 'compile_scenario' | 'compile_user_scenario' | 'compile_user_service'

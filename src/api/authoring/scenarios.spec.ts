@@ -26,6 +26,21 @@ const stubScenario: Scenario = {
   ...stubInput,
 }
 
+const stubChain = { type: 'FeatureCollection', features: [], metadata: {} } as unknown as ChainResponse
+
+// The endpoint answers 202 with a routing job now (SPA-182), so a result takes
+// two responses: the enqueue, then a poll. Succeeding on the first poll keeps
+// these timer-free — the cadence and deadline are routingJobs.spec's subject.
+function enqueueThenSucceed(): void {
+  vi.mocked(fetch)
+    .mockResolvedValueOnce({ ok: true, status: 202, json: async () => ({ id: 'rj1' }) } as Response)
+    .mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ id: 'rj1', status: 'succeeded', result: stubChain }),
+    } as Response)
+}
+
 describe('scenarios CRUD', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn())
@@ -122,17 +137,28 @@ describe('scenarios CRUD', () => {
   })
 
   it('fetchScenarioIsochrone POSTs to /api/user-scenarios/{slug}/isochrone with the request body', async () => {
-    const response = { type: 'FeatureCollection', features: [], metadata: {} } as unknown as ChainResponse
-    vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 200, json: async () => response } as Response)
+    enqueueThenSucceed()
     const result = await fetchScenarioIsochrone('ca-hsr', { lat: 37.7, lng: -122.4, budget_mins: 30, mode: 'walk' })
     const [url, init] = vi.mocked(fetch).mock.calls[0]
     expect(url).toContain('/api/user-scenarios/ca-hsr/isochrone')
     expect((init as RequestInit).method).toBe('POST')
     const body = JSON.parse((init as RequestInit).body as string)
     expect(body).toEqual({ lat: 37.7, lng: -122.4, budget_mins: 30, mode: 'walk' })
-    expect(result).toEqual(response)
+    expect(result).toEqual(stubChain)
   })
 
+  // The endpoint answers 202 with a routing job now (SPA-182), so the result
+  // arrives from the poll rather than from the POST.
+  it('fetchScenarioIsochrone polls the routing job the enqueue answered with', async () => {
+    enqueueThenSucceed()
+    await fetchScenarioIsochrone('ca-hsr', { lat: 37.7, lng: -122.4, budget_mins: 30, mode: 'walk' })
+    const [url] = vi.mocked(fetch).mock.calls[1]
+    expect(url).toContain('/api/routing-jobs/rj1')
+  })
+
+  // The stale-graph check runs before anything is enqueued, so this is still
+  // answered by the POST itself — which is what keeps useAuthoredGraph's
+  // recompile-and-retry recovery working untouched.
   it('fetchScenarioIsochrone surfaces a stale_graph ApiError code on 409', async () => {
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: false,
@@ -142,5 +168,6 @@ describe('scenarios CRUD', () => {
     await expect(
       fetchScenarioIsochrone('ca-hsr', { lat: 37.7, lng: -122.4, budget_mins: 30, mode: 'walk' }),
     ).rejects.toMatchObject({ code: 'stale_graph' } satisfies Partial<ApiError>)
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1)
   })
 })
