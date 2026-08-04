@@ -3,7 +3,7 @@
 // read (a different model entirely — see internal/handler/mine.go on the
 // API), which this module does not touch.
 import { apiRequest } from './client'
-import { awaitIsochrone, type RoutingJob } from '../routingJobs'
+import { enqueueIsochrone } from '../routingJobs'
 import type { ChainResponse } from '../../fixtures/isochrone'
 import type { Job, Scenario, ScenarioInput, TransitGraph, AuthoredIsochroneRequest } from './types'
 
@@ -61,20 +61,15 @@ export async function fetchScenarioGraph(slug: string): Promise<TransitGraph> {
 
 // Plots an isochrone over a scenario's latest compiled graph. Distinct from
 // the seeded fetchIsochrone (api/isochrone.ts): owner-scoped, and resolves
-// against user_scenarios rather than scenarios.
+// against user_scenarios rather than scenarios. enqueueIsochrone owns the wait
+// for the routing job the endpoint answers with.
 //
-// The endpoint enqueues rather than computes (SPA-182), so this waits out the
-// routing job it is answered with and still resolves with the chain. A 409
-// whose ApiError.code is 'stale_graph' means the compiled graph fell behind an
-// edit to a member service — the caller should recompile and retry. That check
-// runs before anything is enqueued, so it still arrives from this POST.
-export async function fetchScenarioIsochrone(
+// A 409 whose ApiError.code is 'stale_graph' means the compiled graph fell
+// behind an edit to a member service — the caller should recompile and retry.
+// The check runs before anything is enqueued, so it arrives from the POST.
+export function fetchScenarioIsochrone(
   slug: string,
   request: AuthoredIsochroneRequest,
 ): Promise<ChainResponse> {
-  const job = await apiRequest<RoutingJob>(`/api/user-scenarios/${slug}/isochrone`, {
-    method: 'POST',
-    body: JSON.stringify(request),
-  })
-  return awaitIsochrone(job)
+  return enqueueIsochrone(`/api/user-scenarios/${slug}/isochrone`, request)
 }

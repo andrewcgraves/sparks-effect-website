@@ -1,12 +1,10 @@
-import { apiBase, ApiError } from './authoring/client'
-import { awaitIsochrone, type RoutingJob } from './routingJobs'
+import { ApiError } from './authoring/client'
+import { enqueueIsochrone, type IsochroneParams } from './routingJobs'
 import type { ChainResponse } from '../fixtures/isochrone'
 
-export interface IsochroneRequest {
-  lat: number
-  lng: number
-  budget_mins: number
-  mode: 'walk' | 'bike' | 'drive'
+// The seeded isochrone names its scenario in the body; the authored endpoints
+// name their target in the URL instead.
+export interface IsochroneRequest extends IsochroneParams {
   scenario_slug: string
 }
 
@@ -36,22 +34,13 @@ export class IsochroneApiError extends Error {
  * isochrone as one request that eventually answers.
  */
 export async function fetchIsochrone(request: IsochroneRequest): Promise<ChainResponse> {
-  const response = await fetch(`${apiBase()}/api/isochrone`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(request),
-  })
-  if (!response.ok) {
-    throw new IsochroneApiError(response.status)
-  }
-
-  const job = (await response.json()) as RoutingJob
   try {
-    return await awaitIsochrone(job)
+    return await enqueueIsochrone('/api/isochrone', request)
   } catch (err) {
-    // A rejected poll is this request failing, so it is reported as one. The
-    // poll goes through the shared API client, which speaks ApiError; callers
-    // here have only ever had a case for IsochroneApiError.
+    // Either half of the request can be rejected — the enqueue or a poll — and
+    // both are this request failing, so both are reported the same way. The
+    // shared API client speaks ApiError; callers here have only ever had a
+    // case for IsochroneApiError.
     if (err instanceof ApiError) throw new IsochroneApiError(err.status)
     throw err
   }

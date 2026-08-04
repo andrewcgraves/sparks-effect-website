@@ -12,7 +12,6 @@ import {
 } from './services'
 import { ApiError } from './client'
 import type { ChainResponse } from '../../fixtures/isochrone'
-import type { RoutingJob } from '../routingJobs'
 import type { Job, Service, ServiceInput } from './types'
 
 const stubInput: ServiceInput = {
@@ -38,33 +37,17 @@ const stubService: Service = {
 
 const stubChain = { type: 'FeatureCollection', features: [], metadata: {} } as unknown as ChainResponse
 
-function routingJob(overrides: Partial<RoutingJob> = {}): RoutingJob {
-  return {
-    id: 'rj1',
-    status: 'queued',
-    compile_job_id: 'job1',
-    lat: 37.7,
-    lng: -122.4,
-    budget_mins: 30,
-    mode: 'walk',
-    ...overrides,
-  }
-}
-
-// The 202 the isochrone endpoint answers with, and the 200 the poll reads.
-function enqueuedResponse(): Response {
-  return { ok: true, status: 202, json: async () => routingJob() } as Response
-}
-
-function routingJobResponse(overrides: Partial<RoutingJob>): Response {
-  return { ok: true, status: 200, json: async () => routingJob(overrides) } as Response
-}
-
-// Enqueued, then succeeded on the first poll, so no timer has to be advanced.
+// The endpoint answers 202 with a routing job now (SPA-182), so a result takes
+// two responses: the enqueue, then a poll. Succeeding on the first poll keeps
+// these timer-free — the cadence and deadline are routingJobs.spec's subject.
 function enqueueThenSucceed(): void {
   vi.mocked(fetch)
-    .mockResolvedValueOnce(enqueuedResponse())
-    .mockResolvedValueOnce(routingJobResponse({ status: 'succeeded', result: stubChain }))
+    .mockResolvedValueOnce({ ok: true, status: 202, json: async () => ({ id: 'rj1' }) } as Response)
+    .mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ id: 'rj1', status: 'succeeded', result: stubChain }),
+    } as Response)
 }
 
 describe('services CRUD', () => {
@@ -181,15 +164,6 @@ describe('services CRUD', () => {
     await fetchServiceIsochrone('northbound-express', { lat: 37.7, lng: -122.4, budget_mins: 30, mode: 'walk' })
     const [url] = vi.mocked(fetch).mock.calls[1]
     expect(url).toContain('/api/routing-jobs/rj1')
-  })
-
-  it('fetchServiceIsochrone rejects when the routing job fails', async () => {
-    vi.mocked(fetch)
-      .mockResolvedValueOnce(enqueuedResponse())
-      .mockResolvedValueOnce(routingJobResponse({ status: 'failed', error: 'valhalla unreachable' }))
-    await expect(
-      fetchServiceIsochrone('northbound-express', { lat: 37.7, lng: -122.4, budget_mins: 30, mode: 'walk' }),
-    ).rejects.toThrow(/valhalla unreachable/)
   })
 
   // The stale-graph check runs before anything is enqueued, so this is still
