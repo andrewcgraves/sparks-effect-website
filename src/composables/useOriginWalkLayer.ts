@@ -45,12 +45,12 @@ export function originWalkLine(data: ChainResponse | null): OriginWalkLine | nul
   const walk = data.metadata.starter_walk
   if (!walk) return null
 
-  const station = data.metadata.reachable_stations.find(
+  const reached = data.metadata.reachable_stations.find(
     (s) => s.station_slug === walk.station_slug,
   )
   // A walk naming a station the plot's own accounting does not list is a
   // response contradicting itself, and there is no walk time to label it with.
-  if (!station) return null
+  if (!reached) return null
 
   return {
     type: 'FeatureCollection',
@@ -59,7 +59,7 @@ export function originWalkLine(data: ChainResponse | null): OriginWalkLine | nul
         type: 'Feature',
         properties: {
           station_slug: walk.station_slug,
-          access_mins: station.access_mins,
+          access_mins: reached.access_mins,
         },
         geometry: walk.geometry,
       },
