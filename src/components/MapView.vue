@@ -125,11 +125,15 @@ const stopPreviewPairs = () => props.stopPreviewPairs ?? null
 const modules = mapModules([
   routeLayerModule(() => ({ routes: props.routes, stations: props.stations })),
   isochroneLayerModule(() => props.isochroneData, isochroneColors),
-  // After the isochrone so the walk reads on top of the fill it crosses, and in
-  // the same blue: it is the rider's own walk, the thing the origin fill is
-  // already about.
+  // After the isochrone, so the walk is drawn over the fill it crosses rather
+  // than under it, and in the same blue: it is the rider's own walk, which is
+  // what the origin fill is already about.
   originWalkModule(
-    () => ({ origin: props.origin, data: props.isochroneData, stations: props.stations }),
+    {
+      origin: () => props.origin,
+      data: () => props.isochroneData,
+      stations: () => props.stations,
+    },
     isochroneColors.origin,
   ),
   originMarkerModule(() => props.origin),

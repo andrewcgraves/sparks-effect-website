@@ -95,6 +95,14 @@ describe('pickStarterStation', () => {
   it('returns null for an empty reachable list', () => {
     expect(pickStarterStation([])).toBeNull()
   })
+
+  // Whole-minute access times tie often, and the same plot must not draw a
+  // different line depending on the order the worker listed the stations in.
+  it('breaks a tie on the slug, whichever order the stations arrive in', () => {
+    const tied = [reachable('san-jose', 22), reachable('gilroy', 22), reachable('sf', 22)]
+    expect(pickStarterStation(tied)?.station_slug).toBe('gilroy')
+    expect(pickStarterStation([...tied].reverse())?.station_slug).toBe('gilroy')
+  })
 })
 
 describe('originWalkLine', () => {
@@ -169,42 +177,51 @@ describe('useOriginWalkLayer', () => {
 })
 
 describe('originWalkModule', () => {
-  const withStarter = () => ({
-    origin: ORIGIN,
-    data: response([reachable('san-jose', 22)]),
-    stations: STATIONS,
-  })
-  const withoutStarter = () => ({
-    origin: ORIGIN,
-    data: response([reachable('sf', 4, 'svc-1')]),
-    stations: STATIONS,
-  })
+  const WALKED_TO_SAN_JOSE = response([reachable('san-jose', 22)])
+  const ALL_RIDDEN = response([reachable('sf', 4, 'svc-1')])
+
+  // A mutable stand-in for the props MapView reads these off.
+  function inputsFor(data: ChainResponse, origin = ORIGIN) {
+    const state = { origin, data, stations: STATIONS }
+    return {
+      state,
+      inputs: {
+        origin: () => state.origin,
+        data: () => state.data,
+        stations: () => state.stations,
+      },
+    }
+  }
 
   it('waits for the style even once there is a line to draw', () => {
-    expect(originWalkModule(withStarter, '#123456').isReady(false)).toBe(false)
+    const { inputs } = inputsFor(WALKED_TO_SAN_JOSE)
+    expect(originWalkModule(inputs, '#123456').isReady(false)).toBe(false)
   })
 
   it('stays unattached while there is no walked-to station', () => {
-    expect(originWalkModule(withoutStarter, '#123456').isReady(true)).toBe(false)
+    const { inputs } = inputsFor(ALL_RIDDEN)
+    expect(originWalkModule(inputs, '#123456').isReady(true)).toBe(false)
   })
 
   it('is ready once the style is up and a station was walked to', () => {
-    expect(originWalkModule(withStarter, '#123456').isReady(true)).toBe(true)
+    const { inputs } = inputsFor(WALKED_TO_SAN_JOSE)
+    expect(originWalkModule(inputs, '#123456').isReady(true)).toBe(true)
   })
 
   it('attaches the source and layer', () => {
     const map = makeMockMap()
-    originWalkModule(withStarter, '#123456').attach(map as unknown as Map)
+    const { inputs } = inputsFor(WALKED_TO_SAN_JOSE)
+    originWalkModule(inputs, '#123456').attach(map as unknown as Map)
     expect(map.addSource).toHaveBeenCalledOnce()
     expect(map.addLayer).toHaveBeenCalledOnce()
   })
 
   it('re-plotting to a different station rewrites the same source', () => {
     const map = makeMockMap()
-    let inputs = withStarter()
-    const module = originWalkModule(() => inputs, '#123456')
+    const { state, inputs } = inputsFor(WALKED_TO_SAN_JOSE)
+    const module = originWalkModule(inputs, '#123456')
     module.attach(map as unknown as Map)
-    inputs = { origin: ORIGIN, data: response([reachable('sf', 31)]), stations: STATIONS }
+    state.data = response([reachable('sf', 31)])
     module.sync(map as unknown as Map)
     const drawn = map.sources[ORIGIN_WALK_SOURCE_ID].setData.mock.calls[0][0]
     expect(drawn.features[0].properties.station_slug).toBe('sf')
@@ -214,12 +231,22 @@ describe('originWalkModule', () => {
   // line standing over an origin it no longer belongs to.
   it('clears the line when a later plot has no walked-to station', () => {
     const map = makeMockMap()
-    let inputs = withStarter()
-    const module = originWalkModule(() => inputs, '#123456')
+    const { state, inputs } = inputsFor(WALKED_TO_SAN_JOSE)
+    const module = originWalkModule(inputs, '#123456')
     module.attach(map as unknown as Map)
-    inputs = withoutStarter()
+    state.data = ALL_RIDDEN
     module.sync(map as unknown as Map)
     const drawn = map.sources[ORIGIN_WALK_SOURCE_ID].setData.mock.calls[0][0]
     expect(drawn.features).toEqual([])
+  })
+
+  // The origin moves under a live coordinate form; the plot does not. Watching
+  // it would drag the line off the plot it belongs to.
+  it('does not watch the origin, only the plot and the station list', () => {
+    const { state, inputs } = inputsFor(WALKED_TO_SAN_JOSE)
+    const module = originWalkModule(inputs, '#123456')
+    const before = module.deps()
+    state.origin = { lat: 38.9, lng: -120.1 }
+    expect(module.deps()).toEqual(before)
   })
 })

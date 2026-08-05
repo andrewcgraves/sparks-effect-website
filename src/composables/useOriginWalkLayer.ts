@@ -15,10 +15,25 @@ export interface OriginWalkProperties {
 
 export type OriginWalkLine = FeatureCollection<LineString, OriginWalkProperties>
 
+/**
+ * Where the walking line reads its three inputs from.
+ *
+ * Separate getters rather than one bundle, because the module deliberately
+ * watches only two of them — see `originWalkModule`.
+ */
 export interface OriginWalkInputs {
-  origin: { lat: number; lng: number } | null | undefined
-  data: ChainResponse | null
-  stations: Station[]
+  origin: () => { lat: number; lng: number } | null | undefined
+  data: () => ChainResponse | null
+  stations: () => Station[]
+}
+
+// Shorter walk wins. Access times are whole minutes and ties are common — the
+// worker rounds, and several stations can sit in the same minute — so the slug
+// breaks them, leaving the same plot drawing the same line every time rather
+// than following whatever order the worker happened to list them in.
+function isShorterWalk(candidate: ReachableStation, best: ReachableStation): boolean {
+  if (candidate.access_mins !== best.access_mins) return candidate.access_mins < best.access_mins
+  return candidate.station_slug < best.station_slug
 }
 
 /**
@@ -30,11 +45,11 @@ export interface OriginWalkInputs {
  * station in the reachable list without an isochrone of its own (SPA-188)
  * precisely so this line can be drawn to it.
  */
-export function pickStarterStation(stations: ReachableStation[]): ReachableStation | null {
+export function pickStarterStation(reachable: ReachableStation[]): ReachableStation | null {
   let starter: ReachableStation | null = null
-  for (const station of stations) {
-    if (station.via_service) continue
-    if (!starter || station.access_mins < starter.access_mins) starter = station
+  for (const candidate of reachable) {
+    if (candidate.via_service) continue
+    if (!starter || isShorterWalk(candidate, starter)) starter = candidate
   }
   return starter
 }
@@ -81,7 +96,11 @@ export function originWalkLine(
   }
 }
 
-const EMPTY_LINE: OriginWalkLine = { type: 'FeatureCollection', features: [] }
+// A fresh one per call: MapLibre keeps whatever it is handed, and one shared
+// object passed to every map's setData would be held in several places at once.
+function emptyLine(): OriginWalkLine {
+  return { type: 'FeatureCollection', features: [] }
+}
 
 export function useOriginWalkLayer(
   map: Map,
@@ -109,31 +128,33 @@ export function useOriginWalkLayer(
 /**
  * The origin-to-starter-station walk as a map module.
  *
+ * The origin is read but not watched. It moves under a live form — every
+ * keystroke in the coordinate fields reports a new one — while the plot on the
+ * map stays as it was computed, so a line that followed the marker would leave
+ * the origin behind and still point at a station chosen for where the origin
+ * used to be. Watching the plot alone pins the line to it: it is redrawn when a
+ * new plot arrives, at the origin that plot was requested from, and holds still
+ * otherwise.
+ *
  * Not ready until there is a line: a plot that boarded transit at every station
- * it reached has no walking leg to show, and adding an empty source to every
- * map in the app to hold nothing would be waste. Once attached it stays, and a
- * later plot without a starter station blanks the source rather than leaving
- * the previous plot's line standing over an origin it no longer belongs to.
+ * it reached has no walking leg to show, and adding an empty source to every map
+ * in the app to hold nothing would be waste. Once attached it stays, and a later
+ * plot without a starter station blanks the source rather than leaving the
+ * previous plot's line standing.
  */
-export function originWalkModule(inputs: () => OriginWalkInputs, color: string): MapModule {
-  const line = () => {
-    const { origin, data, stations } = inputs()
-    return originWalkLine(origin, data, stations)
-  }
+export function originWalkModule(inputs: OriginWalkInputs, color: string): MapModule {
+  const line = () => originWalkLine(inputs.origin(), inputs.data(), inputs.stations())
 
   return {
-    deps: () => {
-      const { origin, data, stations } = inputs()
-      return [origin, data, stations]
-    },
+    deps: () => [inputs.data(), inputs.stations()],
     isReady: (styleLoaded) => styleLoaded && line() !== null,
-    attach: (map) => {
-      const current = line()
-      if (current) useOriginWalkLayer(map, current, color)
-    },
+    // Falls back to an empty source rather than skipping: the driver marks this
+    // module attached either way, and a module that attached without its source
+    // could never be synced again.
+    attach: (map) => useOriginWalkLayer(map, line() ?? emptyLine(), color),
     sync: (map) => {
       const source = map.getSource(ORIGIN_WALK_SOURCE_ID) as GeoJSONSource | undefined
-      source?.setData(line() ?? EMPTY_LINE)
+      source?.setData(line() ?? emptyLine())
     },
     detach: () => {},
   }

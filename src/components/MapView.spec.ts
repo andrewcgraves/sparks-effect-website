@@ -433,6 +433,52 @@ describe('MapView', () => {
     expect(mockAddSource).not.toHaveBeenCalledWith(ORIGIN_WALK_SOURCE_ID, expect.anything())
   })
 
+  // Typing in the coordinate fields reports a new origin on every keystroke,
+  // long before the next plot is asked for. The line belongs to the plot on
+  // screen, so it must not follow the marker away from it.
+  it('leaves the walking line where the plot put it when the origin moves', async () => {
+    mockGetSource.mockReturnValue({ setData: mockSetData })
+    const wrapper = mount(MapView, {
+      props: {
+        ...defaultProps,
+        origin: { lat: 37.4, lng: -121.9 },
+        isochroneData: walkedToStub,
+        stations: [stubStation],
+      },
+    })
+    await triggerMapLoad()
+    mockSetData.mockClear()
+
+    await wrapper.setProps({ origin: { lat: 38.9, lng: -120.1 } })
+
+    expect(mockSetData).not.toHaveBeenCalled()
+  })
+
+  it('re-anchors the walking line to the origin the next plot was made from', async () => {
+    mockGetSource.mockReturnValue({ setData: mockSetData })
+    const wrapper = mount(MapView, {
+      props: {
+        ...defaultProps,
+        origin: { lat: 37.4, lng: -121.9 },
+        isochroneData: walkedToStub,
+        stations: [stubStation],
+      },
+    })
+    await triggerMapLoad()
+    mockSetData.mockClear()
+
+    await wrapper.setProps({
+      origin: { lat: 38.9, lng: -120.1 },
+      isochroneData: chainWith([{ station_slug: 'sf', access_mins: 9, remaining_mins: 70 }]),
+    })
+
+    type DrawnLine = { features: { geometry: { type: string; coordinates: number[][] } }[] }
+    const drawn = mockSetData.mock.calls
+      .map((args: unknown[]) => args[0] as DrawnLine)
+      .find((data) => data.features[0]?.geometry.type === 'LineString')
+    expect(drawn?.features[0].geometry.coordinates[0]).toEqual([-120.1, 38.9])
+  })
+
   it('draws no walking line before an origin has been placed', async () => {
     mount(MapView, {
       props: { ...defaultProps, isochroneData: walkedToStub, stations: [stubStation] },
