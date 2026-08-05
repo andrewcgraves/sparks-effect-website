@@ -6,6 +6,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { isochroneLayerModule, isochroneLegend, resolveIsochroneColors } from '../composables/useIsochroneLayer'
 import { centerFromCorners, routeBoundsCorners, routeLayerModule } from '../composables/useRouteLayer'
 import { originMarkerModule } from '../composables/useOriginMarker'
+import { originWalkModule } from '../composables/useOriginWalkLayer'
 import { RAW_STOP_LAYER_ID, stopPreviewModule } from '../composables/useStopPreviewLayer'
 import type { StopPreviewPair } from '../composables/useStopPreviewLayer'
 import { stopDragModule } from '../composables/useStopDrag'
@@ -124,6 +125,13 @@ const stopPreviewPairs = () => props.stopPreviewPairs ?? null
 const modules = mapModules([
   routeLayerModule(() => ({ routes: props.routes, stations: props.stations })),
   isochroneLayerModule(() => props.isochroneData, isochroneColors),
+  // After the isochrone so the walk reads on top of the fill it crosses, and in
+  // the same blue: it is the rider's own walk, the thing the origin fill is
+  // already about.
+  originWalkModule(
+    () => ({ origin: props.origin, data: props.isochroneData, stations: props.stations }),
+    isochroneColors.origin,
+  ),
   originMarkerModule(() => props.origin),
   stopPreviewModule(stopPreviewPairs),
   stopDragModule(stopPreviewPairs, {

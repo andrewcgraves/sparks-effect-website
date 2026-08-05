@@ -18,11 +18,16 @@ import {
 } from '../composables/useStopPreviewLayer'
 import type { StopPreviewPair } from '../composables/useStopPreviewLayer'
 import {
+  ORIGIN_WALK_LAYER_ID,
+  ORIGIN_WALK_SOURCE_ID,
+} from '../composables/useOriginWalkLayer'
+import {
   staticIsochroneResponse,
   ISOCHRONE_BOUNDS,
   ISOCHRONE_BOUNDS_CORNERS,
   ISOCHRONE_CENTER,
 } from '../fixtures/isochrone'
+import type { ChainResponse } from '../fixtures/isochrone'
 import type { Route, Station, Service } from '../api/scenarios'
 
 const mockSetData = vi.fn()
@@ -143,6 +148,28 @@ const stubService: Service = {
   stop_count: 2,
   frequency_windows: [],
 }
+
+// A plot that walked to stubStation and rode on from there. Features are
+// irrelevant to the walking line, which reads only the reachable-station list.
+function chainWith(stations: ChainResponse['metadata']['reachable_stations']): ChainResponse {
+  return {
+    type: 'FeatureCollection',
+    features: [],
+    metadata: {
+      reachable_stations: stations,
+      origin_budget_mins: 90,
+      scenario_slug: 'ca-hsr',
+      mode: 'walk',
+      wait_model: 'none',
+      origin_iso_available: true,
+    },
+  }
+}
+
+const walkedToStub = chainWith([
+  { station_slug: 'sf', access_mins: 22, remaining_mins: 60 },
+  { station_slug: 'gilroy', access_mins: 40, remaining_mins: 20, via_service: 'svc1' },
+])
 
 const defaultProps = { isochroneData: null, loading: false, routes: [], stations: [], services: [] }
 
@@ -363,6 +390,55 @@ describe('MapView', () => {
     expect(mockAddLayer).toHaveBeenCalledWith(
       expect.objectContaining({ id: ISOCHRONE_LAYER_ID }),
     )
+  })
+
+  it('draws the walking line from the origin to the station reached on foot', async () => {
+    mount(MapView, {
+      props: {
+        ...defaultProps,
+        origin: { lat: 37.4, lng: -121.9 },
+        isochroneData: walkedToStub,
+        stations: [stubStation],
+      },
+    })
+    await triggerMapLoad()
+    expect(mockAddSource).toHaveBeenCalledWith(
+      ORIGIN_WALK_SOURCE_ID,
+      expect.objectContaining({ type: 'geojson' }),
+    )
+    expect(mockAddLayer).toHaveBeenCalledWith(
+      expect.objectContaining({ id: ORIGIN_WALK_LAYER_ID, type: 'line' }),
+    )
+    const [, source] = mockAddSource.mock.calls.find(
+      (args: unknown[]) => args[0] === ORIGIN_WALK_SOURCE_ID,
+    ) as [string, { data: { features: { geometry: { coordinates: number[][] } }[] } }]
+    expect(source.data.features[0].geometry.coordinates).toEqual([
+      [-121.9, 37.4],
+      stubStation.location.coordinates,
+    ])
+  })
+
+  it('draws no walking line when every station was reached by riding', async () => {
+    mount(MapView, {
+      props: {
+        ...defaultProps,
+        origin: { lat: 37.4, lng: -121.9 },
+        isochroneData: chainWith([
+          { station_slug: 'sf', access_mins: 22, remaining_mins: 60, via_service: 'svc1' },
+        ]),
+        stations: [stubStation],
+      },
+    })
+    await triggerMapLoad()
+    expect(mockAddSource).not.toHaveBeenCalledWith(ORIGIN_WALK_SOURCE_ID, expect.anything())
+  })
+
+  it('draws no walking line before an origin has been placed', async () => {
+    mount(MapView, {
+      props: { ...defaultProps, isochroneData: walkedToStub, stations: [stubStation] },
+    })
+    await triggerMapLoad()
+    expect(mockAddSource).not.toHaveBeenCalledWith(ORIGIN_WALK_SOURCE_ID, expect.anything())
   })
 
   it('removes the map on unmount', () => {

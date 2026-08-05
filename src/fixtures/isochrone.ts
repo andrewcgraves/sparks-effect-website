@@ -5,6 +5,10 @@ export interface ReachableStation {
   station_slug: string
   access_mins: number
   remaining_mins: number
+  // The service ridden to get here, absent when the station was reached on foot
+  // from the origin. That absence is what identifies the starter station the
+  // walking line is drawn to — see useOriginWalkLayer.
+  via_service?: string
 }
 
 export interface ChainMetadata {
