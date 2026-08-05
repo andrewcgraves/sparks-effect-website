@@ -27,7 +27,7 @@ import {
   ISOCHRONE_BOUNDS_CORNERS,
   ISOCHRONE_CENTER,
 } from '../fixtures/isochrone'
-import type { ChainResponse } from '../fixtures/isochrone'
+import type { ChainResponse, StarterWalk } from '../fixtures/isochrone'
 import type { Route, Station, Service } from '../api/scenarios'
 
 const mockSetData = vi.fn()
@@ -149,9 +149,27 @@ const stubService: Service = {
   frequency_windows: [],
 }
 
+// The walk the worker routed to stubStation. It bends, and neither end is the
+// origin the request was made from or the station row's own coordinates —
+// which is exactly what makes it Valhalla's shape rather than a rebuilt one.
+const routedToStub: StarterWalk = {
+  station_slug: 'sf',
+  geometry: {
+    type: 'LineString',
+    coordinates: [
+      [-121.9008, 37.4003],
+      [-122.0142, 37.5511],
+      [-122.4188, 37.7742],
+    ],
+  },
+}
+
 // A plot that walked to stubStation and rode on from there. Features are
-// irrelevant to the walking line, which reads only the reachable-station list.
-function chainWith(stations: ChainResponse['metadata']['reachable_stations']): ChainResponse {
+// irrelevant to the walking line, which reads only the metadata.
+function chainWith(
+  stations: ChainResponse['metadata']['reachable_stations'],
+  starterWalk?: StarterWalk,
+): ChainResponse {
   return {
     type: 'FeatureCollection',
     features: [],
@@ -162,14 +180,18 @@ function chainWith(stations: ChainResponse['metadata']['reachable_stations']): C
       mode: 'walk',
       wait_model: 'none',
       origin_iso_available: true,
+      ...(starterWalk ? { starter_walk: starterWalk } : {}),
     },
   }
 }
 
-const walkedToStub = chainWith([
-  { station_slug: 'sf', access_mins: 22, remaining_mins: 60 },
-  { station_slug: 'gilroy', access_mins: 40, remaining_mins: 20, via_service: 'svc1' },
-])
+const walkedToStub = chainWith(
+  [
+    { station_slug: 'sf', access_mins: 22, remaining_mins: 60 },
+    { station_slug: 'gilroy', access_mins: 40, remaining_mins: 20, via_service: 'svc1' },
+  ],
+  routedToStub,
+)
 
 const defaultProps = { isochroneData: null, loading: false, routes: [], stations: [], services: [] }
 
@@ -392,7 +414,7 @@ describe('MapView', () => {
     )
   })
 
-  it('draws the walking line from the origin to the station reached on foot', async () => {
+  it('draws the walking line as the worker routed it', async () => {
     mount(MapView, {
       props: {
         ...defaultProps,
@@ -412,13 +434,11 @@ describe('MapView', () => {
     const [, source] = mockAddSource.mock.calls.find(
       (args: unknown[]) => args[0] === ORIGIN_WALK_SOURCE_ID,
     ) as [string, { data: { features: { geometry: { coordinates: number[][] } }[] } }]
-    expect(source.data.features[0].geometry.coordinates).toEqual([
-      [-121.9, 37.4],
-      stubStation.location.coordinates,
-    ])
+    // The routed shape, not a segment from the origin prop to the station row.
+    expect(source.data.features[0].geometry.coordinates).toEqual(routedToStub.geometry.coordinates)
   })
 
-  it('draws no walking line when every station was reached by riding', async () => {
+  it('draws no walking line when the plot carries no walking leg', async () => {
     mount(MapView, {
       props: {
         ...defaultProps,
@@ -454,7 +474,46 @@ describe('MapView', () => {
     expect(mockSetData).not.toHaveBeenCalled()
   })
 
-  it('re-anchors the walking line to the origin the next plot was made from', async () => {
+  it('redraws the walking line as the next plot routed it', async () => {
+    mockGetSource.mockReturnValue({ setData: mockSetData })
+    const wrapper = mount(MapView, {
+      props: {
+        ...defaultProps,
+        origin: { lat: 37.4, lng: -121.9 },
+        isochroneData: walkedToStub,
+        stations: [stubStation],
+      },
+    })
+    await triggerMapLoad()
+    mockSetData.mockClear()
+
+    const nextWalk: StarterWalk = {
+      station_slug: 'sf',
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [-120.1004, 38.8998],
+          [-121.2001, 38.1002],
+          [-122.4188, 37.7742],
+        ],
+      },
+    }
+    await wrapper.setProps({
+      origin: { lat: 38.9, lng: -120.1 },
+      isochroneData: chainWith([{ station_slug: 'sf', access_mins: 9, remaining_mins: 70 }], nextWalk),
+    })
+
+    type DrawnLine = { features: { geometry: { type: string; coordinates: number[][] } }[] }
+    const drawn = mockSetData.mock.calls
+      .map((args: unknown[]) => args[0] as DrawnLine)
+      .find((data) => data.features[0]?.geometry.type === 'LineString')
+    expect(drawn?.features[0].geometry.coordinates).toEqual(nextWalk.geometry.coordinates)
+  })
+
+  // Editing a scenario moves the station rows. The walk was routed and timed
+  // against the graph node as it stood when the plot was computed, so the line
+  // must not chase the row to its new position.
+  it('leaves the walking line alone when the station rows move', async () => {
     mockGetSource.mockReturnValue({ setData: mockSetData })
     const wrapper = mount(MapView, {
       props: {
@@ -468,23 +527,16 @@ describe('MapView', () => {
     mockSetData.mockClear()
 
     await wrapper.setProps({
-      origin: { lat: 38.9, lng: -120.1 },
-      isochroneData: chainWith([{ station_slug: 'sf', access_mins: 9, remaining_mins: 70 }]),
+      stations: [
+        { ...stubStation, location: { type: 'Point', coordinates: [-122.5, 37.9] } } as Station,
+      ],
     })
 
     type DrawnLine = { features: { geometry: { type: string; coordinates: number[][] } }[] }
-    const drawn = mockSetData.mock.calls
+    const redrawnWalk = mockSetData.mock.calls
       .map((args: unknown[]) => args[0] as DrawnLine)
       .find((data) => data.features[0]?.geometry.type === 'LineString')
-    expect(drawn?.features[0].geometry.coordinates[0]).toEqual([-120.1, 38.9])
-  })
-
-  it('draws no walking line before an origin has been placed', async () => {
-    mount(MapView, {
-      props: { ...defaultProps, isochroneData: walkedToStub, stations: [stubStation] },
-    })
-    await triggerMapLoad()
-    expect(mockAddSource).not.toHaveBeenCalledWith(ORIGIN_WALK_SOURCE_ID, expect.anything())
+    expect(redrawnWalk).toBeUndefined()
   })
 
   it('removes the map on unmount', () => {

@@ -4,13 +4,11 @@ import {
   useOriginWalkLayer,
   originWalkModule,
   originWalkLine,
-  pickStarterStation,
   ORIGIN_WALK_SOURCE_ID,
   ORIGIN_WALK_LAYER_ID,
 } from './useOriginWalkLayer'
 import { THEME_TOKEN_FALLBACKS } from '../themeTokens'
-import type { ChainResponse, ReachableStation } from '../fixtures/isochrone'
-import type { Station } from '../api/scenarios'
+import type { ChainResponse, ReachableStation, StarterWalk } from '../fixtures/isochrone'
 
 function makeMockMap() {
   const sources: Record<string, { setData: ReturnType<typeof vi.fn> }> = {}
@@ -26,22 +24,7 @@ function makeMockMap() {
   }
 }
 
-function station(slug: string, lng: number, lat: number): Station {
-  return {
-    id: `id-${slug}`,
-    scenario_id: 's1',
-    slug,
-    name: slug,
-    location: { type: 'Point', coordinates: [lng, lat] },
-    platform_height: 'high',
-  }
-}
-
-function reachable(
-  slug: string,
-  accessMins: number,
-  viaService?: string,
-): ReachableStation {
+function reachable(slug: string, accessMins: number, viaService?: string): ReachableStation {
   return {
     station_slug: slug,
     access_mins: accessMins,
@@ -50,7 +33,33 @@ function reachable(
   }
 }
 
-function response(stations: ReachableStation[]): ChainResponse {
+// A shape that bends, the way a walk along streets does. A straight segment
+// between the same two points would be two positions; this is four.
+const ROUTED_TO_SAN_JOSE: StarterWalk = {
+  station_slug: 'san-jose',
+  geometry: {
+    type: 'LineString',
+    coordinates: [
+      [-121.9012, 37.3981],
+      [-121.9012, 37.3602],
+      [-121.8994, 37.3418],
+      [-121.9026, 37.3301],
+    ],
+  },
+}
+
+const ROUTED_TO_SF: StarterWalk = {
+  station_slug: 'sf',
+  geometry: {
+    type: 'LineString',
+    coordinates: [
+      [-122.3901, 37.7901],
+      [-122.3944, 37.7912],
+    ],
+  },
+}
+
+function response(stations: ReachableStation[], starterWalk?: StarterWalk): ChainResponse {
   return {
     type: 'FeatureCollection',
     features: [],
@@ -61,94 +70,63 @@ function response(stations: ReachableStation[]): ChainResponse {
       mode: 'walk',
       wait_model: 'none',
       origin_iso_available: true,
+      ...(starterWalk ? { starter_walk: starterWalk } : {}),
     },
   }
 }
 
-const ORIGIN = { lat: 37.4, lng: -121.9 }
-const STATIONS = [station('sf', -122.39, 37.79), station('san-jose', -121.9, 37.33)]
-
-describe('pickStarterStation', () => {
-  it('picks the station reached without boarding any service', () => {
-    const picked = pickStarterStation([
-      reachable('sf', 4, 'svc-1'),
-      reachable('san-jose', 22),
-    ])
-    expect(picked?.station_slug).toBe('san-jose')
-  })
-
-  it('picks the nearest walk when several stations were reached on foot', () => {
-    const picked = pickStarterStation([
-      reachable('sf', 31),
-      reachable('san-jose', 22),
-      reachable('gilroy', 47),
-    ])
-    expect(picked?.station_slug).toBe('san-jose')
-  })
-
-  it('returns null when every station was reached by riding', () => {
-    expect(
-      pickStarterStation([reachable('sf', 4, 'svc-1'), reachable('gilroy', 9, 'svc-2')]),
-    ).toBeNull()
-  })
-
-  it('returns null for an empty reachable list', () => {
-    expect(pickStarterStation([])).toBeNull()
-  })
-
-  // Whole-minute access times tie often, and the same plot must not draw a
-  // different line depending on the order the worker listed the stations in.
-  it('breaks a tie on the slug, whichever order the stations arrive in', () => {
-    const tied = [reachable('san-jose', 22), reachable('gilroy', 22), reachable('sf', 22)]
-    expect(pickStarterStation(tied)?.station_slug).toBe('gilroy')
-    expect(pickStarterStation([...tied].reverse())?.station_slug).toBe('gilroy')
-  })
-})
+const WALKED_TO_SAN_JOSE = response([reachable('san-jose', 22)], ROUTED_TO_SAN_JOSE)
 
 describe('originWalkLine', () => {
-  it('draws a line from the origin to the starter station', () => {
-    const line = originWalkLine(ORIGIN, response([reachable('san-jose', 22)]), STATIONS)
+  // The whole point of SPA-196: what is drawn is the shape that was walked,
+  // not a chord across whatever lies between the two points.
+  it('draws the routed path the worker measured, bends and all', () => {
+    const line = originWalkLine(WALKED_TO_SAN_JOSE)
     expect(line?.features).toHaveLength(1)
-    expect(line?.features[0].geometry).toEqual({
-      type: 'LineString',
-      coordinates: [
-        [-121.9, 37.4],
-        [-121.9, 37.33],
-      ],
-    })
+    expect(line?.features[0].geometry).toEqual(ROUTED_TO_SAN_JOSE.geometry)
+  })
+
+  // Valhalla snaps each end to the nearest routable edge before routing, so the
+  // line begins and ends where the timing did rather than at the raw point the
+  // user clicked or wherever the station's row sits today.
+  it('keeps the routed endpoints rather than rebuilding them', () => {
+    const coordinates = originWalkLine(WALKED_TO_SAN_JOSE)!.features[0].geometry.coordinates
+    expect(coordinates).toHaveLength(4)
+    expect(coordinates[0]).toEqual([-121.9012, 37.3981])
+    expect(coordinates[3]).toEqual([-121.9026, 37.3301])
   })
 
   it('labels the line with the station it walks to and the walk it represents', () => {
-    const line = originWalkLine(ORIGIN, response([reachable('san-jose', 22)]), STATIONS)
+    const line = originWalkLine(WALKED_TO_SAN_JOSE)
     expect(line?.features[0].properties).toEqual({
       station_slug: 'san-jose',
       access_mins: 22,
     })
   })
 
-  it('is null without an origin', () => {
-    expect(originWalkLine(null, response([reachable('san-jose', 22)]), STATIONS)).toBeNull()
-  })
-
   it('is null without an isochrone', () => {
-    expect(originWalkLine(ORIGIN, null, STATIONS)).toBeNull()
+    expect(originWalkLine(null)).toBeNull()
   })
 
-  it('is null when no station was reached on foot', () => {
-    expect(originWalkLine(ORIGIN, response([reachable('sf', 4, 'svc-1')]), STATIONS)).toBeNull()
+  // A plot that reached no station on foot has no walking leg, and one whose
+  // route call failed has no shape for the leg it had. Either way there is
+  // nothing to draw, and the surface is unaffected.
+  it('is null when the plot carries no walking leg', () => {
+    expect(originWalkLine(response([reachable('sf', 4, 'svc-1')]))).toBeNull()
   })
 
-  // The reachable list names slugs; only the scenario's own station list says
-  // where they are. Without it there is nothing to draw a line to.
-  it('is null when the starter station is not among the scenario stations', () => {
-    expect(originWalkLine(ORIGIN, response([reachable('elsewhere', 22)]), STATIONS)).toBeNull()
+  // A walk naming a station the plot's own accounting does not list is a
+  // response that contradicts itself; drawing from it would put an unlabelled
+  // line on the map.
+  it('is null when the walk names a station the accounting does not list', () => {
+    expect(originWalkLine(response([reachable('sf', 4, 'svc-1')], ROUTED_TO_SAN_JOSE))).toBeNull()
   })
 })
 
 describe('useOriginWalkLayer', () => {
   it('registers a geojson source seeded with the line', () => {
     const map = makeMockMap()
-    const line = originWalkLine(ORIGIN, response([reachable('san-jose', 22)]), STATIONS)!
+    const line = originWalkLine(WALKED_TO_SAN_JOSE)!
     useOriginWalkLayer(map as unknown as Map, line)
     expect(map.addSource).toHaveBeenCalledWith(ORIGIN_WALK_SOURCE_ID, {
       type: 'geojson',
@@ -158,8 +136,7 @@ describe('useOriginWalkLayer', () => {
 
   it('adds a dashed line layer in the origin colour', () => {
     const map = makeMockMap()
-    const line = originWalkLine(ORIGIN, response([reachable('san-jose', 22)]), STATIONS)!
-    useOriginWalkLayer(map as unknown as Map, line)
+    useOriginWalkLayer(map as unknown as Map, originWalkLine(WALKED_TO_SAN_JOSE)!)
     const layer = map.addLayer.mock.calls[0][0]
     expect(layer.id).toBe(ORIGIN_WALK_LAYER_ID)
     expect(layer.type).toBe('line')
@@ -170,27 +147,18 @@ describe('useOriginWalkLayer', () => {
 
   it('paints with a caller-supplied colour', () => {
     const map = makeMockMap()
-    const line = originWalkLine(ORIGIN, response([reachable('san-jose', 22)]), STATIONS)!
-    useOriginWalkLayer(map as unknown as Map, line, '#123456')
+    useOriginWalkLayer(map as unknown as Map, originWalkLine(WALKED_TO_SAN_JOSE)!, '#123456')
     expect(map.addLayer.mock.calls[0][0].paint['line-color']).toBe('#123456')
   })
 })
 
 describe('originWalkModule', () => {
-  const WALKED_TO_SAN_JOSE = response([reachable('san-jose', 22)])
   const ALL_RIDDEN = response([reachable('sf', 4, 'svc-1')])
 
-  // A mutable stand-in for the props MapView reads these off.
-  function inputsFor(data: ChainResponse, origin = ORIGIN) {
-    const state = { origin, data, stations: STATIONS }
-    return {
-      state,
-      inputs: {
-        origin: () => state.origin,
-        data: () => state.data,
-        stations: () => state.stations,
-      },
-    }
+  // A mutable stand-in for the prop MapView reads this off.
+  function inputsFor(data: ChainResponse) {
+    const state = { data }
+    return { state, inputs: { data: () => state.data } }
   }
 
   it('waits for the style even once there is a line to draw', () => {
@@ -198,12 +166,12 @@ describe('originWalkModule', () => {
     expect(originWalkModule(inputs, '#123456').isReady(false)).toBe(false)
   })
 
-  it('stays unattached while there is no walked-to station', () => {
+  it('stays unattached while the plot carries no walking leg', () => {
     const { inputs } = inputsFor(ALL_RIDDEN)
     expect(originWalkModule(inputs, '#123456').isReady(true)).toBe(false)
   })
 
-  it('is ready once the style is up and a station was walked to', () => {
+  it('is ready once the style is up and there is a walk to draw', () => {
     const { inputs } = inputsFor(WALKED_TO_SAN_JOSE)
     expect(originWalkModule(inputs, '#123456').isReady(true)).toBe(true)
   })
@@ -221,15 +189,16 @@ describe('originWalkModule', () => {
     const { state, inputs } = inputsFor(WALKED_TO_SAN_JOSE)
     const module = originWalkModule(inputs, '#123456')
     module.attach(map as unknown as Map)
-    state.data = response([reachable('sf', 31)])
+    state.data = response([reachable('sf', 31)], ROUTED_TO_SF)
     module.sync(map as unknown as Map)
     const drawn = map.sources[ORIGIN_WALK_SOURCE_ID].setData.mock.calls[0][0]
     expect(drawn.features[0].properties.station_slug).toBe('sf')
+    expect(drawn.features[0].geometry).toEqual(ROUTED_TO_SF.geometry)
   })
 
-  // A later plot with no walk-only station must not leave the previous plot's
-  // line standing over an origin it no longer belongs to.
-  it('clears the line when a later plot has no walked-to station', () => {
+  // A later plot with no walking leg must not leave the previous plot's line
+  // standing over a walk it no longer describes.
+  it('clears the line when a later plot has no walking leg', () => {
     const map = makeMockMap()
     const { state, inputs } = inputsFor(WALKED_TO_SAN_JOSE)
     const module = originWalkModule(inputs, '#123456')
@@ -240,13 +209,14 @@ describe('originWalkModule', () => {
     expect(drawn.features).toEqual([])
   })
 
-  // The origin moves under a live coordinate form; the plot does not. Watching
-  // it would drag the line off the plot it belongs to.
-  it('does not watch the origin, only the plot and the station list', () => {
+  // The plot is the only input. The origin moves under a live coordinate form
+  // and the station rows move when a scenario is edited; neither changes a walk
+  // that has already been routed and timed.
+  it('watches the plot and nothing else', () => {
     const { state, inputs } = inputsFor(WALKED_TO_SAN_JOSE)
     const module = originWalkModule(inputs, '#123456')
-    const before = module.deps()
-    state.origin = { lat: 38.9, lng: -120.1 }
-    expect(module.deps()).toEqual(before)
+    expect(module.deps()).toEqual([WALKED_TO_SAN_JOSE])
+    state.data = ALL_RIDDEN
+    expect(module.deps()).toEqual([ALL_RIDDEN])
   })
 })

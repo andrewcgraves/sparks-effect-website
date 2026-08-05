@@ -128,14 +128,7 @@ const modules = mapModules([
   // After the isochrone, so the walk is drawn over the fill it crosses rather
   // than under it, and in the same blue: it is the rider's own walk, which is
   // what the origin fill is already about.
-  originWalkModule(
-    {
-      origin: () => props.origin,
-      data: () => props.isochroneData,
-      stations: () => props.stations,
-    },
-    isochroneColors.origin,
-  ),
+  originWalkModule({ data: () => props.isochroneData }, isochroneColors.origin),
   originMarkerModule(() => props.origin),
   stopPreviewModule(stopPreviewPairs),
   stopDragModule(stopPreviewPairs, {
