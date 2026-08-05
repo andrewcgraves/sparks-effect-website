@@ -1,4 +1,4 @@
-import type { FeatureCollection, Polygon } from 'geojson'
+import type { FeatureCollection, LineString, Polygon } from 'geojson'
 import sampleIsochroneResponse from './sample-isochrone-response.json'
 
 export interface ReachableStation {
@@ -6,9 +6,23 @@ export interface ReachableStation {
   access_mins: number
   remaining_mins: number
   // The service ridden to get here, absent when the station was reached on foot
-  // from the origin. That absence is what identifies the starter station the
-  // walking line is drawn to — see useOriginWalkLayer.
+  // from the origin.
   via_service?: string
+}
+
+/**
+ * The walk from the origin to the station the rider boards at, as the worker
+ * routed it.
+ *
+ * The geometry is Valhalla's own, so it follows streets rather than cutting
+ * across them, and its endpoints are where the timing actually started and
+ * ended: the origin snapped to the nearest routable edge, and the graph node
+ * the access time was measured to rather than wherever the station's row sits
+ * now. Nothing here needs to be joined against the station list to be drawn.
+ */
+export interface StarterWalk {
+  station_slug: string
+  geometry: LineString
 }
 
 export interface ChainMetadata {
@@ -19,6 +33,10 @@ export interface ChainMetadata {
   wait_model: string
   origin_iso_available: boolean
   origin_iso_clamped?: boolean
+  // Absent when the plot reached no station on foot, and when the worker's
+  // route call for one failed — the surface is complete either way, and the
+  // line is what is missing, not the plot.
+  starter_walk?: StarterWalk
 }
 
 export interface IsochroneFeatureProperties {
