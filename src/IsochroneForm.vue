@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AddressAutocomplete from './components/AddressAutocomplete.vue'
+import SteppedSlider from './components/SteppedSlider.vue'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from './components/fieldStyles'
 import type { GeocodingSuggestion } from './api/geocoding'
 import { reverseGeocode } from './api/geocoding'
@@ -15,8 +16,11 @@ const MODE_OPTIONS: { value: Mode; label: string }[] = [
   { value: 'drive', label: 'Drive' },
 ]
 
-const DURATION_MIN = 0
-const DURATION_MAX = 120
+const DURATION_OPTIONS = [30, 60, 120, 240]
+
+function formatDuration(value: number): string {
+  return `${value} min`
+}
 
 const props = withDefaults(
   defineProps<{
@@ -36,8 +40,7 @@ const emit = defineEmits<{
 
 const lat = ref('')
 const lng = ref('')
-const duration = ref(30)
-const durationText = ref(String(duration.value))
+const duration = ref(60)
 const selectedLabel = ref('')
 const locationError = ref('')
 const locating = ref(false)
@@ -53,10 +56,9 @@ function parseOrigin(latText: string, lngText: string): { lat: number; lng: numb
   return isFinite(parsedLat) && isFinite(parsedLng) ? { lat: parsedLat, lng: parsedLng } : null
 }
 
-// Enable submit only once we have a parseable origin and a non-zero travel time.
-// Duration always arrives as a number in [0, 120] from the slider, so 0 is the
-// only value it gates.
-const isValid = computed(() => parseOrigin(lat.value, lng.value) !== null && duration.value > 0)
+// Duration is always one of DURATION_OPTIONS, so a parseable origin is the only
+// remaining gate.
+const isValid = computed(() => parseOrigin(lat.value, lng.value) !== null)
 
 // The fetch error is owned by the parent, but a stale error shouldn't linger once
 // the user starts fixing their input. Locally suppress it after any field edit; a
@@ -71,21 +73,6 @@ watch([lat, lng, duration, mode], () => {
 
 const showError = computed(() => !!props.error && !errorDismissed.value)
 const showHint = computed(() => !showError.value && !isValid.value)
-
-watch(duration, (value) => {
-  durationText.value = String(value)
-})
-
-function onDurationBlur() {
-  // Vue auto-casts v-model on type="number" inputs to a number when parseable,
-  // so durationText.value isn't reliably a string here.
-  const raw = String(durationText.value)
-  const parsed = Math.round(Number(raw))
-  const durationParseable = raw.trim() !== '' && Number.isFinite(parsed)
-  const clamped = durationParseable ? Math.min(DURATION_MAX, Math.max(DURATION_MIN, parsed)) : duration.value
-  duration.value = clamped
-  durationText.value = String(clamped)
-}
 
 watch([lat, lng], ([newLat, newLng]) => {
   emit('origin-change', parseOrigin(newLat, newLng))
@@ -261,29 +248,13 @@ function handleSubmit() {
     </div>
 
     <label :class="FIELD_LABEL_CLASS">
-      Travel time (minutes)
-      <div class="flex items-center gap-3">
-        <input
-          v-model.number="duration"
-          type="range"
-          :min="DURATION_MIN"
-          :max="DURATION_MAX"
-          step="1"
-          class="accent-coral flex-1"
-          data-testid="duration-slider"
-        >
-        <input
-          v-model="durationText"
-          :class="FIELD_INPUT_CLASS"
-          class="w-20"
-          data-testid="duration"
-          type="number"
-          :min="DURATION_MIN"
-          :max="DURATION_MAX"
-          step="1"
-          @blur="onDurationBlur"
-        >
-      </div>
+      Travel time
+      <SteppedSlider
+        v-model="duration"
+        :options="DURATION_OPTIONS"
+        :format-option="formatDuration"
+        testid="duration-slider"
+      />
     </label>
 
     <fieldset class="flex flex-col gap-2 border-0 p-0">
