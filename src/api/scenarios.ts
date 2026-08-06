@@ -1,4 +1,5 @@
 import { listRoutes } from './authoring/routes'
+import { newTraceId } from './traceId'
 
 export type Provenance = 'computed' | 'calibrated' | 'frozen'
 
@@ -78,13 +79,17 @@ function apiBase(): string {
 }
 
 export async function fetchScenario(scenarioSlug: string): Promise<ScenarioDetail> {
-  const res = await fetch(`${apiBase()}/api/scenarios/${scenarioSlug}`)
+  const res = await fetch(`${apiBase()}/api/scenarios/${scenarioSlug}`, {
+    headers: { 'X-Trace-Id': newTraceId() },
+  })
   if (!res.ok) throw new Error(`Failed to fetch scenario ${scenarioSlug}: ${res.status}`)
   return res.json() as Promise<ScenarioDetail>
 }
 
 export async function fetchScenarioTravelTimes(scenarioSlug: string): Promise<TravelTimes> {
-  const res = await fetch(`${apiBase()}/api/scenarios/${scenarioSlug}/travel-times`)
+  const res = await fetch(`${apiBase()}/api/scenarios/${scenarioSlug}/travel-times`, {
+    headers: { 'X-Trace-Id': newTraceId() },
+  })
   if (!res.ok) throw new Error(`Failed to fetch travel times for ${scenarioSlug}: ${res.status}`)
   return res.json() as Promise<TravelTimes>
 }
