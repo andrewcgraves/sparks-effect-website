@@ -183,6 +183,31 @@ describe('apiRequest', () => {
     } as unknown as Response)
     await expect(apiRequest('/api/things')).rejects.toThrow(/GET \/api\/things failed: 500/)
   })
+
+  it('sends a X-Trace-Id header', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({}) } as Response)
+    await apiRequest('/api/things')
+    const init = vi.mocked(fetch).mock.calls[0][1] as RequestInit
+    const headers = new Headers(init.headers)
+    expect(headers.get('X-Trace-Id')).toMatch(/^[0-9a-f-]{36}$/)
+  })
+
+  it('sends a different X-Trace-Id on each request', async () => {
+    vi.mocked(fetch).mockResolvedValue({ ok: true, status: 200, json: async () => ({}) } as Response)
+    await apiRequest('/api/things')
+    await apiRequest('/api/things')
+    const firstHeaders = new Headers(vi.mocked(fetch).mock.calls[0][1]?.headers)
+    const secondHeaders = new Headers(vi.mocked(fetch).mock.calls[1][1]?.headers)
+    expect(firstHeaders.get('X-Trace-Id')).not.toBe(secondHeaders.get('X-Trace-Id'))
+  })
+
+  it('lets an explicit caller X-Trace-Id header win', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({}) } as Response)
+    await apiRequest('/api/things', { headers: { 'X-Trace-Id': 'caller-trace-id' } })
+    const init = vi.mocked(fetch).mock.calls[0][1] as RequestInit
+    const headers = new Headers(init.headers)
+    expect(headers.get('X-Trace-Id')).toBe('caller-trace-id')
+  })
 })
 
 describe('auth token injection', () => {

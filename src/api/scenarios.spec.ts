@@ -103,6 +103,14 @@ describe('fetchScenario', () => {
     vi.mocked(fetch).mockResolvedValueOnce({ ok: false, status: 404 } as Response)
     await expect(fetchScenario('ca-hsr')).rejects.toThrow()
   })
+
+  it('sends a X-Trace-Id header', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: true, json: async () => stubDetail } as Response)
+    await fetchScenario('ca-hsr')
+    const init = vi.mocked(fetch).mock.calls[0][1] as RequestInit
+    const headers = new Headers(init.headers)
+    expect(headers.get('X-Trace-Id')).toMatch(/^[0-9a-f-]{36}$/)
+  })
 })
 
 const stubTravelTimes: TravelTimes = {
@@ -137,6 +145,14 @@ describe('fetchScenarioTravelTimes', () => {
   it('throws when the response is not ok', async () => {
     vi.mocked(fetch).mockResolvedValueOnce({ ok: false, status: 404 } as Response)
     await expect(fetchScenarioTravelTimes('ca-hsr')).rejects.toThrow()
+  })
+
+  it('sends a X-Trace-Id header', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: true, json: async () => stubTravelTimes } as Response)
+    await fetchScenarioTravelTimes('ca-hsr')
+    const init = vi.mocked(fetch).mock.calls[0][1] as RequestInit
+    const headers = new Headers(init.headers)
+    expect(headers.get('X-Trace-Id')).toMatch(/^[0-9a-f-]{36}$/)
   })
 })
 
