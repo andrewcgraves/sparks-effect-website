@@ -273,6 +273,87 @@ describe('useAuthoredGraph', () => {
     })
   })
 
+  // SPA-200. Unlike the seeded page, this measures against the compiled graph's
+  // own nodes — the very set the API measures against — so the two agree
+  // exactly and a local refusal is one the API would have made too.
+  describe('an origin out of range of every station', () => {
+    // The graph the page has loaded, with one station kmNorth kilometres north
+    // of the payload's origin. A degree of latitude is ~111.19 km.
+    function graphWithStationAt(kmNorth: number): TransitGraph {
+      return {
+        services: [],
+        nodes: [{ slug: 'sf', names: ['San Francisco'], lat: 37.7 + kmNorth / 111.19, lng: -122.4 }],
+      } as unknown as TransitGraph
+    }
+
+    async function loadedOver(graph: TransitGraph) {
+      fetchGraph.mockResolvedValue(graph)
+      const s = subject()
+      await s.loadGraph('ca-hsr')
+      return s
+    }
+
+    it('is refused without asking the API', async () => {
+      const { handleIsochroneSubmit, isochroneError } = await loadedOver(graphWithStationAt(100))
+
+      await handleIsochroneSubmit(payload)
+
+      expect(isochrone).not.toHaveBeenCalled()
+      expect(isochroneError.value).toContain('nearest station')
+    })
+
+    it('leaves nothing spinning and no stale plot behind', async () => {
+      const s = await loadedOver(graphWithStationAt(100))
+      s.isochroneData.value = chain
+
+      await s.handleIsochroneSubmit(payload)
+
+      expect(s.isochroneLoading.value).toBe(false)
+      expect(s.isochroneData.value).toBeNull()
+    })
+
+    // The counterpart, so a check that refused everything would not pass.
+    it('plots normally when a station is within reach', async () => {
+      isochrone.mockResolvedValue(chain)
+      const { handleIsochroneSubmit, isochroneError } = await loadedOver(graphWithStationAt(1))
+
+      await handleIsochroneSubmit(payload)
+
+      expect(isochrone).toHaveBeenCalledOnce()
+      expect(isochroneError.value).toBeNull()
+    })
+
+    // A graph with no nodes says nothing about how far away the origin is, so
+    // the request goes out and the API decides with the real graph in hand.
+    it('does not refuse against a graph it cannot see any stations in', async () => {
+      isochrone.mockResolvedValue(chain)
+      const { handleIsochroneSubmit } = subject()
+
+      await handleIsochroneSubmit(payload)
+
+      expect(isochrone).toHaveBeenCalledOnce()
+    })
+
+    // The arm for what the local check could not see — most plausibly a
+    // recompile that has just moved or dropped the station it measured against.
+    it('reports the API refusal in its own terms', async () => {
+      isochrone.mockRejectedValue(
+        new ApiError('too far', 422, 'origin_out_of_range', {
+          nearest_station_slug: 'sf',
+          nearest_station_km: 111.2,
+          max_reach_km: 2.5,
+        }),
+      )
+      const { handleIsochroneSubmit, isochroneError } = subject()
+
+      await handleIsochroneSubmit(payload)
+
+      expect(compile).not.toHaveBeenCalled()
+      expect(isochroneError.value).toContain('111 km')
+      expect(isochroneError.value).not.toContain('try again')
+    })
+  })
+
   // A detail page is a form the user can resubmit before the last answer lands.
   // Whichever attempt they started last is the one they are waiting on, so an
   // earlier one returning late must not write anything.

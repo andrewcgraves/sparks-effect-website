@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useIsochrone } from './useIsochrone'
 import { IsochroneApiError, type IsochroneRequest } from '../api/isochrone'
+import { ApiError } from '../api/authoring/client'
+import type { Station } from '../api/scenarios'
 import type { ChainResponse } from '../fixtures/isochrone'
 
 vi.mock('../api/isochrone', async (importOriginal) => {
@@ -118,6 +120,75 @@ describe('useIsochrone', () => {
     const { generate } = useIsochrone()
     await generate(request)
     expect(trackIsochroneError).toHaveBeenCalledWith('walk', 30, null)
+  })
+
+  // SPA-200. The stations arrive as a getter, and with none of them the check
+  // is skipped entirely — which is what every test above relies on.
+  describe('the origin-range check', () => {
+    const sanFrancisco: Station = {
+      id: 'st1',
+      scenario_id: 's1',
+      slug: 'sf',
+      name: 'San Francisco',
+      location: { type: 'Point', coordinates: [-122.4, 37.7] },
+      platform_height: '0',
+    }
+    // The request above is at San Jose, ~61 km from this station — far outside
+    // the 2.5 km a 30-minute walk covers.
+    const withStations = () => useIsochrone(() => [sanFrancisco])
+
+    it('refuses an out-of-reach origin without asking the API', async () => {
+      const { data, error, loading, generate } = withStations()
+
+      await generate(request)
+
+      expect(fetchIsochrone).not.toHaveBeenCalled()
+      expect(error.value).toContain('nearest station')
+      expect(data.value).toBeNull()
+      expect(loading.value).toBe(false)
+    })
+
+    // A refusal is still an isochrone the user did not get, and it is counted
+    // as one — with no status, since no request was made to have one.
+    it('counts a refusal as an error, not as a request', async () => {
+      const { generate } = withStations()
+
+      await generate(request)
+
+      expect(trackIsochroneRequest).not.toHaveBeenCalled()
+      expect(trackIsochroneError).toHaveBeenCalledWith('walk', 30, null)
+    })
+
+    it('asks the API when a station is within reach', async () => {
+      vi.mocked(fetchIsochrone).mockResolvedValueOnce(stubResponse)
+      const { error, generate } = withStations()
+
+      await generate({ ...request, lat: 37.71, lng: -122.41 })
+
+      expect(fetchIsochrone).toHaveBeenCalledOnce()
+      expect(error.value).toBeNull()
+    })
+
+    // What the local check could not see: a station list that has gone stale,
+    // or one that differs from the compiled graph the API measures against.
+    it('reports the API refusal in its own terms', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+      vi.mocked(fetchIsochrone).mockRejectedValueOnce(
+        new IsochroneApiError(422, {
+          cause: new ApiError('too far', 422, 'origin_out_of_range', {
+            nearest_station_slug: 'sf',
+            nearest_station_km: 60.6,
+            max_reach_km: 2.5,
+          }),
+        }),
+      )
+      const { error, generate } = useIsochrone()
+
+      await generate(request)
+
+      expect(error.value).toContain('61 km')
+      expect(error.value).not.toContain('try again')
+    })
   })
 
   it('clears a prior error at the start of the next generate', async () => {
