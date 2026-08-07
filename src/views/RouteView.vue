@@ -54,7 +54,7 @@ const mapRoutes = computed<ScenarioRoute[]>(() => {
       </h1>
 
       <div class="mt-8 grid grid-cols-1 items-start gap-4 lg:grid-cols-[2fr_1fr]">
-        <div class="h-[70vh] overflow-hidden rounded-(--radius-box) border border-border">
+        <div class="h-[70vh]">
           <MapView
             :loading="false"
             :isochrone-data="null"

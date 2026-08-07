@@ -263,7 +263,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="map-frame relative h-full min-h-[70vh] w-full">
+  <div class="map-frame relative h-full min-h-[70vh] w-full rounded-(--radius-box) border border-border">
     <div
       ref="mapContainer"
       class="h-full min-h-[70vh] w-full"
@@ -319,6 +319,18 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+/* The map box is the mask: MapLibre's canvas is a WebGL layer that gets its
+   own compositor layer, and `overflow: hidden` on an ancestor does not
+   reliably clip a layer like that in every browser — the isochrone fill paints
+   past the rounded corner and square edges show through. `clip-path` forces a
+   true per-pixel clip of the composited output instead of relying on layout
+   overflow, so the fill is masked to the box's rounded shape everywhere,
+   including where an isochrone runs up against the edge of the map. */
+.map-frame {
+  overflow: hidden;
+  clip-path: inset(0 round var(--radius-box));
+}
+
 /* MapLibre renders its own controls and attribution into the map container, so
    utilities can't reach them — this is the ":deep() exception", not leftover BEM. */
 .map-frame :deep(.maplibregl-ctrl-group) {

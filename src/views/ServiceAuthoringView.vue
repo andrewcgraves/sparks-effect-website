@@ -476,7 +476,7 @@ const allEdges = computed<GraphEdge[]>(() => compiledGraph.value?.services.flatM
           </p>
         </form>
 
-        <div class="h-[70vh] overflow-hidden rounded-(--radius-box) border border-border">
+        <div class="h-[70vh]">
           <MapView
             :loading="false"
             :isochrone-data="null"
