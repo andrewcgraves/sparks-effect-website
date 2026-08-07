@@ -6,13 +6,15 @@ import {
   ISOCHRONE_SOURCE_ID,
   ISOCHRONE_LAYER_ID,
 } from './useIsochroneLayer'
+import { ROUTE_LINE_LAYER_ID } from './useRouteLayer'
 import { THEME_TOKEN_FALLBACKS } from '../themeTokens'
 import { staticIsochroneResponse } from '../fixtures/isochrone'
 
-function makeMockMap(): Pick<Map, 'addSource' | 'addLayer'> {
+function makeMockMap(): Pick<Map, 'addSource' | 'addLayer' | 'getLayer'> {
   return {
     addSource: vi.fn(),
     addLayer: vi.fn(),
+    getLayer: vi.fn().mockReturnValue(undefined),
   }
 }
 
@@ -37,6 +39,27 @@ describe('useIsochroneLayer', () => {
         type: 'fill',
         source: ISOCHRONE_SOURCE_ID,
       }),
+    )
+  })
+
+  it('adds the fill layer with no beforeId when the route line does not exist yet', () => {
+    const map = makeMockMap()
+    useIsochroneLayer(map as Map, staticIsochroneResponse)
+    expect(map.addLayer).toHaveBeenCalledWith(
+      expect.objectContaining({ id: ISOCHRONE_LAYER_ID }),
+    )
+  })
+
+  // SPA-213: routes/stations are drawn from the scenario fetch well before the
+  // isochrone is generated, so without stacking under the route line on
+  // purpose the fill would paint over them the moment it attaches.
+  it('inserts the fill layer below the route line when it already exists', () => {
+    const map = makeMockMap()
+    ;(map.getLayer as ReturnType<typeof vi.fn>).mockReturnValue({ id: ROUTE_LINE_LAYER_ID })
+    useIsochroneLayer(map as Map, staticIsochroneResponse)
+    expect(map.addLayer).toHaveBeenCalledWith(
+      expect.objectContaining({ id: ISOCHRONE_LAYER_ID }),
+      ROUTE_LINE_LAYER_ID,
     )
   })
 

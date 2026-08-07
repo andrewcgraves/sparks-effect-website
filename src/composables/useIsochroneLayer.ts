@@ -1,7 +1,8 @@
-import type { GeoJSONSource, Map } from 'maplibre-gl'
+import type { FillLayerSpecification, GeoJSONSource, Map } from 'maplibre-gl'
 import type { MapModule } from './mapLifecycle'
 import type { FeatureCollection } from 'geojson'
 import { readThemeToken } from '../themeTokens'
+import { ROUTE_LINE_LAYER_ID } from './useRouteLayer'
 
 export const ISOCHRONE_SOURCE_ID = 'isochrone-source'
 export const ISOCHRONE_LAYER_ID = 'isochrone-fill'
@@ -37,7 +38,7 @@ export function useIsochroneLayer(
     data: geojson,
   })
 
-  map.addLayer({
+  const layer: FillLayerSpecification = {
     id: ISOCHRONE_LAYER_ID,
     type: 'fill',
     source: ISOCHRONE_SOURCE_ID,
@@ -45,7 +46,20 @@ export function useIsochroneLayer(
       'fill-color': ['match', ['get', 'source'], 'origin', colors.origin, colors.egress],
       'fill-opacity': ISOCHRONE_FILL_OPACITY,
     },
-  })
+  }
+
+  // The isochrone usually arrives well after the scenario's route and station
+  // layers are already on the map — it is drawn only once the rider submits
+  // the isochrone form, while routes/stations come from the scenario fetch on
+  // load. addLayer with no beforeId always appends on top, so without this the
+  // fill would paint over routes and stations that were already there
+  // (SPA-213). Stacking it under the route line also puts it under the
+  // station dots, which useRouteLayer always adds immediately above the line.
+  if (map.getLayer(ROUTE_LINE_LAYER_ID)) {
+    map.addLayer(layer, ROUTE_LINE_LAYER_ID)
+  } else {
+    map.addLayer(layer)
+  }
 }
 
 /**
