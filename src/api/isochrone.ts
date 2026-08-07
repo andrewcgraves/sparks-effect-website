@@ -12,12 +12,18 @@ export interface IsochroneRequest extends IsochroneParams {
  * Thrown when the isochrone API responds with a non-ok status. Carries the HTTP
  * status so callers can distinguish server rejections from connectivity failures
  * (which surface as the underlying fetch error, not an IsochroneApiError).
+ *
+ * `cause` is the ApiError this was translated from, where there was one. It is
+ * kept because the status alone is not always enough to say what went wrong:
+ * an out-of-range origin is a 422 whose code and detail carry the distances the
+ * message is written from (SPA-200), and re-deriving them here would mean this
+ * layer knowing which codes carry what.
  */
 export class IsochroneApiError extends Error {
   readonly status: number
 
-  constructor(status: number) {
-    super(`Isochrone API error: ${status}`)
+  constructor(status: number, options?: { cause?: unknown }) {
+    super(`Isochrone API error: ${status}`, options)
     this.name = 'IsochroneApiError'
     this.status = status
   }
@@ -41,7 +47,7 @@ export async function fetchIsochrone(request: IsochroneRequest): Promise<ChainRe
     // both are this request failing, so both are reported the same way. The
     // shared API client speaks ApiError; callers here have only ever had a
     // case for IsochroneApiError.
-    if (err instanceof ApiError) throw new IsochroneApiError(err.status)
+    if (err instanceof ApiError) throw new IsochroneApiError(err.status, { cause: err })
     throw err
   }
 }
