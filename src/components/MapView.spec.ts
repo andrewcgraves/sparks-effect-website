@@ -414,6 +414,22 @@ describe('MapView', () => {
     )
   })
 
+  // SPA-213: routes/stations load with the scenario, well before the rider
+  // submits the isochrone form, so the fill must stack under a route line
+  // that is already on the map rather than relying on attach order.
+  it('stacks the isochrone fill below an already-drawn route line', async () => {
+    const wrapper = mount(MapView, { props: { ...defaultProps, routes: [stubRoute], stations: [stubStation] } })
+    await triggerMapLoad()
+    mockGetLayer.mockImplementation((id: string) => (id === ROUTE_LINE_LAYER_ID ? { id } : undefined))
+
+    await wrapper.setProps({ isochroneData: staticIsochroneResponse })
+
+    expect(mockAddLayer).toHaveBeenCalledWith(
+      expect.objectContaining({ id: ISOCHRONE_LAYER_ID }),
+      ROUTE_LINE_LAYER_ID,
+    )
+  })
+
   it('draws the walking line as the worker routed it', async () => {
     mount(MapView, {
       props: {
