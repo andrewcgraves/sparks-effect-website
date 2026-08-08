@@ -1,7 +1,8 @@
-import { consoleSink, noopSink } from './sinks'
+import { consoleSink } from './sinks'
+import { httpBatchSink } from './httpBatchSink'
 import type { AnalyticsSink } from './types'
 
-let _sink: AnalyticsSink = import.meta.env.DEV ? consoleSink : noopSink
+let _sink: AnalyticsSink = import.meta.env.DEV ? consoleSink : httpBatchSink
 
 export function configureSink(sink: AnalyticsSink): void {
   _sink = sink
