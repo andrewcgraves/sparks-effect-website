@@ -4,8 +4,10 @@ import {
   useIsochroneLayer,
   isochroneLegend,
   isochroneFillOpacity,
+  isochroneHighlightFilter,
   ISOCHRONE_SOURCE_ID,
   ISOCHRONE_LAYER_ID,
+  ISOCHRONE_HIGHLIGHT_LAYER_ID,
   ISOCHRONE_FILL_OPACITY,
   ISOCHRONE_HIGHLIGHT_OPACITY,
   ISOCHRONE_DIM_OPACITY,
@@ -36,7 +38,6 @@ describe('useIsochroneLayer', () => {
   it('adds a fill layer referencing the isochrone source', () => {
     const map = makeMockMap()
     useIsochroneLayer(map as Map, staticIsochroneResponse)
-    expect(map.addLayer).toHaveBeenCalledOnce()
     expect(map.addLayer).toHaveBeenCalledWith(
       expect.objectContaining({
         id: ISOCHRONE_LAYER_ID,
@@ -65,6 +66,52 @@ describe('useIsochroneLayer', () => {
       expect.objectContaining({ id: ISOCHRONE_LAYER_ID }),
       ROUTE_LINE_LAYER_ID,
     )
+  })
+
+  // A per-feature fill-opacity expression can't reorder features within one
+  // layer, so promoting a highlighted station above its overlapping
+  // neighbours (SPA-211) needs a second, filtered layer painted on top.
+  describe('highlight layer', () => {
+    it('adds a second fill layer on the same source, filtered to match nothing initially', () => {
+      const map = makeMockMap()
+      useIsochroneLayer(map as Map, staticIsochroneResponse)
+      expect(map.addLayer).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: ISOCHRONE_HIGHLIGHT_LAYER_ID,
+          type: 'fill',
+          source: ISOCHRONE_SOURCE_ID,
+          filter: isochroneHighlightFilter(null),
+        }),
+      )
+    })
+
+    it('paints the highlight layer with the egress colour at the highlight opacity, not the base opacity', () => {
+      const map = makeMockMap()
+      useIsochroneLayer(map as Map, staticIsochroneResponse, { origin: '#111111', egress: '#222222' })
+      const call = (map.addLayer as ReturnType<typeof vi.fn>).mock.calls.find(
+        ([layer]) => layer.id === ISOCHRONE_HIGHLIGHT_LAYER_ID,
+      )
+      expect(call?.[0].paint).toEqual({ 'fill-color': '#222222', 'fill-opacity': ISOCHRONE_HIGHLIGHT_OPACITY })
+    })
+
+    it('is added after the base layer, so it stacks above it', () => {
+      const map = makeMockMap()
+      useIsochroneLayer(map as Map, staticIsochroneResponse)
+      const calls = (map.addLayer as ReturnType<typeof vi.fn>).mock.calls
+      expect(calls).toHaveLength(2)
+      expect(calls[0][0].id).toBe(ISOCHRONE_LAYER_ID)
+      expect(calls[1][0].id).toBe(ISOCHRONE_HIGHLIGHT_LAYER_ID)
+    })
+
+    it('stacks below the route line when one already exists, same as the base layer', () => {
+      const map = makeMockMap()
+      ;(map.getLayer as ReturnType<typeof vi.fn>).mockReturnValue({ id: ROUTE_LINE_LAYER_ID })
+      useIsochroneLayer(map as Map, staticIsochroneResponse)
+      expect(map.addLayer).toHaveBeenCalledWith(
+        expect.objectContaining({ id: ISOCHRONE_HIGHLIGHT_LAYER_ID }),
+        ROUTE_LINE_LAYER_ID,
+      )
+    })
   })
 
   it('paint uses a source-based match expression for fill-color', () => {
@@ -130,23 +177,27 @@ describe('useIsochroneLayer', () => {
   })
 
   describe('isochroneFillOpacity', () => {
-    it('is the flat default opacity when nothing is highlighted', () => {
-      expect(isochroneFillOpacity(null)).toBe(ISOCHRONE_FILL_OPACITY)
+    it('is the flat default opacity when nothing is dimmed', () => {
+      expect(isochroneFillOpacity(false)).toBe(ISOCHRONE_FILL_OPACITY)
     })
 
-    it('lifts the highlighted station above its own default and dims every other egress feature', () => {
-      const expr = isochroneFillOpacity('sf')
+    it('dims every egress feature while keeping the origin fill at its own default when dimmed', () => {
+      const expr = isochroneFillOpacity(true)
       expect(expr).toEqual([
         'case',
         ['==', ['get', 'source'], 'origin'], ISOCHRONE_FILL_OPACITY,
-        ['==', ['get', 'station_slug'], 'sf'], ISOCHRONE_HIGHLIGHT_OPACITY,
         ISOCHRONE_DIM_OPACITY,
       ])
     })
+  })
 
-    it('keeps the origin fill at its own default regardless of which station is highlighted', () => {
-      const expr = isochroneFillOpacity('gilroy') as unknown[]
-      expect(expr[2]).toBe(ISOCHRONE_FILL_OPACITY)
+  describe('isochroneHighlightFilter', () => {
+    it('matches no feature when nothing is highlighted', () => {
+      expect(isochroneHighlightFilter(null)).toEqual(['in', ['get', 'station_slug'], ['literal', []]])
+    })
+
+    it('matches only the highlighted station', () => {
+      expect(isochroneHighlightFilter('sf')).toEqual(['==', ['get', 'station_slug'], 'sf'])
     })
   })
 

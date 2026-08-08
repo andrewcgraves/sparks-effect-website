@@ -2,7 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { FullscreenControl } from 'maplibre-gl'
 import MapView from './MapView.vue'
-import { ISOCHRONE_SOURCE_ID, ISOCHRONE_LAYER_ID } from '../composables/useIsochroneLayer'
+import {
+  ISOCHRONE_SOURCE_ID,
+  ISOCHRONE_LAYER_ID,
+  ISOCHRONE_HIGHLIGHT_LAYER_ID,
+  isochroneFillOpacity,
+  isochroneHighlightFilter,
+} from '../composables/useIsochroneLayer'
 import {
   ROUTE_LINE_LAYER_ID,
   ROUTE_SOURCE_ID,
@@ -56,6 +62,7 @@ const {
   mockGetLayer,
   mockQueryRenderedFeatures,
   mockSetPaintProperty,
+  mockSetFilter,
   mockPopupSetLngLat,
   mockPopupSetText,
   mockPopupAddTo,
@@ -84,6 +91,7 @@ const {
     mockGetLayer: vi.fn(),
     mockQueryRenderedFeatures: vi.fn(),
     mockSetPaintProperty: vi.fn(),
+    mockSetFilter: vi.fn(),
     mockPopupSetLngLat: vi.fn(),
     mockPopupSetText: vi.fn(),
     mockPopupAddTo: vi.fn(),
@@ -116,6 +124,7 @@ vi.mock('maplibre-gl', () => ({
     this['getLayer'] = mockGetLayer
     this['queryRenderedFeatures'] = mockQueryRenderedFeatures
     this['setPaintProperty'] = mockSetPaintProperty
+    this['setFilter'] = mockSetFilter
     this['doubleClickZoom'] = {
       enable: mockDoubleClickZoomEnable,
       disable: mockDoubleClickZoomDisable,
@@ -1154,8 +1163,10 @@ describe('MapView', () => {
       expect(mockPopupAddTo).toHaveBeenCalled()
     })
 
-    it('highlights the hovered station above the rest of the isochrone once it is on the map', async () => {
-      mockGetLayer.mockImplementation((id: string) => (id === ISOCHRONE_LAYER_ID ? { id } : undefined))
+    it('promotes the hovered station\'s polygon above the rest via the dedicated highlight layer', async () => {
+      mockGetLayer.mockImplementation((id: string) =>
+        id === ISOCHRONE_LAYER_ID || id === ISOCHRONE_HIGHLIGHT_LAYER_ID ? { id } : undefined,
+      )
       mount(MapView, {
         props: {
           ...defaultProps,
@@ -1166,14 +1177,22 @@ describe('MapView', () => {
       })
       await triggerMapLoad()
       mockSetPaintProperty.mockClear()
+      mockSetFilter.mockClear()
 
       fireLayerEvent('mouseenter', STATION_DOTS_LAYER_ID, stationEvent(stubStation))
 
-      expect(mockSetPaintProperty).toHaveBeenCalledWith(ISOCHRONE_LAYER_ID, 'fill-opacity', expect.arrayContaining(['case']))
+      // Dims the base layer's egress fills uniformly...
+      expect(mockSetPaintProperty).toHaveBeenCalledWith(ISOCHRONE_LAYER_ID, 'fill-opacity', isochroneFillOpacity(true))
+      // ...and filters the dedicated top layer to just this station, which is
+      // what actually paints it above every other overlapping polygon —
+      // fill-opacity alone can't reorder features within one layer.
+      expect(mockSetFilter).toHaveBeenCalledWith(ISOCHRONE_HIGHLIGHT_LAYER_ID, isochroneHighlightFilter(stubStation.slug))
     })
 
     it('persists the highlight after a click, past the hover that made it', async () => {
-      mockGetLayer.mockImplementation((id: string) => (id === ISOCHRONE_LAYER_ID ? { id } : undefined))
+      mockGetLayer.mockImplementation((id: string) =>
+        id === ISOCHRONE_LAYER_ID || id === ISOCHRONE_HIGHLIGHT_LAYER_ID ? { id } : undefined,
+      )
       mount(MapView, {
         props: {
           ...defaultProps,
@@ -1186,13 +1205,13 @@ describe('MapView', () => {
 
       fireLayerEvent('mouseenter', STATION_DOTS_LAYER_ID, stationEvent(stubStation))
       fireLayerEvent('click', STATION_DOTS_LAYER_ID, stationEvent(stubStation))
-      mockSetPaintProperty.mockClear()
+      mockSetFilter.mockClear()
       mockPopupRemove.mockClear()
 
       fireLayerEvent('mouseleave', STATION_DOTS_LAYER_ID, {})
 
       expect(mockPopupRemove).not.toHaveBeenCalled()
-      expect(mockSetPaintProperty).toHaveBeenCalledWith(ISOCHRONE_LAYER_ID, 'fill-opacity', expect.arrayContaining(['case']))
+      expect(mockSetFilter).toHaveBeenCalledWith(ISOCHRONE_HIGHLIGHT_LAYER_ID, isochroneHighlightFilter(stubStation.slug))
     })
 
     it('shows a pointer cursor on hover, and the placement crosshair (not a bare cursor) once armed', async () => {
