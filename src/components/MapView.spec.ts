@@ -7,6 +7,7 @@ import {
   ROUTE_LINE_LAYER_ID,
   ROUTE_SOURCE_ID,
   STATION_DOTS_LAYER_ID,
+  STATION_DOT_DEFAULT_COLOR,
   STATION_SOURCE_ID,
   routeBoundsCorners,
 } from '../composables/useRouteLayer'
@@ -21,6 +22,7 @@ import {
   ORIGIN_WALK_LAYER_ID,
   ORIGIN_WALK_SOURCE_ID,
 } from '../composables/useOriginWalkLayer'
+import { THEME_TOKEN_FALLBACKS } from '../themeTokens'
 import {
   staticIsochroneResponse,
   ISOCHRONE_BOUNDS,
@@ -383,6 +385,64 @@ describe('MapView', () => {
     expect(mockAddLayer).toHaveBeenCalledWith(
       expect.objectContaining({ id: STATION_DOTS_LAYER_ID, type: 'circle', source: STATION_SOURCE_ID }),
     )
+  })
+
+  // SPA-212: a station the rider can already reach should stand out on the
+  // zoomed-out map, in the same orange as the egress isochrone fill.
+  it('highlights reachable stations in the egress isochrone color when the isochrone is present at load', async () => {
+    mount(MapView, {
+      props: {
+        ...defaultProps,
+        routes: [stubRoute],
+        stations: [stubStation],
+        isochroneData: chainWith([{ station_slug: 'sf', access_mins: 5, remaining_mins: 10 }]),
+      },
+    })
+    await triggerMapLoad()
+    const call = mockAddLayer.mock.calls.find(
+      (c: unknown[]) => (c[0] as { id: string }).id === STATION_DOTS_LAYER_ID,
+    )
+    expect(call?.[0].paint['circle-color']).toEqual([
+      'match',
+      ['get', 'slug'],
+      ['sf'],
+      THEME_TOKEN_FALLBACKS['--color-data-egress'],
+      STATION_DOT_DEFAULT_COLOR,
+    ])
+  })
+
+  it('paints station dots the default color when the station is not in reach', async () => {
+    mount(MapView, {
+      props: {
+        ...defaultProps,
+        routes: [stubRoute],
+        stations: [stubStation],
+      },
+    })
+    await triggerMapLoad()
+    const call = mockAddLayer.mock.calls.find(
+      (c: unknown[]) => (c[0] as { id: string }).id === STATION_DOTS_LAYER_ID,
+    )
+    expect(call?.[0].paint['circle-color']).toBe(STATION_DOT_DEFAULT_COLOR)
+  })
+
+  it('re-highlights station dots once the isochrone arrives after the stations are already drawn', async () => {
+    const wrapper = mount(MapView, {
+      props: { ...defaultProps, routes: [stubRoute], stations: [stubStation] },
+    })
+    await triggerMapLoad()
+    expect(mockSetPaintProperty).not.toHaveBeenCalled()
+
+    await wrapper.setProps({
+      isochroneData: chainWith([{ station_slug: 'sf', access_mins: 5, remaining_mins: 10 }]),
+    })
+    expect(mockSetPaintProperty).toHaveBeenCalledWith(STATION_DOTS_LAYER_ID, 'circle-color', [
+      'match',
+      ['get', 'slug'],
+      ['sf'],
+      THEME_TOKEN_FALLBACKS['--color-data-egress'],
+      STATION_DOT_DEFAULT_COLOR,
+    ])
   })
 
   it('does not add route layer when routes prop is empty at map load time', async () => {

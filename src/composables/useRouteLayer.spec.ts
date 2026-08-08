@@ -4,12 +4,17 @@ import {
   useRouteLayer,
   routeBoundsCorners,
   centerFromCorners,
+  reachableStationSlugs,
+  stationDotColor,
+  routeLayerModule,
   ROUTE_SOURCE_ID,
   ROUTE_LINE_LAYER_ID,
   STATION_SOURCE_ID,
   STATION_DOTS_LAYER_ID,
+  STATION_DOT_DEFAULT_COLOR,
 } from './useRouteLayer'
 import type { Route, Station } from '../api/scenarios'
+import type { ChainResponse } from '../fixtures/isochrone'
 
 const route: Route = {
   id: 'r1',
@@ -33,6 +38,21 @@ function makeMockMap(): Pick<Map, 'addSource' | 'addLayer'> {
   return {
     addSource: vi.fn(),
     addLayer: vi.fn(),
+  }
+}
+
+function chainWith(stations: ChainResponse['metadata']['reachable_stations']): ChainResponse {
+  return {
+    type: 'FeatureCollection',
+    features: [],
+    metadata: {
+      reachable_stations: stations,
+      origin_budget_mins: 90,
+      scenario_slug: 'ca-hsr',
+      mode: 'walk',
+      wait_model: 'none',
+      origin_iso_available: true,
+    },
   }
 }
 
@@ -98,6 +118,30 @@ describe('useRouteLayer', () => {
     expect(() => useRouteLayer(map as Map, [], [])).not.toThrow()
   })
 
+  it('paints station dots the default color when no stations are reachable', () => {
+    const map = makeMockMap()
+    useRouteLayer(map as Map, [], [station])
+    const call = (map.addLayer as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c: unknown[]) => (c[0] as { id: string }).id === STATION_DOTS_LAYER_ID,
+    )
+    expect(call?.[0].paint['circle-color']).toBe(STATION_DOT_DEFAULT_COLOR)
+  })
+
+  it('paints station dots with a match expression against the reachable slugs', () => {
+    const map = makeMockMap()
+    useRouteLayer(map as Map, [], [station], ['sf', 'gilroy'], '#f28f29')
+    const call = (map.addLayer as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c: unknown[]) => (c[0] as { id: string }).id === STATION_DOTS_LAYER_ID,
+    )
+    expect(call?.[0].paint['circle-color']).toEqual([
+      'match',
+      ['get', 'slug'],
+      ['sf', 'gilroy'],
+      '#f28f29',
+      STATION_DOT_DEFAULT_COLOR,
+    ])
+  })
+
   describe('routeBoundsCorners', () => {
     it('pads corners proportionally to the route bounds span by default', () => {
       const corners = routeBoundsCorners([route])
@@ -141,6 +185,76 @@ describe('useRouteLayer', () => {
   describe('centerFromCorners', () => {
     it('returns the midpoint of the given corners', () => {
       expect(centerFromCorners([[-122.44, 37.26], [-121.86, 37.74]])).toEqual([-122.15, 37.5])
+    })
+  })
+
+  describe('stationDotColor', () => {
+    it('falls back to the plain default color when nothing is reachable', () => {
+      expect(stationDotColor([], '#f28f29')).toBe(STATION_DOT_DEFAULT_COLOR)
+    })
+
+    it('builds a match expression keying the highlight color off the slug property', () => {
+      expect(stationDotColor(['sf'], '#f28f29')).toEqual([
+        'match',
+        ['get', 'slug'],
+        ['sf'],
+        '#f28f29',
+        STATION_DOT_DEFAULT_COLOR,
+      ])
+    })
+  })
+
+  describe('reachableStationSlugs', () => {
+    it('returns an empty list when there is no plot yet', () => {
+      expect(reachableStationSlugs(null)).toEqual([])
+    })
+
+    it('reads the station_slug off each reachable station', () => {
+      const data = chainWith([
+        { station_slug: 'sf', access_mins: 22, remaining_mins: 60 },
+        { station_slug: 'gilroy', access_mins: 40, remaining_mins: 20 },
+      ])
+      expect(reachableStationSlugs(data)).toEqual(['sf', 'gilroy'])
+    })
+  })
+
+  describe('routeLayerModule', () => {
+    it('attaches the station layer already painted with the initial reach', () => {
+      const map = makeMockMap()
+      const data = chainWith([{ station_slug: 'sf', access_mins: 5, remaining_mins: 10 }])
+      const module = routeLayerModule(() => ({ routes: [route], stations: [station] }), () => data, '#f28f29')
+      module.attach(map as Map)
+      const call = (map.addLayer as ReturnType<typeof vi.fn>).mock.calls.find(
+        (c: unknown[]) => (c[0] as { id: string }).id === STATION_DOTS_LAYER_ID,
+      )
+      expect(call?.[0].paint['circle-color']).toEqual([
+        'match',
+        ['get', 'slug'],
+        ['sf'],
+        '#f28f29',
+        STATION_DOT_DEFAULT_COLOR,
+      ])
+    })
+
+    it('re-paints the station dots on sync when the reachable set changes', () => {
+      const map: Pick<Map, 'addSource' | 'addLayer' | 'setPaintProperty'> = {
+        ...makeMockMap(),
+        setPaintProperty: vi.fn(),
+      }
+      let data: ChainResponse | null = null
+      const module = routeLayerModule(() => ({ routes: [route], stations: [station] }), () => data, '#f28f29')
+      module.attach(map as Map)
+
+      data = chainWith([{ station_slug: 'sf', access_mins: 5, remaining_mins: 10 }])
+      module.sync(map as Map)
+
+      expect(map.setPaintProperty).toHaveBeenCalledWith(STATION_DOTS_LAYER_ID, 'circle-color', [
+        'match',
+        ['get', 'slug'],
+        ['sf'],
+        '#f28f29',
+        STATION_DOT_DEFAULT_COLOR,
+      ])
     })
   })
 })
