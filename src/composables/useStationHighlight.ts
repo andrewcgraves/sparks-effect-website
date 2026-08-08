@@ -1,7 +1,12 @@
 import { Popup, type Map, type MapLayerMouseEvent } from 'maplibre-gl'
 import type { MapModule } from './mapLifecycle'
 import { STATION_DOTS_LAYER_ID } from './useRouteLayer'
-import { ISOCHRONE_LAYER_ID, isochroneFillOpacity } from './useIsochroneLayer'
+import {
+  ISOCHRONE_LAYER_ID,
+  ISOCHRONE_HIGHLIGHT_LAYER_ID,
+  isochroneFillOpacity,
+  isochroneHighlightFilter,
+} from './useIsochroneLayer'
 
 interface HighlightedStation {
   slug: string
@@ -42,7 +47,13 @@ export function useStationHighlight(map: Map, callbacks: StationHighlightCallbac
   function applyHighlight(): void {
     const active = hovered ?? selected
     if (map.getLayer(ISOCHRONE_LAYER_ID)) {
-      map.setPaintProperty(ISOCHRONE_LAYER_ID, 'fill-opacity', isochroneFillOpacity(active?.slug ?? null))
+      map.setPaintProperty(ISOCHRONE_LAYER_ID, 'fill-opacity', isochroneFillOpacity(active !== null))
+    }
+    // The highlighted polygon is repainted on this separate top layer so it
+    // reads above every other station's — fill-opacity alone can't reorder
+    // features within a single layer.
+    if (map.getLayer(ISOCHRONE_HIGHLIGHT_LAYER_ID)) {
+      map.setFilter(ISOCHRONE_HIGHLIGHT_LAYER_ID, isochroneHighlightFilter(active?.slug ?? null))
     }
     if (active) popup.setLngLat(active.lngLat).setText(active.name).addTo(map)
     else popup.remove()
