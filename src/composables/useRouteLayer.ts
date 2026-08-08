@@ -1,5 +1,6 @@
-import type { Map } from 'maplibre-gl'
+import type { DataDrivenPropertyValueSpecification, Map } from 'maplibre-gl'
 import type { MapModule } from './mapLifecycle'
+import type { ChainResponse } from '../fixtures/isochrone'
 import type { Route, Station } from '../api/scenarios'
 import { readThemeToken } from '../themeTokens'
 
@@ -7,6 +8,35 @@ export const ROUTE_SOURCE_ID = 'route-source'
 export const ROUTE_LINE_LAYER_ID = 'route-line'
 export const STATION_SOURCE_ID = 'station-source'
 export const STATION_DOTS_LAYER_ID = 'station-dots'
+
+export const STATION_DOT_DEFAULT_COLOR = '#ffffff'
+
+/**
+ * The slugs of stations the current isochrone plot can reach, in the shape
+ * `useRouteLayer` and its module need to paint them.
+ *
+ * A plot with no reach yet (none generated, or the rider's origin missed
+ * every station) is the same as an empty list to a caller — both mean no
+ * dot lights up.
+ */
+export function reachableStationSlugs(data: ChainResponse | null): string[] {
+  return data?.metadata.reachable_stations.map((s) => s.station_slug) ?? []
+}
+
+/**
+ * The station dots' `circle-color`, keyed off which stations the current
+ * plot can reach.
+ *
+ * A `match` expression needs at least one label, so an empty reach falls
+ * back to the plain default color rather than a degenerate expression.
+ */
+export function stationDotColor(
+  reachableSlugs: string[],
+  highlightColor: string,
+): DataDrivenPropertyValueSpecification<string> {
+  if (reachableSlugs.length === 0) return STATION_DOT_DEFAULT_COLOR
+  return ['match', ['get', 'slug'], reachableSlugs, highlightColor, STATION_DOT_DEFAULT_COLOR]
+}
 
 /* A fixed absolute-degree pad would swamp a short local route and be
    negligible on a cross-state one, so pad proportionally to the route's own
@@ -49,7 +79,13 @@ export function centerFromCorners(
   ]
 }
 
-export function useRouteLayer(map: Map, routes: Route[], stations: Station[]): void {
+export function useRouteLayer(
+  map: Map,
+  routes: Route[],
+  stations: Station[],
+  reachableSlugs: string[] = [],
+  highlightColor: string = readThemeToken('--color-data-egress'),
+): void {
   const ink = readThemeToken('--color-ink')
 
   map.addSource(ROUTE_SOURCE_ID, {
@@ -90,7 +126,7 @@ export function useRouteLayer(map: Map, routes: Route[], stations: Station[]): v
     source: STATION_SOURCE_ID,
     paint: {
       'circle-radius': 5,
-      'circle-color': '#ffffff',
+      'circle-color': stationDotColor(reachableSlugs, highlightColor),
       'circle-stroke-width': 2,
       'circle-stroke-color': ink,
     },
@@ -104,20 +140,30 @@ export function useRouteLayer(map: Map, routes: Route[], stations: Station[]): v
  * draw nothing and then never be revisited, and routes arrive from the scenario
  * fetch well after the map itself.
  */
-export function routeLayerModule(inputs: () => { routes: Route[]; stations: Station[] }): MapModule {
+export function routeLayerModule(
+  inputs: () => { routes: Route[]; stations: Station[] },
+  isochroneData: () => ChainResponse | null,
+  highlightColor: string,
+): MapModule {
+  const reachable = () => reachableStationSlugs(isochroneData())
+
   return {
     deps: () => {
       const { routes, stations } = inputs()
-      return [routes, stations]
+      return [routes, stations, reachable()]
     },
     isReady: (styleLoaded) => styleLoaded && inputs().routes.length > 0,
     attach: (map) => {
       const { routes, stations } = inputs()
-      useRouteLayer(map, routes, stations)
+      useRouteLayer(map, routes, stations, reachable(), highlightColor)
     },
-    // A scenario's routes are fetched once and do not change under an open map,
-    // so once drawn there is nothing to re-apply.
-    sync: () => {},
+    // The route/station positions are fetched once and do not move under an
+    // open map, but which dots are lit does: the rider can regenerate the
+    // isochrone with a different reach, and that is the one thing here still
+    // worth re-applying.
+    sync: (map) => {
+      map.setPaintProperty(STATION_DOTS_LAYER_ID, 'circle-color', stationDotColor(reachable(), highlightColor))
+    },
     detach: () => {},
   }
 }

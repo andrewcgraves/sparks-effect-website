@@ -123,7 +123,11 @@ function fitMapToIsochrone(data: ChainResponse): void {
 const stopPreviewPairs = () => props.stopPreviewPairs ?? null
 
 const modules = mapModules([
-  routeLayerModule(() => ({ routes: props.routes, stations: props.stations })),
+  routeLayerModule(
+    () => ({ routes: props.routes, stations: props.stations }),
+    () => props.isochroneData,
+    isochroneColors.egress,
+  ),
   isochroneLayerModule(() => props.isochroneData, isochroneColors),
   // After the isochrone, so the walk is drawn over the fill it crosses rather
   // than under it, and in the same blue: it is the rider's own walk, which is
