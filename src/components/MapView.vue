@@ -10,6 +10,7 @@ import { originWalkModule } from '../composables/useOriginWalkLayer'
 import { RAW_STOP_LAYER_ID, stopPreviewModule } from '../composables/useStopPreviewLayer'
 import type { StopPreviewPair } from '../composables/useStopPreviewLayer'
 import { stopDragModule } from '../composables/useStopDrag'
+import { stationHighlightModule } from '../composables/useStationHighlight'
 import { mapModules } from '../composables/mapLifecycle'
 import { ISOCHRONE_BOUNDS_CORNERS, ISOCHRONE_CENTER, isochroneBoundsCorners } from '../fixtures/isochrone'
 import type { ChainResponse } from '../fixtures/isochrone'
@@ -122,6 +123,8 @@ function fitMapToIsochrone(data: ChainResponse): void {
 // component no longer keeps a flag per module or a guard per call site.
 const stopPreviewPairs = () => props.stopPreviewPairs ?? null
 
+const idleCursor = () => (props.placementArmed ? 'crosshair' : '')
+
 const modules = mapModules([
   routeLayerModule(
     () => ({ routes: props.routes, stations: props.stations }),
@@ -134,11 +137,15 @@ const modules = mapModules([
   // what the origin fill is already about.
   originWalkModule({ data: () => props.isochroneData }, isochroneColors.origin),
   originMarkerModule(() => props.origin),
+  // After the isochrone: it dims and un-dims that layer's fill-opacity, which
+  // only exists once isochroneLayerModule has attached it. Also after
+  // routeLayerModule, whose station dots it binds its listeners to.
+  stationHighlightModule({ idleCursor }),
   stopPreviewModule(stopPreviewPairs),
   stopDragModule(stopPreviewPairs, {
     onDrag: (id, coord) => emit('stop-drag', id, coord),
     onDragEnd: (id, coord) => emit('stop-drag-end', id, coord),
-    idleCursor: () => (props.placementArmed ? 'crosshair' : ''),
+    idleCursor,
   }),
 ])
 

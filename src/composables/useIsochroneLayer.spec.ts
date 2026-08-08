@@ -3,8 +3,12 @@ import type { Map } from 'maplibre-gl'
 import {
   useIsochroneLayer,
   isochroneLegend,
+  isochroneFillOpacity,
   ISOCHRONE_SOURCE_ID,
   ISOCHRONE_LAYER_ID,
+  ISOCHRONE_FILL_OPACITY,
+  ISOCHRONE_HIGHLIGHT_OPACITY,
+  ISOCHRONE_DIM_OPACITY,
 } from './useIsochroneLayer'
 import { ROUTE_LINE_LAYER_ID } from './useRouteLayer'
 import { THEME_TOKEN_FALLBACKS } from '../themeTokens'
@@ -123,6 +127,27 @@ describe('useIsochroneLayer', () => {
     const egresses = staticIsochroneResponse.features.filter((f) => f.properties.source === 'egress')
     expect(origins).toHaveLength(1)
     expect(egresses.length).toBeGreaterThanOrEqual(1)
+  })
+
+  describe('isochroneFillOpacity', () => {
+    it('is the flat default opacity when nothing is highlighted', () => {
+      expect(isochroneFillOpacity(null)).toBe(ISOCHRONE_FILL_OPACITY)
+    })
+
+    it('lifts the highlighted station above its own default and dims every other egress feature', () => {
+      const expr = isochroneFillOpacity('sf')
+      expect(expr).toEqual([
+        'case',
+        ['==', ['get', 'source'], 'origin'], ISOCHRONE_FILL_OPACITY,
+        ['==', ['get', 'station_slug'], 'sf'], ISOCHRONE_HIGHLIGHT_OPACITY,
+        ISOCHRONE_DIM_OPACITY,
+      ])
+    })
+
+    it('keeps the origin fill at its own default regardless of which station is highlighted', () => {
+      const expr = isochroneFillOpacity('gilroy') as unknown[]
+      expect(expr[2]).toBe(ISOCHRONE_FILL_OPACITY)
+    })
   })
 
   it('fixture polygon coordinates are in the CA HSR Bay Area corridor', () => {
