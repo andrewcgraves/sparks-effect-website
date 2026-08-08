@@ -53,6 +53,11 @@ const {
   mockOff,
   mockGetLayer,
   mockQueryRenderedFeatures,
+  mockSetPaintProperty,
+  mockPopupSetLngLat,
+  mockPopupSetText,
+  mockPopupAddTo,
+  mockPopupRemove,
 } = vi.hoisted(() => {
   const canvas = { style: { cursor: '' } }
   return {
@@ -76,6 +81,11 @@ const {
     mockOff: vi.fn(),
     mockGetLayer: vi.fn(),
     mockQueryRenderedFeatures: vi.fn(),
+    mockSetPaintProperty: vi.fn(),
+    mockPopupSetLngLat: vi.fn(),
+    mockPopupSetText: vi.fn(),
+    mockPopupAddTo: vi.fn(),
+    mockPopupRemove: vi.fn(),
   }
 })
 
@@ -103,6 +113,7 @@ vi.mock('maplibre-gl', () => ({
     this['off'] = mockOff
     this['getLayer'] = mockGetLayer
     this['queryRenderedFeatures'] = mockQueryRenderedFeatures
+    this['setPaintProperty'] = mockSetPaintProperty
     this['doubleClickZoom'] = {
       enable: mockDoubleClickZoomEnable,
       disable: mockDoubleClickZoomDisable,
@@ -112,6 +123,12 @@ vi.mock('maplibre-gl', () => ({
     this['setLngLat'] = mockSetLngLat
     this['addTo'] = mockMarkerAddTo
     this['remove'] = mockMarkerRemove
+  }),
+  Popup: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
+    this['setLngLat'] = mockPopupSetLngLat
+    this['setText'] = mockPopupSetText
+    this['addTo'] = mockPopupAddTo
+    this['remove'] = mockPopupRemove
   }),
   FullscreenControl: vi.fn(),
 }))
@@ -233,6 +250,8 @@ describe('MapView', () => {
     mockCanvas.style.cursor = ''
     mockGetLayer.mockReturnValue(undefined)
     mockQueryRenderedFeatures.mockReturnValue([])
+    mockPopupSetLngLat.mockReturnValue({ setText: mockPopupSetText })
+    mockPopupSetText.mockReturnValue({ addTo: mockPopupAddTo })
   })
 
   it('does not add isochrone source or layer on load when no isochroneData prop is provided', async () => {
@@ -1049,6 +1068,83 @@ describe('MapView', () => {
       releaseAt(37.85, -122.35)
 
       expect(wrapper.emitted('stop-drag-end')).toHaveLength(1)
+      expect(mockCanvas.style.cursor).toBe('crosshair')
+    })
+  })
+
+  describe('station highlight (SPA-211)', () => {
+    function stationEvent(station: Station) {
+      return {
+        features: [
+          {
+            geometry: station.location,
+            properties: { id: station.id, name: station.name, slug: station.slug },
+          },
+        ],
+      }
+    }
+
+    it('shows the station name in a popup on hover', async () => {
+      mount(MapView, { props: { ...defaultProps, routes: [stubRoute], stations: [stubStation] } })
+      await triggerMapLoad()
+
+      fireLayerEvent('mouseenter', STATION_DOTS_LAYER_ID, stationEvent(stubStation))
+
+      expect(mockPopupSetText).toHaveBeenCalledWith('San Francisco')
+      expect(mockPopupAddTo).toHaveBeenCalled()
+    })
+
+    it('highlights the hovered station above the rest of the isochrone once it is on the map', async () => {
+      mockGetLayer.mockImplementation((id: string) => (id === ISOCHRONE_LAYER_ID ? { id } : undefined))
+      mount(MapView, {
+        props: {
+          ...defaultProps,
+          routes: [stubRoute],
+          stations: [stubStation],
+          isochroneData: staticIsochroneResponse,
+        },
+      })
+      await triggerMapLoad()
+      mockSetPaintProperty.mockClear()
+
+      fireLayerEvent('mouseenter', STATION_DOTS_LAYER_ID, stationEvent(stubStation))
+
+      expect(mockSetPaintProperty).toHaveBeenCalledWith(ISOCHRONE_LAYER_ID, 'fill-opacity', expect.arrayContaining(['case']))
+    })
+
+    it('persists the highlight after a click, past the hover that made it', async () => {
+      mockGetLayer.mockImplementation((id: string) => (id === ISOCHRONE_LAYER_ID ? { id } : undefined))
+      mount(MapView, {
+        props: {
+          ...defaultProps,
+          routes: [stubRoute],
+          stations: [stubStation],
+          isochroneData: staticIsochroneResponse,
+        },
+      })
+      await triggerMapLoad()
+
+      fireLayerEvent('mouseenter', STATION_DOTS_LAYER_ID, stationEvent(stubStation))
+      fireLayerEvent('click', STATION_DOTS_LAYER_ID, stationEvent(stubStation))
+      mockSetPaintProperty.mockClear()
+      mockPopupRemove.mockClear()
+
+      fireLayerEvent('mouseleave', STATION_DOTS_LAYER_ID, {})
+
+      expect(mockPopupRemove).not.toHaveBeenCalled()
+      expect(mockSetPaintProperty).toHaveBeenCalledWith(ISOCHRONE_LAYER_ID, 'fill-opacity', expect.arrayContaining(['case']))
+    })
+
+    it('shows a pointer cursor on hover, and the placement crosshair (not a bare cursor) once armed', async () => {
+      mount(MapView, {
+        props: { ...defaultProps, routes: [stubRoute], stations: [stubStation], placementArmed: true },
+      })
+      await triggerMapLoad()
+
+      fireLayerEvent('mouseenter', STATION_DOTS_LAYER_ID, stationEvent(stubStation))
+      expect(mockCanvas.style.cursor).toBe('pointer')
+
+      fireLayerEvent('mouseleave', STATION_DOTS_LAYER_ID, {})
       expect(mockCanvas.style.cursor).toBe('crosshair')
     })
   })
