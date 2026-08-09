@@ -203,8 +203,8 @@ describe('useIsochroneLayer', () => {
     ])
   })
 
-  it('fixture has metadata with ca-hsr scenario_slug', () => {
-    expect(staticIsochroneResponse.metadata.scenario_slug).toBe('ca-hsr')
+  it('fixture names the compiled graph it was plotted over', () => {
+    expect(staticIsochroneResponse.metadata.compile_job_id).toBe('0f3b7c2a-4d1e-4a5b-9c8d-2e6f1a0b3c4d')
   })
 
   it('fixture metadata lists reachable stations from the sample response', () => {

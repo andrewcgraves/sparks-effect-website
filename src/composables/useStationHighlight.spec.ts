@@ -81,10 +81,21 @@ function stationEvent(slug: string, name: string, lng: number, lat: number) {
 
 // Both stations the tests hover have a polygon in the plot unless a test says
 // otherwise — the no-polygon case is its own describe block below.
+//
+// The active station stands in for the page's own single reference, which both
+// this map and the Time remaining card feed. Hovering a dot here only reports
+// the hover; nothing lights up until the page hands the station back.
 function setup(idleCursor = () => '', egressSlugs = () => new Set(['sf', 'gilroy'])) {
   const mock = makeMockMap()
-  const highlight = useStationHighlight(mock.map as unknown as Map, { idleCursor, egressSlugs })
-  return { ...mock, highlight }
+  let active: string | null = null
+  const onHover = vi.fn((slug: string | null) => { active = slug })
+  const highlight = useStationHighlight(mock.map as unknown as Map, {
+    idleCursor,
+    egressSlugs,
+    activeSlug: () => active,
+    onHover,
+  })
+  return { ...mock, highlight, onHover, setActive: (slug: string | null) => { active = slug } }
 }
 
 describe('useStationHighlight', () => {
@@ -155,17 +166,6 @@ describe('useStationHighlight', () => {
       expect(mockPopupAddTo).toHaveBeenCalled()
     })
 
-    it('leaves a standing selection promoted rather than dropping it for the hover', () => {
-      const { fire, setFilter } = setup(() => '', () => new Set(['gilroy']))
-      fire('click', STATION_DOTS_LAYER_ID, stationEvent('gilroy', 'Gilroy', -121.57, 37.0))
-      fire('mouseleave', STATION_DOTS_LAYER_ID)
-      setFilter.mockClear()
-
-      fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))
-
-      expect(setFilter).toHaveBeenCalledWith(ISOCHRONE_HIGHLIGHT_LAYER_ID, isochroneHighlightFilter('gilroy'))
-      expect(mockPopupSetText).toHaveBeenLastCalledWith('San Francisco')
-    })
   })
 
   // Each layer is guarded on its own, so one that is not plotted yet is
@@ -196,7 +196,7 @@ describe('useStationHighlight', () => {
     },
   )
 
-  it('removes the popup and resets both layers when the pointer leaves with nothing selected', () => {
+  it('removes the popup and resets both layers when the pointer leaves', () => {
     const { fire, setPaintProperty, setFilter } = setup()
     fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))
     setPaintProperty.mockClear()
@@ -229,55 +229,54 @@ describe('useStationHighlight', () => {
     expect(setFilter).not.toHaveBeenCalled()
   })
 
-  describe('click persists the highlight', () => {
-    it('keeps the popup and highlight filter up after the pointer leaves a clicked station', () => {
+  // SPA-211 shipped click-to-persist and SPA-223 takes it back: with the trip's
+  // detail now in the Time remaining card, a second highlight mechanism only
+  // strands a selection on the map that nothing on the page agrees with.
+  describe('hover is the only way a station is highlighted', () => {
+    it('binds no click handler to the station dots at all', () => {
+      const { fire } = setup()
+
+      expect(fire('click', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))).toBe(0)
+    })
+
+    it('drops the highlight the moment the pointer leaves, with nothing left standing', () => {
       const { fire, setFilter } = setup()
       fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))
-      fire('click', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))
-      setFilter.mockClear()
-      mockPopupRemove.mockClear()
-
-      fire('mouseleave', STATION_DOTS_LAYER_ID)
-
-      expect(mockPopupRemove).not.toHaveBeenCalled()
-      expect(setFilter).toHaveBeenCalledWith(ISOCHRONE_HIGHLIGHT_LAYER_ID, isochroneHighlightFilter('sf'))
-    })
-
-    it('shows a hovered station over a standing selection, then falls back to the selection on leave', () => {
-      const { fire, setFilter } = setup()
-      fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))
-      fire('click', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))
-      fire('mouseleave', STATION_DOTS_LAYER_ID)
-      setFilter.mockClear()
-
-      fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('gilroy', 'Gilroy', -121.57, 37.0))
-      expect(setFilter).toHaveBeenCalledWith(ISOCHRONE_HIGHLIGHT_LAYER_ID, isochroneHighlightFilter('gilroy'))
       setFilter.mockClear()
 
       fire('mouseleave', STATION_DOTS_LAYER_ID)
-      expect(setFilter).toHaveBeenCalledWith(ISOCHRONE_HIGHLIGHT_LAYER_ID, isochroneHighlightFilter('sf'))
-    })
 
-    it('moves the persisted selection to whichever station is clicked next', () => {
-      const { fire, setFilter } = setup()
-      fire('click', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))
-      fire('mouseleave', STATION_DOTS_LAYER_ID)
-      setFilter.mockClear()
-
-      fire('click', STATION_DOTS_LAYER_ID, stationEvent('gilroy', 'Gilroy', -121.57, 37.0))
-
-      expect(setFilter).toHaveBeenCalledWith(ISOCHRONE_HIGHLIGHT_LAYER_ID, isochroneHighlightFilter('gilroy'))
-    })
-
-    it('ignores a click event that carries no matching feature', () => {
-      const { fire, setPaintProperty, setFilter } = setup()
-
-      fire('click', STATION_DOTS_LAYER_ID, { features: [] })
-      fire('mouseleave', STATION_DOTS_LAYER_ID)
-
-      expect(setPaintProperty).toHaveBeenCalledWith(ISOCHRONE_LAYER_ID, 'fill-opacity', isochroneEgressOpacity(false))
       expect(setFilter).toHaveBeenCalledWith(ISOCHRONE_HIGHLIGHT_LAYER_ID, isochroneHighlightFilter(null))
-      expect(mockPopupRemove).toHaveBeenCalled()
+    })
+  })
+
+  describe('the station the page has made active', () => {
+    it('reports a hovered dot to the page rather than highlighting it directly', () => {
+      const { fire, onHover } = setup()
+
+      fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))
+      expect(onHover).toHaveBeenCalledWith('sf')
+
+      fire('mouseleave', STATION_DOTS_LAYER_ID)
+      expect(onHover).toHaveBeenLastCalledWith(null)
+    })
+
+    it('promotes a station made active elsewhere, without a pointer ever touching the map', () => {
+      const { highlight, setActive, setFilter } = setup()
+
+      setActive('gilroy')
+      highlight.sync()
+
+      expect(setFilter).toHaveBeenCalledWith(ISOCHRONE_HIGHLIGHT_LAYER_ID, isochroneHighlightFilter('gilroy'))
+    })
+
+    it('puts up no popup for one, since no dot on this map is under the pointer', () => {
+      const { highlight, setActive } = setup()
+
+      setActive('gilroy')
+      highlight.sync()
+
+      expect(mockPopupAddTo).not.toHaveBeenCalled()
     })
   })
 

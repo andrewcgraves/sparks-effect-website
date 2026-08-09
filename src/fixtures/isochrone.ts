@@ -1,13 +1,50 @@
 import type { FeatureCollection, LineString, Polygon } from 'geojson'
 import sampleIsochroneResponse from './sample-isochrone-response.json'
 
+/**
+ * One hop of a journey: the ride from one station to the next on one service,
+ * and the dwell served on arrival.
+ *
+ * `secs` is the whole hop and `dwell_s` the part of it the vehicle spends
+ * standing at `to`, so the ride itself is the difference. Dwell is absent on a
+ * graph compiled before the API reported it, which reads as a journey with no
+ * dwell anywhere — incomplete, never wrong.
+ */
+export interface JourneyLeg {
+  from: string
+  to: string
+  service_id?: string
+  secs: number
+  dwell_s?: number
+}
+
 export interface ReachableStation {
   station_slug: string
   access_mins: number
   remaining_mins: number
   // The service ridden to get here, absent when the station was reached on foot
-  // from the origin.
+  // from the origin. It names only the first service boarded, so on a journey
+  // that changes service it is wrong for every hop past the change — `legs` is
+  // what the graph reads instead.
   via_service?: string
+  // Seconds alongside the whole minutes above. Adding hop to hop down a long
+  // journey in truncated minutes loses a minute at every stop, so the graph
+  // works in seconds and rounds once, at the point of display. Absent on a
+  // result plotted before the worker reported them.
+  access_secs?: number
+  remaining_secs?: number
+  // The station ridden from on the last hop, absent exactly when the rider
+  // walked here from the origin. Following it from any station arrives at one
+  // the rider walked to, which is what makes the set a tree.
+  predecessor_slug?: string
+  // Where the rider boarded and what they waited there. The wait is charged
+  // once for the whole journey, so it belongs to that station and to no later
+  // one — a transfer costs nothing.
+  board_slug?: string
+  board_wait_secs?: number
+  // The journey retraced, boarding station first. Empty for a station the rider
+  // walked to and rode nothing from.
+  legs?: JourneyLeg[]
 }
 
 /**
@@ -28,7 +65,11 @@ export interface StarterWalk {
 export interface ChainMetadata {
   reachable_stations: ReachableStation[]
   origin_budget_mins: number
-  scenario_slug: string
+  // The compiled graph the surface was plotted over, named by the job that
+  // produced it. The worker has no scenario identity to report — the queue
+  // message carries only this — so the scenario slug this field used to be
+  // matched the checked-in sample and nothing the worker ever sent.
+  compile_job_id: string
   mode: string
   wait_model: string
   origin_iso_available: boolean

@@ -3,7 +3,9 @@ import { computed, ref } from 'vue'
 import IsochroneForm from '../IsochroneForm.vue'
 import MapView from '../components/MapView.vue'
 import TimeBetweenStations from '../components/TimeBetweenStations.vue'
+import TimeRemaining from '../components/TimeRemaining.vue'
 import { segmentStationTimeGroups } from '../components/stationTimes'
+import { buildTimeRemainingGraph } from '../components/timeRemaining'
 import { ORIGIN_PICK_CUE } from '../components/placementCues'
 import { useScenario } from '../composables/useScenario'
 import { useScenarioTravelTimes } from '../composables/useScenarioTravelTimes'
@@ -29,6 +31,24 @@ const stationTimeGroups = computed(() => segmentStationTimeGroups(segments.value
 // page starts with.
 const { data: isochroneData, loading: isLoading, error: fetchError, generate } = useIsochrone(
   () => stations.value,
+)
+
+// The one station highlighted on this page, and which surface raised it. Both
+// the map and the Time remaining card feed it and both read it back, so the
+// last interaction wins wherever it came from; the card scrolls a row into view
+// only when the map is what named it.
+const activeStation = ref<{ slug: string; fromMap: boolean } | null>(null)
+
+function highlight(slug: string | null, fromMap: boolean) {
+  activeStation.value = slug ? { slug, fromMap } : null
+}
+
+const timeRemaining = computed(() =>
+  buildTimeRemainingGraph(isochroneData.value?.metadata ?? null, {
+    stationName: (slug) => stations.value.find((s) => s.slug === slug)?.name ?? slug,
+    serviceName: (id) => services.value.find((s) => s.id === id)?.name ?? id,
+    mode: isochroneData.value?.metadata.mode ?? 'walk',
+  }),
 )
 
 function onOriginChange(coords: { lat: number; lng: number } | null) {
@@ -70,7 +90,9 @@ async function handleFormSubmit(payload: { lat: number; lng: number; duration: n
           :services="services"
           :placement-armed="pickArmed"
           :placement-cue="ORIGIN_PICK_CUE"
+          :active-station="activeStation?.slug ?? null"
           @map-click="onMapClick"
+          @station-hover="highlight($event, true)"
         />
       </div>
 
@@ -87,6 +109,17 @@ async function handleFormSubmit(payload: { lat: number; lng: number; duration: n
           v-if="!travelTimesFailed"
           :groups="stationTimeGroups"
           :loading="travelTimesLoading"
+        />
+        <!-- Only once a plot has actually succeeded. There is nothing to draw
+             while the form is being filled in, and a skeleton in its place
+             would make the rail jump every time a plot is asked for. -->
+        <TimeRemaining
+          v-if="timeRemaining.rows.length"
+          :rows="timeRemaining.rows"
+          :lane-count="timeRemaining.laneCount"
+          :active-slug="activeStation?.slug ?? null"
+          :active-from-map="activeStation?.fromMap ?? false"
+          @activate="highlight($event, false)"
         />
       </div>
     </div>

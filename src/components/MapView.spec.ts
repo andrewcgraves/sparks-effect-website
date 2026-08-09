@@ -207,7 +207,7 @@ function chainWith(
     metadata: {
       reachable_stations: stations,
       origin_budget_mins: 90,
-      scenario_slug: 'ca-hsr',
+      compile_job_id: 'compile-1',
       mode: 'walk',
       wait_model: 'none',
       origin_iso_available: true,
@@ -1164,7 +1164,7 @@ describe('MapView', () => {
     })
   })
 
-  describe('station highlight (SPA-211)', () => {
+  describe('station highlight', () => {
     function stationEvent(station: Station) {
       return {
         features: [
@@ -1186,11 +1186,11 @@ describe('MapView', () => {
       expect(mockPopupAddTo).toHaveBeenCalled()
     })
 
-    it('promotes the hovered station\'s polygon above the rest via the dedicated highlight layer', async () => {
+    it('promotes the active station\'s polygon above the rest via the dedicated highlight layer', async () => {
       mockGetLayer.mockImplementation((id: string) =>
         [ISOCHRONE_LAYER_ID, ISOCHRONE_ORIGIN_LAYER_ID, ISOCHRONE_HIGHLIGHT_LAYER_ID, ISOCHRONE_HIGHLIGHT_OUTLINE_LAYER_ID].includes(id) ? { id } : undefined,
       )
-      mount(MapView, {
+      const wrapper = mount(MapView, {
         props: {
           ...defaultProps,
           routes: [stubRoute],
@@ -1202,7 +1202,7 @@ describe('MapView', () => {
       mockSetPaintProperty.mockClear()
       mockSetFilter.mockClear()
 
-      fireLayerEvent('mouseenter', STATION_DOTS_LAYER_ID, stationEvent(stubStation))
+      await wrapper.setProps({ activeStation: stubStation.slug })
 
       // Dims the base layer's egress fills uniformly, and the blue origin
       // wash with them (SPA-224)...
@@ -1221,7 +1221,7 @@ describe('MapView', () => {
     it('leaves the fills alone when the hovered station has no polygon in the plot', async () => {
       mockGetLayer.mockImplementation((id: string) => ({ id }))
       const orphan: Station = { ...stubStation, id: 'st9', slug: 'fresno', name: 'Fresno' }
-      mount(MapView, {
+      const wrapper = mount(MapView, {
         props: {
           ...defaultProps,
           routes: [stubRoute],
@@ -1234,6 +1234,7 @@ describe('MapView', () => {
       mockSetFilter.mockClear()
 
       fireLayerEvent('mouseenter', STATION_DOTS_LAYER_ID, stationEvent(orphan))
+      await wrapper.setProps({ activeStation: orphan.slug })
 
       expect(mockSetPaintProperty).toHaveBeenCalledWith(ISOCHRONE_LAYER_ID, 'fill-opacity', isochroneEgressOpacity(false))
       expect(mockSetPaintProperty).toHaveBeenCalledWith(ISOCHRONE_ORIGIN_LAYER_ID, 'fill-opacity', isochroneOriginOpacity(false))
@@ -1242,29 +1243,20 @@ describe('MapView', () => {
       expect(mockPopupSetText).toHaveBeenCalledWith('Fresno')
     })
 
-    it('persists the highlight after a click, past the hover that made it', async () => {
-      mockGetLayer.mockImplementation((id: string) =>
-        [ISOCHRONE_LAYER_ID, ISOCHRONE_ORIGIN_LAYER_ID, ISOCHRONE_HIGHLIGHT_LAYER_ID, ISOCHRONE_HIGHLIGHT_OUTLINE_LAYER_ID].includes(id) ? { id } : undefined,
-      )
-      mount(MapView, {
-        props: {
-          ...defaultProps,
-          routes: [stubRoute],
-          stations: [stubStation],
-          isochroneData: staticIsochroneResponse,
-        },
+    // The map is one of two surfaces that can highlight a station, so it
+    // reports the hover and reads back whatever the page decided. That is what
+    // lets a row hovered in the Time remaining card light the same polygon.
+    it('raises a hovered station rather than highlighting it on its own', async () => {
+      const wrapper = mount(MapView, {
+        props: { ...defaultProps, routes: [stubRoute], stations: [stubStation] },
       })
       await triggerMapLoad()
 
       fireLayerEvent('mouseenter', STATION_DOTS_LAYER_ID, stationEvent(stubStation))
-      fireLayerEvent('click', STATION_DOTS_LAYER_ID, stationEvent(stubStation))
-      mockSetFilter.mockClear()
-      mockPopupRemove.mockClear()
+      expect(wrapper.emitted('station-hover')?.at(-1)).toEqual([stubStation.slug])
 
       fireLayerEvent('mouseleave', STATION_DOTS_LAYER_ID, {})
-
-      expect(mockPopupRemove).not.toHaveBeenCalled()
-      expect(mockSetFilter).toHaveBeenCalledWith(ISOCHRONE_HIGHLIGHT_LAYER_ID, isochroneHighlightFilter(stubStation.slug))
+      expect(wrapper.emitted('station-hover')?.at(-1)).toEqual([null])
     })
 
     it('shows a pointer cursor on hover, and the placement crosshair (not a bare cursor) once armed', async () => {
