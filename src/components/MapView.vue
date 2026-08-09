@@ -3,7 +3,7 @@ import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { Map, FullscreenControl } from 'maplibre-gl'
 import type { MapMouseEvent } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { isochroneLayerModule, isochroneLegend, resolveIsochroneColors } from '../composables/useIsochroneLayer'
+import { egressStationSlugs, isochroneLayerModule, isochroneLegend, resolveIsochroneColors } from '../composables/useIsochroneLayer'
 import { centerFromCorners, routeBoundsCorners, routeLayerModule } from '../composables/useRouteLayer'
 import { originMarkerModule } from '../composables/useOriginMarker'
 import { originWalkModule } from '../composables/useOriginWalkLayer'
@@ -137,10 +137,11 @@ const modules = mapModules([
   // what the origin fill is already about.
   originWalkModule({ data: () => props.isochroneData }, isochroneColors.origin),
   originMarkerModule(() => props.origin),
-  // After the isochrone: it dims and un-dims that layer's fill-opacity, which
-  // only exists once isochroneLayerModule has attached it. Also after
-  // routeLayerModule, whose station dots it binds its listeners to.
-  stationHighlightModule({ idleCursor }),
+  // After the isochrone: it dims and un-dims those layers' fill-opacity, which
+  // only exist once isochroneLayerModule has attached them. Also after
+  // routeLayerModule, whose station dots it binds its listeners to. It reads
+  // the plot too, to tell a station with a polygon to promote from one without.
+  stationHighlightModule({ idleCursor, egressSlugs: () => egressStationSlugs(props.isochroneData) }),
   stopPreviewModule(stopPreviewPairs),
   stopDragModule(stopPreviewPairs, {
     onDrag: (id, coord) => emit('stop-drag', id, coord),
