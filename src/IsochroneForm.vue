@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AddressAutocomplete from './components/AddressAutocomplete.vue'
-import SteppedSlider from './components/SteppedSlider.vue'
+import SegmentedControl from './components/SegmentedControl.vue'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from './components/fieldStyles'
 import type { GeocodingSuggestion } from './api/geocoding'
 import { reverseGeocode } from './api/geocoding'
@@ -249,10 +249,11 @@ function handleSubmit() {
 
     <label :class="FIELD_LABEL_CLASS">
       Travel time
-      <SteppedSlider
+      <SegmentedControl
         v-model="duration"
         :options="DURATION_OPTIONS"
         :format-option="formatDuration"
+        name="duration"
         testid="duration-slider"
       />
     </label>
