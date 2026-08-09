@@ -16,7 +16,7 @@ const MODE_OPTIONS: { value: Mode; label: string }[] = [
   { value: 'drive', label: 'Drive' },
 ]
 
-const DURATION_OPTIONS = [30, 60, 120, 240]
+const DURATION_OPTIONS = [45, 60, 75, 120, 180, 240]
 
 function formatDuration(value: number): string {
   return `${value} min`

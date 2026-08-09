@@ -51,9 +51,9 @@ describe('IsochroneForm', () => {
     expect(wrapper.find('input[data-testid="duration-slider"]').attributes('aria-valuetext')).toBe('60 min')
   })
 
-  it('restricts the duration slider to 30, 60, 120, and 240 minutes', () => {
+  it('restricts the duration slider to 45, 60, 75, 120, 180, and 240 minutes', () => {
     const wrapper = mount(IsochroneForm)
-    for (const minutes of [30, 60, 120, 240]) {
+    for (const minutes of [45, 60, 75, 120, 180, 240]) {
       expect(wrapper.find(`[data-testid="duration-slider-option-${minutes}"]`).text()).toBe(`${minutes} min`)
     }
   })
@@ -61,7 +61,7 @@ describe('IsochroneForm', () => {
   it('moves the duration to the option at the new slider position', async () => {
     const wrapper = mount(IsochroneForm)
     await wrapper.find('input[data-testid="duration-slider"]').setValue('2')
-    expect(wrapper.find('input[data-testid="duration-slider"]').attributes('aria-valuetext')).toBe('120 min')
+    expect(wrapper.find('input[data-testid="duration-slider"]').attributes('aria-valuetext')).toBe('75 min')
   })
 
   it('renders walk, bike, and drive mode radio buttons', () => {
