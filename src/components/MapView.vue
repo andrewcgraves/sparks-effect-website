@@ -36,12 +36,17 @@ const props = defineProps<{
   // it after one — and says what the map is armed for through placementCue.
   placementArmed?: boolean
   placementCue?: string
+  // The station the page has highlighted, which this map is only one source of
+  // — the Time remaining card raises one too. Passed in rather than kept here
+  // so both surfaces read the same single reference.
+  activeStation?: string | null
 }>()
 
 const emit = defineEmits<{
   'map-click': [coord: LatLng]
   'stop-drag': [id: string, coord: LatLng]
   'stop-drag-end': [id: string, coord: LatLng]
+  'station-hover': [slug: string | null]
 }>()
 
 const ORIGIN_SNAP_ZOOM = 9
@@ -141,7 +146,12 @@ const modules = mapModules([
   // only exist once isochroneLayerModule has attached them. Also after
   // routeLayerModule, whose station dots it binds its listeners to. It reads
   // the plot too, to tell a station with a polygon to promote from one without.
-  stationHighlightModule({ idleCursor, egressSlugs: () => egressStationSlugs(props.isochroneData) }),
+  stationHighlightModule({
+    idleCursor,
+    egressSlugs: () => egressStationSlugs(props.isochroneData),
+    activeSlug: () => props.activeStation ?? null,
+    onHover: (slug) => emit('station-hover', slug),
+  }),
   stopPreviewModule(stopPreviewPairs),
   stopDragModule(stopPreviewPairs, {
     onDrag: (id, coord) => emit('stop-drag', id, coord),

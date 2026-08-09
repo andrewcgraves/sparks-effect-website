@@ -66,7 +66,7 @@ function response(stations: ReachableStation[], starterWalk?: StarterWalk): Chai
     metadata: {
       reachable_stations: stations,
       origin_budget_mins: 90,
-      scenario_slug: 'ca-hsr',
+      compile_job_id: 'compile-1',
       mode: 'walk',
       wait_model: 'none',
       origin_iso_available: true,
