@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useIsochrone } from './useIsochrone'
 import { IsochroneApiError, type IsochroneRequest } from '../api/isochrone'
 import { ApiError } from '../api/authoring/client'
+import { JobFailedError } from '../api/polling'
 import type { Station } from '../api/scenarios'
 import type { ChainResponse } from '../fixtures/isochrone'
 
@@ -188,6 +189,42 @@ describe('useIsochrone', () => {
 
       expect(error.value).toContain('61 km')
       expect(error.value).not.toContain('try again')
+    })
+  })
+
+  // SPA-230: a routing job the API gave up on — the isochrone service being
+  // down, chief among the reasons — carries its own reason, and that reason is
+  // what the user should see, in the same place every other error shows.
+  describe('a routing job the API failed', () => {
+    it('shows the API error text rather than the generic fallback', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+      vi.mocked(fetchIsochrone).mockRejectedValueOnce(
+        new JobFailedError(
+          'rj1',
+          "The isochrone service isn't responding right now. Please try again in a few minutes.",
+        ),
+      )
+      const { error, generate } = useIsochrone()
+
+      await generate(request)
+
+      expect(error.value).toBe(
+        "The isochrone service isn't responding right now. Please try again in a few minutes.",
+      )
+    })
+
+    // The worker can fail a job with no message recorded (an unreadable queue
+    // message names no job to blame, for one). An empty reason is not a
+    // reason, so the generic fallback is what a user should see instead of a
+    // blank error line.
+    it('falls back to the generic message when the API gave no reason', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+      vi.mocked(fetchIsochrone).mockRejectedValueOnce(new JobFailedError('rj1', ''))
+      const { error, generate } = useIsochrone()
+
+      await generate(request)
+
+      expect(error.value).toBe('Failed to generate isochrone. Please try again.')
     })
   })
 

@@ -6,6 +6,7 @@ import {
   type IsochroneParams,
   type RoutingJob,
 } from './routingJobs'
+import { JobFailedError } from './polling'
 import type { ChainResponse } from '../fixtures/isochrone'
 
 const stubChain = {
@@ -109,6 +110,33 @@ describe('enqueueIsochrone', () => {
     await vi.advanceTimersByTimeAsync(0)
 
     await settled
+  })
+
+  // SPA-230: a routing job failed by the API — the isochrone service being
+  // down, chief among the reasons — must reject with a JobFailedError carrying
+  // that reason on its own field, not just folded into the log-style message,
+  // so a caller with somewhere to show the user a reason can get it back out.
+  it('rejects with a JobFailedError carrying the API error text', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(enqueued())
+      .mockResolvedValueOnce(polled({
+        status: 'failed',
+        error: "The isochrone service isn't responding right now. Please try again in a few minutes.",
+      }))
+
+    const promise = enqueueIsochrone('/api/isochrone', params)
+    // Attached before the timer advance (rather than via try/await) so the
+    // rejection always has a handler by the time it fires — an awaited
+    // try/catch here still leaves a tick where it does not.
+    const settled = promise.catch((err: unknown) => err)
+
+    await vi.advanceTimersByTimeAsync(0)
+
+    const err = await settled
+    expect(err).toBeInstanceOf(JobFailedError)
+    expect((err as JobFailedError).jobError).toBe(
+      "The isochrone service isn't responding right now. Please try again in a few minutes.",
+    )
   })
 
   it('rejects when the job succeeds without a result', async () => {

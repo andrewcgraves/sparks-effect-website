@@ -30,6 +30,24 @@ export interface PollOptions<T> {
   onStatus?: (job: T) => void
 }
 
+/**
+ * Thrown when a polled job answers `failed`. `jobError` is the API's own
+ * `error` field, kept apart from `message` (which wraps it with the job id
+ * for a log line) so a caller that has somewhere to show the user a reason —
+ * the isochrone form's error banner, for one (SPA-230) — can show exactly what
+ * the API said rather than inventing its own wording or a caller having to
+ * re-parse `message` to get it back out.
+ */
+export class JobFailedError extends Error {
+  readonly jobError: string | null
+
+  constructor(jobId: string, jobError: string | null | undefined) {
+    super(`Job ${jobId} failed: ${jobError ?? 'unknown error'}`)
+    this.name = 'JobFailedError'
+    this.jobError = jobError ?? null
+  }
+}
+
 // Abortable delay so a signal abort short-circuits the wait instead of stalling.
 function delay(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise<void>((resolve, reject) => {
@@ -82,7 +100,7 @@ export async function pollUntilSucceeded<T extends PollableJob>(
     }
 
     if (job.status === 'failed') {
-      throw new Error(`Job ${jobId} failed: ${job.error ?? 'unknown error'}`)
+      throw new JobFailedError(jobId, job.error)
     }
 
     if (Date.now() >= deadline) {
