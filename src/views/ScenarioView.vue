@@ -24,7 +24,12 @@ const {
 } = useScenarioTravelTimes(props.slug)
 
 const stationTimeGroups = computed(() => segmentStationTimeGroups(segments.value, stations.value))
-const { data: isochroneData, loading: isLoading, error: fetchError, generate } = useIsochrone()
+// The stations are handed over as a getter so the range check reads whatever
+// has loaded by the time the form is submitted, rather than the empty list this
+// page starts with.
+const { data: isochroneData, loading: isLoading, error: fetchError, generate } = useIsochrone(
+  () => stations.value,
+)
 
 function onOriginChange(coords: { lat: number; lng: number } | null) {
   origin.value = coords

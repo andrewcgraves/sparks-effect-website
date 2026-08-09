@@ -5,6 +5,7 @@ import type { ChainResponse } from '../fixtures/isochrone'
 import { useCompileJob } from './useCompileJob'
 import { latestAttempt } from './latestAttempt'
 import { graphRoutes, graphStations } from './scenarioGraphMap'
+import { checkOriginReach, outOfRangeError, outOfRangeMessage } from '../originRange'
 
 // A stale-graph retry should settle in one or two hops in practice; this just
 // bounds it so a persistently stale signal can't spin the UI forever. It is the
@@ -153,7 +154,13 @@ export function useAuthoredGraph(getSlug: () => string | null, target: AuthoredG
           return
         }
       }
-      isochroneError.value = 'Failed to generate isochrone. Please try again.'
+      // An origin the API refused as out of range is reported in its own terms.
+      // handleIsochroneSubmit catches most of these before the request is made;
+      // this is the arm for the ones it could not, notably a recompile that has
+      // just moved or dropped the station the local check measured against.
+      isochroneError.value =
+        outOfRangeError(err, payload.mode, payload.duration) ??
+        'Failed to generate isochrone. Please try again.'
     } finally {
       // Left alone when superseded: the attempt that replaced this one set it,
       // and owns clearing it.
@@ -167,6 +174,22 @@ export function useAuthoredGraph(getSlug: () => string | null, target: AuthoredG
     // Checked before the attempt is numbered, so a submit that cannot go
     // anywhere does not supersede one that is still in flight.
     if (!slug) return
+
+    // An origin with no station within reach is refused here rather than by the
+    // API, which would refuse it too (SPA-200) a round trip later. It is
+    // measured against the compiled graph's own stations, which is the very set
+    // the API measures against — so unlike the seeded page, the two agree
+    // exactly. Numbered like the plot it stands in for, so it supersedes an
+    // in-flight plot the same way a real one would.
+    const reach = checkOriginReach(mapStations.value, payload, payload.mode, payload.duration)
+    if (reach && !reach.inRange) {
+      plots.begin()
+      isochroneData.value = null
+      isochroneLoading.value = false
+      isochroneError.value = outOfRangeMessage(reach, payload.mode, payload.duration)
+      return
+    }
+
     await plot(slug, payload, plots.begin(), 1)
   }
 

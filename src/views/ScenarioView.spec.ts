@@ -48,6 +48,16 @@ const stubStations: Station[] = [
   },
 ]
 
+// A pin about 1.4 km from the San Francisco station above — inside a 30-minute
+// walk, so the origin-range check (SPA-200) lets it through. The tests that use
+// it are about the request lifecycle rather than about how far away the origin
+// is, and a pin the check refuses never reaches the request at all.
+const NEARBY_ORIGIN = { lat: 37.71, lng: -122.41 }
+
+// Far enough from every station that no mode or budget the form offers could
+// reach one.
+const DISTANT_ORIGIN = { lat: 51.5074, lng: -0.1278 }
+
 const stubTravelTimes: TravelTimes = {
   scenario_slug: 'ca-hsr',
   provenance: 'calibrated',
@@ -115,15 +125,13 @@ describe('ScenarioView', () => {
     vi.mocked(fetchIsochrone).mockResolvedValue(stubIsochrone)
     const wrapper = mountScenarioView('ca-hsr')
     await wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('submit', {
-      lat: 51.5074,
-      lng: -0.1278,
+      ...NEARBY_ORIGIN,
       duration: 30,
       mode: 'walk',
     })
     expect(fetchIsochrone).toHaveBeenCalledOnce()
     expect(fetchIsochrone).toHaveBeenCalledWith({
-      lat: 51.5074,
-      lng: -0.1278,
+      ...NEARBY_ORIGIN,
       budget_mins: 30,
       mode: 'walk',
       scenario_slug: 'ca-hsr',
@@ -134,8 +142,7 @@ describe('ScenarioView', () => {
     vi.mocked(fetchIsochrone).mockResolvedValue(stubIsochrone)
     const wrapper = mountScenarioView()
     await wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('submit', {
-      lat: 51.5074,
-      lng: -0.1278,
+      ...NEARBY_ORIGIN,
       duration: 30,
       mode: 'bike',
     })
@@ -151,8 +158,7 @@ describe('ScenarioView', () => {
     )
     const wrapper = mountScenarioView()
     wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('submit', {
-      lat: 51.5074,
-      lng: -0.1278,
+      ...NEARBY_ORIGIN,
       duration: 30,
       mode: 'walk',
     })
@@ -170,8 +176,7 @@ describe('ScenarioView', () => {
     vi.mocked(fetchIsochrone).mockResolvedValue(stubIsochrone)
     const wrapper = mountScenarioView()
     await wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('submit', {
-      lat: 51.5074,
-      lng: -0.1278,
+      ...NEARBY_ORIGIN,
       duration: 30,
       mode: 'walk',
     })
@@ -185,8 +190,7 @@ describe('ScenarioView', () => {
     vi.mocked(fetchIsochrone).mockRejectedValue(new Error('API down'))
     const wrapper = mountScenarioView()
     await wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('submit', {
-      lat: 51.5074,
-      lng: -0.1278,
+      ...NEARBY_ORIGIN,
       duration: 30,
       mode: 'walk',
     })
@@ -195,6 +199,59 @@ describe('ScenarioView', () => {
     expect(wrapper.findComponent({ name: 'IsochroneForm' }).props('error')).toBe(
       'Failed to generate isochrone. Please try again.',
     )
+  })
+
+  // SPA-200. The point of checking here is that the request is never made: a
+  // far-away origin used to cost a routing job row, a queue message carrying the
+  // whole compiled graph, and a slot on a worker that plots one chain at a time.
+  describe('an origin out of range of every station', () => {
+    async function submitDistantOrigin(mode = 'walk', duration = 30) {
+      const wrapper = mountScenarioView()
+      await wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('submit', {
+        ...DISTANT_ORIGIN,
+        duration,
+        mode,
+      })
+      await flushPromises()
+      return wrapper
+    }
+
+    it('is refused without asking the API', async () => {
+      await submitDistantOrigin()
+      expect(fetchIsochrone).not.toHaveBeenCalled()
+    })
+
+    it('explains the distance rather than reporting a failure', async () => {
+      const wrapper = await submitDistantOrigin()
+      const error = wrapper.findComponent({ name: 'IsochroneForm' }).props('error') as string
+      expect(error).toContain('nearest station')
+      expect(error).toContain('30-minute walk')
+      expect(error).not.toContain('try again')
+    })
+
+    it('leaves the map idle rather than spinning', async () => {
+      const wrapper = await submitDistantOrigin()
+      expect(wrapper.findComponent({ name: 'MapView' }).props('loading')).toBe(false)
+      expect(wrapper.findComponent({ name: 'IsochroneForm' }).props('loading')).toBe(false)
+      expect(wrapper.findComponent({ name: 'MapView' }).props('isochroneData')).toBeNull()
+    })
+
+    // The check is against this origin and this budget, not against the origin
+    // alone — otherwise it would be refusing a place rather than a request.
+    it('still asks the API once the budget covers the distance', async () => {
+      vi.mocked(fetchIsochrone).mockResolvedValue(stubIsochrone)
+      const wrapper = mountScenarioView()
+      // London is ~8600 km from the fixture's stations, which nothing reaches;
+      // moving the pin to 100 km out puts it inside a two-hour drive.
+      await wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('submit', {
+        lat: 37.7 + 100 / 111.19,
+        lng: -122.4,
+        duration: 120,
+        mode: 'drive',
+      })
+      await flushPromises()
+      expect(fetchIsochrone).toHaveBeenCalledOnce()
+    })
   })
 
   it('does not render a below-grid fetch-error element', () => {
