@@ -488,6 +488,23 @@ describe('ScenarioView', () => {
       expect(scrollIntoView).toHaveBeenCalled()
     })
 
+    // Every row carries its own scroller, because the connectors sit beside
+    // each row's name and time rather than in one element. Held at one offset
+    // they read as a single column; left alone they would tear the tree apart.
+    it('scrolls every row of the graph column together', async () => {
+      const wrapper = await plot()
+      const scrollers = wrapper.findAll('[data-graph-scroller]')
+      expect(scrollers.length).toBeGreaterThan(1)
+
+      const first = scrollers[0].element as HTMLElement
+      first.scrollLeft = 24
+      await scrollers[0].trigger('scroll')
+
+      for (const scroller of scrollers) {
+        expect((scroller.element as HTMLElement).scrollLeft).toBe(24)
+      }
+    })
+
     it('draws a lone reachable station as a two-row graph', async () => {
       const wrapper = await plot({
         ...journeyIsochrone,

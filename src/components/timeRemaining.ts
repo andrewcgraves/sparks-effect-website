@@ -67,7 +67,10 @@ export interface TimeRemainingGraph {
   laneCount: number
 }
 
-export interface TimeRemainingNames {
+// What the graph needs from the page to render a wire payload as words: the
+// two resolvers that turn ids into names, and the travel mode the trip was
+// plotted for, which is how the rider leaves the starting location.
+export interface TimeRemainingContext {
   stationName: (slug: string) => string
   serviceName: (id: string) => string
   mode: string
@@ -115,7 +118,6 @@ export function formatDuration(totalSecs: number): string {
  * to scroll the graph rather than the row.
  */
 export function laneWidthFor(laneCount: number): number {
-  if (laneCount <= 0) return MAX_LANE_PX
   return Math.min(MAX_LANE_PX, Math.max(MIN_LANE_PX, Math.floor(GRAPH_COLUMN_PX / laneCount)))
 }
 
@@ -140,6 +142,19 @@ function departWaitSecs(slug: string, children: ReachableStation[]): number {
   return boarded?.board_wait_secs ?? 0
 }
 
+// Time left at the moment the rider leaves. The wire reports the moment they
+// arrive, and a rider who boards here leaves the boarding wait later. The row's
+// own value and the order the rows are sorted into are the same number, and
+// come from here so they cannot drift apart.
+function departureSecsOf(station: ReachableStation, children: ReachableStation[]): number {
+  return remainingSecsOf(station) - departWaitSecs(station.station_slug, children)
+}
+
+// The services the rider can leave a station on, one per onward branch.
+function departingServices(children: ReachableStation[]): (string | undefined)[] {
+  return children.map((child) => lastLeg(child)?.service_id)
+}
+
 /**
  * Turns one chain response into the rows and connectors of the graph.
  *
@@ -157,7 +172,7 @@ function departWaitSecs(slug: string, children: ReachableStation[]): number {
  */
 export function buildTimeRemainingGraph(
   metadata: ChainMetadata | null,
-  names: TimeRemainingNames,
+  context: TimeRemainingContext,
 ): TimeRemainingGraph {
   if (!metadata || !metadata.reachable_stations.length) return { rows: [], laneCount: 0 }
 
@@ -176,10 +191,7 @@ export function buildTimeRemainingGraph(
   }
 
   const departure = new Map(
-    stations.map((s) => [
-      s.station_slug,
-      remainingSecsOf(s) - departWaitSecs(s.station_slug, childrenOf.get(s.station_slug) ?? []),
-    ]),
+    stations.map((s) => [s.station_slug, departureSecsOf(s, childrenOf.get(s.station_slug) ?? [])]),
   )
   const byRemaining = (a: ReachableStation, b: ReachableStation): number => {
     const delta = (departure.get(b.station_slug) ?? 0) - (departure.get(a.station_slug) ?? 0)
@@ -191,8 +203,13 @@ export function buildTimeRemainingGraph(
   const ordered = [...stations].sort(byRemaining)
   for (const [parent, children] of childrenOf) childrenOf.set(parent, [...children].sort(byRemaining))
 
-  const originRow = buildOriginRow(metadata, childrenOf.get(ORIGIN_KEY) ?? [], names)
-  const rows = [originRow, ...ordered.map((station) => buildStationRow(station, parentKeyOf(station), childrenOf.get(station.station_slug) ?? [], names))]
+  const originRow = buildOriginRow(metadata, childrenOf.get(ORIGIN_KEY) ?? [], context)
+  const rows = [
+    originRow,
+    ...ordered.map((station) =>
+      buildStationRow(station, parentKeyOf(station), childrenOf.get(station.station_slug) ?? [], context),
+    ),
+  ]
 
   return { rows, laneCount: assignLanes(rows, childrenOf) }
 }
@@ -200,7 +217,7 @@ export function buildTimeRemainingGraph(
 function buildOriginRow(
   metadata: ChainMetadata,
   children: ReachableStation[],
-  names: TimeRemainingNames,
+  context: TimeRemainingContext,
 ): TimeRemainingRow {
   const first = children[0]
   return {
@@ -208,10 +225,10 @@ function buildOriginRow(
     slug: null,
     label: 'Starting location',
     remainingSecs: metadata.origin_budget_mins * 60,
-    flag: MODE_LABELS[names.mode] ?? names.mode,
+    flag: MODE_LABELS[context.mode] ?? context.mode,
     parentKey: null,
     detail: first
-      ? { accessSecs: accessSecsOf(first), accessTo: names.stationName(first.station_slug) }
+      ? { accessSecs: accessSecsOf(first), accessTo: context.stationName(first.station_slug) }
       : {},
     lane: 0,
     through: [],
@@ -224,29 +241,35 @@ function buildStationRow(
   station: ReachableStation,
   parentKey: string,
   children: ReachableStation[],
-  names: TimeRemainingNames,
+  context: TimeRemainingContext,
 ): TimeRemainingRow {
-  const arrivedOn = lastLeg(station)?.service_id
-  const departsOn = children.length ? lastLeg(children[0])?.service_id : undefined
-  const dwellSecs = lastLeg(station)?.dwell_s ?? 0
+  const arrival = lastLeg(station)
+  const arrivedOn = arrival?.service_id
+  const dwellSecs = arrival?.dwell_s ?? 0
   const waitSecs = departWaitSecs(station.station_slug, children)
-  const remainingSecs = remainingSecsOf(station) - waitSecs
+  const remainingSecs = departureSecsOf(station, children)
+
+  // A station that forks can leave on more than one service. Staying aboard is
+  // what the flag names where that is possible, so a fork does not read as a
+  // change of service the rider is not obliged to make — and the change is
+  // reported only where every branch onward requires one, which is what makes
+  // the row genuinely an interchange.
+  const onward = departingServices(children)
+  const staysAboard = arrivedOn !== undefined && onward.includes(arrivedOn)
+  const departsOn = staysAboard ? arrivedOn : onward[0]
 
   const detail: RowDetail = {}
   if (dwellSecs + waitSecs > 0) detail.arrivalSecs = remainingSecs + dwellSecs + waitSecs
   if (dwellSecs > 0) detail.dwellSecs = dwellSecs
-  if (arrivedOn && departsOn && arrivedOn !== departsOn) {
-    detail.transferFrom = names.serviceName(arrivedOn)
-  }
-  const arriving = lastLeg(station)
-  if (arriving) detail.rideSecs = arriving.secs - (arriving.dwell_s ?? 0)
+  if (arrivedOn && onward.length && !staysAboard) detail.transferFrom = context.serviceName(arrivedOn)
+  if (arrival) detail.rideSecs = arrival.secs - (arrival.dwell_s ?? 0)
 
   return {
     key: station.station_slug,
     slug: station.station_slug,
-    label: names.stationName(station.station_slug),
+    label: context.stationName(station.station_slug),
     remainingSecs,
-    flag: departsOn ? names.serviceName(departsOn) : null,
+    flag: departsOn ? context.serviceName(departsOn) : null,
     parentKey,
     detail,
     lane: 0,

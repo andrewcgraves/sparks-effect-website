@@ -299,9 +299,19 @@ describe('buildTimeRemainingGraph', () => {
       const { rows } = build(INTERCHANGE)
 
       expect(rowFor(rows, 'alpha').flag).toBe('Trunk Line')
-      // Beta is where the graph forks, and the flag names the branch drawn
-      // first — the one with the most time left after it.
-      expect(rowFor(rows, 'beta').flag).toBe('Spur Line')
+      // Beta forks onto both services. Staying aboard is what the flag names,
+      // so a fork does not read as a change the rider is not obliged to make.
+      expect(rowFor(rows, 'beta').flag).toBe('Trunk Line')
+    })
+
+    it('flags a fork by the service the rider stays aboard, whichever branch sorts first', () => {
+      // Delta, on the spur, has more time left than gamma and so is drawn
+      // first — but beta is still a station the rider can ride straight
+      // through on the trunk.
+      const { rows } = build(INTERCHANGE)
+
+      expect(rows.map((r) => r.slug)).toEqual([null, 'alpha', 'beta', 'delta', 'gamma'])
+      expect(rowFor(rows, 'beta').flag).toBe('Trunk Line')
     })
 
     it('leaves a station at the end of a branch unflagged, because the journey stops there', () => {
@@ -335,12 +345,43 @@ describe('buildTimeRemainingGraph', () => {
       expect(rowFor(rows, 'beta').detail.rideSecs).toBe(840)
     })
 
-    it('names the service arrived on where the rider changes service', () => {
+    it('names the service arrived on where every way onward requires a change', () => {
+      // A trunk into the junction and only a spur out of it: the rider cannot
+      // stay aboard, so this really is an interchange.
+      const interchangeOnly: ReachableStation[] = [
+        { station_slug: 'alpha', access_mins: 5, access_secs: 300, remaining_mins: 115, remaining_secs: 6900 },
+        {
+          station_slug: 'beta',
+          access_mins: 5,
+          access_secs: 300,
+          remaining_mins: 90,
+          remaining_secs: 5400,
+          predecessor_slug: 'alpha',
+          legs: [{ from: 'alpha', to: 'beta', service_id: 'trunk', secs: 900, dwell_s: 60 }],
+        },
+        {
+          station_slug: 'delta',
+          access_mins: 5,
+          access_secs: 300,
+          remaining_mins: 80,
+          remaining_secs: 4800,
+          predecessor_slug: 'beta',
+          legs: [
+            { from: 'alpha', to: 'beta', service_id: 'trunk', secs: 900, dwell_s: 60 },
+            { from: 'beta', to: 'delta', service_id: 'spur', secs: 600, dwell_s: 30 },
+          ],
+        },
+      ]
+
+      const { rows } = build(interchangeOnly)
+      expect(rowFor(rows, 'beta').detail.transferFrom).toBe('Trunk Line')
+      expect(rowFor(rows, 'beta').flag).toBe('Spur Line')
+    })
+
+    it('reports no change where the rider can stay aboard, even at a fork', () => {
       const { rows } = build(INTERCHANGE)
 
-      // The rider arrives at beta on the trunk and leaves on the spur toward
-      // delta, so that is where a change is required.
-      expect(rowFor(rows, 'beta').detail.transferFrom).toBe('Trunk Line')
+      expect(rowFor(rows, 'beta').detail.transferFrom).toBeUndefined()
       expect(rowFor(rows, 'alpha').detail.transferFrom).toBeUndefined()
     })
 

@@ -32,6 +32,22 @@ const laneX = (lane: number): number => lane * laneWidth.value + laneWidth.value
 
 const listEl = ref<HTMLElement | null>(null)
 
+// The graph column is one column, not one scroller per row. Rows are laid out
+// side by side with their names and times, so the connectors cannot live in a
+// single element — and a row scrolled on its own would slide its own connectors
+// out of line with every other row's and tear the tree apart. Every row's
+// scroller is therefore held at one offset, so dragging any of them scrolls the
+// column.
+function syncGraphScroll(event: Event): void {
+  const source = event.target as HTMLElement
+  const scrollers = listEl.value?.querySelectorAll<HTMLElement>('[data-graph-scroller]') ?? []
+  for (const scroller of scrollers) {
+    if (scroller !== source && scroller.scrollLeft !== source.scrollLeft) {
+      scroller.scrollLeft = source.scrollLeft
+    }
+  }
+}
+
 function isExpanded(row: TimeRemainingRow): boolean {
   return row.slug !== null && row.slug === props.activeSlug
 }
@@ -86,12 +102,14 @@ watch(
         @focus="activate(row)"
         @blur="emit('activate', null)"
       >
-        <!-- The connector column scrolls on its own once its lanes have
-             narrowed as far as they legibly can, so the names and the times
-             beside it stay anchored however deeply the graph branches. -->
+        <!-- The connector column scrolls once its lanes have narrowed as far
+             as they legibly can, so the names and the times beside it stay
+             anchored however deeply the graph branches. -->
         <div
           class="shrink-0 overflow-x-auto"
           :style="{ maxWidth: `${GRAPH_COLUMN_PX}px` }"
+          data-graph-scroller
+          @scroll="syncGraphScroll"
         >
           <div
             class="relative h-full"
