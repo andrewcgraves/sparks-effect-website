@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import { fetchIsochrone, IsochroneApiError, type IsochroneRequest } from '../api/isochrone'
+import { JobFailedError } from '../api/polling'
 import { trackIsochroneRequest, trackIsochroneError } from '../analytics/index'
 import { checkOriginReach, outOfRangeError, outOfRangeMessage } from '../originRange'
 import type { Station } from '../api/scenarios'
@@ -54,8 +55,15 @@ export function useIsochrone(getStations: () => Station[] = () => []) {
       // above could not see: a station list that has gone stale, or one whose
       // stations differ from the compiled graph's nodes. Its own distances are
       // the accurate ones, so its message wins over the generic failure.
+      //
+      // A routing job that reached `failed` — the isochrone service being down
+      // chief among the reasons (SPA-230) — carries its own reason from the
+      // API too, and that wins the same way for the same reason: it says
+      // something a generic "try again" cannot, like whether trying again is
+      // even worth it right now.
       error.value =
         outOfRangeError(e instanceof IsochroneApiError ? e.cause : e, request.mode, request.budget_mins) ??
+        (e instanceof JobFailedError ? e.jobError || null : null) ??
         'Failed to generate isochrone. Please try again.'
     } finally {
       loading.value = false
