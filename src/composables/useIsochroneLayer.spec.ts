@@ -3,14 +3,19 @@ import type { Map } from 'maplibre-gl'
 import {
   useIsochroneLayer,
   isochroneLegend,
-  isochroneFillOpacity,
+  isochroneEgressOpacity,
+  isochroneOriginOpacity,
   isochroneHighlightFilter,
+  egressStationSlugs,
   ISOCHRONE_SOURCE_ID,
+  ISOCHRONE_ORIGIN_LAYER_ID,
   ISOCHRONE_LAYER_ID,
   ISOCHRONE_HIGHLIGHT_LAYER_ID,
+  ISOCHRONE_HIGHLIGHT_OUTLINE_LAYER_ID,
   ISOCHRONE_FILL_OPACITY,
   ISOCHRONE_HIGHLIGHT_OPACITY,
   ISOCHRONE_DIM_OPACITY,
+  ISOCHRONE_ORIGIN_DIM_OPACITY,
 } from './useIsochroneLayer'
 import { ROUTE_LINE_LAYER_ID } from './useRouteLayer'
 import { THEME_TOKEN_FALLBACKS } from '../themeTokens'
@@ -22,6 +27,11 @@ function makeMockMap(): Pick<Map, 'addSource' | 'addLayer' | 'getLayer'> {
     addLayer: vi.fn(),
     getLayer: vi.fn().mockReturnValue(undefined),
   }
+}
+
+function addedLayer(map: Pick<Map, 'addLayer'>, id: string) {
+  const calls = (map.addLayer as ReturnType<typeof vi.fn>).mock.calls
+  return calls.find(([layer]) => layer.id === id)?.[0]
 }
 
 describe('useIsochroneLayer', () => {
@@ -98,9 +108,12 @@ describe('useIsochroneLayer', () => {
       const map = makeMockMap()
       useIsochroneLayer(map as Map, staticIsochroneResponse)
       const calls = (map.addLayer as ReturnType<typeof vi.fn>).mock.calls
-      expect(calls).toHaveLength(2)
-      expect(calls[0][0].id).toBe(ISOCHRONE_LAYER_ID)
-      expect(calls[1][0].id).toBe(ISOCHRONE_HIGHLIGHT_LAYER_ID)
+      expect(calls.map(([layer]) => layer.id)).toEqual([
+        ISOCHRONE_ORIGIN_LAYER_ID,
+        ISOCHRONE_LAYER_ID,
+        ISOCHRONE_HIGHLIGHT_LAYER_ID,
+        ISOCHRONE_HIGHLIGHT_OUTLINE_LAYER_ID,
+      ])
     })
 
     it('stacks below the route line when one already exists, same as the base layer', () => {
@@ -112,28 +125,74 @@ describe('useIsochroneLayer', () => {
         ROUTE_LINE_LAYER_ID,
       )
     })
+
+    // The fills differ only by a blend where they overlap, which is not much
+    // to go on over a full-map origin wash — the outline is what says which
+    // polygon was singled out (SPA-224).
+    it('strokes the highlighted polygon with a line layer above the highlight fill', () => {
+      const map = makeMockMap()
+      useIsochroneLayer(map as Map, staticIsochroneResponse, { origin: '#111111', egress: '#222222' })
+      const outline = addedLayer(map, ISOCHRONE_HIGHLIGHT_OUTLINE_LAYER_ID)
+      expect(outline).toMatchObject({
+        type: 'line',
+        source: ISOCHRONE_SOURCE_ID,
+        filter: isochroneHighlightFilter(null),
+        paint: { 'line-color': '#222222', 'line-width': 2 },
+      })
+    })
   })
 
-  it('paint uses a source-based match expression for fill-color', () => {
+  // SPA-224: origin and egress used to share one fill layer, which left their
+  // stacking to the order the worker emitted features in. Separate layers,
+  // each filtered to its own source, is what makes the blue reliably sit
+  // under the orange.
+  describe('origin layer', () => {
+    it('adds the origin fill below the egress fill, filtered to origin features', () => {
+      const map = makeMockMap()
+      useIsochroneLayer(map as Map, staticIsochroneResponse)
+      expect(addedLayer(map, ISOCHRONE_ORIGIN_LAYER_ID)).toMatchObject({
+        type: 'fill',
+        source: ISOCHRONE_SOURCE_ID,
+        filter: ['==', ['get', 'source'], 'origin'],
+      })
+      const ids = (map.addLayer as ReturnType<typeof vi.fn>).mock.calls.map(([layer]) => layer.id)
+      expect(ids.indexOf(ISOCHRONE_ORIGIN_LAYER_ID)).toBeLessThan(ids.indexOf(ISOCHRONE_LAYER_ID))
+    })
+
+    it('filters the egress fill to egress features, so it never paints the origin polygon', () => {
+      const map = makeMockMap()
+      useIsochroneLayer(map as Map, staticIsochroneResponse)
+      expect(addedLayer(map, ISOCHRONE_LAYER_ID)).toMatchObject({
+        filter: ['==', ['get', 'source'], 'egress'],
+      })
+    })
+
+    it('stacks below the route line when one already exists, same as the rest', () => {
+      const map = makeMockMap()
+      ;(map.getLayer as ReturnType<typeof vi.fn>).mockReturnValue({ id: ROUTE_LINE_LAYER_ID })
+      useIsochroneLayer(map as Map, staticIsochroneResponse)
+      for (const id of [ISOCHRONE_ORIGIN_LAYER_ID, ISOCHRONE_HIGHLIGHT_OUTLINE_LAYER_ID]) {
+        expect(map.addLayer).toHaveBeenCalledWith(expect.objectContaining({ id }), ROUTE_LINE_LAYER_ID)
+      }
+    })
+  })
+
+  it('paints each fill with the flat colour of its own source, no match expression', () => {
     const map = makeMockMap()
     useIsochroneLayer(map as Map, staticIsochroneResponse)
-    const layerArg = (map.addLayer as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    const fillColor = layerArg.paint['fill-color']
-    expect(Array.isArray(fillColor)).toBe(true)
-    expect(fillColor[0]).toBe('match')
-    expect(fillColor[1]).toEqual(['get', 'source'])
-    expect(fillColor[2]).toBe('origin')
-    expect(fillColor[3]).toBe(THEME_TOKEN_FALLBACKS['--color-data-origin'])
-    expect(fillColor[4]).toBe(THEME_TOKEN_FALLBACKS['--color-data-egress'])
+    expect(addedLayer(map, ISOCHRONE_ORIGIN_LAYER_ID).paint['fill-color']).toBe(
+      THEME_TOKEN_FALLBACKS['--color-data-origin'],
+    )
+    expect(addedLayer(map, ISOCHRONE_LAYER_ID).paint['fill-color']).toBe(
+      THEME_TOKEN_FALLBACKS['--color-data-egress'],
+    )
   })
 
   it('paints with caller-supplied colours resolved from the CSS tokens', () => {
     const map = makeMockMap()
     useIsochroneLayer(map as Map, staticIsochroneResponse, { origin: '#111111', egress: '#222222' })
-    const layerArg = (map.addLayer as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(layerArg.paint['fill-color']).toEqual(
-      ['match', ['get', 'source'], 'origin', '#111111', '#222222'],
-    )
+    expect(addedLayer(map, ISOCHRONE_ORIGIN_LAYER_ID).paint['fill-color']).toBe('#111111')
+    expect(addedLayer(map, ISOCHRONE_LAYER_ID).paint['fill-color']).toBe('#222222')
   })
 
   it('legend labels carry the same colours the fills are painted with', () => {
@@ -176,18 +235,53 @@ describe('useIsochroneLayer', () => {
     expect(egresses.length).toBeGreaterThanOrEqual(1)
   })
 
-  describe('isochroneFillOpacity', () => {
-    it('is the flat default opacity when nothing is dimmed', () => {
-      expect(isochroneFillOpacity(false)).toBe(ISOCHRONE_FILL_OPACITY)
+  describe('layer opacities', () => {
+    it('are the shared default when nothing is dimmed', () => {
+      expect(isochroneEgressOpacity(false)).toBe(ISOCHRONE_FILL_OPACITY)
+      expect(isochroneOriginOpacity(false)).toBe(ISOCHRONE_FILL_OPACITY)
     })
 
-    it('dims every egress feature while keeping the origin fill at its own default when dimmed', () => {
-      const expr = isochroneFillOpacity(true)
-      expect(expr).toEqual([
-        'case',
-        ['==', ['get', 'source'], 'origin'], ISOCHRONE_FILL_OPACITY,
-        ISOCHRONE_DIM_OPACITY,
-      ])
+    it('dims every egress polygon out of the highlighted one\'s way', () => {
+      expect(isochroneEgressOpacity(true)).toBe(ISOCHRONE_DIM_OPACITY)
+    })
+
+    // SPA-224: the origin used to hold its full opacity while a station was
+    // highlighted, and a full-map driving plot's blue wash left the promoted
+    // orange reading as a muted tan.
+    it('dims the origin fill too, but less far, so the rider keeps their own reach in view', () => {
+      expect(isochroneOriginOpacity(true)).toBe(ISOCHRONE_ORIGIN_DIM_OPACITY)
+      expect(ISOCHRONE_ORIGIN_DIM_OPACITY).toBeLessThan(ISOCHRONE_FILL_OPACITY)
+      expect(ISOCHRONE_ORIGIN_DIM_OPACITY).toBeGreaterThan(ISOCHRONE_DIM_OPACITY)
+    })
+  })
+
+  describe('egressStationSlugs', () => {
+    it('is empty when there is no plot', () => {
+      expect(egressStationSlugs(null).size).toBe(0)
+    })
+
+    it('lists every station the plot drew a polygon for, and no origin feature', () => {
+      expect([...egressStationSlugs(staticIsochroneResponse)].sort()).toEqual(
+        ['gilroy', 'millbrae', 'san-jose', 'sf'],
+      )
+    })
+
+    // A station can be lit as reachable and still have no polygon; that is the
+    // case that used to dim the whole map and promote nothing (SPA-224).
+    it('leaves out a station with no egress polygon of its own', () => {
+      expect(egressStationSlugs(staticIsochroneResponse).has('fresno')).toBe(false)
+    })
+
+    it('ignores an egress feature with no usable station_slug', () => {
+      const slugs = egressStationSlugs({
+        type: 'FeatureCollection',
+        features: [
+          { type: 'Feature', properties: { source: 'egress' }, geometry: { type: 'Polygon', coordinates: [] } },
+          { type: 'Feature', properties: { source: 'egress', station_slug: '' }, geometry: { type: 'Polygon', coordinates: [] } },
+          { type: 'Feature', properties: { source: 'egress', station_slug: 'sf' }, geometry: { type: 'Polygon', coordinates: [] } },
+        ],
+      })
+      expect([...slugs]).toEqual(['sf'])
     })
   })
 

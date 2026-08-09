@@ -3,8 +3,11 @@ import type { MapModule } from './mapLifecycle'
 import { STATION_DOTS_LAYER_ID } from './useRouteLayer'
 import {
   ISOCHRONE_LAYER_ID,
+  ISOCHRONE_ORIGIN_LAYER_ID,
   ISOCHRONE_HIGHLIGHT_LAYER_ID,
-  isochroneFillOpacity,
+  ISOCHRONE_HIGHLIGHT_OUTLINE_LAYER_ID,
+  isochroneEgressOpacity,
+  isochroneOriginOpacity,
   isochroneHighlightFilter,
 } from './useIsochroneLayer'
 
@@ -19,6 +22,10 @@ export interface StationHighlightCallbacks {
   // station dot. Mirrors useStopDrag's idleCursor: the caller owns it because
   // click-to-place mode paints its own crosshair, which a bare '' would clobber.
   idleCursor: () => string
+  // Which stations the current plot drew an egress polygon for. A getter
+  // rather than a value, because the plot is regenerated under a map that
+  // keeps its listeners — see `egressStationSlugs`.
+  egressSlugs: () => Set<string>
 }
 
 function stationOf(event: MapLayerMouseEvent): HighlightedStation | null {
@@ -46,14 +53,33 @@ export function useStationHighlight(map: Map, callbacks: StationHighlightCallbac
 
   function applyHighlight(): void {
     const active = hovered ?? selected
+    // Dimming is only worth doing when there is something to promote in its
+    // place. A station the plot drew no polygon for would otherwise fade every
+    // isochrone on the map and put nothing on top, which reads as the station's
+    // orange disappearing under the blue origin fill (SPA-224). Its name still
+    // goes up in the popup — the dot was hovered either way — and a standing
+    // selection keeps its own highlight rather than losing it to a hover that
+    // has nothing to show.
+    const drawn = callbacks.egressSlugs()
+    const promoted = [hovered, selected].find(
+      (station): station is HighlightedStation => station !== null && drawn.has(station.slug),
+    ) ?? null
+
     if (map.getLayer(ISOCHRONE_LAYER_ID)) {
-      map.setPaintProperty(ISOCHRONE_LAYER_ID, 'fill-opacity', isochroneFillOpacity(active !== null))
+      map.setPaintProperty(ISOCHRONE_LAYER_ID, 'fill-opacity', isochroneEgressOpacity(promoted !== null))
     }
-    // The highlighted polygon is repainted on this separate top layer so it
+    if (map.getLayer(ISOCHRONE_ORIGIN_LAYER_ID)) {
+      map.setPaintProperty(ISOCHRONE_ORIGIN_LAYER_ID, 'fill-opacity', isochroneOriginOpacity(promoted !== null))
+    }
+    // The highlighted polygon is repainted on these separate top layers so it
     // reads above every other station's — fill-opacity alone can't reorder
     // features within a single layer.
+    const filter = isochroneHighlightFilter(promoted?.slug ?? null)
     if (map.getLayer(ISOCHRONE_HIGHLIGHT_LAYER_ID)) {
-      map.setFilter(ISOCHRONE_HIGHLIGHT_LAYER_ID, isochroneHighlightFilter(active?.slug ?? null))
+      map.setFilter(ISOCHRONE_HIGHLIGHT_LAYER_ID, filter)
+    }
+    if (map.getLayer(ISOCHRONE_HIGHLIGHT_OUTLINE_LAYER_ID)) {
+      map.setFilter(ISOCHRONE_HIGHLIGHT_OUTLINE_LAYER_ID, filter)
     }
     if (active) popup.setLngLat(active.lngLat).setText(active.name).addTo(map)
     else popup.remove()

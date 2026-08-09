@@ -4,9 +4,12 @@ import { FullscreenControl } from 'maplibre-gl'
 import MapView from './MapView.vue'
 import {
   ISOCHRONE_SOURCE_ID,
+  ISOCHRONE_ORIGIN_LAYER_ID,
   ISOCHRONE_LAYER_ID,
   ISOCHRONE_HIGHLIGHT_LAYER_ID,
-  isochroneFillOpacity,
+  ISOCHRONE_HIGHLIGHT_OUTLINE_LAYER_ID,
+  isochroneEgressOpacity,
+  isochroneOriginOpacity,
   isochroneHighlightFilter,
 } from '../composables/useIsochroneLayer'
 import {
@@ -516,6 +519,26 @@ describe('MapView', () => {
       expect.objectContaining({ id: ISOCHRONE_LAYER_ID }),
       ROUTE_LINE_LAYER_ID,
     )
+  })
+
+  // SPA-224: the origin polygon has its own layer under the egress fills, so
+  // which of them paints on top is this order and not the order the worker
+  // happened to emit its features in.
+  it('stacks the origin fill under the egress fills, and both under the highlight pair', async () => {
+    const wrapper = mount(MapView, { props: { ...defaultProps, routes: [stubRoute], stations: [stubStation] } })
+    await triggerMapLoad()
+    mockGetLayer.mockImplementation((id: string) => (id === ROUTE_LINE_LAYER_ID ? { id } : undefined))
+    mockAddLayer.mockClear()
+
+    await wrapper.setProps({ isochroneData: staticIsochroneResponse })
+
+    expect(mockAddLayer.mock.calls.map(([layer]) => layer.id)).toEqual([
+      ISOCHRONE_ORIGIN_LAYER_ID,
+      ISOCHRONE_LAYER_ID,
+      ISOCHRONE_HIGHLIGHT_LAYER_ID,
+      ISOCHRONE_HIGHLIGHT_OUTLINE_LAYER_ID,
+    ])
+    for (const call of mockAddLayer.mock.calls) expect(call[1]).toBe(ROUTE_LINE_LAYER_ID)
   })
 
   it('draws the walking line as the worker routed it', async () => {
@@ -1165,7 +1188,7 @@ describe('MapView', () => {
 
     it('promotes the hovered station\'s polygon above the rest via the dedicated highlight layer', async () => {
       mockGetLayer.mockImplementation((id: string) =>
-        id === ISOCHRONE_LAYER_ID || id === ISOCHRONE_HIGHLIGHT_LAYER_ID ? { id } : undefined,
+        [ISOCHRONE_LAYER_ID, ISOCHRONE_ORIGIN_LAYER_ID, ISOCHRONE_HIGHLIGHT_LAYER_ID, ISOCHRONE_HIGHLIGHT_OUTLINE_LAYER_ID].includes(id) ? { id } : undefined,
       )
       mount(MapView, {
         props: {
@@ -1181,17 +1204,47 @@ describe('MapView', () => {
 
       fireLayerEvent('mouseenter', STATION_DOTS_LAYER_ID, stationEvent(stubStation))
 
-      // Dims the base layer's egress fills uniformly...
-      expect(mockSetPaintProperty).toHaveBeenCalledWith(ISOCHRONE_LAYER_ID, 'fill-opacity', isochroneFillOpacity(true))
+      // Dims the base layer's egress fills uniformly, and the blue origin
+      // wash with them (SPA-224)...
+      expect(mockSetPaintProperty).toHaveBeenCalledWith(ISOCHRONE_LAYER_ID, 'fill-opacity', isochroneEgressOpacity(true))
+      expect(mockSetPaintProperty).toHaveBeenCalledWith(ISOCHRONE_ORIGIN_LAYER_ID, 'fill-opacity', isochroneOriginOpacity(true))
       // ...and filters the dedicated top layer to just this station, which is
       // what actually paints it above every other overlapping polygon —
       // fill-opacity alone can't reorder features within one layer.
       expect(mockSetFilter).toHaveBeenCalledWith(ISOCHRONE_HIGHLIGHT_LAYER_ID, isochroneHighlightFilter(stubStation.slug))
+      expect(mockSetFilter).toHaveBeenCalledWith(ISOCHRONE_HIGHLIGHT_OUTLINE_LAYER_ID, isochroneHighlightFilter(stubStation.slug))
+    })
+
+    // SPA-224: a reachable station the plot drew no polygon for used to fade
+    // every isochrone and promote nothing, leaving the blue origin fill alone
+    // on screen.
+    it('leaves the fills alone when the hovered station has no polygon in the plot', async () => {
+      mockGetLayer.mockImplementation((id: string) => ({ id }))
+      const orphan: Station = { ...stubStation, id: 'st9', slug: 'fresno', name: 'Fresno' }
+      mount(MapView, {
+        props: {
+          ...defaultProps,
+          routes: [stubRoute],
+          stations: [stubStation, orphan],
+          isochroneData: staticIsochroneResponse,
+        },
+      })
+      await triggerMapLoad()
+      mockSetPaintProperty.mockClear()
+      mockSetFilter.mockClear()
+
+      fireLayerEvent('mouseenter', STATION_DOTS_LAYER_ID, stationEvent(orphan))
+
+      expect(mockSetPaintProperty).toHaveBeenCalledWith(ISOCHRONE_LAYER_ID, 'fill-opacity', isochroneEgressOpacity(false))
+      expect(mockSetPaintProperty).toHaveBeenCalledWith(ISOCHRONE_ORIGIN_LAYER_ID, 'fill-opacity', isochroneOriginOpacity(false))
+      expect(mockSetFilter).toHaveBeenCalledWith(ISOCHRONE_HIGHLIGHT_LAYER_ID, isochroneHighlightFilter(null))
+      // The dot was still hovered, so the rider still gets its name.
+      expect(mockPopupSetText).toHaveBeenCalledWith('Fresno')
     })
 
     it('persists the highlight after a click, past the hover that made it', async () => {
       mockGetLayer.mockImplementation((id: string) =>
-        id === ISOCHRONE_LAYER_ID || id === ISOCHRONE_HIGHLIGHT_LAYER_ID ? { id } : undefined,
+        [ISOCHRONE_LAYER_ID, ISOCHRONE_ORIGIN_LAYER_ID, ISOCHRONE_HIGHLIGHT_LAYER_ID, ISOCHRONE_HIGHLIGHT_OUTLINE_LAYER_ID].includes(id) ? { id } : undefined,
       )
       mount(MapView, {
         props: {
