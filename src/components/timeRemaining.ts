@@ -1,7 +1,7 @@
 import type { ChainMetadata, JourneyLeg, ReachableStation } from '../fixtures/isochrone'
 
 /**
- * The trip a plotted isochrone describes, as one branching graph per service.
+ * The trip a plotted isochrone describes, as one branching graph per line.
  *
  * A scenario's whole reachability tree drawn at once is a thicket: every line
  * and every access option crossing in one connector column. Split one line to a
@@ -20,8 +20,10 @@ export const ORIGIN_KEY = 'origin'
 
 // The connector column's preferred width, and the widest and narrowest a lane
 // may be inside it. Lanes narrow as they multiply so that station names keep
-// their room; past the floor the column scrolls sideways instead, which is the
-// only thing that stops a deeply branching graph from squeezing the names out.
+// their room, down to a floor past which they stop shrinking and the column
+// takes the extra width from the names instead — which only a graph branching
+// nine lanes deep can reach, and is the better of two bad answers, since lanes
+// thinner than the floor cannot be told apart anyway.
 export const GRAPH_COLUMN_PX = 96
 export const MAX_LANE_PX = 20
 export const MIN_LANE_PX = 10
@@ -74,11 +76,15 @@ export const ACCESS_VIEW_KEY = 'access'
 /**
  * One line's worth of the trip: the rows to draw and how many lanes they need.
  *
- * A station belongs to the view of the service it *arrives* on, so no station
- * is listed twice as a destination. The station the rider boards that service
- * at comes with it, as the root the branches hang from — which is the one row
- * a view borrows from elsewhere, and the reason an interchange shows up in two
+ * A station belongs to the view of the line it *arrives* on, so no station is
+ * listed twice as a destination. The station the rider boards that line at
+ * comes with it, as the root the branches hang from — which is the one row a
+ * view borrows from elsewhere, and the reason an interchange shows up in two
  * views: as somewhere to get to in one, and as somewhere to get on in the next.
+ *
+ * Where several services share a line, they are branches within one view rather
+ * than views of their own, and each row's flag names the service — so a change
+ * of train on the same railway still reads as a change.
  */
 export interface TimeRemainingView {
   key: string
@@ -92,11 +98,25 @@ export interface TimeRemainingGraph {
 }
 
 // What the graph needs from the page to render a wire payload as words: the
-// two resolvers that turn ids into names, and the travel mode the trip was
-// plotted for, which is how the rider leaves the starting location.
+// resolvers that turn ids into names, and the travel mode the trip was plotted
+// for, which is how the rider leaves the starting location.
 export interface TimeRemainingContext {
   stationName: (slug: string) => string
   serviceName: (id: string) => string
+  /**
+   * The line a service runs over, and what to call it.
+   *
+   * Views are one per line, not one per service, because a rider thinks in
+   * lines: an express and a local pattern over one railway are two services and
+   * one route, and offered as two views they read as two separate journeys to
+   * the same places. Gathered into one view they read as what they are —
+   * branches of a line, the express running past the stops the local calls at.
+   *
+   * Optional, because it is the page that knows about routes and an API too old
+   * to report them leaves it unable to answer. Absent, every service stands as
+   * its own line, which is what this card drew before.
+   */
+  line?: (serviceID: string) => { key: string; label: string }
   mode: string
 }
 
@@ -135,11 +155,28 @@ export function formatDuration(totalSecs: number): string {
 }
 
 /**
+ * A line's name, cut down to the part that actually names it.
+ *
+ * Route names here run "<line> — <where it runs from and to>", and the extent is
+ * the longer half: "CA HSR Phase 1 — San Francisco to Anaheim". On a switch
+ * between lines the extent is exactly what the rows underneath already say,
+ * station by station, so only the part before the dash is kept.
+ *
+ * The separator has to be a dash with space around it, so that a hyphen inside
+ * a word survives — "Trans-Bay Link" is not a line called "Trans". A name with
+ * no separator, or nothing before one, is given back whole.
+ */
+export function shortLineName(name: string): string {
+  const head = name.split(/\s+[—–-]\s+/)[0].trim()
+  return head || name
+}
+
+/**
  * How wide one lane may be, given how many the graph needs.
  *
  * Lanes share the column until sharing would make them illegible, and then stop
- * shrinking. Past that the total outgrows the column, which is the caller's cue
- * to scroll the graph rather than the row.
+ * shrinking. Past that the total outgrows the column and the names beside it
+ * give up the difference.
  */
 export function laneWidthFor(laneCount: number): number {
   return Math.min(MAX_LANE_PX, Math.max(MIN_LANE_PX, Math.floor(GRAPH_COLUMN_PX / laneCount)))
@@ -177,12 +214,12 @@ function departureSecsOf(station: ReachableStation, children: ReachableStation[]
 /**
  * Turns one chain response into one graph per line the rider can ride.
  *
- * A station belongs to the view of the service it arrives on; the stations
- * reached without boarding anything make a view of their own, labelled with the
- * travel mode, and it comes first because it is the trip's first leg. Each view
- * also carries the station its branches hang from — the row the rider boards
- * that service at — re-rooted onto the starting location, since the journey
- * that led there is another view's story.
+ * A station belongs to the view of the line it arrives on; the stations reached
+ * without boarding anything make a view of their own, labelled with the travel
+ * mode, and it comes first because it is the trip's first leg. Each view also
+ * carries the station its branches hang from — the row the rider boards that
+ * line at — re-rooted onto the starting location, since the journey that led
+ * there is another view's story.
  *
  * Within a view, rows are ordered by time remaining, descending, so reading
  * down the list is reading forward through the trip. Ordering is on seconds and
@@ -276,16 +313,17 @@ interface ViewMembership {
 }
 
 // Which stations each view holds, in the order the views are offered: the
-// access leg first, then one view per service, ordered by the first station
-// each reaches — so the line that gets the rider furthest is offered first.
+// access leg first, then one view per line, ordered by the first station each
+// reaches — so the line that gets the rider furthest is offered first.
 function viewMemberships(
   ordered: ReachableStation[],
   bySlug: Map<string, ReachableStation>,
   parentKeyOf: (station: ReachableStation) => string,
   context: TimeRemainingContext,
 ): ViewMembership[] {
+  const lineOf = context.line ?? ((id: string) => ({ key: id, label: context.serviceName(id) }))
   const access: string[] = []
-  const byService = new Map<string, string[]>()
+  const byLine = new Map<string, { label: string; members: string[] }>()
 
   for (const station of ordered) {
     const service = lastLeg(station)?.service_id
@@ -293,7 +331,10 @@ function viewMemberships(
       access.push(station.station_slug)
       continue
     }
-    byService.set(service, [...(byService.get(service) ?? []), station.station_slug])
+    const { key, label } = lineOf(service)
+    const line = byLine.get(key) ?? { label, members: [] }
+    line.members.push(station.station_slug)
+    byLine.set(key, line)
   }
 
   // The station a service is boarded at rides along with it, so its branches
@@ -312,9 +353,9 @@ function viewMemberships(
 
   return [
     { key: ACCESS_VIEW_KEY, label: MODE_LABELS[context.mode] ?? context.mode, members: access },
-    ...[...byService].map(([service, members]) => ({
-      key: service,
-      label: context.serviceName(service),
+    ...[...byLine].map(([key, { label, members }]) => ({
+      key,
+      label,
       members: withBoardingPoints(members),
     })),
   ]

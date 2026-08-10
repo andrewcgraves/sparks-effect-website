@@ -5,7 +5,7 @@ import MapView from '../components/MapView.vue'
 import TimeBetweenStations from '../components/TimeBetweenStations.vue'
 import TimeRemaining from '../components/TimeRemaining.vue'
 import { segmentStationTimeGroups } from '../components/stationTimes'
-import { buildTimeRemainingGraph } from '../components/timeRemaining'
+import { buildTimeRemainingGraph, shortLineName } from '../components/timeRemaining'
 import { ORIGIN_PICK_CUE } from '../components/placementCues'
 import { useScenario } from '../composables/useScenario'
 import { useScenarioTravelTimes } from '../composables/useScenarioTravelTimes'
@@ -43,10 +43,25 @@ function highlight(slug: string | null, fromMap: boolean) {
   activeStation.value = slug ? { slug, fromMap } : null
 }
 
+// The line a service runs over, so the card is read one railway at a time
+// rather than one timetable at a time. A service whose route the API has not
+// reported stands as its own line, which is what the card drew before routes
+// were on the wire.
+function lineOf(id: string): { key: string; label: string } {
+  const service = services.value.find((s) => s.id === id)
+  const route = service?.route_id
+    ? routes.value.find((r) => r.id === service.route_id)
+    : undefined
+  return route
+    ? { key: route.id, label: shortLineName(route.name) }
+    : { key: id, label: service?.name ?? id }
+}
+
 const timeRemaining = computed(() =>
   buildTimeRemainingGraph(isochroneData.value?.metadata ?? null, {
     stationName: (slug) => stations.value.find((s) => s.slug === slug)?.name ?? slug,
     serviceName: (id) => services.value.find((s) => s.id === id)?.name ?? id,
+    line: lineOf,
     mode: isochroneData.value?.metadata.mode ?? 'walk',
   }),
 )
@@ -105,20 +120,22 @@ async function handleFormSubmit(payload: { lat: number; lng: number; duration: n
           @origin-change="onOriginChange"
           @pick-armed="pickArmed = $event"
         />
-        <TimeBetweenStations
-          v-if="!travelTimesFailed"
-          :groups="stationTimeGroups"
-          :loading="travelTimesLoading"
-        />
-        <!-- Only once a plot has actually succeeded. There is nothing to draw
-             while the form is being filled in, and a skeleton in its place
-             would make the rail jump every time a plot is asked for. -->
+        <!-- Above the station times, because it is the answer to what was just
+             asked. Only once a plot has actually succeeded: there is nothing to
+             draw while the form is being filled in, and a skeleton in its place
+             would make the rail jump every time a plot is asked for — so until
+             then the station times sit directly under the form as before. -->
         <TimeRemaining
           v-if="timeRemaining.views.length"
           :views="timeRemaining.views"
           :active-slug="activeStation?.slug ?? null"
           :active-from-map="activeStation?.fromMap ?? false"
           @activate="highlight($event, false)"
+        />
+        <TimeBetweenStations
+          v-if="!travelTimesFailed"
+          :groups="stationTimeGroups"
+          :loading="travelTimesLoading"
         />
       </div>
     </div>

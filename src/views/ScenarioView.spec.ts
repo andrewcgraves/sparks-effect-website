@@ -496,21 +496,53 @@ describe('ScenarioView', () => {
       expect(scrollIntoView).toHaveBeenCalled()
     })
 
-    // Every row carries its own scroller, because the connectors sit beside
-    // each row's name and time rather than in one element. Held at one offset
-    // they read as a single column; left alone they would tear the tree apart.
-    it('scrolls every row of the graph column together', async () => {
+    // The connectors used to sit in a scroller, which clipped the bottom of a
+    // branch behind the scrollbar and put far lanes out of sight entirely.
+    it('never puts the connectors behind a scrollbar', async () => {
       const wrapper = await plot()
-      const scrollers = wrapper.findAll('[data-graph-scroller]')
-      expect(scrollers.length).toBeGreaterThan(1)
 
-      const first = scrollers[0].element as HTMLElement
-      first.scrollLeft = 24
-      await scrollers[0].trigger('scroll')
+      expect(wrapper.find('[data-graph-scroller]').exists()).toBe(false)
+      expect(wrapper.html()).not.toContain('overflow-x-auto')
+    })
 
-      for (const scroller of scrollers) {
-        expect((scroller.element as HTMLElement).scrollLeft).toBe(24)
-      }
+    // San Francisco branching two ways, which is the only shape that puts a
+    // second lane on the page and so the only one that draws a fork bar.
+    const branchingIsochrone: ChainResponse = {
+      ...journeyIsochrone,
+      metadata: {
+        ...journeyIsochrone.metadata,
+        reachable_stations: [
+          ...journeyIsochrone.metadata.reachable_stations,
+          {
+            station_slug: 'gilroy',
+            access_mins: 5,
+            access_secs: 300,
+            remaining_mins: 70,
+            remaining_secs: 4200,
+            predecessor_slug: 'sf',
+            board_slug: 'sf',
+            board_wait_secs: 600,
+            legs: [{ from: 'sf', to: 'gilroy', service_id: 'svc-trunk', secs: 1500, dwell_s: 60 }],
+          },
+        ],
+      },
+    }
+
+    it('branches along a bar level with the node, then drops down each lane', async () => {
+      const wrapper = await plot(branchingIsochrone)
+      const sf = wrapper.findAll('[data-testid="time-remaining-row"]')
+        .find((row) => row.text().includes('San Francisco'))
+
+      expect(sf).toBeDefined()
+      // One bar joining the lanes the branches leave for...
+      expect(sf!.findAll('span.h-px')).toHaveLength(1)
+      // ...and a drop down each of them, held to the row's bottom edge so it
+      // stretches as the row expands rather than being redrawn at a new angle.
+      const drops = sf!.findAll('span.w-px')
+        .filter((line) => line.attributes('style')?.includes('bottom: 0'))
+      expect(drops).toHaveLength(2)
+      // No diagonal, so nothing about the branch depends on the row's height.
+      expect(sf!.html()).not.toContain('<svg')
     })
 
     // A scenario with a spur: the rider rides the trunk to San Jose and
@@ -582,6 +614,69 @@ describe('ScenarioView', () => {
       })
 
       expect(wrapper.find('[data-testid="time-remaining-service"]').exists()).toBe(false)
+    })
+
+    // The same trip, told to a page that knows both services run over one
+    // railway. That knowledge is the whole difference between two tabs and one.
+    function servicesShareOneLine() {
+      const service = (id: string, name: string) => ({
+        id,
+        route_id: 'route-1',
+        name,
+        vehicle_type: { id: 'vt-1', name: 'HSR', propulsion: 'electric', max_speed_kmh: 350 },
+        direction: 'both',
+        provenance: 'calibrated' as const,
+        stop_count: 3,
+        frequency_windows: [],
+      })
+      mockUseScenario.mockReturnValue({
+        name: ref('CA HSR'),
+        description: ref('California High-Speed Rail'),
+        routes: ref([{
+          id: 'route-1',
+          scenario_id: 's1',
+          name: 'CA HSR Phase 1 — San Francisco to Anaheim',
+          mode: 'rail',
+          geometry: { type: 'LineString' as const, coordinates: [] },
+          bidirectional: true,
+        }]),
+        stations: ref(stubStations),
+        services: ref([service('svc-trunk', 'HSR Local'), service('svc-spur', 'HSR Express')]),
+      })
+    }
+
+    it('offers one tab per railway, not one per timetable', async () => {
+      servicesShareOneLine()
+      const wrapper = await plot(twoServiceIsochrone)
+
+      const labels = wrapper.findAll('[data-testid="time-remaining-service"] label').map((l) => l.text())
+      expect(labels).toEqual(['Walk', 'CA HSR Phase 1'])
+    })
+
+    it('draws the two services as branches of that one line, each row naming its own', async () => {
+      servicesShareOneLine()
+      const wrapper = await plot(twoServiceIsochrone)
+
+      // Both stations on one tab, where before they were a tab apart.
+      const names = wrapper.findAll('[data-testid="time-remaining-row"]').map((r) => r.text())
+      expect(names.some((text) => text.includes('San Jose'))).toBe(true)
+      expect(names.some((text) => text.includes('Gilroy'))).toBe(true)
+      // The line is one railway; which train is still the row's own business.
+      expect(wrapper.findAll('[data-testid="time-remaining-flag"]').map((f) => f.text()))
+        .toEqual(['Walk', 'HSR Local', 'HSR Express'])
+    })
+
+    it('sits above the station times, being the answer to what was just asked', async () => {
+      const wrapper = await plot()
+      const html = wrapper.html()
+      const remaining = html.indexOf('data-testid="time-remaining"')
+      const between = html.indexOf('data-testid="time-between-stations"')
+
+      // Both on the page, or the comparison below proves nothing: a card that
+      // is absent reports -1, which comes before everything.
+      expect(remaining).toBeGreaterThanOrEqual(0)
+      expect(between).toBeGreaterThanOrEqual(0)
+      expect(remaining).toBeLessThan(between)
     })
 
     it('draws a lone reachable station as a two-row graph', async () => {

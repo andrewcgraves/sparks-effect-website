@@ -4,6 +4,7 @@ import {
   formatDuration,
   formatTimeRemaining,
   laneWidthFor,
+  shortLineName,
   ACCESS_VIEW_KEY,
   MAX_LANE_PX,
   MIN_LANE_PX,
@@ -104,11 +105,79 @@ const BOTH_DIRECTIONS: ReachableStation[] = [
   },
 ]
 
+// Two stopping patterns over one railway, and a branch line that is genuinely
+// its own: `express` runs alpha→gamma, `local` calls at beta and carries on
+// from gamma to delta, and `spur` leaves the railway at beta. Express and local
+// are one line; spur is another.
+//
+// The rider walks to alpha and waits ten minutes to board there; every change
+// after that is free, which is what the shared board_slug says.
+const SHARED_LINE: ReachableStation[] = [
+  { station_slug: 'alpha', access_mins: 5, access_secs: 300, remaining_mins: 115, remaining_secs: 6900 },
+  {
+    station_slug: 'gamma',
+    access_mins: 5,
+    access_secs: 300,
+    remaining_mins: 90,
+    remaining_secs: 5400,
+    predecessor_slug: 'alpha',
+    board_slug: 'alpha',
+    board_wait_secs: 600,
+    legs: [{ from: 'alpha', to: 'gamma', service_id: 'express', secs: 1500, dwell_s: 60 }],
+  },
+  {
+    station_slug: 'beta',
+    access_mins: 5,
+    access_secs: 300,
+    remaining_mins: 83,
+    remaining_secs: 5000,
+    predecessor_slug: 'alpha',
+    board_slug: 'alpha',
+    board_wait_secs: 600,
+    legs: [{ from: 'alpha', to: 'beta', service_id: 'local', secs: 1900, dwell_s: 60 }],
+  },
+  {
+    station_slug: 'delta',
+    access_mins: 5,
+    access_secs: 300,
+    remaining_mins: 70,
+    remaining_secs: 4200,
+    predecessor_slug: 'gamma',
+    board_slug: 'alpha',
+    board_wait_secs: 600,
+    legs: [
+      { from: 'alpha', to: 'gamma', service_id: 'express', secs: 1500, dwell_s: 60 },
+      { from: 'gamma', to: 'delta', service_id: 'local', secs: 1200, dwell_s: 30 },
+    ],
+  },
+  {
+    station_slug: 'epsilon',
+    access_mins: 5,
+    access_secs: 300,
+    remaining_mins: 60,
+    remaining_secs: 3600,
+    predecessor_slug: 'beta',
+    board_slug: 'alpha',
+    board_wait_secs: 600,
+    legs: [
+      { from: 'alpha', to: 'beta', service_id: 'local', secs: 1900, dwell_s: 60 },
+      { from: 'beta', to: 'epsilon', service_id: 'spur', secs: 1400, dwell_s: 30 },
+    ],
+  },
+]
+
 const NAMES: Record<string, string> = {
-  alpha: 'Alpha', beta: 'Beta', gamma: 'Gamma', delta: 'Delta',
+  alpha: 'Alpha', beta: 'Beta', gamma: 'Gamma', delta: 'Delta', epsilon: 'Epsilon',
   middle: 'Middle', northward: 'Northward', southward: 'Southward',
 }
-const SERVICES: Record<string, string> = { trunk: 'Trunk Line', spur: 'Spur Line' }
+const SERVICES: Record<string, string> = {
+  trunk: 'Trunk Line', spur: 'Spur Line', express: 'Express', local: 'Local',
+}
+const LINES: Record<string, { key: string; label: string }> = {
+  express: { key: 'phase-1', label: 'Phase 1' },
+  local: { key: 'phase-1', label: 'Phase 1' },
+  spur: { key: 'branch', label: 'Branch Line' },
+}
 
 function build(stations: ReachableStation[], budgetMins = 120) {
   return buildTimeRemainingGraph(metadata(stations, budgetMins), {
@@ -118,8 +187,24 @@ function build(stations: ReachableStation[], budgetMins = 120) {
   })
 }
 
+// The same, for a page that knows which line each service runs over.
+function buildByLine(stations: ReachableStation[], budgetMins = 120) {
+  return buildTimeRemainingGraph(metadata(stations, budgetMins), {
+    stationName: (slug) => NAMES[slug] ?? slug,
+    serviceName: (id) => SERVICES[id] ?? id,
+    line: (id) => LINES[id] ?? { key: id, label: SERVICES[id] ?? id },
+    mode: 'walk',
+  })
+}
+
 function viewFor(stations: ReachableStation[], key: string): TimeRemainingView {
   const view = build(stations).views.find((candidate) => candidate.key === key)
+  if (!view) throw new Error(`no view for ${key}`)
+  return view
+}
+
+function lineViewFor(stations: ReachableStation[], key: string): TimeRemainingView {
+  const view = buildByLine(stations).views.find((candidate) => candidate.key === key)
   if (!view) throw new Error(`no view for ${key}`)
   return view
 }
@@ -175,6 +260,58 @@ describe('buildTimeRemainingGraph', () => {
 
     it('offers one view per line and no more on a trip over a single service', () => {
       expect(build(BOTH_DIRECTIONS).views.map((v) => v.key)).toEqual([ACCESS_VIEW_KEY, 'trunk'])
+    })
+  })
+
+  describe('grouped by the line rather than the timetable', () => {
+    it('gathers two stopping patterns over one railway into a single view', () => {
+      expect(buildByLine(SHARED_LINE).views.map((v) => v.key))
+        .toEqual([ACCESS_VIEW_KEY, 'phase-1', 'branch'])
+    })
+
+    it('labels a view with the line, not with one of the services running over it', () => {
+      expect(buildByLine(SHARED_LINE).views.map((v) => v.label))
+        .toEqual(['Walk', 'Phase 1', 'Branch Line'])
+    })
+
+    it('draws the express and the local as branches of the one line', () => {
+      // Beta is the local's own stop and gamma the express's, so they fork at
+      // alpha and the local rejoins the express's branch at gamma.
+      const line = lineViewFor(SHARED_LINE, 'phase-1')
+
+      expect(line.rows.map((r) => r.slug)).toEqual([null, 'alpha', 'gamma', 'beta', 'delta'])
+      expect(rowFor(line, 'gamma').parentKey).toBe('alpha')
+      expect(rowFor(line, 'beta').parentKey).toBe('alpha')
+      expect(rowFor(line, 'delta').parentKey).toBe('gamma')
+      expect(rowFor(line, 'alpha').forks).toHaveLength(2)
+    })
+
+    it('still names the service on each row, which is what the branches differ by', () => {
+      const line = lineViewFor(SHARED_LINE, 'phase-1')
+
+      expect(rowFor(line, 'alpha').flag).toBe('Express')
+      expect(rowFor(line, 'gamma').flag).toBe('Local')
+    })
+
+    it('reads a change of pattern inside one line as the change it is', () => {
+      // Arrive at gamma on the express, carry on to delta on the local: the
+      // same railway, but not the same train.
+      expect(rowFor(lineViewFor(SHARED_LINE, 'phase-1'), 'gamma').detail.transferFrom).toBe('Express')
+    })
+
+    it('keeps a genuinely separate line separate, rooted where it is boarded', () => {
+      const branch = lineViewFor(SHARED_LINE, 'branch')
+
+      expect(branch.rows.map((r) => r.slug)).toEqual([null, 'beta', 'epsilon'])
+      expect(rowFor(branch, 'beta').parentKey).toBe('origin')
+      expect(rowFor(branch, 'beta').flag).toBe('Spur Line')
+    })
+
+    it('falls back to a view per service for a page that cannot name the lines', () => {
+      // An API too old to report which route a service runs over leaves the
+      // page unable to answer, and the card degrades to what it drew before.
+      expect(build(SHARED_LINE).views.map((v) => v.key))
+        .toEqual([ACCESS_VIEW_KEY, 'express', 'local', 'spur'])
     })
   })
 
@@ -436,6 +573,25 @@ describe('formatDuration', () => {
   })
 })
 
+describe('shortLineName', () => {
+  it('keeps the part that names the line and drops the part that says where it runs', () => {
+    expect(shortLineName('CA HSR Phase 1 — San Francisco to Anaheim')).toBe('CA HSR Phase 1')
+    expect(shortLineName('Brightline West — Palmdale to Las Vegas')).toBe('Brightline West')
+  })
+
+  it('leaves a name that is already only a name alone', () => {
+    expect(shortLineName('Brightline West')).toBe('Brightline West')
+  })
+
+  it('keeps a hyphen that is part of a word rather than a separator', () => {
+    expect(shortLineName('Trans-Bay Link')).toBe('Trans-Bay Link')
+  })
+
+  it('would rather give back the whole name than nothing at all', () => {
+    expect(shortLineName('— Palmdale to Las Vegas')).toBe('— Palmdale to Las Vegas')
+  })
+})
+
 describe('laneWidthFor', () => {
   it('gives a shallow graph its full lane width', () => {
     expect(laneWidthFor(1)).toBe(MAX_LANE_PX)
@@ -447,7 +603,7 @@ describe('laneWidthFor', () => {
     expect(laneWidthFor(6) * 6).toBeLessThanOrEqual(GRAPH_COLUMN_PX)
   })
 
-  it('stops narrowing at a legible floor, past which the column scrolls instead', () => {
+  it('stops narrowing at a legible floor, past which the names give up the room', () => {
     expect(laneWidthFor(40)).toBe(MIN_LANE_PX)
     expect(laneWidthFor(40) * 40).toBeGreaterThan(GRAPH_COLUMN_PX)
   })

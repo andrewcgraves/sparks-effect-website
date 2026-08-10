@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, nextTick } from 'vue'
 import SegmentedControl from './SegmentedControl.vue'
-import { formatDuration, formatTimeRemaining, laneWidthFor, ACCESS_VIEW_KEY, GRAPH_COLUMN_PX } from './timeRemaining'
+import { formatDuration, formatTimeRemaining, laneWidthFor, ACCESS_VIEW_KEY } from './timeRemaining'
 import type { TimeRemainingRow, TimeRemainingView } from './timeRemaining'
 
 // The trip a plotted isochrone describes, drawn one line at a time as a
@@ -49,19 +49,16 @@ const listEl = ref<HTMLElement | null>(null)
 // A fresh plot has its own lines, and the one being read may not be among them.
 watch(() => props.views, () => { chosen.value = defaultView.value }, { immediate: true })
 
-// The graph column is one column, not one scroller per row. Rows are laid out
-// side by side with their names and times, so the connectors cannot live in a
-// single element — and a row scrolled on its own would slide its own connectors
-// out of line with every other row's and tear the tree apart. Every row's
-// scroller is therefore held at one offset, so dragging any of them scrolls the
-// column.
-function syncGraphScroll(event: Event): void {
-  const source = event.target as HTMLElement
-  const scrollers = listEl.value?.querySelectorAll<HTMLElement>('[data-graph-scroller]') ?? []
-  for (const scroller of scrollers) {
-    if (scroller !== source && scroller.scrollLeft !== source.scrollLeft) {
-      scroller.scrollLeft = source.scrollLeft
-    }
+// The bar the branches leave along, spanning the lanes they leave for. A lane
+// freed by a branch that ended above can be reused to the left of this row's
+// own, so the span is taken from both ends rather than measured outward.
+function forkBarStyle(row: TimeRemainingRow): Record<string, string> {
+  const xs = row.forks.map(laneX)
+  const left = Math.min(...xs)
+  return {
+    left: `${left}px`,
+    width: `${Math.max(...xs) - left}px`,
+    top: `${NODE_BAND_PX / 2}px`,
   }
 }
 
@@ -136,67 +133,53 @@ watch(
         @focus="activate(row)"
         @blur="emit('activate', null)"
       >
-        <!-- The connector column scrolls once its lanes have narrowed as far
-             as they legibly can, so the names and the times beside it stay
-             anchored however deeply the graph branches. -->
+        <!-- The connector column, drawn entirely in absolutely positioned
+             boxes anchored to the row's own edges. Nothing here scrolls and
+             nothing is measured: every line either spans the row top to bottom
+             or hangs off one edge, so a row that grows under the pointer
+             lengthens its lines instead of re-routing them. -->
         <div
-          class="shrink-0 overflow-x-auto"
-          :style="{ maxWidth: `${GRAPH_COLUMN_PX}px` }"
-          data-graph-scroller
-          @scroll="syncGraphScroll"
+          class="relative shrink-0"
+          :style="{ width: `${graphWidth}px` }"
         >
-          <div
-            class="relative h-full"
-            :style="{ width: `${graphWidth}px` }"
-          >
-            <!-- Lanes reserved for a row further down, passing this one by. -->
-            <span
-              v-for="lane in row.through"
-              :key="`through-${lane}`"
-              class="absolute w-px bg-border"
-              :style="{ left: `${laneX(lane)}px`, top: '0', bottom: '0' }"
-            />
-            <!-- The connector arriving from above, stopping at the node. -->
-            <span
-              v-if="row.incoming"
-              class="absolute w-px bg-border"
-              :style="{ left: `${laneX(row.lane)}px`, top: '0', height: `${NODE_BAND_PX / 2}px` }"
-            />
-            <!-- A branch carrying straight on down this row's own lane. -->
-            <span
-              v-if="row.forks.includes(row.lane)"
-              class="absolute w-px bg-border"
-              :style="{ left: `${laneX(row.lane)}px`, top: `${NODE_BAND_PX / 2}px`, bottom: '0' }"
-            />
-            <!-- Branches leaving for a lane of their own. Drawn in one stretched
-                 box below the node so an expanding row lengthens them rather
-                 than re-routing the graph under the pointer. -->
-            <svg
-              v-if="row.forks.some((lane) => lane !== row.lane)"
-              class="absolute"
-              :style="{ left: '0', right: '0', top: `${NODE_BAND_PX / 2}px`, bottom: '0' }"
-              :viewBox="`0 0 ${graphWidth} 100`"
-              preserveAspectRatio="none"
-              aria-hidden="true"
-            >
-              <line
-                v-for="lane in row.forks.filter((l) => l !== row.lane)"
-                :key="`fork-${lane}`"
-                :x1="laneX(row.lane)"
-                y1="0"
-                :x2="laneX(lane)"
-                y2="100"
-                class="stroke-border"
-                stroke-width="1"
-                vector-effect="non-scaling-stroke"
-              />
-            </svg>
-            <span
-              class="absolute size-1.5 rounded-full bg-ink-muted"
-              :style="{ left: `${laneX(row.lane) - 3}px`, top: `${NODE_BAND_PX / 2 - 3}px` }"
-              data-testid="time-remaining-node"
-            />
-          </div>
+          <!-- Lanes reserved for a row further down, passing this one by. -->
+          <span
+            v-for="lane in row.through"
+            :key="`through-${lane}`"
+            class="absolute w-px bg-border"
+            :style="{ left: `${laneX(lane)}px`, top: '0', bottom: '0' }"
+          />
+          <!-- The connector arriving from above, stopping at the node. -->
+          <span
+            v-if="row.incoming"
+            class="absolute w-px bg-border"
+            :style="{ left: `${laneX(row.lane)}px`, top: '0', height: `${NODE_BAND_PX / 2}px` }"
+          />
+          <!-- Where a row branches, the branches leave along one horizontal bar
+               level with the node and then drop straight down their own lanes.
+               An elbow rather than a fan of diagonals: a diagonal's angle
+               depends on how tall the row is, so it had to be redrawn every
+               time a row expanded, and it needed an SVG stretched across the
+               whole column to live in. These are two plain boxes, and the
+               bar is the only part that knows anything about lane positions. -->
+          <span
+            v-if="row.forks.length > 1"
+            class="absolute h-px bg-border"
+            :style="forkBarStyle(row)"
+          />
+          <!-- The drop down each branch's lane, including this row's own —
+               anchored to the bottom edge, which is what makes it stretch. -->
+          <span
+            v-for="lane in row.forks"
+            :key="`fork-${lane}`"
+            class="absolute w-px bg-border"
+            :style="{ left: `${laneX(lane)}px`, top: `${NODE_BAND_PX / 2}px`, bottom: '0' }"
+          />
+          <span
+            class="absolute size-1.5 rounded-full bg-ink-muted"
+            :style="{ left: `${laneX(row.lane) - 3}px`, top: `${NODE_BAND_PX / 2 - 3}px` }"
+            data-testid="time-remaining-node"
+          />
         </div>
 
         <div class="min-w-0 flex-1 py-1">
@@ -211,52 +194,73 @@ watch(
             {{ row.flag }}
           </p>
 
-          <dl
-            v-if="isExpanded(row)"
-            class="font-body text-micro mt-1 flex flex-col gap-0.5 text-ink-muted"
-            data-testid="time-remaining-detail"
+          <!-- The detail grows out of the row rather than appearing at full
+               height, so a pointer travelling down the list can see which row
+               moved and why. Animated on grid rows rather than on height,
+               because the detail's height depends on how much this particular
+               station has to say and nothing here knows it in advance; a
+               0fr→1fr track resolves to that height without it being named.
+               Held to the same duration and easing as the rest of the page,
+               and skipped outright for a reader who asked for less motion. -->
+          <Transition
+            enter-active-class="transition-[grid-template-rows,opacity] duration-200 ease-(--ease-smooth) motion-reduce:transition-none"
+            leave-active-class="transition-[grid-template-rows,opacity] duration-200 ease-(--ease-smooth) motion-reduce:transition-none"
+            enter-from-class="grid-rows-[0fr] opacity-0"
+            enter-to-class="grid-rows-[1fr] opacity-100"
+            leave-from-class="grid-rows-[1fr] opacity-100"
+            leave-to-class="grid-rows-[0fr] opacity-0"
           >
-            <div v-if="row.detail.accessTo">
-              <dt class="inline">
-                {{ row.flag }} to {{ row.detail.accessTo }}:
-              </dt>
-              <dd class="ml-1 inline">
-                {{ formatDuration(row.detail.accessSecs ?? 0) }}
-              </dd>
+            <div
+              v-if="isExpanded(row)"
+              class="grid grid-rows-[1fr]"
+            >
+              <dl
+                class="font-body text-micro flex min-h-0 flex-col gap-0.5 overflow-hidden pt-1 text-ink-muted"
+                data-testid="time-remaining-detail"
+              >
+                <div v-if="row.detail.accessTo">
+                  <dt class="inline">
+                    {{ row.flag }} to {{ row.detail.accessTo }}:
+                  </dt>
+                  <dd class="ml-1 inline">
+                    {{ formatDuration(row.detail.accessSecs ?? 0) }}
+                  </dd>
+                </div>
+                <div v-if="row.detail.arrivalSecs !== undefined">
+                  <dt class="inline">
+                    Arrived with
+                  </dt>
+                  <dd class="ml-1 inline">
+                    {{ formatTimeRemaining(row.detail.arrivalSecs) }} left
+                  </dd>
+                </div>
+                <div v-if="row.detail.dwellSecs !== undefined">
+                  <dt class="inline">
+                    Dwell
+                  </dt>
+                  <dd class="ml-1 inline">
+                    {{ formatDuration(row.detail.dwellSecs) }}
+                  </dd>
+                </div>
+                <div v-if="row.detail.transferFrom">
+                  <dt class="inline">
+                    Change from
+                  </dt>
+                  <dd class="ml-1 inline">
+                    {{ row.detail.transferFrom }}
+                  </dd>
+                </div>
+                <div v-if="row.detail.rideSecs !== undefined">
+                  <dt class="inline">
+                    Ride in
+                  </dt>
+                  <dd class="ml-1 inline">
+                    {{ formatDuration(row.detail.rideSecs) }}
+                  </dd>
+                </div>
+              </dl>
             </div>
-            <div v-if="row.detail.arrivalSecs !== undefined">
-              <dt class="inline">
-                Arrived with
-              </dt>
-              <dd class="ml-1 inline">
-                {{ formatTimeRemaining(row.detail.arrivalSecs) }} left
-              </dd>
-            </div>
-            <div v-if="row.detail.dwellSecs !== undefined">
-              <dt class="inline">
-                Dwell
-              </dt>
-              <dd class="ml-1 inline">
-                {{ formatDuration(row.detail.dwellSecs) }}
-              </dd>
-            </div>
-            <div v-if="row.detail.transferFrom">
-              <dt class="inline">
-                Change from
-              </dt>
-              <dd class="ml-1 inline">
-                {{ row.detail.transferFrom }}
-              </dd>
-            </div>
-            <div v-if="row.detail.rideSecs !== undefined">
-              <dt class="inline">
-                Ride in
-              </dt>
-              <dd class="ml-1 inline">
-                {{ formatDuration(row.detail.rideSecs) }}
-              </dd>
-            </div>
-          </dl>
+          </Transition>
         </div>
 
         <p
