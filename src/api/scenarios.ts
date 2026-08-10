@@ -38,6 +38,12 @@ export interface FrequencyWindow {
 
 export interface Service {
   id: string
+  // The line this service runs over. Several services can share one — an
+  // express and a local pattern are two services and one route — so this is
+  // what to group by when presenting the network as lines. Optional: an API
+  // older than SPA-223 does not report it, and a caller that needs it has to
+  // cope with not being told.
+  route_id?: string
   name: string
   vehicle_type: VehicleTypeSummary
   direction: string

@@ -211,52 +211,73 @@ watch(
             {{ row.flag }}
           </p>
 
-          <dl
-            v-if="isExpanded(row)"
-            class="font-body text-micro mt-1 flex flex-col gap-0.5 text-ink-muted"
-            data-testid="time-remaining-detail"
+          <!-- The detail grows out of the row rather than appearing at full
+               height, so a pointer travelling down the list can see which row
+               moved and why. Animated on grid rows rather than on height,
+               because the detail's height depends on how much this particular
+               station has to say and nothing here knows it in advance; a
+               0fr→1fr track resolves to that height without it being named.
+               Held to the same duration and easing as the rest of the page,
+               and skipped outright for a reader who asked for less motion. -->
+          <Transition
+            enter-active-class="transition-[grid-template-rows,opacity] duration-200 ease-(--ease-smooth) motion-reduce:transition-none"
+            leave-active-class="transition-[grid-template-rows,opacity] duration-200 ease-(--ease-smooth) motion-reduce:transition-none"
+            enter-from-class="grid-rows-[0fr] opacity-0"
+            enter-to-class="grid-rows-[1fr] opacity-100"
+            leave-from-class="grid-rows-[1fr] opacity-100"
+            leave-to-class="grid-rows-[0fr] opacity-0"
           >
-            <div v-if="row.detail.accessTo">
-              <dt class="inline">
-                {{ row.flag }} to {{ row.detail.accessTo }}:
-              </dt>
-              <dd class="ml-1 inline">
-                {{ formatDuration(row.detail.accessSecs ?? 0) }}
-              </dd>
+            <div
+              v-if="isExpanded(row)"
+              class="grid grid-rows-[1fr]"
+            >
+              <dl
+                class="font-body text-micro flex min-h-0 flex-col gap-0.5 overflow-hidden pt-1 text-ink-muted"
+                data-testid="time-remaining-detail"
+              >
+                <div v-if="row.detail.accessTo">
+                  <dt class="inline">
+                    {{ row.flag }} to {{ row.detail.accessTo }}:
+                  </dt>
+                  <dd class="ml-1 inline">
+                    {{ formatDuration(row.detail.accessSecs ?? 0) }}
+                  </dd>
+                </div>
+                <div v-if="row.detail.arrivalSecs !== undefined">
+                  <dt class="inline">
+                    Arrived with
+                  </dt>
+                  <dd class="ml-1 inline">
+                    {{ formatTimeRemaining(row.detail.arrivalSecs) }} left
+                  </dd>
+                </div>
+                <div v-if="row.detail.dwellSecs !== undefined">
+                  <dt class="inline">
+                    Dwell
+                  </dt>
+                  <dd class="ml-1 inline">
+                    {{ formatDuration(row.detail.dwellSecs) }}
+                  </dd>
+                </div>
+                <div v-if="row.detail.transferFrom">
+                  <dt class="inline">
+                    Change from
+                  </dt>
+                  <dd class="ml-1 inline">
+                    {{ row.detail.transferFrom }}
+                  </dd>
+                </div>
+                <div v-if="row.detail.rideSecs !== undefined">
+                  <dt class="inline">
+                    Ride in
+                  </dt>
+                  <dd class="ml-1 inline">
+                    {{ formatDuration(row.detail.rideSecs) }}
+                  </dd>
+                </div>
+              </dl>
             </div>
-            <div v-if="row.detail.arrivalSecs !== undefined">
-              <dt class="inline">
-                Arrived with
-              </dt>
-              <dd class="ml-1 inline">
-                {{ formatTimeRemaining(row.detail.arrivalSecs) }} left
-              </dd>
-            </div>
-            <div v-if="row.detail.dwellSecs !== undefined">
-              <dt class="inline">
-                Dwell
-              </dt>
-              <dd class="ml-1 inline">
-                {{ formatDuration(row.detail.dwellSecs) }}
-              </dd>
-            </div>
-            <div v-if="row.detail.transferFrom">
-              <dt class="inline">
-                Change from
-              </dt>
-              <dd class="ml-1 inline">
-                {{ row.detail.transferFrom }}
-              </dd>
-            </div>
-            <div v-if="row.detail.rideSecs !== undefined">
-              <dt class="inline">
-                Ride in
-              </dt>
-              <dd class="ml-1 inline">
-                {{ formatDuration(row.detail.rideSecs) }}
-              </dd>
-            </div>
-          </dl>
+          </Transition>
         </div>
 
         <p

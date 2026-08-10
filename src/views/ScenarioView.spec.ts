@@ -584,6 +584,69 @@ describe('ScenarioView', () => {
       expect(wrapper.find('[data-testid="time-remaining-service"]').exists()).toBe(false)
     })
 
+    // The same trip, told to a page that knows both services run over one
+    // railway. That knowledge is the whole difference between two tabs and one.
+    function servicesShareOneLine() {
+      const service = (id: string, name: string) => ({
+        id,
+        route_id: 'route-1',
+        name,
+        vehicle_type: { id: 'vt-1', name: 'HSR', propulsion: 'electric', max_speed_kmh: 350 },
+        direction: 'both',
+        provenance: 'calibrated' as const,
+        stop_count: 3,
+        frequency_windows: [],
+      })
+      mockUseScenario.mockReturnValue({
+        name: ref('CA HSR'),
+        description: ref('California High-Speed Rail'),
+        routes: ref([{
+          id: 'route-1',
+          scenario_id: 's1',
+          name: 'CA HSR Phase 1 — San Francisco to Anaheim',
+          mode: 'rail',
+          geometry: { type: 'LineString' as const, coordinates: [] },
+          bidirectional: true,
+        }]),
+        stations: ref(stubStations),
+        services: ref([service('svc-trunk', 'HSR Local'), service('svc-spur', 'HSR Express')]),
+      })
+    }
+
+    it('offers one tab per railway, not one per timetable', async () => {
+      servicesShareOneLine()
+      const wrapper = await plot(twoServiceIsochrone)
+
+      const labels = wrapper.findAll('[data-testid="time-remaining-service"] label').map((l) => l.text())
+      expect(labels).toEqual(['Walk', 'CA HSR Phase 1'])
+    })
+
+    it('draws the two services as branches of that one line, each row naming its own', async () => {
+      servicesShareOneLine()
+      const wrapper = await plot(twoServiceIsochrone)
+
+      // Both stations on one tab, where before they were a tab apart.
+      const names = wrapper.findAll('[data-testid="time-remaining-row"]').map((r) => r.text())
+      expect(names.some((text) => text.includes('San Jose'))).toBe(true)
+      expect(names.some((text) => text.includes('Gilroy'))).toBe(true)
+      // The line is one railway; which train is still the row's own business.
+      expect(wrapper.findAll('[data-testid="time-remaining-flag"]').map((f) => f.text()))
+        .toEqual(['Walk', 'HSR Local', 'HSR Express'])
+    })
+
+    it('sits above the station times, being the answer to what was just asked', async () => {
+      const wrapper = await plot()
+      const html = wrapper.html()
+      const remaining = html.indexOf('data-testid="time-remaining"')
+      const between = html.indexOf('data-testid="time-between-stations"')
+
+      // Both on the page, or the comparison below proves nothing: a card that
+      // is absent reports -1, which comes before everything.
+      expect(remaining).toBeGreaterThanOrEqual(0)
+      expect(between).toBeGreaterThanOrEqual(0)
+      expect(remaining).toBeLessThan(between)
+    })
+
     it('draws a lone reachable station as a two-row graph', async () => {
       const wrapper = await plot({
         ...journeyIsochrone,
