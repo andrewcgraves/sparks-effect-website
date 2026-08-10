@@ -603,7 +603,7 @@ describe('laneWidthFor', () => {
     expect(laneWidthFor(6) * 6).toBeLessThanOrEqual(GRAPH_COLUMN_PX)
   })
 
-  it('stops narrowing at a legible floor, past which the column scrolls instead', () => {
+  it('stops narrowing at a legible floor, past which the names give up the room', () => {
     expect(laneWidthFor(40)).toBe(MIN_LANE_PX)
     expect(laneWidthFor(40) * 40).toBeGreaterThan(GRAPH_COLUMN_PX)
   })

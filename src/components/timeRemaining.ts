@@ -20,8 +20,10 @@ export const ORIGIN_KEY = 'origin'
 
 // The connector column's preferred width, and the widest and narrowest a lane
 // may be inside it. Lanes narrow as they multiply so that station names keep
-// their room; past the floor the column scrolls sideways instead, which is the
-// only thing that stops a deeply branching graph from squeezing the names out.
+// their room, down to a floor past which they stop shrinking and the column
+// takes the extra width from the names instead — which only a graph branching
+// nine lanes deep can reach, and is the better of two bad answers, since lanes
+// thinner than the floor cannot be told apart anyway.
 export const GRAPH_COLUMN_PX = 96
 export const MAX_LANE_PX = 20
 export const MIN_LANE_PX = 10
@@ -173,8 +175,8 @@ export function shortLineName(name: string): string {
  * How wide one lane may be, given how many the graph needs.
  *
  * Lanes share the column until sharing would make them illegible, and then stop
- * shrinking. Past that the total outgrows the column, which is the caller's cue
- * to scroll the graph rather than the row.
+ * shrinking. Past that the total outgrows the column and the names beside it
+ * give up the difference.
  */
 export function laneWidthFor(laneCount: number): number {
   return Math.min(MAX_LANE_PX, Math.max(MIN_LANE_PX, Math.floor(GRAPH_COLUMN_PX / laneCount)))
