@@ -46,6 +46,14 @@ const stubStations: Station[] = [
     location: { type: 'Point', coordinates: [-121.9, 37.3] },
     platform_height: '0',
   },
+  {
+    id: 'st3',
+    scenario_id: 's1',
+    slug: 'gilroy',
+    name: 'Gilroy',
+    location: { type: 'Point', coordinates: [-121.57, 37.0] },
+    platform_height: '0',
+  },
 ]
 
 // A pin about 1.4 km from the San Francisco station above — inside a 30-minute
@@ -503,6 +511,77 @@ describe('ScenarioView', () => {
       for (const scroller of scrollers) {
         expect((scroller.element as HTMLElement).scrollLeft).toBe(24)
       }
+    })
+
+    // A scenario with a spur: the rider rides the trunk to San Jose and
+    // changes there for the branch line.
+    const twoServiceIsochrone: ChainResponse = {
+      ...journeyIsochrone,
+      metadata: {
+        ...journeyIsochrone.metadata,
+        reachable_stations: [
+          ...journeyIsochrone.metadata.reachable_stations,
+          {
+            station_slug: 'gilroy',
+            access_mins: 5,
+            access_secs: 300,
+            remaining_mins: 60,
+            remaining_secs: 3600,
+            predecessor_slug: 'sj',
+            board_slug: 'sf',
+            board_wait_secs: 600,
+            legs: [
+              { from: 'sf', to: 'sj', service_id: 'svc-trunk', secs: 900, dwell_s: 60 },
+              { from: 'sj', to: 'gilroy', service_id: 'svc-spur', secs: 1800, dwell_s: 30 },
+            ],
+          },
+        ],
+      },
+    }
+
+    it('offers a switcher between the lines, opening on the first service', () => {
+      return plot(twoServiceIsochrone).then((wrapper) => {
+        const labels = wrapper.findAll('[data-testid="time-remaining-service"] label').map((l) => l.text())
+        expect(labels).toEqual(['Walk', 'svc-trunk', 'svc-spur'])
+        // The trunk, not the walk it is listed after.
+        expect(wrapper.findAll('[data-testid="time-remaining-row"]').map((r) => r.text()))
+          .toEqual(expect.arrayContaining([expect.stringContaining('San Jose')]))
+      })
+    })
+
+    it('cuts to the line chosen, showing that one alone', () => {
+      return plot(twoServiceIsochrone).then(async (wrapper) => {
+        await wrapper.find('[data-testid="time-remaining-service-option-2"]').setValue()
+
+        const names = wrapper.findAll('[data-testid="time-remaining-row"]').map((r) => r.text())
+        expect(names.some((text) => text.includes('Gilroy'))).toBe(true)
+        // San Francisco belongs to the trunk's story, not the spur's.
+        expect(names.some((text) => text.includes('San Francisco'))).toBe(false)
+      })
+    })
+
+    it('cuts to the line a station hovered on the map is on', async () => {
+      const wrapper = await plot(twoServiceIsochrone)
+      expect(wrapper.findAll('[data-testid="time-remaining-row"]').map((r) => r.text())
+        .some((text) => text.includes('Gilroy'))).toBe(false)
+
+      await wrapper.findComponent({ name: 'MapView' }).vm.$emit('station-hover', 'gilroy')
+      await flushPromises()
+
+      expect(wrapper.findAll('[data-testid="time-remaining-row"]').map((r) => r.text())
+        .some((text) => text.includes('Gilroy'))).toBe(true)
+    })
+
+    it('offers no switcher when the trip is over one line', async () => {
+      const wrapper = await plot({
+        ...journeyIsochrone,
+        metadata: {
+          ...journeyIsochrone.metadata,
+          reachable_stations: [journeyIsochrone.metadata.reachable_stations[0]],
+        },
+      })
+
+      expect(wrapper.find('[data-testid="time-remaining-service"]').exists()).toBe(false)
     })
 
     it('draws a lone reachable station as a two-row graph', async () => {

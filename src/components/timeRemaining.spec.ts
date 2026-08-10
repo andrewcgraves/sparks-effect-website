@@ -4,10 +4,12 @@ import {
   formatDuration,
   formatTimeRemaining,
   laneWidthFor,
+  ACCESS_VIEW_KEY,
   MAX_LANE_PX,
   MIN_LANE_PX,
   GRAPH_COLUMN_PX,
 } from './timeRemaining'
+import type { TimeRemainingView } from './timeRemaining'
 import type { ChainMetadata, ReachableStation } from '../fixtures/isochrone'
 
 function metadata(stations: ReachableStation[], budgetMins = 120): ChainMetadata {
@@ -78,119 +80,192 @@ const INTERCHANGE: ReachableStation[] = [
   },
 ]
 
-const NAMES = { alpha: 'Alpha', beta: 'Beta', gamma: 'Gamma', delta: 'Delta' }
-const SERVICES = { trunk: 'Trunk Line', spur: 'Spur Line' }
+// The rider walks to a station mid-line and rides it both ways: the shape a
+// per-service view exists to show.
+const BOTH_DIRECTIONS: ReachableStation[] = [
+  { station_slug: 'middle', access_mins: 5, access_secs: 300, remaining_mins: 115, remaining_secs: 6900 },
+  {
+    station_slug: 'northward',
+    access_mins: 5,
+    access_secs: 300,
+    remaining_mins: 100,
+    remaining_secs: 6000,
+    predecessor_slug: 'middle',
+    legs: [{ from: 'middle', to: 'northward', service_id: 'trunk', secs: 900 }],
+  },
+  {
+    station_slug: 'southward',
+    access_mins: 5,
+    access_secs: 300,
+    remaining_mins: 91,
+    remaining_secs: 5500,
+    predecessor_slug: 'middle',
+    legs: [{ from: 'middle', to: 'southward', service_id: 'trunk', secs: 1400 }],
+  },
+]
+
+const NAMES: Record<string, string> = {
+  alpha: 'Alpha', beta: 'Beta', gamma: 'Gamma', delta: 'Delta',
+  middle: 'Middle', northward: 'Northward', southward: 'Southward',
+}
+const SERVICES: Record<string, string> = { trunk: 'Trunk Line', spur: 'Spur Line' }
 
 function build(stations: ReachableStation[], budgetMins = 120) {
   return buildTimeRemainingGraph(metadata(stations, budgetMins), {
-    stationName: (slug) => NAMES[slug as keyof typeof NAMES] ?? slug,
-    serviceName: (id) => SERVICES[id as keyof typeof SERVICES] ?? id,
+    stationName: (slug) => NAMES[slug] ?? slug,
+    serviceName: (id) => SERVICES[id] ?? id,
     mode: 'walk',
   })
 }
 
-function rowFor(rows: ReturnType<typeof build>['rows'], slug: string) {
-  const row = rows.find((r) => r.slug === slug)
-  if (!row) throw new Error(`no row for ${slug}`)
+function viewFor(stations: ReachableStation[], key: string): TimeRemainingView {
+  const view = build(stations).views.find((candidate) => candidate.key === key)
+  if (!view) throw new Error(`no view for ${key}`)
+  return view
+}
+
+function rowFor(view: TimeRemainingView, slug: string) {
+  const row = view.rows.find((r) => r.slug === slug)
+  if (!row) throw new Error(`no row for ${slug} in view ${view.key}`)
   return row
 }
 
 describe('buildTimeRemainingGraph', () => {
-  it('puts the starting location first, holding the whole travel-time budget', () => {
-    const { rows } = build(INTERCHANGE)
-
-    expect(rows[0].key).toBe('origin')
-    expect(rows[0].slug).toBeNull()
-    expect(rows[0].remainingSecs).toBe(120 * 60)
-  })
-
-  it('lists every reachable station, most time remaining first', () => {
-    const { rows } = build(INTERCHANGE)
-
-    expect(rows.map((r) => r.slug)).toEqual([null, 'alpha', 'beta', 'delta', 'gamma'])
-  })
-
-  it('shows station names rather than the slugs the wire carries', () => {
-    const { rows } = build(INTERCHANGE)
-
-    expect(rows.map((r) => r.label)).toEqual(['Starting location', 'Alpha', 'Beta', 'Delta', 'Gamma'])
-  })
-
-  it('falls back to the slug for a station the page has no name for', () => {
-    const { rows } = buildTimeRemainingGraph(metadata(INTERCHANGE), {
-      stationName: (slug) => slug,
-      serviceName: (id) => id,
+  it('yields nothing at all when there is no result to draw', () => {
+    expect(buildTimeRemainingGraph(null, {
+      stationName: (s) => s,
+      serviceName: (s) => s,
       mode: 'walk',
+    }).views).toEqual([])
+  })
+
+  describe('one view per line', () => {
+    it('offers the access leg first, then a view per service', () => {
+      expect(build(INTERCHANGE).views.map((view) => view.key)).toEqual([ACCESS_VIEW_KEY, 'trunk', 'spur'])
     })
 
-    expect(rowFor(rows, 'alpha').label).toBe('alpha')
-  })
-
-  it('breaks a tie on time remaining by slug, so one query always draws the same', () => {
-    const tied: ReachableStation[] = [
-      { station_slug: 'zulu', access_mins: 5, access_secs: 300, remaining_mins: 90, remaining_secs: 5400 },
-      { station_slug: 'alpha', access_mins: 5, access_secs: 300, remaining_mins: 90, remaining_secs: 5400 },
-    ]
-
-    expect(build(tied).rows.map((r) => r.slug)).toEqual([null, 'alpha', 'zulu'])
-  })
-
-  it('orders on seconds, not the truncated minutes, so rounding never reorders a row', () => {
-    const nearlyTied: ReachableStation[] = [
-      { station_slug: 'alpha', access_mins: 5, access_secs: 300, remaining_mins: 90, remaining_secs: 5401 },
-      { station_slug: 'beta', access_mins: 5, access_secs: 300, remaining_mins: 90, remaining_secs: 5459 },
-    ]
-
-    expect(build(nearlyTied).rows.map((r) => r.slug)).toEqual([null, 'beta', 'alpha'])
-  })
-
-  it('falls back to whole minutes when a result carries no seconds', () => {
-    const legacy: ReachableStation[] = [
-      { station_slug: 'alpha', access_mins: 5, remaining_mins: 90 },
-    ]
-
-    expect(rowFor(build(legacy).rows, 'alpha').remainingSecs).toBe(90 * 60)
-  })
-
-  it('subtracts the boarding wait from the station where it is paid, since the rider leaves that much later', () => {
-    const { rows } = build(INTERCHANGE)
-
-    // Alpha is arrived at with 115 minutes left and left with 105, the ten
-    // minutes between being the wait to board the trunk.
-    expect(rowFor(rows, 'alpha').remainingSecs).toBe(6900 - 600)
-    // Beta pays no wait — the change of service there is free — so what the
-    // wire reported is already what the rider leaves with.
-    expect(rowFor(rows, 'beta').remainingSecs).toBe(5400)
-  })
-
-  describe('the tree', () => {
-    it('roots every station the rider walked to at the starting location', () => {
-      const { rows } = build(INTERCHANGE)
-
-      expect(rowFor(rows, 'alpha').parentKey).toBe('origin')
+    it('labels the access view with the travel mode and each other with its service', () => {
+      expect(build(INTERCHANGE).views.map((view) => view.label)).toEqual(['Walk', 'Trunk Line', 'Spur Line'])
     })
 
-    it('hangs a station off the one it was ridden from', () => {
-      const { rows } = build(INTERCHANGE)
-
-      expect(rowFor(rows, 'beta').parentKey).toBe('alpha')
-      expect(rowFor(rows, 'delta').parentKey).toBe('beta')
-      expect(rowFor(rows, 'gamma').parentKey).toBe('beta')
+    it('lists a station under the service it arrives on, and no other', () => {
+      expect(viewFor(INTERCHANGE, 'trunk').rows.map((r) => r.slug))
+        .toEqual([null, 'alpha', 'beta', 'gamma'])
+      expect(viewFor(INTERCHANGE, 'spur').rows.map((r) => r.slug)).toEqual([null, 'beta', 'delta'])
     })
 
-    it('roots a station whose predecessor was not itself reported', () => {
-      const orphaned: ReachableStation[] = [
-        {
-          station_slug: 'beta',
-          access_mins: 5,
-          access_secs: 300,
-          remaining_mins: 90,
-          remaining_secs: 5400,
-          predecessor_slug: 'not-reported',
-        },
+    it('carries the station a service is boarded at into its view, as the root its branches hang from', () => {
+      // Beta is a destination of the trunk and the boarding point of the spur,
+      // and in the spur's view the journey that led there is another view's
+      // story — so it hangs off the starting location.
+      expect(rowFor(viewFor(INTERCHANGE, 'spur'), 'beta').parentKey).toBe('origin')
+      expect(rowFor(viewFor(INTERCHANGE, 'trunk'), 'beta').parentKey).toBe('alpha')
+    })
+
+    it('puts the stations reached without boarding anything in the access view', () => {
+      expect(viewFor(INTERCHANGE, ACCESS_VIEW_KEY).rows.map((r) => r.slug)).toEqual([null, 'alpha'])
+    })
+
+    it('drops a view with nothing to draw in it', () => {
+      // Every station here is ridden to, so nothing was reached on foot.
+      const noWalkStations = INTERCHANGE.slice(1)
+
+      expect(build(noWalkStations).views.map((v) => v.key)).not.toContain(ACCESS_VIEW_KEY)
+    })
+
+    it('offers one view per line and no more on a trip over a single service', () => {
+      expect(build(BOTH_DIRECTIONS).views.map((v) => v.key)).toEqual([ACCESS_VIEW_KEY, 'trunk'])
+    })
+  })
+
+  describe('rows', () => {
+    it('puts the starting location first in every view, holding the whole budget', () => {
+      for (const view of build(INTERCHANGE).views) {
+        expect(view.rows[0].key).toBe('origin')
+        expect(view.rows[0].slug).toBeNull()
+        expect(view.rows[0].remainingSecs).toBe(120 * 60)
+      }
+    })
+
+    it('reads down as a countdown, most time remaining first', () => {
+      expect(viewFor(INTERCHANGE, 'trunk').rows.map((r) => r.remainingSecs))
+        .toEqual([7200, 6300, 5400, 4500])
+    })
+
+    it('shows station names rather than the slugs the wire carries', () => {
+      expect(viewFor(INTERCHANGE, 'trunk').rows.map((r) => r.label))
+        .toEqual(['Starting location', 'Alpha', 'Beta', 'Gamma'])
+    })
+
+    it('falls back to the slug for a station the page has no name for', () => {
+      const { views } = buildTimeRemainingGraph(metadata(INTERCHANGE), {
+        stationName: (slug) => slug,
+        serviceName: (id) => id,
+        mode: 'walk',
+      })
+      const trunk = views.find((v) => v.key === 'trunk')!
+
+      expect(rowFor(trunk, 'alpha').label).toBe('alpha')
+    })
+
+    it('breaks a tie on time remaining by slug, so one query always draws the same', () => {
+      const tied: ReachableStation[] = [
+        { station_slug: 'zulu', access_mins: 5, access_secs: 300, remaining_mins: 90, remaining_secs: 5400 },
+        { station_slug: 'alpha', access_mins: 5, access_secs: 300, remaining_mins: 90, remaining_secs: 5400 },
       ]
 
-      expect(rowFor(build(orphaned).rows, 'beta').parentKey).toBe('origin')
+      expect(viewFor(tied, ACCESS_VIEW_KEY).rows.map((r) => r.slug)).toEqual([null, 'alpha', 'zulu'])
+    })
+
+    it('orders on seconds, not the truncated minutes, so rounding never reorders a row', () => {
+      const nearlyTied: ReachableStation[] = [
+        { station_slug: 'alpha', access_mins: 5, access_secs: 300, remaining_mins: 90, remaining_secs: 5401 },
+        { station_slug: 'beta', access_mins: 5, access_secs: 300, remaining_mins: 90, remaining_secs: 5459 },
+      ]
+
+      expect(viewFor(nearlyTied, ACCESS_VIEW_KEY).rows.map((r) => r.slug)).toEqual([null, 'beta', 'alpha'])
+    })
+
+    it('falls back to whole minutes when a result carries no seconds', () => {
+      const legacy: ReachableStation[] = [{ station_slug: 'alpha', access_mins: 5, remaining_mins: 90 }]
+
+      expect(rowFor(viewFor(legacy, ACCESS_VIEW_KEY), 'alpha').remainingSecs).toBe(90 * 60)
+    })
+
+    it('subtracts the boarding wait from the station where it is paid, since the rider leaves that much later', () => {
+      // Alpha is arrived at with 115 minutes left and left with 105, the ten
+      // minutes between being the wait to board the trunk.
+      expect(rowFor(viewFor(INTERCHANGE, 'trunk'), 'alpha').remainingSecs).toBe(6900 - 600)
+      // Beta pays no wait — the change of service there is free — so what the
+      // wire reported is already what the rider leaves with.
+      expect(rowFor(viewFor(INTERCHANGE, 'trunk'), 'beta').remainingSecs).toBe(5400)
+    })
+
+    it('reports a station the same way in every view it appears in', () => {
+      const inTrunk = rowFor(viewFor(INTERCHANGE, 'trunk'), 'beta')
+      const inSpur = rowFor(viewFor(INTERCHANGE, 'spur'), 'beta')
+
+      expect(inSpur.remainingSecs).toBe(inTrunk.remainingSecs)
+      expect(inSpur.detail.dwellSecs).toBe(inTrunk.detail.dwellSecs)
+      expect(inSpur.detail.rideSecs).toBe(inTrunk.detail.rideSecs)
+    })
+  })
+
+  describe('lanes', () => {
+    it('forks the two directions of travel off the station the rider boards at', () => {
+      const trunk = viewFor(BOTH_DIRECTIONS, 'trunk')
+
+      expect(trunk.laneCount).toBe(2)
+      expect(rowFor(trunk, 'middle').forks).toEqual([0, 1])
+      expect(rowFor(trunk, 'northward').lane).toBe(0)
+      expect(rowFor(trunk, 'southward').lane).toBe(1)
+    })
+
+    it('draws a line that never branches in one lane', () => {
+      const trunk = viewFor(INTERCHANGE, 'trunk')
+
+      expect(trunk.laneCount).toBe(1)
+      expect(trunk.rows.every((r) => r.lane === 0)).toBe(true)
     })
 
     it('forks before boarding when the origin reaches two stations on foot', () => {
@@ -199,196 +274,115 @@ describe('buildTimeRemainingGraph', () => {
         { station_slug: 'beta', access_mins: 9, access_secs: 540, remaining_mins: 111, remaining_secs: 6660 },
       ]
 
-      const { rows, laneCount } = build(twoOnFoot)
-      expect(rowFor(rows, 'alpha').parentKey).toBe('origin')
-      expect(rowFor(rows, 'beta').parentKey).toBe('origin')
-      expect(laneCount).toBe(2)
-    })
-
-    it('draws a single origin and station as a two-row graph in one lane', () => {
-      const lone: ReachableStation[] = [
-        { station_slug: 'alpha', access_mins: 5, access_secs: 300, remaining_mins: 115, remaining_secs: 6900 },
-      ]
-
-      const { rows, laneCount } = build(lone)
-      expect(rows).toHaveLength(2)
-      expect(laneCount).toBe(1)
-      expect(rows.every((r) => r.lane === 0)).toBe(true)
-    })
-
-    it('yields nothing at all when there is no result to draw', () => {
-      expect(buildTimeRemainingGraph(null, {
-        stationName: (s) => s,
-        serviceName: (s) => s,
-        mode: 'walk',
-      }).rows).toEqual([])
-    })
-  })
-
-  describe('lanes', () => {
-    it('keeps a branch that ends in one lane and opens a second for the fork', () => {
-      const { rows, laneCount } = build(INTERCHANGE)
-
-      expect(rowFor(rows, 'alpha').lane).toBe(0)
-      expect(rowFor(rows, 'beta').lane).toBe(0)
-      // Beta forks: delta continues beta's lane, gamma opens a new one.
-      expect(rowFor(rows, 'delta').lane).toBe(0)
-      expect(rowFor(rows, 'gamma').lane).toBe(1)
-      expect(laneCount).toBe(2)
+      const access = viewFor(twoOnFoot, ACCESS_VIEW_KEY)
+      expect(rowFor(access, 'alpha').parentKey).toBe('origin')
+      expect(rowFor(access, 'beta').parentKey).toBe('origin')
+      expect(access.laneCount).toBe(2)
     })
 
     it('reports the lanes a row forks down into and the ones passing it by', () => {
-      const { rows } = build(INTERCHANGE)
-
-      // Beta is where the graph splits, so it opens both its children's lanes.
-      expect(rowFor(rows, 'beta').forks).toEqual([0, 1])
-      // Delta sits between beta and gamma with gamma's lane reserved past it.
-      expect(rowFor(rows, 'delta').through).toEqual([1])
-      expect(rowFor(rows, 'delta').forks).toEqual([])
-      // Gamma ends its branch and passes nothing on.
-      expect(rowFor(rows, 'gamma').through).toEqual([])
-    })
-
-    it('marks every row but the starting location as arrived at from above', () => {
-      const { rows } = build(INTERCHANGE)
-
-      expect(rows[0].incoming).toBe(false)
-      expect(rows.slice(1).every((r) => r.incoming)).toBe(true)
-    })
-
-    it('reuses a lane freed by a branch that ended', () => {
-      // Two stations reached on foot. Alpha goes nowhere, so its lane comes
-      // free; beta's second branch takes it back rather than opening a third.
+      // A trunk boarded in the middle, one direction ending immediately and the
+      // other running two stops, so a reserved lane passes a row by.
       const stations: ReachableStation[] = [
-        { station_slug: 'alpha', access_mins: 5, access_secs: 300, remaining_mins: 115, remaining_secs: 6900 },
-        { station_slug: 'beta', access_mins: 9, access_secs: 300, remaining_mins: 110, remaining_secs: 6600 },
+        ...BOTH_DIRECTIONS,
         {
-          station_slug: 'gamma',
-          access_mins: 9,
-          access_secs: 300,
-          remaining_mins: 80,
-          remaining_secs: 4800,
-          predecessor_slug: 'beta',
-          legs: [{ from: 'beta', to: 'gamma', secs: 1800 }],
-        },
-        {
-          station_slug: 'delta',
-          access_mins: 9,
+          station_slug: 'far-south',
+          access_mins: 5,
           access_secs: 300,
           remaining_mins: 70,
           remaining_secs: 4200,
-          predecessor_slug: 'beta',
-          legs: [{ from: 'beta', to: 'delta', secs: 2400 }],
+          predecessor_slug: 'southward',
+          legs: [{ from: 'southward', to: 'far-south', service_id: 'trunk', secs: 1300 }],
         },
       ]
+      const trunk = viewFor(stations, 'trunk')
 
-      const { rows, laneCount } = build(stations)
-      expect(laneCount).toBe(2)
-      expect(rowFor(rows, 'alpha').lane).toBe(0)
-      expect(rowFor(rows, 'beta').lane).toBe(1)
-      expect(rowFor(rows, 'delta').lane).toBe(0)
+      expect(rowFor(trunk, 'middle').forks).toEqual([0, 1])
+      expect(rowFor(trunk, 'northward').through).toEqual([1])
+      expect(rowFor(trunk, 'northward').forks).toEqual([])
+      expect(rowFor(trunk, 'far-south').through).toEqual([])
+    })
+
+    it('marks every row but the starting location as arrived at from above', () => {
+      const trunk = viewFor(INTERCHANGE, 'trunk')
+
+      expect(trunk.rows[0].incoming).toBe(false)
+      expect(trunk.rows.slice(1).every((r) => r.incoming)).toBe(true)
+    })
+
+    it('opens a lane per branch when the origin reaches several stations on foot', () => {
+      const stations: ReachableStation[] = [
+        { station_slug: 'alpha', access_mins: 5, access_secs: 300, remaining_mins: 115, remaining_secs: 6900 },
+        { station_slug: 'beta', access_mins: 9, access_secs: 300, remaining_mins: 110, remaining_secs: 6600 },
+        { station_slug: 'zulu', access_mins: 9, access_secs: 300, remaining_mins: 100, remaining_secs: 6000 },
+      ]
+
+      const access = viewFor(stations, ACCESS_VIEW_KEY)
+      expect(access.laneCount).toBe(3)
+      expect(access.rows.map((r) => r.lane)).toEqual([0, 0, 1, 2])
     })
   })
 
   describe('the service flag', () => {
     it('flags the starting location with the travel mode', () => {
-      expect(build(INTERCHANGE).rows[0].flag).toBe('Walk')
+      expect(build(INTERCHANGE).views[0].rows[0].flag).toBe('Walk')
     })
 
     it('flags a station with the service the rider leaves it on', () => {
-      const { rows } = build(INTERCHANGE)
+      const trunk = viewFor(INTERCHANGE, 'trunk')
 
-      expect(rowFor(rows, 'alpha').flag).toBe('Trunk Line')
-      // Beta forks onto both services. Staying aboard is what the flag names,
-      // so a fork does not read as a change the rider is not obliged to make.
-      expect(rowFor(rows, 'beta').flag).toBe('Trunk Line')
-    })
-
-    it('flags a fork by the service the rider stays aboard, whichever branch sorts first', () => {
-      // Delta, on the spur, has more time left than gamma and so is drawn
-      // first — but beta is still a station the rider can ride straight
-      // through on the trunk.
-      const { rows } = build(INTERCHANGE)
-
-      expect(rows.map((r) => r.slug)).toEqual([null, 'alpha', 'beta', 'delta', 'gamma'])
-      expect(rowFor(rows, 'beta').flag).toBe('Trunk Line')
+      expect(rowFor(trunk, 'alpha').flag).toBe('Trunk Line')
+      expect(rowFor(trunk, 'beta').flag).toBe('Trunk Line')
     })
 
     it('leaves a station at the end of a branch unflagged, because the journey stops there', () => {
-      const { rows } = build(INTERCHANGE)
+      expect(rowFor(viewFor(INTERCHANGE, 'trunk'), 'gamma').flag).toBeNull()
+      expect(rowFor(viewFor(INTERCHANGE, 'spur'), 'delta').flag).toBeNull()
+    })
 
-      expect(rowFor(rows, 'gamma').flag).toBeNull()
-      expect(rowFor(rows, 'delta').flag).toBeNull()
+    it('flags an interchange by the line it is read on', () => {
+      // Beta ends the trunk's branch and begins the spur's, so the same station
+      // is a destination in one view and somewhere to get on in the next.
+      expect(rowFor(viewFor(INTERCHANGE, 'trunk'), 'beta').flag).toBe('Trunk Line')
+      expect(rowFor(viewFor(INTERCHANGE, 'spur'), 'beta').flag).toBe('Spur Line')
     })
   })
 
   describe('the expanded detail', () => {
     it('describes the access leg on the starting location', () => {
-      const { rows } = build(INTERCHANGE)
-
-      expect(rows[0].detail).toEqual({ accessSecs: 300, accessTo: 'Alpha' })
+      expect(build(INTERCHANGE).views[0].rows[0].detail).toEqual({ accessSecs: 300, accessTo: 'Alpha' })
     })
 
     it('reports when the rider arrived, whenever that differs from when they leave', () => {
-      const { rows } = build(INTERCHANGE)
+      const trunk = viewFor(INTERCHANGE, 'trunk')
 
       // Alpha is arrived at with the walk deducted and left ten minutes later.
-      expect(rowFor(rows, 'alpha').detail.arrivalSecs).toBe(6900)
+      expect(rowFor(trunk, 'alpha').detail.arrivalSecs).toBe(6900)
       // Beta's arrival is its dwell earlier than its departure.
-      expect(rowFor(rows, 'beta').detail.arrivalSecs).toBe(5400 + 60)
+      expect(rowFor(trunk, 'beta').detail.arrivalSecs).toBe(5400 + 60)
     })
 
     it('reports the dwell and the ride in, with the ride excluding the dwell', () => {
-      const { rows } = build(INTERCHANGE)
+      const beta = rowFor(viewFor(INTERCHANGE, 'trunk'), 'beta')
 
-      expect(rowFor(rows, 'beta').detail.dwellSecs).toBe(60)
-      expect(rowFor(rows, 'beta').detail.rideSecs).toBe(840)
+      expect(beta.detail.dwellSecs).toBe(60)
+      expect(beta.detail.rideSecs).toBe(840)
     })
 
-    it('names the service arrived on where every way onward requires a change', () => {
-      // A trunk into the junction and only a spur out of it: the rider cannot
-      // stay aboard, so this really is an interchange.
-      const interchangeOnly: ReachableStation[] = [
-        { station_slug: 'alpha', access_mins: 5, access_secs: 300, remaining_mins: 115, remaining_secs: 6900 },
-        {
-          station_slug: 'beta',
-          access_mins: 5,
-          access_secs: 300,
-          remaining_mins: 90,
-          remaining_secs: 5400,
-          predecessor_slug: 'alpha',
-          legs: [{ from: 'alpha', to: 'beta', service_id: 'trunk', secs: 900, dwell_s: 60 }],
-        },
-        {
-          station_slug: 'delta',
-          access_mins: 5,
-          access_secs: 300,
-          remaining_mins: 80,
-          remaining_secs: 4800,
-          predecessor_slug: 'beta',
-          legs: [
-            { from: 'alpha', to: 'beta', service_id: 'trunk', secs: 900, dwell_s: 60 },
-            { from: 'beta', to: 'delta', service_id: 'spur', secs: 600, dwell_s: 30 },
-          ],
-        },
-      ]
-
-      const { rows } = build(interchangeOnly)
-      expect(rowFor(rows, 'beta').detail.transferFrom).toBe('Trunk Line')
-      expect(rowFor(rows, 'beta').flag).toBe('Spur Line')
+    it('names the service arrived on where boarding this line is a change', () => {
+      // Read on the spur, beta is where the rider gets off the trunk.
+      expect(rowFor(viewFor(INTERCHANGE, 'spur'), 'beta').detail.transferFrom).toBe('Trunk Line')
     })
 
-    it('reports no change where the rider can stay aboard, even at a fork', () => {
-      const { rows } = build(INTERCHANGE)
+    it('reports no change where the rider stays aboard', () => {
+      const trunk = viewFor(INTERCHANGE, 'trunk')
 
-      expect(rowFor(rows, 'beta').detail.transferFrom).toBeUndefined()
-      expect(rowFor(rows, 'alpha').detail.transferFrom).toBeUndefined()
+      expect(rowFor(trunk, 'beta').detail.transferFrom).toBeUndefined()
+      expect(rowFor(trunk, 'alpha').detail.transferFrom).toBeUndefined()
     })
 
     it('leaves out what does not apply, so a plain stop is not padded with empty lines', () => {
-      const { rows } = build(INTERCHANGE)
-
-      expect(rowFor(rows, 'gamma').detail).toEqual({
+      expect(rowFor(viewFor(INTERCHANGE, 'trunk'), 'gamma').detail).toEqual({
         arrivalSecs: 4500 + 45,
         dwellSecs: 45,
         rideSecs: 855,
@@ -409,7 +403,7 @@ describe('buildTimeRemainingGraph', () => {
         },
       ]
 
-      expect(rowFor(build(noDwell).rows, 'beta').detail).toEqual({ rideSecs: 900 })
+      expect(rowFor(viewFor(noDwell, 'trunk'), 'beta').detail).toEqual({ rideSecs: 900 })
     })
   })
 })
