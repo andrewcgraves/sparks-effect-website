@@ -114,9 +114,8 @@ async function handleFormSubmit(payload: { lat: number; lng: number; duration: n
              while the form is being filled in, and a skeleton in its place
              would make the rail jump every time a plot is asked for. -->
         <TimeRemaining
-          v-if="timeRemaining.rows.length"
-          :rows="timeRemaining.rows"
-          :lane-count="timeRemaining.laneCount"
+          v-if="timeRemaining.views.length"
+          :views="timeRemaining.views"
           :active-slug="activeStation?.slug ?? null"
           :active-from-map="activeStation?.fromMap ?? false"
           @activate="highlight($event, false)"

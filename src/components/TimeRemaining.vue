@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { computed, ref, watch, nextTick } from 'vue'
-import { formatDuration, formatTimeRemaining, laneWidthFor, GRAPH_COLUMN_PX } from './timeRemaining'
-import type { TimeRemainingRow } from './timeRemaining'
+import SegmentedControl from './SegmentedControl.vue'
+import { formatDuration, formatTimeRemaining, laneWidthFor, ACCESS_VIEW_KEY, GRAPH_COLUMN_PX } from './timeRemaining'
+import type { TimeRemainingRow, TimeRemainingView } from './timeRemaining'
 
-// The trip a plotted isochrone describes, drawn as a branching graph in the
-// manner of a commit graph. Purely presentational: the caller turns a chain
-// response into rows and lanes with the module beside this one, so nothing here
-// knows about slugs, waits, or the wire.
+// The trip a plotted isochrone describes, drawn one line at a time as a
+// branching graph in the manner of a commit graph. Purely presentational: the
+// caller turns a chain response into views, rows and lanes with the module
+// beside this one, so nothing here knows about slugs, waits, or the wire.
 const props = defineProps<{
-  rows: TimeRemainingRow[]
-  laneCount: number
+  views: TimeRemainingView[]
   // The station highlighted anywhere on the page. The row for it is expanded,
   // wherever the highlight came from, so the map and this card always agree.
   activeSlug: string | null
@@ -26,11 +26,28 @@ const emit = defineEmits<{ activate: [slug: string | null] }>()
 // row grows beneath it — the connectors below stretch instead of re-routing.
 const NODE_BAND_PX = 26
 
-const laneWidth = computed(() => laneWidthFor(props.laneCount))
-const graphWidth = computed(() => Math.max(props.laneCount, 1) * laneWidth.value)
+// Which line is being read. Held here rather than raised, the way the
+// neighbouring card holds which direction each of its groups is read in.
+//
+// It opens on the first service rather than on the access leg, which is listed
+// first because it comes first but is the least of what the card has to say —
+// the stations a rider can walk to are mostly the same ones the lines below are
+// boarded at.
+const defaultView = computed(() =>
+  Math.max(0, props.views.findIndex((view) => view.key !== ACCESS_VIEW_KEY)),
+)
+const chosen = ref(0)
+const view = computed(() => props.views[chosen.value] ?? props.views[0])
+const rows = computed(() => view.value?.rows ?? [])
+
+const laneWidth = computed(() => laneWidthFor(view.value?.laneCount ?? 1))
+const graphWidth = computed(() => Math.max(view.value?.laneCount ?? 1, 1) * laneWidth.value)
 const laneX = (lane: number): number => lane * laneWidth.value + laneWidth.value / 2
 
 const listEl = ref<HTMLElement | null>(null)
+
+// A fresh plot has its own lines, and the one being read may not be among them.
+watch(() => props.views, () => { chosen.value = defaultView.value }, { immediate: true })
 
 // The graph column is one column, not one scroller per row. Rows are laid out
 // side by side with their names and times, so the connectors cannot live in a
@@ -56,12 +73,18 @@ function activate(row: TimeRemainingRow): void {
   emit('activate', row.slug)
 }
 
-// A map hover has to answer somewhere visible, and on a large scenario the row
-// it names is often below the fold of this card's own scroller.
+// A map hover has to answer somewhere visible: the station it names may be on
+// a line this card is not showing, and on a large scenario its row is often
+// below the fold of the card's own scroller.
 watch(
   () => [props.activeSlug, props.activeFromMap] as const,
   async ([slug, fromMap]) => {
     if (!slug || !fromMap) return
+    const showing = props.views[chosen.value]
+    if (!showing?.rows.some((row) => row.slug === slug)) {
+      const found = props.views.findIndex((candidate) => candidate.rows.some((row) => row.slug === slug))
+      if (found >= 0) chosen.value = found
+    }
     await nextTick()
     // Matched in script rather than through a selector, because a slug is the
     // graph's own key and nothing promises it is safe to interpolate into one.
@@ -85,12 +108,23 @@ watch(
       Time remaining
     </h2>
 
+    <!-- A trip over one line has nothing to switch between. -->
+    <SegmentedControl
+      v-if="props.views.length > 1"
+      v-model="chosen"
+      class="mt-3"
+      :options="props.views.map((_, index) => index)"
+      :format-option="(index: number) => props.views[index].label"
+      name="time-remaining-service"
+      testid="time-remaining-service"
+    />
+
     <ul
       ref="listEl"
       class="mt-3 flex max-h-[26rem] list-none flex-col overflow-y-auto p-0"
     >
       <li
-        v-for="row in props.rows"
+        v-for="row in rows"
         :key="row.key"
         class="flex cursor-default items-stretch gap-3 rounded-(--radius-field) focus:outline-none focus-visible:ring-1 focus-visible:ring-coral"
         :class="isExpanded(row) ? 'bg-white' : ''"
