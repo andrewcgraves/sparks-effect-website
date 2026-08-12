@@ -76,6 +76,21 @@ function hasDetail(row: TimeRemainingRow): boolean {
   return Object.values(row.detail).some((value) => value !== undefined)
 }
 
+// The leg that brought the rider here, named by where it started. The time is
+// the ride alone — the stop served on arrival is reported separately — and the
+// station it started from is this row's parent, which the view already holds
+// as a row of its own, so no resolver is needed to name it.
+//
+// It used to read "Ride in 15m", which said the opposite of what it meant:
+// that the rider would arrive in fifteen minutes, rather than that fifteen
+// minutes is what the leg they already rode had cost them.
+const labels = computed(() => new Map(rows.value.map((row) => [row.key, row.label])))
+
+function rideTerm(row: TimeRemainingRow): string {
+  const from = row.parentKey === null ? undefined : labels.value.get(row.parentKey)
+  return from ? `Rode in from ${from}` : 'Rode in'
+}
+
 // The tooltip is one fixed-position box measured off the row under the
 // pointer. Fixed rather than laid out in the row, because the detail used to
 // grow the row it belonged to: the list reflowed under the pointer, every row
@@ -300,12 +315,24 @@ watch(
             class="font-body text-micro flex flex-col gap-0.5 text-ink-muted"
             data-testid="time-remaining-detail"
           >
+            <!-- Read in the order the rider lives them: the leg in, what that
+                 left them with, the stop served here, and the change made
+                 before they leave again. The row's own number is the moment
+                 they leave, so everything here happened before it. -->
             <div v-if="row.detail.accessTo">
               <dt class="inline">
-                {{ row.flag }} to {{ row.detail.accessTo }}:
+                {{ row.flag }} to {{ row.detail.accessTo }}
               </dt>
               <dd class="ml-1 inline">
                 {{ formatDuration(row.detail.accessSecs ?? 0) }}
+              </dd>
+            </div>
+            <div v-if="row.detail.rideSecs !== undefined">
+              <dt class="inline">
+                {{ rideTerm(row) }}
+              </dt>
+              <dd class="ml-1 inline">
+                {{ formatDuration(row.detail.rideSecs) }}
               </dd>
             </div>
             <div v-if="row.detail.arrivalSecs !== undefined">
@@ -318,7 +345,7 @@ watch(
             </div>
             <div v-if="row.detail.dwellSecs !== undefined">
               <dt class="inline">
-                Dwell
+                Stopped here for
               </dt>
               <dd class="ml-1 inline">
                 {{ formatDuration(row.detail.dwellSecs) }}
@@ -326,18 +353,10 @@ watch(
             </div>
             <div v-if="row.detail.transferFrom">
               <dt class="inline">
-                Change from
+                Changed from
               </dt>
               <dd class="ml-1 inline">
                 {{ row.detail.transferFrom }}
-              </dd>
-            </div>
-            <div v-if="row.detail.rideSecs !== undefined">
-              <dt class="inline">
-                Ride in
-              </dt>
-              <dd class="ml-1 inline">
-                {{ formatDuration(row.detail.rideSecs) }}
               </dd>
             </div>
           </dl>
