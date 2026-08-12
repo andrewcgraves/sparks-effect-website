@@ -623,11 +623,12 @@ describe('ScenarioView', () => {
       },
     }
 
-    it('offers a switcher between the lines, opening on the first service', () => {
+    it('offers a switcher between the lines, opening on the first of them', () => {
       return plot(twoServiceIsochrone).then((wrapper) => {
         const labels = wrapper.findAll('[data-testid="time-remaining-service"] label').map((l) => l.text())
-        expect(labels).toEqual(['Walk', 'svc-trunk', 'svc-spur'])
-        // The trunk, not the walk it is listed after.
+        // One tab per line and no tab for the walk to San Francisco, which the
+        // trunk's own view already opens with (SPA-243).
+        expect(labels).toEqual(['svc-trunk', 'svc-spur'])
         expect(wrapper.findAll('[data-testid="time-remaining-row"]').map((r) => r.text()))
           .toEqual(expect.arrayContaining([expect.stringContaining('San Jose')]))
       })
@@ -635,7 +636,7 @@ describe('ScenarioView', () => {
 
     it('cuts to the line chosen, showing that one alone', () => {
       return plot(twoServiceIsochrone).then(async (wrapper) => {
-        await wrapper.find('[data-testid="time-remaining-service-option-2"]').setValue()
+        await wrapper.find('[data-testid="time-remaining-service-option-1"]').setValue()
 
         const names = wrapper.findAll('[data-testid="time-remaining-row"]').map((r) => r.text())
         expect(names.some((text) => text.includes('Gilroy'))).toBe(true)
@@ -701,8 +702,9 @@ describe('ScenarioView', () => {
       servicesShareOneLine()
       const wrapper = await plot(twoServiceIsochrone)
 
-      const labels = wrapper.findAll('[data-testid="time-remaining-service"] label').map((l) => l.text())
-      expect(labels).toEqual(['Walk', 'CA HSR Phase 1'])
+      // Two services over one railway are one line, and one line is the whole
+      // trip — so there is nothing left to switch between.
+      expect(wrapper.find('[data-testid="time-remaining-service"]').exists()).toBe(false)
     })
 
     it('draws the two services as branches of that one line, each row naming its own', async () => {

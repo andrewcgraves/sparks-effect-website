@@ -6,6 +6,7 @@ import {
   laneWidthFor,
   shortLineName,
   ACCESS_VIEW_KEY,
+  ORIGIN_KEY,
   MAX_LANE_PX,
   MIN_LANE_PX,
   GRAPH_COLUMN_PX,
@@ -225,12 +226,12 @@ describe('buildTimeRemainingGraph', () => {
   })
 
   describe('one view per line', () => {
-    it('offers the access leg first, then a view per service', () => {
-      expect(build(INTERCHANGE).views.map((view) => view.key)).toEqual([ACCESS_VIEW_KEY, 'trunk', 'spur'])
+    it('offers a view per service and nothing else', () => {
+      expect(build(INTERCHANGE).views.map((view) => view.key)).toEqual(['trunk', 'spur'])
     })
 
-    it('labels the access view with the travel mode and each other with its service', () => {
-      expect(build(INTERCHANGE).views.map((view) => view.label)).toEqual(['Walk', 'Trunk Line', 'Spur Line'])
+    it('labels each view with its service', () => {
+      expect(build(INTERCHANGE).views.map((view) => view.label)).toEqual(['Trunk Line', 'Spur Line'])
     })
 
     it('lists a station under the service it arrives on, and no other', () => {
@@ -247,8 +248,25 @@ describe('buildTimeRemainingGraph', () => {
       expect(rowFor(viewFor(INTERCHANGE, 'trunk'), 'beta').parentKey).toBe('alpha')
     })
 
-    it('puts the stations reached without boarding anything in the access view', () => {
-      expect(viewFor(INTERCHANGE, ACCESS_VIEW_KEY).rows.map((r) => r.slug)).toEqual([null, 'alpha'])
+    it('gives the access leg no view of its own where there is a line to read instead', () => {
+      // Alpha is the one station reached on foot, and it is already in the
+      // trunk's view as the station the rider boards there — which is the
+      // whole of what a view of its own had to say (SPA-243).
+      expect(build(INTERCHANGE).views.map((v) => v.key)).not.toContain(ACCESS_VIEW_KEY)
+      expect(rowFor(viewFor(INTERCHANGE, 'trunk'), 'alpha').parentKey).toBe(ORIGIN_KEY)
+    })
+
+    it('falls back to the access leg for a trip that boards nothing at all', () => {
+      // A walk to two stations and no service within the budget. The card has
+      // only this to say, so it says it rather than showing nothing.
+      const nothingRidden: ReachableStation[] = [
+        { station_slug: 'alpha', access_mins: 5, access_secs: 300, remaining_mins: 115, remaining_secs: 6900 },
+        { station_slug: 'beta', access_mins: 9, access_secs: 540, remaining_mins: 111, remaining_secs: 6660 },
+      ]
+
+      expect(build(nothingRidden).views.map((v) => v.key)).toEqual([ACCESS_VIEW_KEY])
+      expect(viewFor(nothingRidden, ACCESS_VIEW_KEY).rows.map((r) => r.slug))
+        .toEqual([null, 'alpha', 'beta'])
     })
 
     it('drops a view with nothing to draw in it', () => {
@@ -259,19 +277,19 @@ describe('buildTimeRemainingGraph', () => {
     })
 
     it('offers one view per line and no more on a trip over a single service', () => {
-      expect(build(BOTH_DIRECTIONS).views.map((v) => v.key)).toEqual([ACCESS_VIEW_KEY, 'trunk'])
+      expect(build(BOTH_DIRECTIONS).views.map((v) => v.key)).toEqual(['trunk'])
     })
   })
 
   describe('grouped by the line rather than the timetable', () => {
     it('gathers two stopping patterns over one railway into a single view', () => {
       expect(buildByLine(SHARED_LINE).views.map((v) => v.key))
-        .toEqual([ACCESS_VIEW_KEY, 'phase-1', 'branch'])
+        .toEqual(['phase-1', 'branch'])
     })
 
     it('labels a view with the line, not with one of the services running over it', () => {
       expect(buildByLine(SHARED_LINE).views.map((v) => v.label))
-        .toEqual(['Walk', 'Phase 1', 'Branch Line'])
+        .toEqual(['Phase 1', 'Branch Line'])
     })
 
     it('draws the express and the local as branches of the one line', () => {
@@ -311,7 +329,7 @@ describe('buildTimeRemainingGraph', () => {
       // An API too old to report which route a service runs over leaves the
       // page unable to answer, and the card degrades to what it drew before.
       expect(build(SHARED_LINE).views.map((v) => v.key))
-        .toEqual([ACCESS_VIEW_KEY, 'express', 'local', 'spur'])
+        .toEqual(['express', 'local', 'spur'])
     })
   })
 
