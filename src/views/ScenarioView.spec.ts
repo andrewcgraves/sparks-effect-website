@@ -448,6 +448,20 @@ describe('ScenarioView', () => {
       expect(detail).toContain('Ride in')
     })
 
+    // The detail used to grow the row it belonged to, which reflowed the list
+    // under the pointer and moved every row below the one being read.
+    it('shows the detail out of the list flow, so no row resizes', async () => {
+      const wrapper = await plot()
+
+      await wrapper.findAll('[data-testid="time-remaining-row"]')[2].trigger('mouseenter')
+
+      const tip = wrapper.findAll('[data-testid="time-remaining-row"]')[2]
+        .get('[data-testid="time-remaining-detail"]').element.parentElement
+      expect(tip?.className).toContain('fixed')
+      // Nothing about the row animates open any more.
+      expect(wrapper.html()).not.toContain('grid-rows-[0fr]')
+    })
+
     it('expands a row on focus too, so the detail is reachable from the keyboard', async () => {
       const wrapper = await plot()
 
