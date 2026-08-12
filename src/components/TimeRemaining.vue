@@ -133,6 +133,23 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', reposition)
 })
 
+// Brings a row into view inside the list, and nowhere else.
+//
+// scrollIntoView, which this used to call, scrolls every scrollable ancestor
+// the element has — including the page. Pointing at a station on the map
+// therefore yanked the whole window down to wherever this card happened to
+// sit, which is the one thing a rider reading the map is not asking for. The
+// list's own scrollTop is the only thing that should move, so it is the only
+// thing moved here.
+function reveal(row: Element): void {
+  const list = listEl.value
+  if (!list) return
+  const listRect = list.getBoundingClientRect()
+  const rowRect = row.getBoundingClientRect()
+  if (rowRect.top < listRect.top) list.scrollTop -= listRect.top - rowRect.top
+  else if (rowRect.bottom > listRect.bottom) list.scrollTop += rowRect.bottom - listRect.bottom
+}
+
 // A map hover has to answer somewhere visible: the station it names may be on
 // a line this card is not showing, and on a large scenario its row is often
 // below the fold of the card's own scroller.
@@ -151,7 +168,7 @@ watch(
     const rows = listEl.value?.querySelectorAll('[data-station-slug]') ?? []
     for (const row of rows) {
       if (row.getAttribute('data-station-slug') === slug) {
-        row.scrollIntoView({ block: 'nearest' })
+        reveal(row)
         // Measured after the scroll, so the box lands beside where the row
         // ended up rather than where it started.
         placeTip(row)
