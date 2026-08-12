@@ -1,4 +1,4 @@
-.PHONY: install test typecheck build run lint clean dev-workflow
+.PHONY: install test typecheck build run dev lint clean dev-workflow
 
 NODE_MODULES := node_modules/.install-stamp
 
@@ -22,6 +22,11 @@ build: install
 
 run: build
 	npm run preview
+
+# Long-running Vite dev server with hot module reloading for active
+# development. Binds all interfaces so it is reachable outside the container.
+dev: install
+	npm run dev -- --host
 
 # Non-interactive check an agent can run end-to-end: lint, typecheck, test, and
 # build, without starting a long-running server.

@@ -3,6 +3,7 @@
 Use the Makefile for all build/test tasks (npm project).
 
 - `make dev-workflow` — run before pushing: lint, test, build (non-interactive, no server)
+- `make dev` — `npm run dev` (long-running Vite dev server with hot reload; avoid in automation)
 - `make build` — `npm run build` (output in `dist/`)
 - `make run` — build then `npm run preview` (long-running server; avoid in automation)
 - `make test` — `npm run test`
