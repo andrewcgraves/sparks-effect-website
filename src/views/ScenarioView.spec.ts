@@ -374,9 +374,9 @@ describe('ScenarioView', () => {
       },
     }
 
-    // happy-dom implements no scrolling, and the card scrolls a map-originated
-    // row into view — so it is stubbed for every case here, not only the one
-    // that asserts on it.
+    // happy-dom implements no scrolling. The card no longer calls this at all,
+    // and one case below is here to keep it that way — a stub rather than the
+    // real thing so a call would be caught rather than silently ignored.
     const scrollIntoView = vi.fn()
     beforeEach(() => {
       scrollIntoView.mockClear()
@@ -444,8 +444,21 @@ describe('ScenarioView', () => {
       const detail = wrapper.findAll('[data-testid="time-remaining-row"]')[2]
         .get('[data-testid="time-remaining-detail"]').text()
       expect(detail).toContain('Arrived with')
-      expect(detail).toContain('Dwell')
-      expect(detail).toContain('Ride in')
+      expect(detail).toContain('Stopped here for')
+      expect(detail).toContain('Rode in from San Francisco')
+    })
+
+    // The detail is a journey, so it reads in the order the rider lives it:
+    // the leg in, what that left them with, then the stop served here.
+    it('reads the detail in the order the rider travels it', async () => {
+      const wrapper = await plot()
+
+      await wrapper.findAll('[data-testid="time-remaining-row"]')[2].trigger('mouseenter')
+
+      const terms = wrapper.findAll('[data-testid="time-remaining-row"]')[2]
+        .get('[data-testid="time-remaining-detail"]')
+        .findAll('dt').map((term) => term.text())
+      expect(terms).toEqual(['Rode in from San Francisco', 'Arrived with', 'Stopped here for'])
     })
 
     // The detail used to grow the row it belonged to, which reflowed the list
@@ -498,16 +511,41 @@ describe('ScenarioView', () => {
       expect(row.find('[data-testid="time-remaining-detail"]').exists()).toBe(true)
     })
 
+    // happy-dom lays nothing out, so the geometry the card measures is stated
+    // here: a list showing rows between y=100 and y=300, and a row sitting 80px
+    // below the foot of it.
+    function placeBelowTheFold(wrapper: ReturnType<typeof mountScenarioView>, index: number) {
+      const list = wrapper.get('[data-testid="time-remaining"] ul').element as HTMLElement
+      const row = wrapper.findAll('[data-testid="time-remaining-row"]')[index].element as HTMLElement
+      list.getBoundingClientRect = () => ({ top: 100, bottom: 300 }) as DOMRect
+      row.getBoundingClientRect = () => ({ top: 340, bottom: 380 }) as DOMRect
+      return list
+    }
+
     it('scrolls a map-originated row into view, and one of its own never', async () => {
       const wrapper = await plot()
+      const list = placeBelowTheFold(wrapper, 1)
 
       await wrapper.findAll('[data-testid="time-remaining-row"]')[2].trigger('mouseenter')
       await flushPromises()
-      expect(scrollIntoView).not.toHaveBeenCalled()
+      expect(list.scrollTop).toBe(0)
 
       await wrapper.findComponent({ name: 'MapView' }).vm.$emit('station-hover', 'sf')
       await flushPromises()
-      expect(scrollIntoView).toHaveBeenCalled()
+      expect(list.scrollTop).toBe(80)
+    })
+
+    // scrollIntoView scrolls every scrollable ancestor an element has, the
+    // window included, so a map hover used to yank the page down to wherever
+    // this card sat.
+    it('never scrolls the page under the rider pointing at the map', async () => {
+      const wrapper = await plot()
+      placeBelowTheFold(wrapper, 1)
+
+      await wrapper.findComponent({ name: 'MapView' }).vm.$emit('station-hover', 'sf')
+      await flushPromises()
+
+      expect(scrollIntoView).not.toHaveBeenCalled()
     })
 
     // The connectors used to sit in a scroller, which clipped the bottom of a
