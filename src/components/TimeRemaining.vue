@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch, nextTick } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch, nextTick } from 'vue'
 import SegmentedControl from './SegmentedControl.vue'
 import { formatDuration, formatTimeRemaining, laneWidthFor, ACCESS_VIEW_KEY } from './timeRemaining'
 import type { TimeRemainingRow, TimeRemainingView } from './timeRemaining'
@@ -62,13 +62,76 @@ function forkBarStyle(row: TimeRemainingRow): Record<string, string> {
   }
 }
 
+// The tooltip's own box, and the room it needs to be worth opening downwards.
+const TIP_WIDTH_PX = 240
+const TIP_GAP_PX = 8
+const TIP_ROOM_PX = 140
+
 function isExpanded(row: TimeRemainingRow): boolean {
   return row.slug !== null && row.slug === props.activeSlug
 }
 
-function activate(row: TimeRemainingRow): void {
+// A row with nothing to add opens nothing, rather than an empty box.
+function hasDetail(row: TimeRemainingRow): boolean {
+  return Object.values(row.detail).some((value) => value !== undefined)
+}
+
+// The tooltip is one fixed-position box measured off the row under the
+// pointer. Fixed rather than laid out in the row, because the detail used to
+// grow the row it belonged to: the list reflowed under the pointer, every row
+// below it moved, and the row the rider was reading could shuffle out from
+// under them. Out of flow, nothing in the list changes size when it opens.
+// Fixed also escapes the list's own scroller, which would otherwise clip the
+// box on the last few rows.
+const anchor = ref<Element | null>(null)
+const tipStyle = ref<Record<string, string>>({})
+
+function placeTip(el?: Element | null): void {
+  if (el) anchor.value = el
+  const target = anchor.value
+  if (!target) return
+
+  const rect = target.getBoundingClientRect()
+  const below = window.innerHeight - rect.bottom
+  // Kept clear of both viewport edges, so a card near one doesn't push the box
+  // off the page.
+  const left = Math.max(
+    TIP_GAP_PX,
+    Math.min(rect.left, window.innerWidth - TIP_WIDTH_PX - TIP_GAP_PX),
+  )
+  const style: Record<string, string> = { left: `${left}px`, width: `${TIP_WIDTH_PX}px` }
+  // Below the row by preference, above it when the foot of the window is
+  // closer than the box is tall.
+  if (below < TIP_ROOM_PX && rect.top > below) {
+    style.bottom = `${window.innerHeight - rect.top + TIP_GAP_PX}px`
+  } else {
+    style.top = `${rect.bottom + TIP_GAP_PX}px`
+  }
+  tipStyle.value = style
+}
+
+function activate(row: TimeRemainingRow, event: Event): void {
+  placeTip(event.currentTarget as Element | null)
   emit('activate', row.slug)
 }
+
+// A fixed box is measured against the window, so anything that moves the row
+// under it — the list scrolling, the page scrolling, the window resizing —
+// has to be answered by measuring again. Scroll is captured, because the list
+// scrolls in its own box rather than on the window.
+function reposition(): void {
+  if (props.activeSlug) placeTip()
+}
+
+onMounted(() => {
+  window.addEventListener('scroll', reposition, true)
+  window.addEventListener('resize', reposition)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('scroll', reposition, true)
+  window.removeEventListener('resize', reposition)
+})
 
 // A map hover has to answer somewhere visible: the station it names may be on
 // a line this card is not showing, and on a large scenario its row is often
@@ -89,6 +152,9 @@ watch(
     for (const row of rows) {
       if (row.getAttribute('data-station-slug') === slug) {
         row.scrollIntoView({ block: 'nearest' })
+        // Measured after the scroll, so the box lands beside where the row
+        // ended up rather than where it started.
+        placeTip(row)
         return
       }
     }
@@ -128,9 +194,9 @@ watch(
         tabindex="0"
         :data-station-slug="row.slug ?? undefined"
         data-testid="time-remaining-row"
-        @mouseenter="activate(row)"
+        @mouseenter="activate(row, $event)"
         @mouseleave="emit('activate', null)"
-        @focus="activate(row)"
+        @focus="activate(row, $event)"
         @blur="emit('activate', null)"
       >
         <!-- The connector column, drawn entirely in absolutely positioned
@@ -193,74 +259,6 @@ watch(
           >
             {{ row.flag }}
           </p>
-
-          <!-- The detail grows out of the row rather than appearing at full
-               height, so a pointer travelling down the list can see which row
-               moved and why. Animated on grid rows rather than on height,
-               because the detail's height depends on how much this particular
-               station has to say and nothing here knows it in advance; a
-               0fr→1fr track resolves to that height without it being named.
-               Held to the same duration and easing as the rest of the page,
-               and skipped outright for a reader who asked for less motion. -->
-          <Transition
-            enter-active-class="transition-[grid-template-rows,opacity] duration-200 ease-(--ease-smooth) motion-reduce:transition-none"
-            leave-active-class="transition-[grid-template-rows,opacity] duration-200 ease-(--ease-smooth) motion-reduce:transition-none"
-            enter-from-class="grid-rows-[0fr] opacity-0"
-            enter-to-class="grid-rows-[1fr] opacity-100"
-            leave-from-class="grid-rows-[1fr] opacity-100"
-            leave-to-class="grid-rows-[0fr] opacity-0"
-          >
-            <div
-              v-if="isExpanded(row)"
-              class="grid grid-rows-[1fr]"
-            >
-              <dl
-                class="font-body text-micro flex min-h-0 flex-col gap-0.5 overflow-hidden pt-1 text-ink-muted"
-                data-testid="time-remaining-detail"
-              >
-                <div v-if="row.detail.accessTo">
-                  <dt class="inline">
-                    {{ row.flag }} to {{ row.detail.accessTo }}:
-                  </dt>
-                  <dd class="ml-1 inline">
-                    {{ formatDuration(row.detail.accessSecs ?? 0) }}
-                  </dd>
-                </div>
-                <div v-if="row.detail.arrivalSecs !== undefined">
-                  <dt class="inline">
-                    Arrived with
-                  </dt>
-                  <dd class="ml-1 inline">
-                    {{ formatTimeRemaining(row.detail.arrivalSecs) }} left
-                  </dd>
-                </div>
-                <div v-if="row.detail.dwellSecs !== undefined">
-                  <dt class="inline">
-                    Dwell
-                  </dt>
-                  <dd class="ml-1 inline">
-                    {{ formatDuration(row.detail.dwellSecs) }}
-                  </dd>
-                </div>
-                <div v-if="row.detail.transferFrom">
-                  <dt class="inline">
-                    Change from
-                  </dt>
-                  <dd class="ml-1 inline">
-                    {{ row.detail.transferFrom }}
-                  </dd>
-                </div>
-                <div v-if="row.detail.rideSecs !== undefined">
-                  <dt class="inline">
-                    Ride in
-                  </dt>
-                  <dd class="ml-1 inline">
-                    {{ formatDuration(row.detail.rideSecs) }}
-                  </dd>
-                </div>
-              </dl>
-            </div>
-          </Transition>
         </div>
 
         <p
@@ -269,6 +267,64 @@ watch(
         >
           {{ formatTimeRemaining(row.remainingSecs) }}
         </p>
+
+        <!-- What the row's single number hides, shown beside the row rather
+             than inside it. Out of the list's flow and out of its scroller, so
+             nothing moves or resizes while a pointer travels down the rows.
+             It follows the pointer's row and is never pointed at itself, so it
+             takes no hover of its own to keep it open. -->
+        <div
+          v-if="isExpanded(row) && hasDetail(row)"
+          class="pointer-events-none fixed z-20 rounded-(--radius-field) border border-border bg-white p-2 shadow-(--shadow-panel)"
+          :style="tipStyle"
+          role="tooltip"
+        >
+          <dl
+            class="font-body text-micro flex flex-col gap-0.5 text-ink-muted"
+            data-testid="time-remaining-detail"
+          >
+            <div v-if="row.detail.accessTo">
+              <dt class="inline">
+                {{ row.flag }} to {{ row.detail.accessTo }}:
+              </dt>
+              <dd class="ml-1 inline">
+                {{ formatDuration(row.detail.accessSecs ?? 0) }}
+              </dd>
+            </div>
+            <div v-if="row.detail.arrivalSecs !== undefined">
+              <dt class="inline">
+                Arrived with
+              </dt>
+              <dd class="ml-1 inline">
+                {{ formatTimeRemaining(row.detail.arrivalSecs) }} left
+              </dd>
+            </div>
+            <div v-if="row.detail.dwellSecs !== undefined">
+              <dt class="inline">
+                Dwell
+              </dt>
+              <dd class="ml-1 inline">
+                {{ formatDuration(row.detail.dwellSecs) }}
+              </dd>
+            </div>
+            <div v-if="row.detail.transferFrom">
+              <dt class="inline">
+                Change from
+              </dt>
+              <dd class="ml-1 inline">
+                {{ row.detail.transferFrom }}
+              </dd>
+            </div>
+            <div v-if="row.detail.rideSecs !== undefined">
+              <dt class="inline">
+                Ride in
+              </dt>
+              <dd class="ml-1 inline">
+                {{ formatDuration(row.detail.rideSecs) }}
+              </dd>
+            </div>
+          </dl>
+        </div>
       </li>
     </ul>
   </section>
