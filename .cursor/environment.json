@@ -1,0 +1,17 @@
+{
+  "name": "Sparks Effect Website",
+  "install": "make install",
+  "terminals": [
+    {
+      "name": "dev",
+      "command": "make dev",
+      "description": "Vite dev server with hot module reloading, served on http://localhost:5173"
+    }
+  ],
+  "ports": [
+    {
+      "name": "vite",
+      "port": 5173
+    }
+  ]
+}
