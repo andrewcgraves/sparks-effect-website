@@ -69,8 +69,9 @@ export interface TimeRemainingRow {
   incoming: boolean
 }
 
-// The key of the view holding the access leg — the stations the rider reaches
-// without boarding anything.
+// The key of the fallback view: the stations the rider reaches without boarding
+// anything, offered only when there is no line to read instead. See
+// viewMemberships.
 export const ACCESS_VIEW_KEY = 'access'
 
 /**
@@ -312,9 +313,24 @@ interface ViewMembership {
   members: string[]
 }
 
-// Which stations each view holds, in the order the views are offered: the
-// access leg first, then one view per line, ordered by the first station each
-// reaches — so the line that gets the rider furthest is offered first.
+/**
+ * Which stations each view holds, in the order the views are offered: one view
+ * per line, ordered by the first station each reaches, so the line that gets
+ * the rider furthest is offered first.
+ *
+ * The access leg gets no view of its own where there is a line to read instead.
+ * The stations a rider reaches without boarding anything are the stations they
+ * board at, and each already appears in the view of the line they board — as
+ * the root its branches hang from, with the leg out of the starting location
+ * drawn above it. A tab of its own restated that, and on a drive, where the
+ * reach is wide enough to touch several stations that are nothing to do with
+ * each other, it restated it as a row of unconnected stubs (SPA-243).
+ *
+ * It survives as the fallback for a trip that boards nothing at all: a plot
+ * whose whole story is the walk to a station still has that story to tell, and
+ * nothing else to tell it in. Being the only view, it is never a tab beside a
+ * line — the card shows no switcher for a single view.
+ */
 function viewMemberships(
   ordered: ReachableStation[],
   bySlug: Map<string, ReachableStation>,
@@ -351,14 +367,14 @@ function viewMemberships(
     return [...roots, ...members]
   }
 
-  return [
-    { key: ACCESS_VIEW_KEY, label: MODE_LABELS[context.mode] ?? context.mode, members: access },
-    ...[...byLine].map(([key, { label, members }]) => ({
-      key,
-      label,
-      members: withBoardingPoints(members),
-    })),
-  ]
+  if (byLine.size === 0) {
+    return [{ key: ACCESS_VIEW_KEY, label: MODE_LABELS[context.mode] ?? context.mode, members: access }]
+  }
+  return [...byLine].map(([key, { label, members }]) => ({
+    key,
+    label,
+    members: withBoardingPoints(members),
+  }))
 }
 
 // Lays one view's rows out: re-rooted onto the starting location where the row

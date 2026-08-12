@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch, nextTick } from 'vue'
 import SegmentedControl from './SegmentedControl.vue'
-import { formatDuration, formatTimeRemaining, laneWidthFor, ACCESS_VIEW_KEY } from './timeRemaining'
+import { formatDuration, formatTimeRemaining, laneWidthFor } from './timeRemaining'
 import type { TimeRemainingRow, TimeRemainingView } from './timeRemaining'
 
 // The trip a plotted isochrone describes, drawn one line at a time as a
@@ -29,13 +29,10 @@ const NODE_BAND_PX = 26
 // Which line is being read. Held here rather than raised, the way the
 // neighbouring card holds which direction each of its groups is read in.
 //
-// It opens on the first service rather than on the access leg, which is listed
-// first because it comes first but is the least of what the card has to say —
-// the stations a rider can walk to are mostly the same ones the lines below are
-// boarded at.
-const defaultView = computed(() =>
-  Math.max(0, props.views.findIndex((view) => view.key !== ACCESS_VIEW_KEY)),
-)
+// The first view is the line that gets the rider furthest, which is the one to
+// open on. It used to be the access leg that came first and had to be skipped
+// past here; that view is now built only for a trip with no line to offer
+// instead, and then it is the only one there is.
 const chosen = ref(0)
 const view = computed(() => props.views[chosen.value] ?? props.views[0])
 const rows = computed(() => view.value?.rows ?? [])
@@ -47,7 +44,7 @@ const laneX = (lane: number): number => lane * laneWidth.value + laneWidth.value
 const listEl = ref<HTMLElement | null>(null)
 
 // A fresh plot has its own lines, and the one being read may not be among them.
-watch(() => props.views, () => { chosen.value = defaultView.value }, { immediate: true })
+watch(() => props.views, () => { chosen.value = 0 }, { immediate: true })
 
 // The bar the branches leave along, spanning the lanes they leave for. A lane
 // freed by a branch that ended above can be reused to the left of this row's
