@@ -444,8 +444,21 @@ describe('ScenarioView', () => {
       const detail = wrapper.findAll('[data-testid="time-remaining-row"]')[2]
         .get('[data-testid="time-remaining-detail"]').text()
       expect(detail).toContain('Arrived with')
-      expect(detail).toContain('Dwell')
-      expect(detail).toContain('Ride in')
+      expect(detail).toContain('Stopped here for')
+      expect(detail).toContain('Rode in from San Francisco')
+    })
+
+    // The detail is a journey, so it reads in the order the rider lives it:
+    // the leg in, what that left them with, then the stop served here.
+    it('reads the detail in the order the rider travels it', async () => {
+      const wrapper = await plot()
+
+      await wrapper.findAll('[data-testid="time-remaining-row"]')[2].trigger('mouseenter')
+
+      const terms = wrapper.findAll('[data-testid="time-remaining-row"]')[2]
+        .get('[data-testid="time-remaining-detail"]')
+        .findAll('dt').map((term) => term.text())
+      expect(terms).toEqual(['Rode in from San Francisco', 'Arrived with', 'Stopped here for'])
     })
 
     // The detail used to grow the row it belonged to, which reflowed the list
