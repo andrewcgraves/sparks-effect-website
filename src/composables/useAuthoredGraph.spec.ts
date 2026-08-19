@@ -354,6 +354,23 @@ describe('useAuthoredGraph', () => {
     })
   })
 
+  // SPA-219: the API caps in-flight routing work across all three isochrone
+  // endpoints, this one included, and refuses the enqueue with 429 +
+  // `backlog_full` once it is full. The authored target is fine and so is the
+  // request, so neither a recompile nor the generic failure is the answer.
+  describe('an enqueue the API refused as backlog-full', () => {
+    it('says the service is busy, and does not recompile', async () => {
+      isochrone.mockRejectedValue(new ApiError('busy', 429, 'backlog_full'))
+      const { handleIsochroneSubmit, isochroneError } = subject()
+
+      await handleIsochroneSubmit(payload)
+
+      expect(compile).not.toHaveBeenCalled()
+      expect(isochroneError.value).toMatch(/busy/i)
+      expect(isochroneError.value).not.toBe('Failed to generate isochrone. Please try again.')
+    })
+  })
+
   // A detail page is a form the user can resubmit before the last answer lands.
   // Whichever attempt they started last is the one they are waiting on, so an
   // earlier one returning late must not write anything.

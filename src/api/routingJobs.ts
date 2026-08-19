@@ -6,7 +6,7 @@
 // immutable compiled graph, publishes it to the worker, and answers 202 with
 // the job below. All three isochrone endpoints answer this way and all three
 // poll the same GET /api/routing-jobs/{id}.
-import { apiRequest } from './authoring/client'
+import { ApiError, apiRequest } from './authoring/client'
 import { pollUntilSucceeded, type JobStatus } from './polling'
 import type { ChainResponse } from '../fixtures/isochrone'
 
@@ -54,6 +54,35 @@ const POLL_INTERVAL_MS = 1000
 // worker never picks up leaves the form spinning forever, which reads as a
 // hung page rather than a failure the user can retry.
 export const ISOCHRONE_DEADLINE_MS = 120_000
+
+// The code on a 429 from any of the three enqueue endpoints: too much routing
+// work is already queued or running, so this request was refused rather than
+// added to the backlog (SPA-219).
+export const BACKLOG_FULL_CODE = 'backlog_full'
+
+// What a person is told when the backlog is full. Owned here rather than taken
+// from the server's own prose, the same way an out-of-range origin's message is
+// composed client-side from its code: the API's wording is the fallback for
+// callers that are not this app.
+//
+// It says "busy", not "failed", because nothing about the request was wrong and
+// the same one will work shortly — which is the only thing that separates this
+// from every other refusal as far as the person in front of the form is
+// concerned.
+const BACKLOG_FULL_MESSAGE =
+  'The isochrone service is busy right now. Please try again in a few moments.'
+
+// Reads a full backlog out of a rejected enqueue, or null when that is not what
+// went wrong — so a caller can chain it into its error handling the way it
+// already chains outOfRangeError.
+//
+// It matches on the code rather than the 429 alone: a bare status could come
+// from an edge rate limiter or a proxy in front of the API, which is a
+// different situation and not one this message describes.
+export function backlogFullError(err: unknown): string | null {
+  if (!(err instanceof ApiError) || err.code !== BACKLOG_FULL_CODE) return null
+  return BACKLOG_FULL_MESSAGE
+}
 
 // Reads a routing job's current state.
 export function fetchRoutingJob(id: string): Promise<RoutingJob> {
