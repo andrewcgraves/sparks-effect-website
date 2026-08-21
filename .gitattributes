@@ -1,0 +1,13 @@
+# Force a text diff for source files regardless of what git's binary
+# heuristic makes of their contents.
+#
+# stationTimes.ts used a raw NUL byte as a delimiter; SPA-245 replaced it with
+# a unicode escape. One NUL is enough for git to call the whole file binary,
+# which cost that file its diff on GitHub — the change was reviewed blind. A
+# pre-image still holding the byte keeps a diff binary even once the post-image
+# is clean, so the escape alone does not bring the diff back.
+#
+# These only affect how a diff is rendered: no filtering, no line-ending
+# translation, nothing that touches what is stored or checked out.
+*.ts diff
+*.vue diff
