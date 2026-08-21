@@ -3,6 +3,11 @@
 Vue (Vite) frontend for the Sparks Effect isochrone map — visualizing "splash zones" reachable by
 walking, biking, transit, and driving from an imaginary transit route, talking to a Go API proxy.
 
+## Branching and releases
+
+One trunk: `main`. Branch from it, PR into it. Production is promoted in Vercel
+from an existing build — see [`docs/releases.md`](docs/releases.md).
+
 ## Prerequisites
 
 - Node.js (version pinned in [`.nvmrc`](.nvmrc); if you use [nvm](https://github.com/nvm-sh/nvm), run `nvm use`)
