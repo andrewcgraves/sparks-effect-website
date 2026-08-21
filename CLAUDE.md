@@ -21,3 +21,8 @@ Issues live in Linear, team `Sparks Effect` (`SPA-` prefix). See `docs/agents/is
 ### Triage labels
 
 The five canonical roles, each label string equal to its name. See `docs/agents/triage-labels.md`.
+
+## Branching
+
+One trunk: `main`. Branch from it, PR into it. No `prd` branch here. See
+`docs/releases.md`.
