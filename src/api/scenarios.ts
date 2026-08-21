@@ -60,6 +60,12 @@ export interface SegmentTime {
   to: string
   run_seconds: number
   reverse_run_seconds?: number
+  // The line this hop belongs to. A scenario's segments are several corridors
+  // laid end to end, not one path, so this is what to group by before reading
+  // them in stop order. Optional for the same reason as Service.route_id: an
+  // older API does not report it, and the caller has to cope with not being
+  // told.
+  route_id?: string
 }
 
 // A seeded scenario's adjacent-segment run times. The full origin–destination

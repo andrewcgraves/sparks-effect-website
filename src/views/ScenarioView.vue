@@ -25,7 +25,11 @@ const {
   failed: travelTimesFailed,
 } = useScenarioTravelTimes(props.slug)
 
-const stationTimeGroups = computed(() => segmentStationTimeGroups(segments.value, stations.value))
+// The routes come along so each corridor's table can be headed by the line it
+// belongs to, rather than the whole scenario being read as one path.
+const stationTimeGroups = computed(() =>
+  segmentStationTimeGroups(segments.value, stations.value, routes.value),
+)
 // The stations are handed over as a getter so the range check reads whatever
 // has loaded by the time the form is submitted, rather than the empty list this
 // page starts with.
