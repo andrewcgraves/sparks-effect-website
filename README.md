@@ -17,12 +17,10 @@ make run
 This installs dependencies, builds the app, and serves the production build locally (default:
 http://localhost:4173).
 
-For active development with hot module reloading instead, install dependencies once and run the
-dev server directly:
+For active development with hot module reloading instead, run the dev server:
 
 ```sh
-make install
-npm run dev
+make dev
 ```
 
 ## Available commands
@@ -30,6 +28,7 @@ npm run dev
 | Command      | Description                                       |
 | ------------ | -------------------------------------------------- |
 | `make install` | Install dependencies                              |
+| `make dev`     | Start the Vite dev server with hot module reloading |
 | `make test`    | Run unit tests (Vitest)                           |
 | `make lint`    | Run ESLint                                        |
 | `make build`   | Type-check and build the app for production        |
