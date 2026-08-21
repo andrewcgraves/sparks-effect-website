@@ -6,6 +6,7 @@ import { useCompileJob } from './useCompileJob'
 import { latestAttempt } from './latestAttempt'
 import { graphRoutes, graphStations } from './scenarioGraphMap'
 import { checkOriginReach, outOfRangeError, outOfRangeMessage } from '../originRange'
+import { backlogFullError } from '../api/routingJobs'
 
 // A stale-graph retry should settle in one or two hops in practice; this just
 // bounds it so a persistently stale signal can't spin the UI forever. It is the
@@ -158,8 +159,13 @@ export function useAuthoredGraph(getSlug: () => string | null, target: AuthoredG
       // handleIsochroneSubmit catches most of these before the request is made;
       // this is the arm for the ones it could not, notably a recompile that has
       // just moved or dropped the station the local check measured against.
+      //
+      // A refused enqueue (SPA-219) is reported in its own terms too: the
+      // request was fine and the routing backlog is simply full, so the
+      // isochrone is worth asking for again in a moment.
       isochroneError.value =
         outOfRangeError(err, payload.mode, payload.duration) ??
+        backlogFullError(err) ??
         'Failed to generate isochrone. Please try again.'
     } finally {
       // Left alone when superseded: the attempt that replaced this one set it,

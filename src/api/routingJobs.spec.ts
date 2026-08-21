@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  BACKLOG_FULL_CODE,
+  backlogFullError,
   enqueueIsochrone,
   fetchRoutingJob,
   ISOCHRONE_DEADLINE_MS,
@@ -7,6 +9,7 @@ import {
   type RoutingJob,
 } from './routingJobs'
 import { JobFailedError } from './polling'
+import { ApiError } from './authoring/client'
 import type { ChainResponse } from '../fixtures/isochrone'
 
 const stubChain = {
@@ -184,5 +187,32 @@ describe('enqueueIsochrone', () => {
     await settled
     // One poll, then out of budget — not a second full deadline's worth.
     expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2)
+  })
+})
+
+// SPA-219: the API caps how much routing work may be in flight and refuses the
+// enqueue with 429 + `backlog_full` once it is full. Nothing about the request
+// is wrong, so the reader gets told to wait rather than that it failed.
+describe('backlogFullError', () => {
+  it('reads a refused enqueue and returns a message saying to try again', () => {
+    const err = new ApiError('POST /api/isochrone failed: 429', 429, BACKLOG_FULL_CODE)
+
+    const message = backlogFullError(err)
+
+    expect(message).toMatch(/busy/i)
+    expect(message).toMatch(/again/i)
+  })
+
+  it('returns null for anything else, so a caller can chain it', () => {
+    expect(backlogFullError(new ApiError('nope', 500))).toBeNull()
+    expect(backlogFullError(new ApiError('nope', 422, 'origin_out_of_range'))).toBeNull()
+    expect(backlogFullError(new Error('offline'))).toBeNull()
+    expect(backlogFullError(null)).toBeNull()
+  })
+
+  // A bare 429 with no code could be an edge rate limiter or a proxy in front
+  // of the API — a different situation, and not one this message describes.
+  it('returns null for a 429 that does not carry the code', () => {
+    expect(backlogFullError(new ApiError('POST /api/isochrone failed: 429', 429))).toBeNull()
   })
 })

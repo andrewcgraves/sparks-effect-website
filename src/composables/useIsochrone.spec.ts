@@ -228,6 +228,26 @@ describe('useIsochrone', () => {
     })
   })
 
+  // SPA-219: the API caps in-flight routing work and refuses the enqueue with
+  // 429 + `backlog_full` once it is full. The request was fine, so the reader
+  // is told the service is busy rather than that their isochrone failed.
+  describe('an enqueue the API refused as backlog-full', () => {
+    it('says the service is busy rather than the generic failure', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+      vi.mocked(fetchIsochrone).mockRejectedValueOnce(
+        new IsochroneApiError(429, {
+          cause: new ApiError('busy', 429, 'backlog_full'),
+        }),
+      )
+      const { error, generate } = useIsochrone()
+
+      await generate(request)
+
+      expect(error.value).toMatch(/busy/i)
+      expect(error.value).not.toBe('Failed to generate isochrone. Please try again.')
+    })
+  })
+
   it('clears a prior error at the start of the next generate', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     vi.mocked(fetchIsochrone).mockRejectedValueOnce(new IsochroneApiError(500))
