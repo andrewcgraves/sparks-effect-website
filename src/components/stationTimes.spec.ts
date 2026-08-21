@@ -145,9 +145,43 @@ describe('segmentStationTimeGroups', () => {
     ])
   })
 
-  it('offers the stored direction only, since the reverse is not served', () => {
+  it('offers a single direction when every hop is symmetric', () => {
     const [group] = segmentStationTimeGroups(segments, stations)
     expect(group.directions).toHaveLength(1)
+  })
+
+  it('splits into two directions when a hop carries a reverse override', () => {
+    const [group] = segmentStationTimeGroups(
+      [
+        { from: 'sf', to: 'sj', run_seconds: 1800 },
+        { from: 'sj', to: 'fresno', run_seconds: 2400, reverse_run_seconds: 2200 },
+      ],
+      stations,
+    )
+    expect(group.directions).toHaveLength(2)
+    expect(group.directions[0].rows).toEqual([
+      { from: 'San Francisco', to: 'San Jose', seconds: 1800 },
+      { from: 'San Jose', to: 'fresno', seconds: 2400 },
+    ])
+    expect(group.directions[1].rows).toEqual([
+      { from: 'fresno', to: 'San Jose', seconds: 2200 },
+      { from: 'San Jose', to: 'San Francisco', seconds: 1800 },
+    ])
+  })
+
+  it('falls back to the forward duration on a hop without an override', () => {
+    const [group] = segmentStationTimeGroups(
+      [
+        { from: 'sf', to: 'sj', run_seconds: 1800 },
+        { from: 'sj', to: 'fresno', run_seconds: 2400, reverse_run_seconds: 2200 },
+      ],
+      stations,
+    )
+    expect(group.directions[1].rows[1]).toEqual({
+      from: 'San Jose',
+      to: 'San Francisco',
+      seconds: 1800,
+    })
   })
 
   it('leaves the group unlabelled, since segments carry no service id yet', () => {

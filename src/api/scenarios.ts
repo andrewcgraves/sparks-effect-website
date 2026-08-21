@@ -53,11 +53,13 @@ export interface Service {
 }
 
 // Run-time-only seconds for one adjacent station pair, stored in the service's
-// own direction. Bidirectional services reuse the same time the other way.
+// own direction. Absent reverse_run_seconds means the reverse hop reuses the
+// forward duration; a present value is the reverse-direction run time.
 export interface SegmentTime {
   from: string
   to: string
   run_seconds: number
+  reverse_run_seconds?: number
 }
 
 // A seeded scenario's adjacent-segment run times. The full origin–destination
