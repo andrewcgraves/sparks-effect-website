@@ -19,6 +19,13 @@ const { items: scenarios, loading, error } = useOwnedList(fetchFeaturedScenarios
         to explore its isochrones.
       </p>
 
+      <p
+        class="font-body text-caption mt-4 max-w-[560px] text-ink-muted"
+        data-testid="deploy-smoke-banner"
+      >
+        Deploy smoke check: staging/production pipeline test marker (2026-08-21).
+      </p>
+
       <section class="mt-12">
         <h2 class="font-display text-h2 text-ink-true">
           Published routes
