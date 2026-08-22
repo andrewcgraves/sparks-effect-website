@@ -24,9 +24,19 @@ vi.mock('../api/scenarios', async (importOriginal) => {
   }
 })
 
+vi.mock('../api/prerenderedIsochrones', () => ({
+  listPrerenderedIsochrones: vi.fn(),
+  fetchPrerenderedIsochrone: vi.fn(),
+}))
+
 import { fetchIsochrone } from '../api/isochrone'
 import { fetchScenarioTravelTimes } from '../api/scenarios'
+import {
+  fetchPrerenderedIsochrone,
+  listPrerenderedIsochrones,
+} from '../api/prerenderedIsochrones'
 import type { Route, Station, TravelTimes } from '../api/scenarios'
+import type { PrerenderedIsochrone } from '../api/prerenderedIsochrones'
 import type { ChainResponse } from '../fixtures/isochrone'
 
 const stubStations: Station[] = [
@@ -97,6 +107,11 @@ describe('ScenarioView', () => {
   beforeEach(() => {
     vi.mocked(fetchIsochrone).mockClear()
     vi.mocked(fetchScenarioTravelTimes).mockReset().mockResolvedValue(stubTravelTimes)
+    // Most of this page's cases are about the generate form; a scenario with no
+    // pre-rendered isochrones is the quiet default, and the block at the foot
+    // of the file is where they are stocked.
+    vi.mocked(listPrerenderedIsochrones).mockReset().mockResolvedValue([])
+    vi.mocked(fetchPrerenderedIsochrone).mockReset()
     mockUseScenario.mockReset()
     mockUseScenario.mockReturnValue({
       name: ref('CA HSR'),
@@ -834,6 +849,102 @@ describe('ScenarioView', () => {
       })
 
       expect(wrapper.findAll('[data-testid="time-remaining-row"]')).toHaveLength(2)
+    })
+  })
+  // The pre-rendered list is a second way into the same map, so what matters
+  // here is that a pick lands in the same place a generated chain does.
+  describe('the pre-rendered isochrones card', () => {
+    const prerendered: PrerenderedIsochrone = {
+      id: 'pre-1',
+      label: 'Downtown SF, 30 min walk',
+      lat: 37.7749,
+      lng: -122.4194,
+      budget_mins: 30,
+      mode: 'walk',
+      outdated: false,
+      created_at: '2026-08-01T12:00:00Z',
+      result: {
+        ...stubIsochrone,
+        metadata: {
+          ...stubIsochrone.metadata,
+          compile_job_id: 'compile-prerendered',
+          reachable_stations: [
+            { station_slug: 'sf', access_mins: 5, access_secs: 300, remaining_mins: 25, remaining_secs: 1500 },
+          ],
+        },
+      },
+    }
+
+    async function pickFirstEntry() {
+      vi.mocked(listPrerenderedIsochrones).mockResolvedValue([prerendered])
+      vi.mocked(fetchPrerenderedIsochrone).mockResolvedValue(prerendered)
+      const wrapper = mountScenarioView('ca-hsr', { MapView: true })
+      await flushPromises()
+      await wrapper.get('[data-testid="prerendered-entry"]').trigger('click')
+      await flushPromises()
+      return wrapper
+    }
+
+    it('lists the isochrones this scenario ships, beside the generate form', async () => {
+      vi.mocked(listPrerenderedIsochrones).mockResolvedValue([prerendered])
+      const wrapper = mountScenarioView('ca-hsr', { MapView: true })
+      await flushPromises()
+
+      expect(listPrerenderedIsochrones).toHaveBeenCalledWith('ca-hsr')
+      expect(wrapper.find('[data-testid="prerendered-isochrones"]').exists()).toBe(true)
+      expect(wrapper.findComponent({ name: 'IsochroneForm' }).exists()).toBe(true)
+    })
+
+    it('is absent for a scenario that ships none, leaving the form alone in the rail', async () => {
+      const wrapper = mountScenarioView('ca-hsr', { MapView: true })
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="prerendered-isochrones"]').exists()).toBe(false)
+      expect(wrapper.findComponent({ name: 'IsochroneForm' }).exists()).toBe(true)
+    })
+
+    it('draws a picked isochrone on the map, without asking the generation service', async () => {
+      const wrapper = await pickFirstEntry()
+
+      expect(fetchPrerenderedIsochrone).toHaveBeenCalledWith('pre-1')
+      expect(fetchIsochrone).not.toHaveBeenCalled()
+      expect(wrapper.findComponent({ name: 'MapView' }).props('isochroneData'))
+        .toEqual(prerendered.result)
+      expect(wrapper.findComponent({ name: 'MapView' }).props('loading')).toBe(false)
+    })
+
+    // The card reads isochroneData.metadata, so a pre-rendered chain has to
+    // reach it by the same route a generated one does.
+    it('fills the Time remaining card from the picked chain', async () => {
+      const wrapper = await pickFirstEntry()
+
+      const rows = wrapper.findAll('[data-testid="time-remaining-row"]')
+      expect(rows).toHaveLength(2)
+      expect(rows[1].text()).toContain('San Francisco')
+    })
+
+    it('clears a stale generation error, the picked chain being the answer now', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+      vi.mocked(fetchIsochrone).mockRejectedValue(new Error('API down'))
+      vi.mocked(listPrerenderedIsochrones).mockResolvedValue([prerendered])
+      vi.mocked(fetchPrerenderedIsochrone).mockResolvedValue(prerendered)
+      const wrapper = mountScenarioView('ca-hsr', { MapView: true })
+      await flushPromises()
+
+      await wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('submit', {
+        ...NEARBY_ORIGIN,
+        duration: 30,
+        mode: 'walk',
+      })
+      await flushPromises()
+      expect(wrapper.findComponent({ name: 'IsochroneForm' }).props('error')).toBeTruthy()
+
+      await wrapper.get('[data-testid="prerendered-entry"]').trigger('click')
+      await flushPromises()
+
+      expect(wrapper.findComponent({ name: 'IsochroneForm' }).props('error')).toBeNull()
+      expect(wrapper.findComponent({ name: 'MapView' }).props('isochroneData'))
+        .toEqual(prerendered.result)
     })
   })
 })

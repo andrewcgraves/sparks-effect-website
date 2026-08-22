@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import IsochroneForm from '../IsochroneForm.vue'
 import MapView from '../components/MapView.vue'
+import PrerenderedIsochrones from '../components/PrerenderedIsochrones.vue'
 import TimeBetweenStations from '../components/TimeBetweenStations.vue'
 import TimeRemaining from '../components/TimeRemaining.vue'
 import { segmentStationTimeGroups } from '../components/stationTimes'
@@ -33,9 +34,13 @@ const stationTimeGroups = computed(() =>
 // The stations are handed over as a getter so the range check reads whatever
 // has loaded by the time the form is submitted, rather than the empty list this
 // page starts with.
-const { data: isochroneData, loading: isLoading, error: fetchError, generate } = useIsochrone(
-  () => stations.value,
-)
+const {
+  data: isochroneData,
+  loading: isLoading,
+  error: fetchError,
+  generate,
+  show: showIsochrone,
+} = useIsochrone(() => stations.value)
 
 // The one station highlighted on this page, and which surface raised it. Both
 // the map and the Time remaining card feed it and both read it back, so the
@@ -123,6 +128,14 @@ async function handleFormSubmit(payload: { lat: number; lng: number; duration: n
           @submit="handleFormSubmit"
           @origin-change="onOriginChange"
           @pick-armed="pickArmed = $event"
+        />
+        <!-- Always beside the form, never instead of it: these are answers the
+             scenario already has, and the form is for the question it doesn't.
+             A pick lands in the same ref a generated chain does, so the map and
+             the Time remaining card below read it without knowing which it is. -->
+        <PrerenderedIsochrones
+          :slug="props.slug"
+          @select="showIsochrone"
         />
         <!-- Above the station times, because it is the answer to what was just
              asked. Only once a plot has actually succeeded: there is nothing to
