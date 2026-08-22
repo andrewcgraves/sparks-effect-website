@@ -77,5 +77,21 @@ export function useIsochrone(getStations: () => Station[] = () => []) {
     }
   }
 
-  return { data, loading, error, generate }
+  /**
+   * Draws a chain this composable did not fetch — a pre-rendered isochrone the
+   * rider picked, which is already plotted and so skips `generate` entirely.
+   *
+   * It is a setter rather than the caller writing `data.value` because the refs
+   * are only a single source of truth while one thing writes them: a shown
+   * chain is also the answer now on screen, so a stale error from an earlier
+   * failed generate has to go with it, and nothing outside here should have to
+   * remember that.
+   */
+  function show(result: ChainResponse): void {
+    data.value = result
+    error.value = null
+    loading.value = false
+  }
+
+  return { data, loading, error, generate, show }
 }
