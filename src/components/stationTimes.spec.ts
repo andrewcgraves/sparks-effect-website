@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { formatRunTime, graphStationTimeGroups, segmentStationTimeGroups } from './stationTimes'
 import type { Service, TransitGraph } from '../api/authoring/types'
-import type { Station } from '../api/scenarios'
+import type { Route, Station } from '../api/scenarios'
 
 function service(id: string, name: string): Service {
   return {
@@ -23,6 +23,17 @@ function station(slug: string, name: string): Station {
     name,
     location: { type: 'Point', coordinates: [0, 0] },
     platform_height: 'high',
+  }
+}
+
+function route(id: string, name: string): Route {
+  return {
+    id,
+    scenario_id: 'ca-hsr',
+    name,
+    mode: 'rail',
+    geometry: { type: 'LineString', coordinates: [] },
+    bidirectional: true,
   }
 }
 
@@ -145,17 +156,135 @@ describe('segmentStationTimeGroups', () => {
     ])
   })
 
-  it('offers the stored direction only, since the reverse is not served', () => {
+  it('offers a single direction when every hop is symmetric', () => {
     const [group] = segmentStationTimeGroups(segments, stations)
     expect(group.directions).toHaveLength(1)
   })
 
-  it('leaves the group unlabelled, since segments carry no service id yet', () => {
+  it('splits into two directions when a hop carries a reverse override', () => {
+    const [group] = segmentStationTimeGroups(
+      [
+        { from: 'sf', to: 'sj', run_seconds: 1800 },
+        { from: 'sj', to: 'fresno', run_seconds: 2400, reverse_run_seconds: 2200 },
+      ],
+      stations,
+    )
+    expect(group.directions).toHaveLength(2)
+    expect(group.directions[0].rows).toEqual([
+      { from: 'San Francisco', to: 'San Jose', seconds: 1800 },
+      { from: 'San Jose', to: 'fresno', seconds: 2400 },
+    ])
+    expect(group.directions[1].rows).toEqual([
+      { from: 'fresno', to: 'San Jose', seconds: 2200 },
+      { from: 'San Jose', to: 'San Francisco', seconds: 1800 },
+    ])
+  })
+
+  // A stored reverse time that happens to match the forward one is not an
+  // asymmetry, so it must not raise a toggle over two tables that read the
+  // same. Only an absent override took that path before; an explicit equal
+  // value is the case the seed data actually contains.
+  it('stays one direction when an explicit reverse override equals the forward run', () => {
+    const [group] = segmentStationTimeGroups(
+      [
+        { from: 'sf', to: 'sj', run_seconds: 1800, reverse_run_seconds: 1800 },
+        { from: 'sj', to: 'fresno', run_seconds: 2400, reverse_run_seconds: 2400 },
+      ],
+      stations,
+    )
+    expect(group.directions).toHaveLength(1)
+    expect(group.directions[0].rows).toEqual([
+      { from: 'San Francisco', to: 'San Jose', seconds: 1800 },
+      { from: 'San Jose', to: 'fresno', seconds: 2400 },
+    ])
+  })
+
+  // A scenario served as one path is one table, and a heading over a lone
+  // table only repeats the card it sits in. Headings earn their place once
+  // there is more than one table to tell apart.
+  it('leaves a single group unlabelled', () => {
     const [group] = segmentStationTimeGroups(segments, stations)
     expect(group.label).toBeNull()
   })
 
   it('returns no groups when the scenario has no segments', () => {
     expect(segmentStationTimeGroups([], stations)).toEqual([])
+  })
+
+  // The real shape of the seeded payload: a mainline, then a second line
+  // appended after it that branches off a station in the middle of the first
+  // rather than continuing from its terminus. Read as one flat list, the
+  // return direction walked back off the end of the spur and then jumped
+  // straight to the mainline's terminus, and the toggle was named after the
+  // spur's terminus over a table of the mainline (SPA-245).
+  describe('a scenario of several routes', () => {
+    const mainline = route('r-main', 'Phase 1')
+    const spur = route('r-spur', 'Brightline West')
+    const network = [
+      { from: 'sf', to: 'sj', run_seconds: 1800, reverse_run_seconds: 1830, route_id: 'r-main' },
+      { from: 'sj', to: 'palmdale', run_seconds: 2400, route_id: 'r-main' },
+      { from: 'palmdale', to: 'anaheim', run_seconds: 1200, route_id: 'r-main' },
+      { from: 'palmdale', to: 'victor-valley', run_seconds: 1050, route_id: 'r-spur' },
+      { from: 'victor-valley', to: 'las-vegas', run_seconds: 5310, reverse_run_seconds: 5400, route_id: 'r-spur' },
+    ]
+    const networkStations = [
+      station('sf', 'San Francisco'),
+      station('sj', 'San Jose'),
+      station('palmdale', 'Palmdale'),
+      station('anaheim', 'Anaheim'),
+      station('victor-valley', 'Victor Valley'),
+      station('las-vegas', 'Las Vegas'),
+    ]
+
+    it('reads each route as its own group, in the order the routes first appear', () => {
+      const groups = segmentStationTimeGroups(network, networkStations, [mainline, spur])
+      expect(groups.map((g) => g.key)).toEqual(['r-main', 'r-spur'])
+    })
+
+    it('heads each group with the name of the route it belongs to', () => {
+      const groups = segmentStationTimeGroups(network, networkStations, [mainline, spur])
+      expect(groups.map((g) => g.label)).toEqual(['Phase 1', 'Brightline West'])
+    })
+
+    it('names each direction after its own route\'s terminus, not the whole payload\'s', () => {
+      const groups = segmentStationTimeGroups(network, networkStations, [mainline, spur])
+      expect(groups[0].directions.map((d) => d.terminus)).toEqual(['Anaheim', 'San Francisco'])
+      expect(groups[1].directions.map((d) => d.terminus)).toEqual(['Las Vegas', 'Palmdale'])
+    })
+
+    // Every row has to start where the one above it ended. The old flat
+    // reverse put Anaheim->Los Angeles directly after a row arriving at
+    // Palmdale, which is not a journey anyone can take.
+    it('walks each return direction back along its own path without a discontinuity', () => {
+      const groups = segmentStationTimeGroups(network, networkStations, [mainline, spur])
+      expect(groups[0].directions[1].rows).toEqual([
+        { from: 'Anaheim', to: 'Palmdale', seconds: 1200 },
+        { from: 'Palmdale', to: 'San Jose', seconds: 2400 },
+        { from: 'San Jose', to: 'San Francisco', seconds: 1830 },
+      ])
+      expect(groups[1].directions[1].rows).toEqual([
+        { from: 'Las Vegas', to: 'Victor Valley', seconds: 5400 },
+        { from: 'Victor Valley', to: 'Palmdale', seconds: 1050 },
+      ])
+    })
+
+    // Symmetry is judged per route: a line whose every hop reads the same both
+    // ways has nothing to toggle between, even when the line beside it does.
+    it('gives a toggle only to the routes that actually differ by direction', () => {
+      const symmetricSpur = network.map((s) =>
+        s.route_id === 'r-spur' ? { ...s, reverse_run_seconds: s.run_seconds } : s,
+      )
+      const groups = segmentStationTimeGroups(symmetricSpur, networkStations, [mainline, spur])
+      expect(groups[0].directions).toHaveLength(2)
+      expect(groups[1].directions).toHaveLength(1)
+    })
+
+    // Two tables one under the other with no headings cannot be told apart, so
+    // a route the scenario did not report falls back to the corridor it covers
+    // rather than to the uuid it is keyed by.
+    it('heads an unresolved route with its endpoints rather than leaving it blank', () => {
+      const groups = segmentStationTimeGroups(network, networkStations, [mainline])
+      expect(groups.map((g) => g.label)).toEqual(['Phase 1', 'Palmdale – Las Vegas'])
+    })
   })
 })

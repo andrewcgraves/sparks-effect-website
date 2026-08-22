@@ -26,7 +26,7 @@ vi.mock('../api/scenarios', async (importOriginal) => {
 
 import { fetchIsochrone } from '../api/isochrone'
 import { fetchScenarioTravelTimes } from '../api/scenarios'
-import type { Station, TravelTimes } from '../api/scenarios'
+import type { Route, Station, TravelTimes } from '../api/scenarios'
 import type { ChainResponse } from '../fixtures/isochrone'
 
 const stubStations: Station[] = [
@@ -283,11 +283,102 @@ describe('ScenarioView', () => {
       .toEqual(['San Francisco', 'San Jose', '40:45'])
   })
 
-  it('offers no direction toggle for seeded run times, which have one stored direction', async () => {
+  // The fixture is one symmetric hop on one route: nothing to toggle between,
+  // and one table needs no heading to be told apart from its neighbours.
+  it('offers no direction toggle or heading for a scenario of one symmetric corridor', async () => {
     const wrapper = mountScenarioView()
     await flushPromises()
     expect(wrapper.find('[data-testid="direction-toggle"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="station-time-group-label"]').exists()).toBe(false)
+  })
+
+  // The shape the seeded ca-hsr payload actually has: a mainline, then a spur
+  // appended after it that branches off a station in the middle of the
+  // mainline rather than continuing from its terminus. Read as one flat list,
+  // the toggle was headed with the spur's terminus over a table of the
+  // mainline, and the return table jumped across the branch (SPA-245).
+  describe('a scenario whose segments span several routes', () => {
+    const branchingStations: Station[] = [
+      ['sf', 'San Francisco'],
+      ['sj', 'San Jose'],
+      ['palmdale', 'Palmdale'],
+      ['anaheim', 'Anaheim'],
+      ['victor-valley', 'Victor Valley'],
+      ['las-vegas', 'Las Vegas'],
+    ].map(([slug, name], i) => ({
+      id: `st${i}`,
+      scenario_id: 's1',
+      slug,
+      name,
+      location: { type: 'Point', coordinates: [-120, 36] },
+      platform_height: '0',
+    }))
+
+    const branchingRoutes: Route[] = [
+      { id: 'r-main', name: 'Phase 1' },
+      { id: 'r-spur', name: 'Brightline West' },
+    ].map(({ id, name }) => ({
+      id,
+      scenario_id: 's1',
+      name,
+      mode: 'rail',
+      geometry: { type: 'LineString', coordinates: [] },
+      bidirectional: true,
+    }))
+
+    beforeEach(() => {
+      mockUseScenario.mockReturnValue({
+        name: ref('CA HSR'),
+        description: ref('California High-Speed Rail'),
+        routes: ref(branchingRoutes),
+        stations: ref(branchingStations),
+        services: ref([]),
+      })
+      vi.mocked(fetchScenarioTravelTimes).mockResolvedValue({
+        ...stubTravelTimes,
+        segments: [
+          { from: 'sf', to: 'sj', run_seconds: 1800, reverse_run_seconds: 1830, route_id: 'r-main' },
+          { from: 'sj', to: 'palmdale', run_seconds: 2400, route_id: 'r-main' },
+          { from: 'palmdale', to: 'anaheim', run_seconds: 1200, route_id: 'r-main' },
+          { from: 'palmdale', to: 'victor-valley', run_seconds: 1050, route_id: 'r-spur' },
+          { from: 'victor-valley', to: 'las-vegas', run_seconds: 5310, reverse_run_seconds: 5400, route_id: 'r-spur' },
+        ],
+      })
+    })
+
+    it('draws one table per route, each headed with the line it belongs to', async () => {
+      const wrapper = mountScenarioView()
+      await flushPromises()
+      const groups = wrapper.findAll('[data-testid="station-time-group"]')
+      expect(groups.map((g) => g.get('[data-testid="station-time-group-label"]').text()))
+        .toEqual(['Phase 1', 'Brightline West'])
+    })
+
+    it('names each toggle after the terminus of its own line', async () => {
+      const wrapper = mountScenarioView()
+      await flushPromises()
+      const groups = wrapper.findAll('[data-testid="station-time-group"]')
+      expect(groups[0].findAll('[data-testid="direction-toggle"]').map((b) => b.text()))
+        .toEqual(['To Anaheim', 'To San Francisco'])
+      expect(groups[1].findAll('[data-testid="direction-toggle"]').map((b) => b.text()))
+        .toEqual(['To Las Vegas', 'To Palmdale'])
+    })
+
+    // Each row has to start where the row above it ended. The flat reverse put
+    // a hop out of Anaheim directly under a hop arriving at Palmdale.
+    it('reads the return direction back along the same line, with no jump', async () => {
+      const wrapper = mountScenarioView()
+      await flushPromises()
+      const mainline = wrapper.findAll('[data-testid="station-time-group"]')[0]
+      await mainline.findAll('[data-testid="direction-toggle"]')[1].trigger('click')
+      expect(mainline.findAll('[data-testid="station-time-row"]')
+        .map((row) => row.findAll('td').map((td) => td.text())))
+        .toEqual([
+          ['Anaheim', 'Palmdale', '20:00'],
+          ['Palmdale', 'San Jose', '40:00'],
+          ['San Jose', 'San Francisco', '30:30'],
+        ])
+    })
   })
 
   it('shows muted loading copy while the travel times are in flight', async () => {
