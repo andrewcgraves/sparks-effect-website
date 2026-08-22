@@ -50,6 +50,14 @@ describe('CoverPage', () => {
     expect(wrapper.get('h1').text()).toBe('Sparks Effect')
   })
 
+  it('renders the deploy smoke check marker', async () => {
+    vi.mocked(fetchFeaturedScenarios).mockResolvedValue([])
+    const { wrapper } = await mountCover()
+    expect(wrapper.get('[data-testid="deploy-smoke-banner"]').text()).toContain(
+      'Deploy smoke check',
+    )
+  })
+
   it('shows a loading state before the fetch resolves', async () => {
     vi.mocked(fetchFeaturedScenarios).mockReturnValue(new Promise(() => {}))
     const { wrapper } = await mountCover()
