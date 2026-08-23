@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import IsochroneForm from '../IsochroneForm.vue'
 import MapView from '../components/MapView.vue'
+import PrerenderedIsochrones from '../components/PrerenderedIsochrones.vue'
 import TimeBetweenStations from '../components/TimeBetweenStations.vue'
 import TimeRemaining from '../components/TimeRemaining.vue'
 import { segmentStationTimeGroups } from '../components/stationTimes'
@@ -33,9 +34,13 @@ const stationTimeGroups = computed(() =>
 // The stations are handed over as a getter so the range check reads whatever
 // has loaded by the time the form is submitted, rather than the empty list this
 // page starts with.
-const { data: isochroneData, loading: isLoading, error: fetchError, generate } = useIsochrone(
-  () => stations.value,
-)
+const {
+  data: isochroneData,
+  loading: isLoading,
+  error: fetchError,
+  generate,
+  show: showIsochrone,
+} = useIsochrone(() => stations.value)
 
 // The one station highlighted on this page, and which surface raised it. Both
 // the map and the Time remaining card feed it and both read it back, so the
@@ -70,11 +75,20 @@ const timeRemaining = computed(() =>
   }),
 )
 
+// Which pre-rendered entry the map is currently drawing, owned here because
+// generating a new isochrone also has to unmark it.
+const selectedPrerenderedId = ref<string | null>(null)
+
 function onOriginChange(coords: { lat: number; lng: number } | null) {
   origin.value = coords
 }
 
 async function handleFormSubmit(payload: { lat: number; lng: number; duration: number; mode: 'walk' | 'bike' | 'drive' }) {
+  // Generating replaces what the map is drawing, so the pre-rendered pick that
+  // was drawing it is no longer the answer on screen and stops being marked as
+  // one. Cleared on submit rather than on success: the moment the question
+  // changes, the old highlight is already wrong.
+  selectedPrerenderedId.value = null
   origin.value = { lat: payload.lat, lng: payload.lng }
   await generate({
     lat: payload.lat,
@@ -123,6 +137,15 @@ async function handleFormSubmit(payload: { lat: number; lng: number; duration: n
           @submit="handleFormSubmit"
           @origin-change="onOriginChange"
           @pick-armed="pickArmed = $event"
+        />
+        <!-- Always beside the form, never instead of it: these are answers the
+             scenario already has, and the form is for the question it doesn't.
+             A pick lands in the same ref a generated chain does, so the map and
+             the Time remaining card below read it without knowing which it is. -->
+        <PrerenderedIsochrones
+          v-model:selected-id="selectedPrerenderedId"
+          :slug="props.slug"
+          @select="showIsochrone"
         />
         <!-- Above the station times, because it is the answer to what was just
              asked. Only once a plot has actually succeeded: there is nothing to

@@ -259,4 +259,33 @@ describe('useIsochrone', () => {
     await generate(request)
     expect(error.value).toBeNull()
   })
+
+  // A pre-rendered isochrone is already plotted, so it reaches the map through
+  // the same refs rather than round the side of them.
+  describe('show', () => {
+    it('draws a chain without asking the API', () => {
+      const { data, loading, show } = useIsochrone()
+
+      show(stubResponse)
+
+      expect(data.value).toEqual(stubResponse)
+      expect(loading.value).toBe(false)
+      expect(fetchIsochrone).not.toHaveBeenCalled()
+    })
+
+    // What is on screen now is an answer, so the last failure's message has
+    // nothing left to describe.
+    it("clears a failed generate's error", async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+      vi.mocked(fetchIsochrone).mockRejectedValueOnce(new IsochroneApiError(500))
+      const { data, error, generate, show } = useIsochrone()
+      await generate(request)
+      expect(error.value).not.toBeNull()
+
+      show(stubResponse)
+
+      expect(error.value).toBeNull()
+      expect(data.value).toEqual(stubResponse)
+    })
+  })
 })
