@@ -75,11 +75,20 @@ const timeRemaining = computed(() =>
   }),
 )
 
+// Which pre-rendered entry the map is currently drawing, owned here because
+// generating a new isochrone also has to unmark it.
+const selectedPrerenderedId = ref<string | null>(null)
+
 function onOriginChange(coords: { lat: number; lng: number } | null) {
   origin.value = coords
 }
 
 async function handleFormSubmit(payload: { lat: number; lng: number; duration: number; mode: 'walk' | 'bike' | 'drive' }) {
+  // Generating replaces what the map is drawing, so the pre-rendered pick that
+  // was drawing it is no longer the answer on screen and stops being marked as
+  // one. Cleared on submit rather than on success: the moment the question
+  // changes, the old highlight is already wrong.
+  selectedPrerenderedId.value = null
   origin.value = { lat: payload.lat, lng: payload.lng }
   await generate({
     lat: payload.lat,
@@ -134,6 +143,7 @@ async function handleFormSubmit(payload: { lat: number; lng: number; duration: n
              A pick lands in the same ref a generated chain does, so the map and
              the Time remaining card below read it without knowing which it is. -->
         <PrerenderedIsochrones
+          v-model:selected-id="selectedPrerenderedId"
           :slug="props.slug"
           @select="showIsochrone"
         />

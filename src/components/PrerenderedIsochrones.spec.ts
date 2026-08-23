@@ -50,8 +50,8 @@ function detail(over: Partial<PrerenderedIsochrone> = {}): PrerenderedIsochrone 
   return { ...summary(), result: chain(), ...over }
 }
 
-function mountCard(slug = 'ca-hsr') {
-  return mount(PrerenderedIsochrones, { props: { slug } })
+function mountCard(slug = 'ca-hsr', selectedId: string | null = null) {
+  return mount(PrerenderedIsochrones, { props: { slug, selectedId } })
 }
 
 async function mountLoaded(items: PrerenderedIsochroneSummary[]) {
@@ -244,5 +244,41 @@ describe('PrerenderedIsochrones', () => {
 
       expect(wrapper.emitted('select')![0]).toEqual([picked.result])
     })
+  })
+})
+
+describe('PrerenderedIsochrones selection', () => {
+  it('asks the page to mark the entry it just drew', async () => {
+    const wrapper = await mountLoaded([summary(), summary({ id: 'pre-2' })])
+    vi.mocked(fetchPrerenderedIsochrone).mockResolvedValue(detail({ id: 'pre-2' }))
+
+    await wrapper.findAll('[data-testid="prerendered-entry"]')[1].trigger('click')
+    await flushPromises()
+
+    expect(wrapper.emitted('update:selectedId')).toEqual([['pre-2']])
+  })
+
+  it('marks only the selected entry as pressed', async () => {
+    vi.mocked(listPrerenderedIsochrones).mockResolvedValue([
+      summary(),
+      summary({ id: 'pre-2' }),
+    ])
+    const wrapper = mountCard('ca-hsr', 'pre-2')
+    await flushPromises()
+
+    const pressed = wrapper
+      .findAll('[data-testid="prerendered-entry"]')
+      .map((b) => b.attributes('aria-pressed'))
+    expect(pressed).toEqual(['false', 'true'])
+  })
+
+  it('leaves the entry unmarked when its chain could not be fetched', async () => {
+    const wrapper = await mountLoaded([summary()])
+    vi.mocked(fetchPrerenderedIsochrone).mockRejectedValue(new Error('nope'))
+
+    await wrapper.find('[data-testid="prerendered-entry"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.emitted('update:selectedId')).toBeUndefined()
   })
 })

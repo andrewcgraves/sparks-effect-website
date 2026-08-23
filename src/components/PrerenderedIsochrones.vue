@@ -18,9 +18,12 @@ import type { ChainResponse } from '../fixtures/isochrone'
  * that fails — costs the page nothing: the card is simply not there, and the
  * form beside it is unaffected either way.
  */
-const props = defineProps<{ slug: string }>()
+const props = defineProps<{ slug: string; selectedId: string | null }>()
 
-const emit = defineEmits<{ select: [result: ChainResponse] }>()
+const emit = defineEmits<{
+  select: [result: ChainResponse]
+  'update:selectedId': [id: string | null]
+}>()
 
 // useOwnedList over a closure rather than a slug-taking fetcher: the slug is a
 // prop, so there is nothing for the composable to pass that this cannot close
@@ -48,6 +51,7 @@ async function choose(entry: PrerenderedIsochroneSummary): Promise<void> {
     const detail = await fetchPrerenderedIsochrone(entry.id)
     if (!attempt.isCurrent(mine)) return
     pendingId.value = null
+    emit('update:selectedId', entry.id)
     emit('select', detail.result)
   } catch (e) {
     console.error(e)
@@ -71,20 +75,21 @@ function summarise(entry: PrerenderedIsochroneSummary): string {
     <h2 class="font-display text-h3 text-ink-true">
       Pre-rendered isochrones
     </h2>
-    <p class="font-body text-caption mt-1 text-ink-muted italic">
-      Already plotted — draws straight away.
-    </p>
 
     <ul class="mt-3 flex flex-col gap-2">
       <li
         v-for="entry in items"
         :key="entry.id"
       >
+        <!-- The pick that is currently drawn is tinted rather than filled: the
+             outdated chip and the muted second line both still have to be
+             legible on it, which a solid coral ground would not allow. -->
         <button
           type="button"
-          class="font-body text-body flex w-full cursor-pointer flex-col gap-1 rounded-(--radius-field) border border-border bg-white px-3 py-2 text-left text-ink transition-colors duration-200 ease-(--ease-smooth) hover:border-coral disabled:cursor-progress disabled:opacity-60"
+          class="font-body text-body flex w-full cursor-pointer flex-col gap-1 rounded-(--radius-field) border border-border bg-white px-3 py-2 text-left text-ink transition-colors duration-200 ease-(--ease-smooth) hover:border-coral disabled:cursor-progress disabled:opacity-60 aria-pressed:border-coral aria-pressed:bg-coral/10"
           :disabled="pendingId === entry.id"
           :aria-busy="pendingId === entry.id"
+          :aria-pressed="selectedId === entry.id"
           data-testid="prerendered-entry"
           @click="choose(entry)"
         >

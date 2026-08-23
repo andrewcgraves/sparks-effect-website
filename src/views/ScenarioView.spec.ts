@@ -885,6 +885,22 @@ describe('ScenarioView', () => {
       return wrapper
     }
 
+    it('marks the picked entry, and unmarks it once a new plot is asked for', async () => {
+      const wrapper = await pickFirstEntry()
+
+      expect(wrapper.get('[data-testid="prerendered-entry"]').attributes('aria-pressed')).toBe('true')
+
+      await wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('submit', {
+        lat: 37.7749,
+        lng: -122.4194,
+        duration: 30,
+        mode: 'walk',
+      })
+      await flushPromises()
+
+      expect(wrapper.get('[data-testid="prerendered-entry"]').attributes('aria-pressed')).toBe('false')
+    })
+
     it('lists the isochrones this scenario ships, beside the generate form', async () => {
       vi.mocked(listPrerenderedIsochrones).mockResolvedValue([prerendered])
       const wrapper = mountScenarioView('ca-hsr', { MapView: true })
