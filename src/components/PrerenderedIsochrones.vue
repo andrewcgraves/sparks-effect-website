@@ -81,12 +81,14 @@ function summarise(entry: PrerenderedIsochroneSummary): string {
         v-for="entry in items"
         :key="entry.id"
       >
-        <!-- The pick that is currently drawn is tinted rather than filled: the
-             outdated chip and the muted second line both still have to be
-             legible on it, which a solid coral ground would not allow. -->
+        <!-- The pick that is currently drawn takes the coral fill this app
+             already uses for a pressed choice (TimeBetweenStations,
+             ServiceAuthoringView), so a selected entry reads the same here as
+             everywhere else. The group is what lets the second line and the
+             outdated chip re-colour themselves against that ground. -->
         <button
           type="button"
-          class="font-body text-body flex w-full cursor-pointer flex-col gap-1 rounded-(--radius-field) border border-border bg-white px-3 py-2 text-left text-ink transition-colors duration-200 ease-(--ease-smooth) hover:border-coral disabled:cursor-progress disabled:opacity-60 aria-pressed:border-coral aria-pressed:bg-coral/10"
+          class="group font-body text-body flex w-full cursor-pointer flex-col gap-1 rounded-(--radius-field) border border-border bg-white px-3 py-2 text-left text-ink transition-colors duration-200 ease-(--ease-smooth) hover:border-coral disabled:cursor-progress disabled:opacity-60 aria-pressed:border-coral aria-pressed:bg-coral aria-pressed:text-white"
           :disabled="pendingId === entry.id"
           :aria-busy="pendingId === entry.id"
           :aria-pressed="selectedId === entry.id"
@@ -97,7 +99,7 @@ function summarise(entry: PrerenderedIsochroneSummary): string {
             {{ entry.label }}
             <span
               v-if="entry.outdated"
-              class="font-display text-micro rounded-(--radius-field) border border-apricot bg-apricot/15 px-1.5 py-0.5 text-ink uppercase"
+              class="font-display text-micro rounded-(--radius-field) border border-apricot bg-apricot/15 px-1.5 py-0.5 text-ink uppercase group-aria-pressed:border-white/70 group-aria-pressed:bg-white/25 group-aria-pressed:text-white"
               :title="OUTDATED_HINT"
               :aria-label="`Out of date — ${OUTDATED_HINT}`"
               data-testid="prerendered-outdated"
@@ -106,7 +108,7 @@ function summarise(entry: PrerenderedIsochroneSummary): string {
             </span>
           </span>
           <span
-            class="text-micro text-ink-muted uppercase"
+            class="text-micro text-ink-muted uppercase group-aria-pressed:text-white/80"
             data-testid="prerendered-entry-detail"
           >
             {{ pendingId === entry.id ? 'Loading…' : summarise(entry) }}
