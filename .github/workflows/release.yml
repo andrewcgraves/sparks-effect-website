@@ -1,0 +1,147 @@
+name: Release
+
+# Production is reached by tagging a commit, and by nothing else.
+#
+# The tag names a commit that is already on `main` and that Vercel already
+# built and served as staging. This workflow never builds: it points Vercel's
+# production domains at that existing deployment. A tag that does not point
+# into `main`'s history is refused, so a feature branch has no path to
+# production even if someone tags it.
+#
+# Vercel's own git integration must not treat `main` as the production branch —
+# otherwise a merge ships to production behind this workflow's back. See
+# `docs/releases.md`.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to promote, e.g. v1.4.2. Pass an older tag to roll back."
+        required: true
+        type: string
+
+# Two promotions racing would leave production on whichever alias switch landed
+# last rather than whichever was asked for last.
+concurrency:
+  group: release-production
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    name: Promote deployment to production
+    runs-on: ubuntu-latest
+    # Scopes the Vercel credential to production and gives the repo one place to
+    # require an approval before prd moves.
+    environment: production
+    permissions:
+      contents: read
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      # `vercel` reads these two from the environment to know which project it
+      # is acting on, so they are set job-wide rather than per step.
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The ancestry check below is what keeps a tag on a feature branch out
+          # of production, and it needs the full history to answer.
+          fetch-depth: 0
+
+      - name: Resolve the tag and the commit it points at
+        id: target
+        env:
+          # Empty on a tag push, in which case the pushed tag is the target.
+          REQUESTED_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          tag="${REQUESTED_TAG:-$GITHUB_REF_NAME}"
+
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+            echo "::error::'$tag' is not a release tag (expected vMAJOR.MINOR.PATCH)"
+            exit 1
+          fi
+
+          if ! git fetch --force origin "refs/tags/$tag:refs/tags/$tag"; then
+            echo "::error::tag '$tag' does not exist"
+            exit 1
+          fi
+
+          # rev-list dereferences an annotated tag to the commit it wraps; using
+          # the ref directly would hand the tag object's own SHA to the checks.
+          sha="$(git rev-list -n 1 "refs/tags/$tag")"
+
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$sha" origin/main; then
+            echo "::error::$tag points at $sha, which is not on main — refusing to promote"
+            exit 1
+          fi
+
+          {
+            echo "tag=$tag"
+            echo "sha=$sha"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Find the deployment Vercel built from that commit
+        id: deployment
+        env:
+          SHA: ${{ steps.target.outputs.sha }}
+        run: |
+          set -euo pipefail
+          query="projectId=$VERCEL_PROJECT_ID&state=READY&limit=100&meta-githubCommitSha=$SHA"
+          # A personal account's org id is a user id, which this endpoint rejects
+          # as a teamId; only a team's belongs on the query.
+          if [[ "$VERCEL_ORG_ID" == team_* ]]; then
+            query="$query&teamId=$VERCEL_ORG_ID"
+          fi
+
+          response="$(curl -sS --fail-with-body \
+            -H "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v6/deployments?$query")"
+
+          # Newest first: a commit can have been deployed more than once (a
+          # retried build), and the last successful one is what staging served.
+          uid="$(jq -r '[.deployments[]] | sort_by(.created) | reverse | .[0].uid // empty' <<<"$response")"
+          url="$(jq -r '[.deployments[]] | sort_by(.created) | reverse | .[0].url // empty' <<<"$response")"
+
+          if [[ -z "$uid" ]]; then
+            echo "::error::no ready Vercel deployment for $SHA — nothing built from that commit to promote"
+            exit 1
+          fi
+
+          {
+            echo "uid=$uid"
+            echo "url=$url"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Install the Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Link the project
+        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+
+      # Promotion re-serves the build staging already ran — it does not rebuild,
+      # so what production serves is byte-for-byte what was verified.
+      - name: Promote it to production
+        env:
+          UID: ${{ steps.deployment.outputs.uid }}
+        run: vercel promote "$UID" --token="$VERCEL_TOKEN"
+
+      - name: Summarise
+        env:
+          TAG: ${{ steps.target.outputs.tag }}
+          SHA: ${{ steps.target.outputs.sha }}
+          URL: ${{ steps.deployment.outputs.url }}
+          UID: ${{ steps.deployment.outputs.uid }}
+        run: |
+          {
+            echo "### Promoted \`$TAG\` to production"
+            echo
+            echo "- commit: \`$SHA\`"
+            echo "- deployment: \`$UID\` (https://$URL)"
+          } >> "$GITHUB_STEP_SUMMARY"
