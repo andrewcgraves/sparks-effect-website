@@ -122,15 +122,18 @@ jobs:
       - name: Install the Vercel CLI
         run: npm install --global vercel@latest
 
-      - name: Link the project
-        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
-
       # Promotion re-serves the build staging already ran — it does not rebuild,
       # so what production serves is byte-for-byte what was verified.
+      #
+      # No `vercel pull` first: that command exists to fetch build settings for a
+      # local build, and this job never builds. It was also the step that failed,
+      # because the CLI reads VERCEL_TOKEN / VERCEL_ORG_ID / VERCEL_PROJECT_ID
+      # from the environment on its own — passing --token explicitly trips a
+      # token-validation bug that reports "User not found".
       - name: Promote it to production
         env:
           UID: ${{ steps.deployment.outputs.uid }}
-        run: vercel promote "$UID" --token="$VERCEL_TOKEN"
+        run: vercel promote "$UID" --yes
 
       - name: Summarise
         env:
