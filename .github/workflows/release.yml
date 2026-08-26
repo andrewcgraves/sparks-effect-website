@@ -2,13 +2,13 @@ name: Release
 
 # Production is reached by tagging a commit, and by nothing else.
 #
-# The tag names a commit that is already on `main` and that Vercel already
+# The tag names a commit that is already on `trunk` and that Vercel already
 # built and served as staging. This workflow never builds: it points Vercel's
 # production domains at that existing deployment. A tag that does not point
-# into `main`'s history is refused, so a feature branch has no path to
+# into `trunk`'s history is refused, so a feature branch has no path to
 # production even if someone tags it.
 #
-# Vercel's own git integration must not treat `main` as the production branch —
+# Vercel's own git integration must not treat `trunk` as the production branch —
 # otherwise a merge ships to production behind this workflow's back. See
 # `docs/releases.md`.
 on:
@@ -72,9 +72,9 @@ jobs:
           # the ref directly would hand the tag object's own SHA to the checks.
           sha="$(git rev-list -n 1 "refs/tags/$tag")"
 
-          git fetch --no-tags origin main
-          if ! git merge-base --is-ancestor "$sha" origin/main; then
-            echo "::error::$tag points at $sha, which is not on main — refusing to promote"
+          git fetch --no-tags origin trunk
+          if ! git merge-base --is-ancestor "$sha" origin/trunk; then
+            echo "::error::$tag points at $sha, which is not on trunk — refusing to promote"
             exit 1
           fi
 
