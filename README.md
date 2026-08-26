@@ -5,7 +5,7 @@ walking, biking, transit, and driving from an imaginary transit route, talking t
 
 ## Branching and releases
 
-One trunk: `main`. Branch from it, PR into it. Production is promoted in Vercel
+One trunk: `trunk`. Branch from it, PR into it. Production is promoted in Vercel
 from an existing build — see [`docs/releases.md`](docs/releases.md).
 
 ## Prerequisites

@@ -24,7 +24,7 @@ The five canonical roles, each label string equal to its name. See `docs/agents/
 
 ## Branching
 
-One trunk: `main`. Branch from it, PR into it. No `prd` branch here —
+One trunk: `trunk`. Branch from it, PR into it. No `prd` branch here —
 production is promoted by pushing a `vX.Y.Z` tag on a commit that is already on
-`main`, which promotes the Vercel build that commit already produced. See
+`trunk`, which promotes the Vercel build that commit already produced. See
 `docs/releases.md`.
