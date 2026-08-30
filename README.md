@@ -45,6 +45,22 @@ Each target installs dependencies automatically if needed, so `make test`, `make
 and `make run` all work from a clean checkout. `make dev-workflow` is the target to run for an
 end-to-end check (e.g. from an agent or pre-push hook) since it doesn't start a long-running server.
 
+## Analytics
+
+Page views come from `<Analytics />` (`@vercel/analytics/vue`, mounted in
+`src/App.vue`), which reports one per route change on its own. Our own events go
+through `src/analytics/`: the `track*()` helpers hand an `AnalyticsEvent` to
+whichever sink is configured — the console in dev, `vercelSink` in production
+builds (see `src/main.ts`). `vercelSink` deliberately drops `page_view` so
+navigations are not counted twice.
+
+Collection needs Web Analytics enabled for the project in the Vercel dashboard
+(Analytics → Enable), which is what serves `/_vercel/insights/*`.
+
+Custom events (`track()`) are a Pro/Enterprise feature. On a Hobby project, set
+`VITE_VERCEL_CUSTOM_EVENTS=off` so `vercelSink` stops them locally instead of
+posting to an endpoint that will not keep them; page views are unaffected.
+
 ## Project structure
 
 - `src/` — Vue application source

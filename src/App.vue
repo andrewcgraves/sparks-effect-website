@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Analytics } from '@vercel/analytics/vue'
 import { useAuthStore } from './stores/auth'
 
 const auth = useAuthStore()
@@ -25,5 +26,6 @@ const auth = useAuthStore()
       </RouterLink>
     </header>
     <RouterView />
+    <Analytics />
   </div>
 </template>
