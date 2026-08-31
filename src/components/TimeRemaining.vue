@@ -252,11 +252,11 @@ watch(
         </p>
 
         <!-- What the row's single number hides, shown beside the row rather
-             than inside it. TooltipPanel hangs the box out of the list's flow and
-             out of its scroller, so nothing moves or resizes while a pointer
-             travels down the rows. It follows the pointer's row and is never
-             pointed at itself, so it takes no hover of its own to keep it
-             open — visibility is the row being active. -->
+             than inside it. TooltipPanel hangs the box out of the list's
+             flow and out of its scroller, so nothing moves or resizes while
+             a pointer travels down the rows. It follows the pointer's row
+             and is never pointed at itself, so it takes no hover of its own
+             to keep it open — visibility is the row being active. -->
         <TooltipPanel
           v-if="isExpanded(row) && hasDetail(row)"
           :open="true"
