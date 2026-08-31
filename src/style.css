@@ -46,3 +46,17 @@ body {
     animation-duration: 0.01ms !important;
   }
 }
+
+/* MapLibre wraps every Popup in its own chrome. A popup wearing
+   .tooltip-popup is a TooltipPanel that MapLibre is placing on the canvas,
+   so strip that chrome and let TOOLTIP_PANEL_CLASS paint the box. */
+.maplibregl-popup.tooltip-popup .maplibregl-popup-content {
+  background: none;
+  box-shadow: none;
+  padding: 0;
+  border-radius: 0;
+}
+
+.maplibregl-popup.tooltip-popup .maplibregl-popup-tip {
+  display: none;
+}

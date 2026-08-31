@@ -67,7 +67,7 @@ const {
   mockSetPaintProperty,
   mockSetFilter,
   mockPopupSetLngLat,
-  mockPopupSetText,
+  mockPopupSetDOMContent,
   mockPopupAddTo,
   mockPopupRemove,
 } = vi.hoisted(() => {
@@ -96,7 +96,7 @@ const {
     mockSetPaintProperty: vi.fn(),
     mockSetFilter: vi.fn(),
     mockPopupSetLngLat: vi.fn(),
-    mockPopupSetText: vi.fn(),
+    mockPopupSetDOMContent: vi.fn(),
     mockPopupAddTo: vi.fn(),
     mockPopupRemove: vi.fn(),
   }
@@ -140,7 +140,7 @@ vi.mock('maplibre-gl', () => ({
   }),
   Popup: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
     this['setLngLat'] = mockPopupSetLngLat
-    this['setText'] = mockPopupSetText
+    this['setDOMContent'] = mockPopupSetDOMContent
     this['addTo'] = mockPopupAddTo
     this['remove'] = mockPopupRemove
   }),
@@ -265,8 +265,8 @@ describe('MapView', () => {
     mockCanvas.style.cursor = ''
     mockGetLayer.mockReturnValue(undefined)
     mockQueryRenderedFeatures.mockReturnValue([])
-    mockPopupSetLngLat.mockReturnValue({ setText: mockPopupSetText })
-    mockPopupSetText.mockReturnValue({ addTo: mockPopupAddTo })
+    mockPopupSetLngLat.mockReturnValue({ setDOMContent: mockPopupSetDOMContent })
+    mockPopupSetDOMContent.mockReturnValue({ addTo: mockPopupAddTo })
   })
 
   it('does not add isochrone source or layer on load when no isochroneData prop is provided', async () => {
@@ -1206,7 +1206,7 @@ describe('MapView', () => {
 
       fireLayerEvent('mouseenter', STATION_DOTS_LAYER_ID, stationEvent(stubStation))
 
-      expect(mockPopupSetText).toHaveBeenCalledWith('San Francisco')
+      expect((mockPopupSetDOMContent.mock.calls[0]?.[0] as HTMLElement).textContent).toBe('San Francisco')
       expect(mockPopupAddTo).toHaveBeenCalled()
     })
 
@@ -1264,7 +1264,7 @@ describe('MapView', () => {
       expect(mockSetPaintProperty).toHaveBeenCalledWith(ISOCHRONE_ORIGIN_LAYER_ID, 'fill-opacity', isochroneOriginOpacity(false))
       expect(mockSetFilter).toHaveBeenCalledWith(ISOCHRONE_HIGHLIGHT_LAYER_ID, isochroneHighlightFilter(null))
       // The dot was still hovered, so the rider still gets its name.
-      expect(mockPopupSetText).toHaveBeenCalledWith('Fresno')
+      expect((mockPopupSetDOMContent.mock.calls[0]?.[0] as HTMLElement).textContent).toBe('Fresno')
     })
 
     // The map is one of two surfaces that can highlight a station, so it

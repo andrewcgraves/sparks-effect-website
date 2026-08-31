@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch, nextTick } from 'vue'
+import { computed, ref, watch, nextTick } from 'vue'
 import SegmentedControl from './SegmentedControl.vue'
+import TooltipPanel from './TooltipPanel.vue'
 import { formatDuration, formatTimeRemaining, laneWidthFor } from './timeRemaining'
 import type { TimeRemainingRow, TimeRemainingView } from './timeRemaining'
 
@@ -59,11 +60,6 @@ function forkBarStyle(row: TimeRemainingRow): Record<string, string> {
   }
 }
 
-// The tooltip's own box, and the room it needs to be worth opening downwards.
-const TIP_WIDTH_PX = 240
-const TIP_GAP_PX = 8
-const TIP_ROOM_PX = 140
-
 function isExpanded(row: TimeRemainingRow): boolean {
   return row.slug !== null && row.slug === props.activeSlug
 }
@@ -88,62 +84,20 @@ function rideTerm(row: TimeRemainingRow): string {
   return from ? `Rode in from ${from}` : 'Rode in'
 }
 
-// The tooltip is one fixed-position box measured off the row under the
-// pointer. Fixed rather than laid out in the row, because the detail used to
-// grow the row it belonged to: the list reflowed under the pointer, every row
-// below it moved, and the row the rider was reading could shuffle out from
-// under them. Out of flow, nothing in the list changes size when it opens.
-// Fixed also escapes the list's own scroller, which would otherwise clip the
-// box on the last few rows.
+// The element TooltipPanel measures off. Held here rather than inside it
+// because a map hover has to name the row after scrolling it into view, and
+// that measurement has to happen after the scroll, not against where the row
+// started.
 const anchor = ref<Element | null>(null)
-const tipStyle = ref<Record<string, string>>({})
 
-function placeTip(el?: Element | null): void {
+function setAnchor(el?: Element | null): void {
   if (el) anchor.value = el
-  const target = anchor.value
-  if (!target) return
-
-  const rect = target.getBoundingClientRect()
-  const below = window.innerHeight - rect.bottom
-  // Kept clear of both viewport edges, so a card near one doesn't push the box
-  // off the page.
-  const left = Math.max(
-    TIP_GAP_PX,
-    Math.min(rect.left, window.innerWidth - TIP_WIDTH_PX - TIP_GAP_PX),
-  )
-  const style: Record<string, string> = { left: `${left}px`, width: `${TIP_WIDTH_PX}px` }
-  // Below the row by preference, above it when the foot of the window is
-  // closer than the box is tall.
-  if (below < TIP_ROOM_PX && rect.top > below) {
-    style.bottom = `${window.innerHeight - rect.top + TIP_GAP_PX}px`
-  } else {
-    style.top = `${rect.bottom + TIP_GAP_PX}px`
-  }
-  tipStyle.value = style
 }
 
 function activate(row: TimeRemainingRow, event: Event): void {
-  placeTip(event.currentTarget as Element | null)
+  setAnchor(event.currentTarget as Element | null)
   emit('activate', row.slug)
 }
-
-// A fixed box is measured against the window, so anything that moves the row
-// under it — the list scrolling, the page scrolling, the window resizing —
-// has to be answered by measuring again. Scroll is captured, because the list
-// scrolls in its own box rather than on the window.
-function reposition(): void {
-  if (props.activeSlug) placeTip()
-}
-
-onMounted(() => {
-  window.addEventListener('scroll', reposition, true)
-  window.addEventListener('resize', reposition)
-})
-
-onBeforeUnmount(() => {
-  window.removeEventListener('scroll', reposition, true)
-  window.removeEventListener('resize', reposition)
-})
 
 // Brings a row into view inside the list, and nowhere else.
 //
@@ -183,7 +137,7 @@ watch(
         reveal(row)
         // Measured after the scroll, so the box lands beside where the row
         // ended up rather than where it started.
-        placeTip(row)
+        setAnchor(row)
         return
       }
     }
@@ -298,15 +252,15 @@ watch(
         </p>
 
         <!-- What the row's single number hides, shown beside the row rather
-             than inside it. Out of the list's flow and out of its scroller, so
-             nothing moves or resizes while a pointer travels down the rows.
-             It follows the pointer's row and is never pointed at itself, so it
-             takes no hover of its own to keep it open. -->
-        <div
+             than inside it. TooltipPanel hangs the box out of the list's flow and
+             out of its scroller, so nothing moves or resizes while a pointer
+             travels down the rows. It follows the pointer's row and is never
+             pointed at itself, so it takes no hover of its own to keep it
+             open — visibility is the row being active. -->
+        <TooltipPanel
           v-if="isExpanded(row) && hasDetail(row)"
-          class="pointer-events-none fixed z-20 rounded-(--radius-field) border border-border bg-white p-2 shadow-(--shadow-panel)"
-          :style="tipStyle"
-          role="tooltip"
+          :open="true"
+          :anchor="anchor"
         >
           <dl
             class="font-body text-micro flex flex-col gap-0.5 text-ink-muted"
@@ -357,7 +311,7 @@ watch(
               </dd>
             </div>
           </dl>
-        </div>
+        </TooltipPanel>
       </li>
     </ul>
   </section>
