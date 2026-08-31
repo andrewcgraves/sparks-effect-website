@@ -260,6 +260,22 @@ describe('AuthoredServiceView', () => {
     })
   })
 
+  it('forwards transit mode when plotting an isochrone', async () => {
+    vi.mocked(fetchService).mockResolvedValue(stubService)
+    vi.mocked(fetchServiceIsochrone).mockResolvedValue({ features: [] } as never)
+    const wrapper = mountView()
+    await flushPromises()
+
+    wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('submit', {
+      lat: 37.7, lng: -122.4, duration: 30, mode: 'transit',
+    })
+    await flushPromises()
+
+    expect(fetchServiceIsochrone).toHaveBeenCalledWith('northbound-express', {
+      lat: 37.7, lng: -122.4, budget_mins: 30, mode: 'transit',
+    })
+  })
+
   // Editing the service leaves its graph stale; the shared composable's retry
   // recovers transparently rather than surfacing it to the user.
   it('recovers from a stale_graph 409 by recompiling and retrying', async () => {

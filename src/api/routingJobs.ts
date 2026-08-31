@@ -7,6 +7,7 @@
 // the job below. All three isochrone endpoints answer this way and all three
 // poll the same GET /api/routing-jobs/{id}.
 import { ApiError, apiRequest } from './authoring/client'
+import type { TravelMode } from './authoring/types'
 import { pollUntilSucceeded, type JobStatus } from './polling'
 import type { ChainResponse } from '../fixtures/isochrone'
 
@@ -18,7 +19,7 @@ export interface IsochroneParams {
   lat: number
   lng: number
   budget_mins: number
-  mode: 'walk' | 'bike' | 'drive'
+  mode: TravelMode
 }
 
 // One enqueued isochrone: the request resolved down to a point, a budget, a

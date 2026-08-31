@@ -67,6 +67,13 @@ describe('fetchIsochrone', () => {
     expect(new Headers(init?.headers).get('Content-Type')).toBe('application/json')
   })
 
+  it('sends transit as the mode when asked', async () => {
+    enqueueThenSucceed()
+    await fetchIsochrone({ ...validRequest, mode: 'transit' })
+    const [, init] = vi.mocked(fetch).mock.calls[0]
+    expect(JSON.parse(init?.body as string).mode).toBe('transit')
+  })
+
   it('defaults base URL to http://localhost:8080 when VITE_API_BASE_URL is unset', async () => {
     enqueueThenSucceed()
 

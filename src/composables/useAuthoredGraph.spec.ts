@@ -211,6 +211,15 @@ describe('useAuthoredGraph', () => {
       expect(origin.value).toEqual({ lat: 37.7, lng: -122.4 })
     })
 
+    it('forwards transit mode on the isochrone request', async () => {
+      isochrone.mockResolvedValue(chain)
+      const { handleIsochroneSubmit } = subject()
+
+      await handleIsochroneSubmit({ ...payload, mode: 'transit' })
+
+      expect(isochrone).toHaveBeenCalledWith('ca-hsr', expect.objectContaining({ mode: 'transit' }))
+    })
+
     it('plots against whichever endpoints it was handed', async () => {
       isochrone.mockResolvedValue(chain)
       const { handleIsochroneSubmit } = subject(() => 'northbound-express')

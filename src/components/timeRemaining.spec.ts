@@ -483,6 +483,15 @@ describe('buildTimeRemainingGraph', () => {
       expect(build(INTERCHANGE).views[0].rows[0].flag).toBe('Walk')
     })
 
+    it('flags the starting location as Transit when plotted in transit mode', () => {
+      const graph = buildTimeRemainingGraph(metadata(INTERCHANGE), {
+        stationName: (slug) => NAMES[slug] ?? slug,
+        serviceName: (id) => SERVICES[id] ?? id,
+        mode: 'transit',
+      })
+      expect(graph.views[0].rows[0].flag).toBe('Transit')
+    })
+
     it('flags a station with the service the rider leaves it on', () => {
       const trunk = viewFor(INTERCHANGE, 'trunk')
 

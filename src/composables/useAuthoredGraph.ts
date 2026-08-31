@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue'
 import { ApiError } from '../api/authoring/client'
-import type { AuthoredIsochroneRequest, Job, TransitGraph } from '../api/authoring'
+import type { AuthoredIsochroneRequest, Job, TransitGraph, TravelMode } from '../api/authoring'
 import type { ChainResponse } from '../fixtures/isochrone'
 import { useCompileJob } from './useCompileJob'
 import { latestAttempt } from './latestAttempt'
@@ -17,7 +17,7 @@ export interface IsochronePayload {
   lat: number
   lng: number
   duration: number
-  mode: 'walk' | 'bike' | 'drive'
+  mode: TravelMode
 }
 
 /**

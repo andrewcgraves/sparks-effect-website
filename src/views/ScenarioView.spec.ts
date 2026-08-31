@@ -174,6 +174,19 @@ describe('ScenarioView', () => {
     )
   })
 
+  it('forwards transit mode from the form payload to fetchIsochrone', async () => {
+    vi.mocked(fetchIsochrone).mockResolvedValue(stubIsochrone)
+    const wrapper = mountScenarioView()
+    await wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('submit', {
+      ...NEARBY_ORIGIN,
+      duration: 30,
+      mode: 'transit',
+    })
+    expect(fetchIsochrone).toHaveBeenCalledWith(
+      expect.objectContaining({ mode: 'transit' }),
+    )
+  })
+
   it('sets loading=true on MapView and IsochroneForm while the fetch is in flight', async () => {
     let resolveIsochrone!: (v: ChainResponse) => void
     vi.mocked(fetchIsochrone).mockReturnValue(

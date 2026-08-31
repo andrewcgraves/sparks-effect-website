@@ -7,6 +7,7 @@ import {
   outOfRangeMessage,
   reachKm,
 } from './originRange'
+import { TRAVEL_MODES } from './api/authoring/types'
 import { ApiError } from './api/authoring/client'
 import type { Station } from './api/scenarios'
 
@@ -55,6 +56,8 @@ describe('reachKm', () => {
     ['bike', 240, 60],
     ['drive', 30, 40],
     ['drive', 240, 320],
+    ['transit', 30, 20],
+    ['transit', 240, 160],
   ] as const)('covers %s for %i minutes', (mode, mins, want) => {
     expect(reachKm(mode, mins)).toBeCloseTo(want, 9)
   })
@@ -62,6 +65,15 @@ describe('reachKm', () => {
   it('reaches nowhere on a non-positive budget', () => {
     expect(reachKm('walk', 0)).toBe(0)
     expect(reachKm('walk', -30)).toBe(0)
+  })
+
+  // SPA-248's lesson: a mode added to the set without a speed is a zero
+  // radius, which would refuse every origin on earth. Record<Mode, number>
+  // makes that a compile error; this asserts the runtime table is the same set.
+  it('has an assumed speed for every travel mode', () => {
+    for (const mode of TRAVEL_MODES) {
+      expect(reachKm(mode, 60)).toBeGreaterThan(0)
+    }
   })
 })
 
@@ -107,6 +119,8 @@ describe('checkOriginReach', () => {
     const stations = [stationAt(100)]
     expect(checkOriginReach(stations, ORIGIN, 'walk', 30)?.inRange).toBe(false)
     expect(checkOriginReach(stations, ORIGIN, 'drive', 120)?.inRange).toBe(true)
+    expect(checkOriginReach(stations, ORIGIN, 'transit', 30)?.inRange).toBe(false)
+    expect(checkOriginReach(stations, ORIGIN, 'transit', 180)?.inRange).toBe(true)
   })
 
   // A page that has not loaded its scenario knows nothing about how far the
@@ -132,6 +146,7 @@ describe('outOfRangeMessage', () => {
   it('uses the verb that goes with the mode', () => {
     expect(outOfRangeMessage({ nearestKm: 100, maxReachKm: 15 }, 'bike', 60)).toContain('60-minute ride')
     expect(outOfRangeMessage({ nearestKm: 500, maxReachKm: 160 }, 'drive', 120)).toContain('120-minute drive')
+    expect(outOfRangeMessage({ nearestKm: 80, maxReachKm: 20 }, 'transit', 30)).toContain('30-minute transit trip')
   })
 })
 

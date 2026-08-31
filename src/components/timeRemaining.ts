@@ -125,6 +125,7 @@ const MODE_LABELS: Record<string, string> = {
   walk: 'Walk',
   bike: 'Bike',
   drive: 'Drive',
+  transit: 'Transit',
 }
 
 /**
