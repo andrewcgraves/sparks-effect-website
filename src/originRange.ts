@@ -7,26 +7,33 @@
 // nothing here is binding on a caller who skips the page. What this buys is the
 // answer arriving instantly and in words, instead of after a round trip.
 import { ApiError } from './api/authoring/client'
+import type { TravelMode } from './api/authoring/types'
 import type { Station } from './api/scenarios'
 
-export type Mode = 'walk' | 'bike' | 'drive'
+export type Mode = TravelMode
 
 // The code the API tags an out-of-range refusal with.
 export const ORIGIN_OUT_OF_RANGE_CODE = 'origin_out_of_range'
 
 // Assumed travel speeds, km/h.
 //
-// The same three numbers as sparks-effect-api's internal/geo and the routing
+// The same numbers as sparks-effect-api's internal/geo and the routing
 // worker's, and they have to stay the same numbers: this decides what to tell
 // the user before asking, the API decides what to refuse, and the worker decides
 // which stations are worth a routing call. If this copy drifts high the page
 // lets through requests the API then refuses — recoverable, since the 422 is
 // handled — and if it drifts low the page refuses requests that would have
 // plotted, which is the failure worth avoiding.
+//
+// Transit is the one that is a decision rather than a physical constant: a
+// blended door-to-door pace for walking plus local transit, chosen in SPA-246.
+// Record<Mode, …> is what makes a fifth mode a compile error here rather than a
+// silently zero radius.
 const SPEED_KMH: Record<Mode, number> = {
   walk: 5,
   bike: 15,
   drive: 80,
+  transit: 40,
 }
 
 const EARTH_RADIUS_KM = 6371
@@ -124,6 +131,7 @@ const MODE_VERB: Record<Mode, string> = {
   walk: 'walk',
   bike: 'ride',
   drive: 'drive',
+  transit: 'transit trip',
 }
 
 /**

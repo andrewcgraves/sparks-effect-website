@@ -45,6 +45,28 @@ describe('useIsochroneLayer', () => {
     })
   })
 
+  // The fill is painted from feature properties, not from metadata.mode, so a
+  // fourth mode is just another string on the plot — the same layers, the same
+  // origin/egress split.
+  it('paints a transit-mode plot the same way as any other mode', () => {
+    const transit = {
+      ...staticIsochroneResponse,
+      metadata: { ...staticIsochroneResponse.metadata, mode: 'transit' },
+    }
+    const map = makeMockMap()
+    useIsochroneLayer(map as Map, transit)
+    expect(map.addSource).toHaveBeenCalledWith(ISOCHRONE_SOURCE_ID, {
+      type: 'geojson',
+      data: transit,
+    })
+    expect(map.addLayer).toHaveBeenCalledWith(
+      expect.objectContaining({ id: ISOCHRONE_ORIGIN_LAYER_ID, type: 'fill' }),
+    )
+    expect(map.addLayer).toHaveBeenCalledWith(
+      expect.objectContaining({ id: ISOCHRONE_LAYER_ID, type: 'fill' }),
+    )
+  })
+
   it('adds a fill layer referencing the isochrone source', () => {
     const map = makeMockMap()
     useIsochroneLayer(map as Map, staticIsochroneResponse)

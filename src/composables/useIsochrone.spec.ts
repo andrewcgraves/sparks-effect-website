@@ -170,6 +170,18 @@ describe('useIsochrone', () => {
       expect(error.value).toBeNull()
     })
 
+    // Transit covers more ground than a walk (40 km/h vs 5), so an origin that
+    // a 30-minute walk cannot reach can still be a legitimate transit request.
+    it('asks the API for a transit request that a walk of the same budget would refuse', async () => {
+      vi.mocked(fetchIsochrone).mockResolvedValueOnce(stubResponse)
+      const { error, generate } = withStations()
+
+      await generate({ ...request, mode: 'transit', budget_mins: 120 })
+
+      expect(fetchIsochrone).toHaveBeenCalledOnce()
+      expect(error.value).toBeNull()
+    })
+
     // What the local check could not see: a station list that has gone stale,
     // or one that differs from the compiled graph the API measures against.
     it('reports the API refusal in its own terms', async () => {

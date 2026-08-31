@@ -126,6 +126,21 @@ describe('AuthoredScenarioView', () => {
     })
   })
 
+  it('forwards transit mode when plotting an isochrone', async () => {
+    vi.mocked(fetchScenarioIsochrone).mockResolvedValue({ features: [] } as never)
+    const wrapper = mountView()
+    await flushPromises()
+
+    wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('submit', {
+      lat: 37.7, lng: -122.4, duration: 30, mode: 'transit',
+    })
+    await flushPromises()
+
+    expect(fetchScenarioIsochrone).toHaveBeenCalledWith('ca-hsr', {
+      lat: 37.7, lng: -122.4, budget_mins: 30, mode: 'transit',
+    })
+  })
+
   it('hands the compiled graph to the map as station and route layers', async () => {
     vi.mocked(fetchScenarioGraph).mockResolvedValue({
       services: [{ service_id: 'svc1', wait_secs: 0, edges: [{ from_slug: 'a', to_slug: 'b', seconds: 60 }] }],

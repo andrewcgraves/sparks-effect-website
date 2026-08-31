@@ -12,6 +12,7 @@ import { useScenario } from '../composables/useScenario'
 import { useScenarioTravelTimes } from '../composables/useScenarioTravelTimes'
 import { useIsochrone } from '../composables/useIsochrone'
 import { useOriginPick } from '../composables/useOriginPick'
+import type { TravelMode } from '../api/authoring'
 
 const props = defineProps<{ slug: string }>()
 
@@ -83,7 +84,7 @@ function onOriginChange(coords: { lat: number; lng: number } | null) {
   origin.value = coords
 }
 
-async function handleFormSubmit(payload: { lat: number; lng: number; duration: number; mode: 'walk' | 'bike' | 'drive' }) {
+async function handleFormSubmit(payload: { lat: number; lng: number; duration: number; mode: TravelMode }) {
   // Generating replaces what the map is drawing, so the pre-rendered pick that
   // was drawing it is no longer the answer on screen and stops being marked as
   // one. Cleared on submit rather than on success: the moment the question

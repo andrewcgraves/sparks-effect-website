@@ -120,6 +120,17 @@ export interface ScenarioInput {
   service_ids: string[]
 }
 
+// How a person covers the access and egress legs of an isochrone. The array is
+// the single copy: the union is derived from it, so a mode cannot be added to
+// the selector and forgotten in the request body (or the reverse). Matches the
+// API's TravelMode enum (SPA-248), including transit — walk plus scheduled
+// local transit to and from a station, not a rival to the compiled ride leg
+// (SPA-246). Valhalla spells the same costing "multimodal"; that translation
+// stays in the worker.
+export const TRAVEL_MODES = ['walk', 'bike', 'drive', 'transit'] as const
+
+export type TravelMode = (typeof TRAVEL_MODES)[number]
+
 // Request body for the owner-scoped isochrones — POST
 // /api/user-scenarios/{slug}/isochrone and POST /api/services/{slug}/isochrone,
 // which take the identical body. The target is named in the URL, not the body,
@@ -129,7 +140,7 @@ export interface AuthoredIsochroneRequest {
   lat: number
   lng: number
   budget_mins: number
-  mode: 'walk' | 'bike' | 'drive'
+  mode: TravelMode
 }
 
 // GeoJSON LineString geometry for a route.

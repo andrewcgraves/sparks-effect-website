@@ -121,6 +121,17 @@ describe('originWalkLine', () => {
   it('is null when the walk names a station the accounting does not list', () => {
     expect(originWalkLine(response([reachable('sf', 4, 'svc-1')], ROUTED_TO_SAN_JOSE))).toBeNull()
   })
+
+  // Transit access is still a routed starter_walk from the worker (it may
+  // include a bus). The layer reads the geometry, not the mode, so a fourth
+  // mode must not need a second drawing path.
+  it('draws the access leg when the plot was in transit mode', () => {
+    const transit = response([reachable('san-jose', 22)], ROUTED_TO_SAN_JOSE)
+    transit.metadata.mode = 'transit'
+    const line = originWalkLine(transit)
+    expect(line?.features).toHaveLength(1)
+    expect(line?.features[0].geometry).toEqual(ROUTED_TO_SAN_JOSE.geometry)
+  })
 })
 
 describe('useOriginWalkLayer', () => {

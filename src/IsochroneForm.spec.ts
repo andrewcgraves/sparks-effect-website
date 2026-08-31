@@ -65,11 +65,12 @@ describe('IsochroneForm', () => {
     expect((wrapper.find('input[data-testid="duration-slider-option-75"]').element as HTMLInputElement).checked).toBe(true)
   })
 
-  it('renders walk, bike, and drive mode radio buttons', () => {
+  it('renders walk, bike, drive, and transit mode radio buttons', () => {
     const wrapper = mount(IsochroneForm)
     expect(wrapper.find('input[data-testid="mode-walk"]').exists()).toBe(true)
     expect(wrapper.find('input[data-testid="mode-bike"]').exists()).toBe(true)
     expect(wrapper.find('input[data-testid="mode-drive"]').exists()).toBe(true)
+    expect(wrapper.find('input[data-testid="mode-transit"]').exists()).toBe(true)
   })
 
   it('defaults to walk mode', () => {
@@ -77,6 +78,7 @@ describe('IsochroneForm', () => {
     expect((wrapper.find('input[data-testid="mode-walk"]').element as HTMLInputElement).checked).toBe(true)
     expect((wrapper.find('input[data-testid="mode-bike"]').element as HTMLInputElement).checked).toBe(false)
     expect((wrapper.find('input[data-testid="mode-drive"]').element as HTMLInputElement).checked).toBe(false)
+    expect((wrapper.find('input[data-testid="mode-transit"]').element as HTMLInputElement).checked).toBe(false)
   })
 
   it('emits submit with lat, lng, duration, and mode as numbers and string', async () => {
@@ -111,11 +113,27 @@ describe('IsochroneForm', () => {
     expect(payload.mode).toBe('drive')
   })
 
+  it('emits submit with transit mode when transit radio is selected', async () => {
+    const wrapper = mount(IsochroneForm)
+    await wrapper.find('input[data-testid="lat"]').setValue('51.5074')
+    await wrapper.find('input[data-testid="lng"]').setValue('-0.1278')
+    await wrapper.find('input[data-testid="mode-transit"]').trigger('change')
+    await wrapper.find('form').trigger('submit')
+    const [payload] = wrapper.emitted<[{ mode: string }]>('submit')![0]
+    expect(payload.mode).toBe('transit')
+  })
+
   it('calls trackModeToggle when the mode changes', async () => {
     const wrapper = mount(IsochroneForm)
     await wrapper.find('input[data-testid="mode-bike"]').trigger('change')
     expect(trackModeToggle).toHaveBeenCalledOnce()
     expect(trackModeToggle).toHaveBeenCalledWith('bike')
+  })
+
+  it('calls trackModeToggle with transit when that radio is selected', async () => {
+    const wrapper = mount(IsochroneForm)
+    await wrapper.find('input[data-testid="mode-transit"]').trigger('change')
+    expect(trackModeToggle).toHaveBeenCalledWith('transit')
   })
 
   it('does not emit submit when lat is empty', async () => {

@@ -200,6 +200,7 @@ const routedToStub: StarterWalk = {
 function chainWith(
   stations: ChainResponse['metadata']['reachable_stations'],
   starterWalk?: StarterWalk,
+  mode = 'walk',
 ): ChainResponse {
   return {
     type: 'FeatureCollection',
@@ -208,7 +209,7 @@ function chainWith(
       reachable_stations: stations,
       origin_budget_mins: 90,
       compile_job_id: 'compile-1',
-      mode: 'walk',
+      mode,
       wait_model: 'none',
       origin_iso_available: true,
       ...(starterWalk ? { starter_walk: starterWalk } : {}),
@@ -563,6 +564,29 @@ describe('MapView', () => {
     ) as [string, { data: { features: { geometry: { coordinates: number[][] } }[] } }]
     // The routed shape, not a segment from the origin prop to the station row.
     expect(source.data.features[0].geometry.coordinates).toEqual(routedToStub.geometry.coordinates)
+  })
+
+  it('draws the access line for a transit-mode plot the same way as a walking one', async () => {
+    mount(MapView, {
+      props: {
+        ...defaultProps,
+        origin: { lat: 37.4, lng: -121.9 },
+        isochroneData: chainWith(
+          [
+            { station_slug: 'sf', access_mins: 22, remaining_mins: 60 },
+            { station_slug: 'gilroy', access_mins: 40, remaining_mins: 20, via_service: 'svc1' },
+          ],
+          routedToStub,
+          'transit',
+        ),
+        stations: [stubStation],
+      },
+    })
+    await triggerMapLoad()
+    expect(mockAddSource).toHaveBeenCalledWith(
+      ORIGIN_WALK_SOURCE_ID,
+      expect.objectContaining({ type: 'geojson' }),
+    )
   })
 
   it('draws no walking line when the plot carries no walking leg', async () => {

@@ -7,14 +7,19 @@ import type { GeocodingSuggestion } from './api/geocoding'
 import { reverseGeocode } from './api/geocoding'
 import { getCurrentPosition } from './api/geolocation'
 import { trackModeToggle } from './analytics/index'
+import { TRAVEL_MODES, type TravelMode } from './api/authoring/types'
 
-type Mode = 'walk' | 'bike' | 'drive'
+const MODE_LABELS: Record<TravelMode, string> = {
+  walk: 'Walk',
+  bike: 'Bike',
+  drive: 'Drive',
+  transit: 'Transit',
+}
 
-const MODE_OPTIONS: { value: Mode; label: string }[] = [
-  { value: 'walk', label: 'Walk' },
-  { value: 'bike', label: 'Bike' },
-  { value: 'drive', label: 'Drive' },
-]
+const MODE_OPTIONS: { value: TravelMode; label: string }[] = TRAVEL_MODES.map((value) => ({
+  value,
+  label: MODE_LABELS[value],
+}))
 
 const DURATION_OPTIONS = [45, 60, 75, 120, 180, 240]
 
@@ -31,7 +36,7 @@ const props = withDefaults(
 )
 
 const emit = defineEmits<{
-  submit: [payload: { lat: number; lng: number; duration: number; mode: Mode }]
+  submit: [payload: { lat: number; lng: number; duration: number; mode: TravelMode }]
   'origin-change': [origin: { lat: number; lng: number } | null]
   // Reported rather than owned: the map that has to go into crosshair mode is
   // the form's sibling, not its child, so the parent mirrors this onto MapView.
@@ -44,7 +49,7 @@ const duration = ref(60)
 const selectedLabel = ref('')
 const locationError = ref('')
 const locating = ref(false)
-const mode = ref<Mode>('walk')
+const mode = ref<TravelMode>('walk')
 const pickArmed = ref(false)
 const addressAutocompleteRef = ref<InstanceType<typeof AddressAutocomplete> | null>(null)
 let locationRequestId = 0
@@ -159,7 +164,7 @@ async function onUseCurrentLocation() {
   }
 }
 
-function onModeChange(newMode: Mode) {
+function onModeChange(newMode: TravelMode) {
   mode.value = newMode
   trackModeToggle(newMode)
 }
@@ -262,7 +267,7 @@ function handleSubmit() {
       <legend class="font-body text-micro text-ink-muted italic uppercase">
         Mode
       </legend>
-      <div class="flex gap-4">
+      <div class="flex flex-wrap gap-x-4 gap-y-1.5">
         <label
           v-for="option in MODE_OPTIONS"
           :key="option.value"
