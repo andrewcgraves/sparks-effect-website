@@ -22,7 +22,7 @@
       --banner-h: auto;
     }
     * { box-sizing: border-box; }
-    html, body { margin: 0; height: 100%; }
+    html, body { margin: 0; min-height: 100%; }
     body {
       font: 14px/1.45 "Inter", system-ui, sans-serif;
       color: var(--ink);
@@ -77,7 +77,13 @@
       height: calc(100vh - var(--spike-h, 118px));
       min-height: 0;
     }
-    .app.is-narrow { max-width: 420px; margin: 0 auto; border-left: 1px dashed #94a3b8; border-right: 1px dashed #94a3b8; }
+    .app.is-narrow {
+      max-width: 420px;
+      margin: 0 auto;
+      border-left: 1px dashed #94a3b8;
+      border-right: 1px dashed #94a3b8;
+      height: calc(100vh - var(--spike-h, 118px));
+    }
 
     header.top {
       flex: 0 0 var(--header-h);
@@ -149,11 +155,14 @@
       display: grid;
       grid-template-columns: 1fr var(--rail-w);
     }
-    .app.is-narrow .workspace,
+    .app.is-narrow .workspace {
+      grid-template-columns: 1fr;
+      grid-template-rows: minmax(220px, 32vh) minmax(0, 1fr);
+    }
     .app.is-narrow .about-panel.open {
       grid-template-columns: 1fr;
+      max-height: 28vh;
     }
-    .app.is-narrow .about-panel.open { max-height: 40vh; }
 
     /* Map */
     .map {
@@ -225,8 +234,8 @@
       flex-direction: column;
       gap: 12px;
     }
-    .app.is-narrow .rail { border-left: 0; border-top: 1px solid var(--border); }
-    .app.is-narrow .map { min-height: 42vh; }
+    .app.is-narrow .rail { border-left: 0; border-top: 1px solid var(--border); min-height: 0; }
+    .app.is-narrow .map { min-height: 0; height: 100%; }
 
     .card {
       border: 1px solid var(--border);
@@ -320,7 +329,13 @@
     .seed button[aria-pressed="true"] small { color: rgba(255,255,255,.8); }
 
     .remaining { display: none; }
-    .remaining.show { display: block; }
+    .remaining.show {
+      display: flex;
+      flex-direction: column;
+      flex: 1 1 auto;
+      min-height: 180px;
+    }
+    .tr-list { overflow: auto; min-height: 0; flex: 1 1 auto; }
     .tabs { display: flex; gap: 4px; margin-bottom: 8px; }
     .tr-row {
       display: grid;
@@ -354,10 +369,13 @@
     }
 
     @media (max-width: 1279px) {
-      .workspace { grid-template-columns: 1fr; }
+      .workspace {
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(220px, 36vh) minmax(0, 1fr);
+      }
       .about-panel.open { grid-template-columns: 1fr; }
-      .rail { border-left: 0; border-top: 1px solid var(--border); }
-      .map { min-height: 42vh; }
+      .rail { border-left: 0; border-top: 1px solid var(--border); min-height: 0; }
+      .map { min-height: 0; }
     }
   </style>
 </head>
@@ -524,8 +542,8 @@
             <button class="pill" type="button" aria-pressed="true">Phase 1</button>
             <button class="pill" type="button">Brightline West</button>
           </div>
-          <div id="rows-phase">
-            <div class="tr-row" data-st="burbank">
+          <div class="tr-list" id="rows-phase">
+            <div class="tr-row" data-st="origin">
               <span class="node"></span>
               <span class="tr-name">Starting location<span class="tr-flag">Walk</span></span>
               <span class="tr-val">4h 0m</span>
@@ -562,8 +580,8 @@
               <p class="tr-detail">Rode in from San Jose · End of this branch</p>
             </div>
           </div>
-          <div id="rows-spur" hidden>
-            <div class="tr-row" data-st="burbank">
+          <div class="tr-list" id="rows-spur" hidden>
+            <div class="tr-row" data-st="origin">
               <span class="node"></span>
               <span class="tr-name">Starting location<span class="tr-flag">Walk</span></span>
               <span class="tr-val">4h 0m</span>
@@ -659,18 +677,23 @@
       pin.classList.add('show')
     }
 
-    function highlight(slug) {
+    function highlight(slug, fromMap) {
       state.hover = slug
       document.querySelectorAll('.tr-row').forEach((row) => {
         row.classList.toggle('is-active', slug && row.dataset.st === slug)
       })
-      if (!slug || !STATIONS[slug]) {
+      const pt = slug === 'origin' ? STATIONS.burbank : STATIONS[slug]
+      if (!slug || !pt) {
         halo.classList.remove('on')
         return
       }
-      halo.setAttribute('cx', STATIONS[slug].cx)
-      halo.setAttribute('cy', STATIONS[slug].cy)
+      halo.setAttribute('cx', pt.cx)
+      halo.setAttribute('cy', pt.cy)
       halo.classList.add('on')
+      if (fromMap) {
+        remaining.querySelector(`.tr-row[data-st="${slug}"]`)
+          ?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+      }
     }
 
     function render() {
@@ -764,6 +787,8 @@
         lat.value = ''
         lng.value = ''
         pin.classList.remove('show')
+        $('advanced').classList.remove('open')
+        $('advanced-btn').textContent = '▸ Advanced origin'
         highlight(null)
       } else if (name === 'pick') {
         state.origin = null
@@ -901,7 +926,7 @@
     document.querySelectorAll('#stations circle').forEach((c) => {
       c.style.cursor = 'pointer'
       c.addEventListener('mouseenter', () => {
-        if (state.plotted) highlight(c.dataset.st)
+        if (state.plotted) highlight(c.dataset.st, true)
       })
       c.addEventListener('mouseleave', () => highlight(null))
     })
