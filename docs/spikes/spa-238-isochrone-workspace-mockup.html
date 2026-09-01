@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SPA-238 — Isochrone workspace mockup (discardable)</title>
+  <style>
+    :root {
+      --ink: #121212;
+      --ink-true: #000;
+      --muted: #4a4a4f;
+      --border: #cfcfd2;
+      --surface: #f4f4f5;
+      --paper: #fafafa;
+      --coral: #e1665b;
+      --origin: #1034b1;
+      --egress: #f28f29;
+      --map-fill: #eceee9;
+      --rail-w: 340px;
+      --header-h: 40px;
+      --title-h: 64px;
+      --banner-h: auto;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      font: 14px/1.45 "Inter", system-ui, sans-serif;
+      color: var(--ink);
+      background: #fff;
+    }
+    button, input { font: inherit; }
+
+    /* —— Spike chrome (not product) —— */
+    .spike {
+      background: #1e293b;
+      color: #e2e8f0;
+      padding: 10px 16px 12px;
+      display: grid;
+      gap: 8px;
+    }
+    .spike h1 {
+      margin: 0;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .spike p { margin: 0; font-size: 13px; color: #cbd5e1; max-width: 72rem; }
+    .spike-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .spike-row span.label {
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #94a3b8;
+      margin-right: 4px;
+    }
+    .chip {
+      border: 1px solid #64748b;
+      background: transparent;
+      color: #e2e8f0;
+      border-radius: 4px;
+      padding: 4px 9px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .chip[aria-pressed="true"], .chip.is-on {
+      background: #e1665b;
+      border-color: #e1665b;
+      color: #fff;
+    }
+    .chip:hover { border-color: #e2e8f0; }
+
+    /* —— Product shell —— */
+    .app {
+      display: flex;
+      flex-direction: column;
+      height: calc(100vh - var(--spike-h, 118px));
+      min-height: 0;
+    }
+    .app.is-narrow { max-width: 420px; margin: 0 auto; border-left: 1px dashed #94a3b8; border-right: 1px dashed #94a3b8; }
+
+    header.top {
+      flex: 0 0 var(--header-h);
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      padding: 0 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    header.top a { color: var(--muted); text-decoration: none; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 700; }
+
+    .titlebar {
+      flex: 0 0 auto;
+      padding: 10px 16px 8px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .titlebar h2 {
+      margin: 0;
+      font-size: 22px;
+      line-height: 1.15;
+      letter-spacing: -0.01em;
+    }
+    .kicker {
+      margin: 4px 0 0;
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-style: italic;
+    }
+    .about-btn {
+      border: 1px solid var(--border);
+      background: #fff;
+      padding: 6px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .about-btn[aria-expanded="true"] { border-color: var(--coral); color: var(--coral); }
+
+    .about-panel {
+      display: none;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      padding: 12px 16px 16px;
+      max-height: 28vh;
+      overflow: auto;
+    }
+    .about-panel.open { display: grid; gap: 14px; grid-template-columns: 1fr 1fr; }
+    .about-panel h3 { margin: 0 0 6px; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; }
+    .about-panel p { margin: 0; color: var(--muted); font-size: 13px; }
+    table.times { width: 100%; border-collapse: collapse; font-size: 12px; }
+    table.times th { text-align: left; color: var(--muted); font-weight: 600; padding: 2px 6px 4px 0; }
+    table.times td { padding: 2px 8px 2px 0; border-top: 1px solid var(--border); }
+    .line-label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; margin: 8px 0 4px; }
+
+    .workspace {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 1fr var(--rail-w);
+    }
+    .app.is-narrow .workspace,
+    .app.is-narrow .about-panel.open {
+      grid-template-columns: 1fr;
+    }
+    .app.is-narrow .about-panel.open { max-height: 40vh; }
+
+    /* Map */
+    .map {
+      position: relative;
+      background:
+        linear-gradient(90deg, #e4e6e1 1px, transparent 1px),
+        linear-gradient(#e4e6e1 1px, transparent 1px),
+        var(--map-fill);
+      background-size: 28px 28px;
+      min-height: 0;
+      overflow: hidden;
+      cursor: default;
+    }
+    .map.is-picking { cursor: crosshair; }
+    .map svg { width: 100%; height: 100%; display: block; }
+    .map-cue {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      background: #fff;
+      border: 1px dashed var(--ink);
+      padding: 6px 10px;
+      font-size: 12px;
+      pointer-events: none;
+    }
+    .map-key {
+      position: absolute;
+      bottom: 12px;
+      left: 12px;
+      background: #fff;
+      border: 1px solid var(--border);
+      padding: 8px 10px;
+      font-size: 11px;
+      display: none;
+      gap: 8px;
+      align-items: center;
+    }
+    .map-key.show { display: flex; }
+    .swatch { width: 12px; height: 12px; border-radius: 2px; }
+    .swatch.origin { background: var(--origin); opacity: 0.55; }
+    .swatch.egress { background: var(--egress); opacity: 0.55; }
+    .pin {
+      position: absolute;
+      width: 14px; height: 14px;
+      border-radius: 50% 50% 50% 0;
+      background: var(--coral);
+      transform: translate(-50%, -100%) rotate(-45deg);
+      border: 2px solid #fff;
+      display: none;
+      pointer-events: none;
+    }
+    .pin.show { display: block; }
+    .station-halo {
+      fill: none;
+      stroke: var(--coral);
+      stroke-width: 3;
+      opacity: 0;
+    }
+    .station-halo.on { opacity: 1; }
+
+    /* Rail */
+    .rail {
+      min-height: 0;
+      overflow: auto;
+      border-left: 1px solid var(--border);
+      background: #fff;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .app.is-narrow .rail { border-left: 0; border-top: 1px solid var(--border); }
+    .app.is-narrow .map { min-height: 42vh; }
+
+    .card {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      padding: 12px;
+    }
+    .card h3 {
+      margin: 0 0 10px;
+      font-size: 16px;
+      letter-spacing: -0.01em;
+    }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .ghost {
+      border: 1px dashed var(--border);
+      background: #fff;
+      color: var(--muted);
+      padding: 8px 10px;
+      border-radius: 4px;
+      width: 100%;
+      text-align: left;
+    }
+    .linkish {
+      background: none;
+      border: 0;
+      padding: 0;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 12px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+    .linkish:hover, .linkish.is-on { color: var(--coral); }
+    .pills { display: flex; flex-wrap: wrap; gap: 4px; }
+    .pill {
+      border: 1px solid var(--border);
+      background: #fff;
+      border-radius: 4px;
+      padding: 4px 7px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .pill[aria-pressed="true"] { background: var(--coral); border-color: var(--coral); color: #fff; }
+    .modes { display: flex; flex-wrap: wrap; gap: 10px; font-size: 13px; }
+    .modes label { display: flex; gap: 4px; align-items: center; cursor: pointer; }
+    .primary {
+      width: 100%;
+      margin-top: 4px;
+      background: var(--coral);
+      color: #fff;
+      border: 0;
+      border-radius: 4px;
+      padding: 9px 12px;
+      font-size: 13px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .primary:disabled { opacity: 0.45; cursor: not-allowed; }
+    .hint { margin: 8px 0 0; font-size: 12px; color: var(--muted); font-style: italic; }
+    .advanced { display: none; margin-top: 8px; }
+    .advanced.open { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .advanced label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); display: grid; gap: 4px; }
+    .advanced input { border: 1px solid var(--border); border-radius: 4px; padding: 6px 8px; width: 100%; }
+
+    .summary {
+      display: none;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .summary.show { display: flex; }
+    .summary .meta { font-size: 13px; }
+    .summary .meta strong { display: block; font-size: 14px; }
+    .summary .meta span { color: var(--muted); font-size: 12px; }
+
+    .seed button {
+      width: 100%;
+      text-align: left;
+      border: 1px solid var(--border);
+      background: #fff;
+      border-radius: 4px;
+      padding: 8px 10px;
+      cursor: pointer;
+      margin-top: 6px;
+    }
+    .seed button[aria-pressed="true"] { background: var(--coral); border-color: var(--coral); color: #fff; }
+    .seed small { display: block; color: var(--muted); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; margin-top: 2px; }
+    .seed button[aria-pressed="true"] small { color: rgba(255,255,255,.8); }
+
+    .remaining { display: none; }
+    .remaining.show { display: block; }
+    .tabs { display: flex; gap: 4px; margin-bottom: 8px; }
+    .tr-row {
+      display: grid;
+      grid-template-columns: 18px 1fr auto;
+      gap: 8px;
+      align-items: start;
+      padding: 5px 4px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .tr-row:hover, .tr-row.is-active { background: #fff; outline: 1px solid var(--coral); }
+    .node { width: 10px; height: 10px; border-radius: 50%; background: var(--ink); margin: 5px auto 0; }
+    .tr-name { font-size: 13px; }
+    .tr-flag { display: block; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+    .tr-val { font-variant-numeric: tabular-nums; font-size: 13px; }
+    .tr-detail {
+      display: none;
+      grid-column: 2 / -1;
+      font-size: 12px;
+      color: var(--muted);
+      margin: 0 0 4px;
+    }
+    .tr-row.is-active .tr-detail { display: block; }
+
+    .callout {
+      font-size: 11px;
+      color: #64748b;
+      border-left: 2px solid #94a3b8;
+      padding: 0 0 0 8px;
+      margin: 0;
+    }
+
+    @media (max-width: 1279px) {
+      .workspace { grid-template-columns: 1fr; }
+      .about-panel.open { grid-template-columns: 1fr; }
+      .rail { border-left: 0; border-top: 1px solid var(--border); }
+      .map { min-height: 42vh; }
+    }
+  </style>
+</head>
+<body>
+  <aside class="spike" id="spike">
+    <h1>SPA-238 · discardable workspace mockup</h1>
+    <p>
+      Low-fidelity stand-in for Alternative A from the spike: the isochrone page as a
+      <strong>map workspace</strong>, not a document that contains a map.
+      Wireframe only — no production code. Click through the flow, or jump a scene.
+    </p>
+    <div class="spike-row">
+      <span class="label">Scene</span>
+      <button class="chip is-on" data-scene="empty" type="button">1 · Empty</button>
+      <button class="chip" data-scene="pick" type="button">2 · Pick on map</button>
+      <button class="chip" data-scene="plotted" type="button">3 · After plot</button>
+      <button class="chip" data-scene="hover" type="button">4 · Hover a station</button>
+      <button class="chip" data-scene="about" type="button">5 · About this route</button>
+    </div>
+    <div class="spike-row">
+      <span class="label">Frame</span>
+      <button class="chip is-on" id="frame-desktop" type="button">Desktop workspace</button>
+      <button class="chip" id="frame-narrow" type="button">Narrow stack (~420px)</button>
+    </div>
+  </aside>
+
+  <div class="app" id="app">
+    <header class="top"><a href="#">Sign in</a></header>
+
+    <div class="titlebar">
+      <hgroup>
+        <h2>California High-Speed Rail</h2>
+        <p class="kicker">Electrified · High-speed rail · Greenfield</p>
+      </hgroup>
+      <button class="about-btn" id="about-btn" type="button" aria-expanded="false" aria-controls="about">
+        About this route
+      </button>
+    </div>
+
+    <section class="about-panel" id="about">
+      <div>
+        <h3>Description</h3>
+        <p>
+          Phase 1 from San Francisco to Anaheim, with Brightline West branching at Palmdale toward Las Vegas.
+          Scenario facts live here so they stop competing with the plot answer in the rail.
+        </p>
+        <p style="margin-top:8px"><em>Technology assumptions — placeholder, awaiting an API field.</em></p>
+      </div>
+      <div>
+        <h3>Time between stations</h3>
+        <div class="line-label">Phase 1</div>
+        <table class="times">
+          <thead><tr><th>From</th><th>To</th><th>Run</th></tr></thead>
+          <tbody>
+            <tr><td>San Francisco</td><td>San Jose</td><td>40:45</td></tr>
+            <tr><td>San Jose</td><td>Palmdale</td><td>40:00</td></tr>
+            <tr><td>Palmdale</td><td>Anaheim</td><td>20:00</td></tr>
+          </tbody>
+        </table>
+        <div class="line-label">Brightline West</div>
+        <table class="times">
+          <thead><tr><th>From</th><th>To</th><th>Run</th></tr></thead>
+          <tbody>
+            <tr><td>Palmdale</td><td>Victor Valley</td><td>17:30</td></tr>
+            <tr><td>Victor Valley</td><td>Las Vegas</td><td>88:30</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="workspace">
+      <div class="map" id="map" role="application" aria-label="Isochrone map">
+        <div class="map-cue" id="map-cue">Map fills the remaining viewport. It does not scroll away.</div>
+        <svg viewBox="0 0 640 720" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+          <!-- Simplified CA HSR spine, north at top -->
+          <path id="line" d="M210 40 C220 90, 230 140, 250 190 C270 250, 290 300, 310 360 C330 420, 345 470, 355 510 C365 555, 380 600, 400 660"
+                fill="none" stroke="#121212" stroke-width="3" />
+          <path id="spur" d="M330 420 C390 400, 460 370, 540 300"
+                fill="none" stroke="#121212" stroke-width="3" />
+          <ellipse id="blob-origin" cx="352" cy="505" rx="70" ry="52" fill="#1034b1" opacity="0" />
+          <ellipse id="blob-egress" cx="352" cy="505" rx="118" ry="90" fill="#f28f29" opacity="0" />
+          <g id="stations" fill="#121212">
+            <circle data-st="sf" cx="210" cy="40" r="5" />
+            <circle data-st="sj" cx="250" cy="190" r="5" />
+            <circle data-st="gilroy" cx="270" cy="250" r="5" />
+            <circle data-st="palmdale" cx="330" cy="420" r="5" />
+            <circle data-st="burbank" cx="352" cy="505" r="5" />
+            <circle data-st="la" cx="370" cy="575" r="5" />
+            <circle data-st="anaheim" cx="400" cy="660" r="5" />
+            <circle data-st="vegas" cx="540" cy="300" r="5" />
+          </g>
+          <circle id="halo" class="station-halo" r="11" cx="352" cy="505" />
+        </svg>
+        <div class="pin" id="pin"></div>
+        <div class="map-key" id="map-key">
+          <span class="swatch origin"></span> Origin walk
+          <span class="swatch egress"></span> From stations
+        </div>
+      </div>
+
+      <aside class="rail" id="rail">
+        <p class="callout" id="rail-callout">
+          Independently scrolling rail. Map stays put. Scenario tables are not in this column.
+        </p>
+
+        <form class="card" id="plot-form" onsubmit="return false;">
+          <div id="form-full">
+            <h3>Plot isochrone</h3>
+            <input class="ghost" id="address" type="text" placeholder="Search an address" autocomplete="off">
+            <div class="row" style="margin-top:8px">
+              <button class="linkish" id="use-loc" type="button">Use my location</button>
+              <button class="linkish" id="pick-map" type="button">Pick location on map</button>
+            </div>
+            <div style="margin-top:8px">
+              <button class="linkish" id="advanced-btn" type="button">▸ Advanced origin</button>
+              <div class="advanced" id="advanced">
+                <label>Latitude <input id="lat" type="text" placeholder="34.20"></label>
+                <label>Longitude <input id="lng" type="text" placeholder="-118.35"></label>
+              </div>
+            </div>
+            <div style="margin-top:10px">
+              <div class="pills" id="durations">
+                <button class="pill" type="button" data-d="45">45 min</button>
+                <button class="pill" type="button" data-d="60">60 min</button>
+                <button class="pill" type="button" data-d="75">75 min</button>
+                <button class="pill" type="button" data-d="120">120 min</button>
+                <button class="pill" type="button" data-d="180">180 min</button>
+                <button class="pill" type="button" data-d="240" aria-pressed="true">240 min</button>
+              </div>
+            </div>
+            <div class="modes" style="margin-top:10px">
+              <label><input type="radio" name="mode" value="walk" checked> Walk</label>
+              <label><input type="radio" name="mode" value="bike"> Bike</label>
+              <label><input type="radio" name="mode" value="drive"> Drive</label>
+              <label><input type="radio" name="mode" value="transit"> Transit</label>
+            </div>
+            <button class="primary" id="generate" type="button" disabled>Generate isochrone</button>
+            <p class="hint" id="form-hint">Enter a location and travel time to continue.</p>
+          </div>
+          <div class="summary" id="form-summary">
+            <div class="meta">
+              <strong id="summary-place">Burbank Airport</strong>
+              <span id="summary-meta">240 min · Walk</span>
+            </div>
+            <button class="linkish" id="change" type="button">Change</button>
+          </div>
+        </form>
+
+        <section class="card seed" id="seeds">
+          <h3>Pre-rendered</h3>
+          <button type="button" data-seed="burbank" aria-pressed="false">
+            Burbank Airport
+            <small>240 min · walk</small>
+          </button>
+          <button type="button" data-seed="la" aria-pressed="false">
+            Downtown Los Angeles
+            <small>120 min · transit</small>
+          </button>
+        </section>
+
+        <section class="card remaining" id="remaining">
+          <h3>Time remaining</h3>
+          <div class="tabs pills" id="line-tabs">
+            <button class="pill" type="button" aria-pressed="true">Phase 1</button>
+            <button class="pill" type="button">Brightline West</button>
+          </div>
+          <div id="rows-phase">
+            <div class="tr-row" data-st="burbank">
+              <span class="node"></span>
+              <span class="tr-name">Starting location<span class="tr-flag">Walk</span></span>
+              <span class="tr-val">4h 0m</span>
+              <p class="tr-detail">Walk to Burbank Airport · 18 min</p>
+            </div>
+            <div class="tr-row" data-st="burbank">
+              <span class="node"></span>
+              <span class="tr-name">Burbank Airport<span class="tr-flag">Phase 1</span></span>
+              <span class="tr-val">3h 42m</span>
+              <p class="tr-detail">Arrived with 3h 42m left · Boarding wait 4 min</p>
+            </div>
+            <div class="tr-row" data-st="palmdale">
+              <span class="node"></span>
+              <span class="tr-name">Palmdale<span class="tr-flag">Phase 1</span></span>
+              <span class="tr-val">3h 10m</span>
+              <p class="tr-detail">Rode in from Burbank Airport · Arrived with 3h 11m left · Stopped here for 1 min</p>
+            </div>
+            <div class="tr-row" data-st="anaheim">
+              <span class="node"></span>
+              <span class="tr-name">Anaheim<span class="tr-flag">Phase 1</span></span>
+              <span class="tr-val">2h 50m</span>
+              <p class="tr-detail">Rode in from Palmdale · Arrived with 2h 50m left</p>
+            </div>
+            <div class="tr-row" data-st="sj">
+              <span class="node"></span>
+              <span class="tr-name">San Jose<span class="tr-flag">Phase 1</span></span>
+              <span class="tr-val">2h 30m</span>
+              <p class="tr-detail">Rode in from Palmdale · Arrived with 2h 30m left</p>
+            </div>
+            <div class="tr-row" data-st="sf">
+              <span class="node"></span>
+              <span class="tr-name">San Francisco<span class="tr-flag"></span></span>
+              <span class="tr-val">1h 49m</span>
+              <p class="tr-detail">Rode in from San Jose · End of this branch</p>
+            </div>
+          </div>
+          <div id="rows-spur" hidden>
+            <div class="tr-row" data-st="burbank">
+              <span class="node"></span>
+              <span class="tr-name">Starting location<span class="tr-flag">Walk</span></span>
+              <span class="tr-val">4h 0m</span>
+              <p class="tr-detail">Walk to Burbank Airport · 18 min</p>
+            </div>
+            <div class="tr-row" data-st="palmdale">
+              <span class="node"></span>
+              <span class="tr-name">Palmdale<span class="tr-flag">Brightline West</span></span>
+              <span class="tr-val">3h 10m</span>
+              <p class="tr-detail">Transfer from Phase 1</p>
+            </div>
+            <div class="tr-row" data-st="vegas">
+              <span class="node"></span>
+              <span class="tr-name">Las Vegas<span class="tr-flag"></span></span>
+              <span class="tr-val">1h 20m</span>
+              <p class="tr-detail">Rode in from Palmdale · End of this branch</p>
+            </div>
+          </div>
+        </section>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id)
+    const app = $('app')
+    const map = $('map')
+    const pin = $('pin')
+    const cue = $('map-cue')
+    const formFull = $('form-full')
+    const formSummary = $('form-summary')
+    const remaining = $('remaining')
+    const generate = $('generate')
+    const hint = $('form-hint')
+    const about = $('about')
+    const aboutBtn = $('about-btn')
+    const blobO = $('blob-origin')
+    const blobE = $('blob-egress')
+    const key = $('map-key')
+    const halo = $('halo')
+    const pickBtn = $('pick-map')
+    const address = $('address')
+    const lat = $('lat')
+    const lng = $('lng')
+
+    const state = {
+      picking: false,
+      origin: null,
+      plotted: false,
+      collapsed: false,
+      about: false,
+      duration: 240,
+      mode: 'walk',
+      place: '',
+      seed: null,
+      hover: null,
+      line: 'phase',
+    }
+
+    const STATIONS = {
+      sf: { cx: 210, cy: 40, name: 'San Francisco' },
+      sj: { cx: 250, cy: 190, name: 'San Jose' },
+      gilroy: { cx: 270, cy: 250, name: 'Gilroy' },
+      palmdale: { cx: 330, cy: 420, name: 'Palmdale' },
+      burbank: { cx: 352, cy: 505, name: 'Burbank Airport' },
+      la: { cx: 370, cy: 575, name: 'Los Angeles' },
+      anaheim: { cx: 400, cy: 660, name: 'Anaheim' },
+      vegas: { cx: 540, cy: 300, name: 'Las Vegas' },
+    }
+
+    function measureSpike() {
+      document.documentElement.style.setProperty('--spike-h', $('spike').offsetHeight + 'px')
+    }
+    measureSpike()
+    window.addEventListener('resize', measureSpike)
+
+    function setPinFromStation(slug) {
+      const svg = map.querySelector('svg')
+      const pt = STATIONS[slug]
+      const rect = svg.getBoundingClientRect()
+      const mapRect = map.getBoundingClientRect()
+      const x = rect.left - mapRect.left + (pt.cx / 640) * rect.width
+      const y = rect.top - mapRect.top + (pt.cy / 720) * rect.height
+      pin.style.left = x + 'px'
+      pin.style.top = y + 'px'
+      pin.classList.add('show')
+    }
+
+    function setPinFromClick(ev) {
+      const rect = map.getBoundingClientRect()
+      pin.style.left = (ev.clientX - rect.left) + 'px'
+      pin.style.top = (ev.clientY - rect.top) + 'px'
+      pin.classList.add('show')
+    }
+
+    function highlight(slug) {
+      state.hover = slug
+      document.querySelectorAll('.tr-row').forEach((row) => {
+        row.classList.toggle('is-active', slug && row.dataset.st === slug)
+      })
+      if (!slug || !STATIONS[slug]) {
+        halo.classList.remove('on')
+        return
+      }
+      halo.setAttribute('cx', STATIONS[slug].cx)
+      halo.setAttribute('cy', STATIONS[slug].cy)
+      halo.classList.add('on')
+    }
+
+    function render() {
+      map.classList.toggle('is-picking', state.picking)
+      pickBtn.classList.toggle('is-on', state.picking)
+      pickBtn.textContent = state.picking ? 'Cancel' : 'Pick location on map'
+
+      if (state.picking) {
+        cue.textContent = 'Crosshair on. Click the map to set origin — the map is still here because it never left the viewport.'
+      } else if (state.plotted) {
+        cue.textContent = 'Answer is on the map and in the rail at the same time. Hover a Time remaining row to light its station.'
+      } else if (state.origin) {
+        cue.textContent = 'Origin set. Generate, or pick a pre-rendered answer. Map stays put while the rail scrolls.'
+      } else {
+        cue.textContent = 'Map fills the remaining viewport. It does not scroll away.'
+      }
+
+      generate.disabled = !state.origin
+      hint.style.display = state.origin ? 'none' : 'block'
+
+      const showSummary = state.plotted && state.collapsed
+      formFull.style.display = showSummary ? 'none' : 'block'
+      formSummary.classList.toggle('show', showSummary)
+      remaining.classList.toggle('show', state.plotted)
+      blobO.setAttribute('opacity', state.plotted ? '0.35' : '0')
+      blobE.setAttribute('opacity', state.plotted ? '0.35' : '0')
+      key.classList.toggle('show', state.plotted)
+      pin.classList.toggle('show', !!state.origin)
+
+      $('summary-place').textContent = state.place || 'Chosen origin'
+      $('summary-meta').textContent = state.duration + ' min · ' + state.mode[0].toUpperCase() + state.mode.slice(1)
+
+      about.classList.toggle('open', state.about)
+      aboutBtn.setAttribute('aria-expanded', String(state.about))
+
+      document.querySelectorAll('[data-scene]').forEach((btn) => {
+        const s = btn.dataset.scene
+        const on =
+          (s === 'empty' && !state.origin && !state.plotted && !state.about && !state.picking) ||
+          (s === 'pick' && state.picking) ||
+          (s === 'plotted' && state.plotted && state.collapsed && !state.about && !state.hover) ||
+          (s === 'hover' && state.hover === 'palmdale') ||
+          (s === 'about' && state.about)
+        btn.classList.toggle('is-on', on)
+      })
+
+      $('rows-phase').hidden = state.line !== 'phase'
+      $('rows-spur').hidden = state.line !== 'spur'
+    }
+
+    function setOrigin(place, slug) {
+      state.origin = slug || 'custom'
+      state.place = place
+      state.picking = false
+      address.value = place
+      if (slug) {
+        const s = STATIONS[slug]
+        lat.value = (34 + s.cy / 2000).toFixed(4)
+        lng.value = (-118 - s.cx / 2000).toFixed(4)
+        setPinFromStation(slug)
+      }
+      render()
+    }
+
+    function plot(place, slug, seedId) {
+      setOrigin(place, slug)
+      state.plotted = true
+      state.collapsed = true
+      state.seed = seedId || null
+      state.about = false
+      document.querySelectorAll('[data-seed]').forEach((b) => {
+        b.setAttribute('aria-pressed', String(b.dataset.seed === state.seed))
+      })
+      highlight(null)
+      render()
+      remaining.scrollIntoView({ block: 'nearest' })
+    }
+
+    function scene(name) {
+      state.picking = false
+      state.about = false
+      state.hover = null
+      state.seed = null
+      document.querySelectorAll('[data-seed]').forEach((b) => b.setAttribute('aria-pressed', 'false'))
+      if (name === 'empty') {
+        state.origin = null
+        state.plotted = false
+        state.collapsed = false
+        state.place = ''
+        address.value = ''
+        lat.value = ''
+        lng.value = ''
+        pin.classList.remove('show')
+        highlight(null)
+      } else if (name === 'pick') {
+        state.origin = null
+        state.plotted = false
+        state.collapsed = false
+        state.picking = true
+        pin.classList.remove('show')
+        highlight(null)
+      } else if (name === 'plotted') {
+        plot('Burbank Airport', 'burbank', 'burbank')
+        return
+      } else if (name === 'hover') {
+        plot('Burbank Airport', 'burbank', 'burbank')
+        highlight('palmdale')
+        render()
+        return
+      } else if (name === 'about') {
+        plot('Burbank Airport', 'burbank', 'burbank')
+        state.about = true
+        render()
+        return
+      }
+      render()
+    }
+
+    document.querySelectorAll('[data-scene]').forEach((btn) => {
+      btn.addEventListener('click', () => scene(btn.dataset.scene))
+    })
+
+    $('frame-desktop').addEventListener('click', () => {
+      app.classList.remove('is-narrow')
+      $('frame-desktop').classList.add('is-on')
+      $('frame-narrow').classList.remove('is-on')
+      measureSpike()
+    })
+    $('frame-narrow').addEventListener('click', () => {
+      app.classList.add('is-narrow')
+      $('frame-narrow').classList.add('is-on')
+      $('frame-desktop').classList.remove('is-on')
+      measureSpike()
+    })
+
+    aboutBtn.addEventListener('click', () => {
+      state.about = !state.about
+      render()
+    })
+
+    $('advanced-btn').addEventListener('click', () => {
+      const box = $('advanced')
+      const open = !box.classList.contains('open')
+      box.classList.toggle('open', open)
+      $('advanced-btn').textContent = (open ? '▾' : '▸') + ' Advanced origin'
+    })
+
+    pickBtn.addEventListener('click', () => {
+      state.picking = !state.picking
+      render()
+    })
+
+    $('use-loc').addEventListener('click', () => {
+      setOrigin('Current location', 'la')
+    })
+
+    address.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') {
+        ev.preventDefault()
+        const v = address.value.trim() || 'Burbank Airport'
+        setOrigin(v, v.toLowerCase().includes('burbank') ? 'burbank' : 'la')
+      }
+    })
+
+    map.addEventListener('click', (ev) => {
+      if (!state.picking) return
+      setPinFromClick(ev)
+      state.origin = 'custom'
+      state.place = 'Picked on map'
+      address.value = 'Picked on map'
+      state.picking = false
+      render()
+    })
+
+    generate.addEventListener('click', () => {
+      if (!state.origin) return
+      state.plotted = true
+      state.collapsed = true
+      state.seed = null
+      document.querySelectorAll('[data-seed]').forEach((b) => b.setAttribute('aria-pressed', 'false'))
+      highlight(null)
+      render()
+    })
+
+    $('change').addEventListener('click', () => {
+      state.collapsed = false
+      render()
+    })
+
+    document.querySelectorAll('[data-seed]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.seed
+        if (id === 'burbank') plot('Burbank Airport', 'burbank', 'burbank')
+        else plot('Downtown Los Angeles', 'la', 'la')
+      })
+    })
+
+    document.querySelectorAll('#durations .pill').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        state.duration = Number(btn.dataset.d)
+        document.querySelectorAll('#durations .pill').forEach((b) => b.setAttribute('aria-pressed', String(b === btn)))
+        render()
+      })
+    })
+
+    document.querySelectorAll('input[name="mode"]').forEach((el) => {
+      el.addEventListener('change', () => {
+        state.mode = el.value
+        render()
+      })
+    })
+
+    document.querySelectorAll('#line-tabs .pill').forEach((btn, i) => {
+      btn.addEventListener('click', () => {
+        state.line = i === 0 ? 'phase' : 'spur'
+        document.querySelectorAll('#line-tabs .pill').forEach((b) => b.setAttribute('aria-pressed', String(b === btn)))
+        highlight(null)
+        render()
+      })
+    })
+
+    remaining.addEventListener('mouseover', (ev) => {
+      const row = ev.target.closest('.tr-row')
+      if (row) highlight(row.dataset.st)
+    })
+    remaining.addEventListener('mouseleave', () => highlight(null))
+
+    document.querySelectorAll('#stations circle').forEach((c) => {
+      c.style.cursor = 'pointer'
+      c.addEventListener('mouseenter', () => {
+        if (state.plotted) highlight(c.dataset.st)
+      })
+      c.addEventListener('mouseleave', () => highlight(null))
+    })
+
+    render()
+  </script>
+</body>
+</html>
