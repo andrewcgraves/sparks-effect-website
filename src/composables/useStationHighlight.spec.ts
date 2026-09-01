@@ -3,12 +3,12 @@ import type { Map } from 'maplibre-gl'
 
 const {
   mockPopupSetLngLat,
-  mockPopupSetText,
+  mockPopupSetDOMContent,
   mockPopupAddTo,
   mockPopupRemove,
 } = vi.hoisted(() => ({
   mockPopupSetLngLat: vi.fn(),
-  mockPopupSetText: vi.fn(),
+  mockPopupSetDOMContent: vi.fn(),
   mockPopupAddTo: vi.fn(),
   mockPopupRemove: vi.fn(),
 }))
@@ -16,13 +16,14 @@ const {
 vi.mock('maplibre-gl', () => ({
   Popup: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
     this['setLngLat'] = mockPopupSetLngLat
-    this['setText'] = mockPopupSetText
+    this['setDOMContent'] = mockPopupSetDOMContent
     this['addTo'] = mockPopupAddTo
     this['remove'] = mockPopupRemove
   }),
 }))
 
 import { Popup } from 'maplibre-gl'
+import { TOOLTIP_MAP_POPUP_CLASS, TOOLTIP_PANEL_CLASS } from '../components/tooltip'
 import { useStationHighlight } from './useStationHighlight'
 import { STATION_DOTS_LAYER_ID } from './useRouteLayer'
 import {
@@ -98,16 +99,25 @@ function setup(idleCursor = () => '', egressSlugs = () => new Set(['sf', 'gilroy
   return { ...mock, highlight, onHover, setActive: (slug: string | null) => { active = slug } }
 }
 
+function popupNamed(name: string): boolean {
+  const node = mockPopupSetDOMContent.mock.calls[0]?.[0] as HTMLElement | undefined
+  return node?.textContent === name && node.className.includes(TOOLTIP_PANEL_CLASS.split(' ')[0])
+}
+
 describe('useStationHighlight', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockPopupSetLngLat.mockReturnValue({ setText: mockPopupSetText })
-    mockPopupSetText.mockReturnValue({ addTo: mockPopupAddTo })
+    mockPopupSetLngLat.mockReturnValue({ setDOMContent: mockPopupSetDOMContent })
+    mockPopupSetDOMContent.mockReturnValue({ addTo: mockPopupAddTo })
   })
 
-  it('creates a popup with no close button or close-on-click, so hover does not fight the pointer', () => {
+  it('creates a popup wearing the tooltip chrome, with no close button that would fight the pointer', () => {
     setup()
-    expect(Popup).toHaveBeenCalledWith(expect.objectContaining({ closeButton: false, closeOnClick: false }))
+    expect(Popup).toHaveBeenCalledWith(expect.objectContaining({
+      closeButton: false,
+      closeOnClick: false,
+      className: TOOLTIP_MAP_POPUP_CLASS,
+    }))
   })
 
   it('shows a pointer cursor and the station name in the popup on hover', () => {
@@ -117,7 +127,7 @@ describe('useStationHighlight', () => {
 
     expect(canvas.style.cursor).toBe('pointer')
     expect(mockPopupSetLngLat).toHaveBeenCalledWith([-122.41, 37.77])
-    expect(mockPopupSetText).toHaveBeenCalledWith('San Francisco')
+    expect(popupNamed('San Francisco')).toBe(true)
     expect(mockPopupAddTo).toHaveBeenCalled()
   })
 
@@ -162,7 +172,7 @@ describe('useStationHighlight', () => {
 
       fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))
 
-      expect(mockPopupSetText).toHaveBeenCalledWith('San Francisco')
+      expect(popupNamed('San Francisco')).toBe(true)
       expect(mockPopupAddTo).toHaveBeenCalled()
     })
 
