@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { newTraceId } from './traceId'
+import { TRACE_HEADER, newTraceId, traceHeaders } from './traceId'
 
 describe('newTraceId', () => {
   it('returns a UUID', () => {
@@ -8,5 +8,11 @@ describe('newTraceId', () => {
 
   it('returns a different id on each call', () => {
     expect(newTraceId()).not.toBe(newTraceId())
+  })
+})
+
+describe('traceHeaders', () => {
+  it('puts the id on X-Trace-Id', () => {
+    expect(traceHeaders('abc-123')).toEqual({ [TRACE_HEADER]: 'abc-123' })
   })
 })

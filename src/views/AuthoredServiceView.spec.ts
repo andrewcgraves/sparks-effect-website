@@ -239,7 +239,7 @@ describe('AuthoredServiceView', () => {
     vi.mocked(compileService).mockResolvedValue({ id: 'job1', kind: 'compile_user_service', status: 'queued' })
     const wrapper = mountView()
     await flushPromises()
-    expect(compileService).toHaveBeenCalledWith('northbound-express')
+    expect(compileService).toHaveBeenCalledWith('northbound-express', expect.any(Object))
     expect(wrapper.find('[data-testid="graph-error"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="map"]').exists()).toBe(true)
   })
@@ -292,7 +292,7 @@ describe('AuthoredServiceView', () => {
     })
     await flushPromises()
 
-    expect(compileService).toHaveBeenCalledWith('northbound-express')
+    expect(compileService).toHaveBeenCalledWith('northbound-express', expect.any(Object))
     expect(fetchServiceIsochrone).toHaveBeenCalledTimes(2)
     expect(wrapper.find('[data-testid="graph-error"]').exists()).toBe(false)
   })

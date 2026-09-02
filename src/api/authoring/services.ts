@@ -46,8 +46,11 @@ export async function deleteService(slug: string): Promise<void> {
 // Triggers a compile of a single service, degenerate as a one-member
 // scenario. Returns the queued job immediately; poll it via fetchJob /
 // pollJobToResult to reach the compiled TransitGraph.
-export async function compileService(slug: string): Promise<Job> {
-  return apiRequest<Job>(`/api/services/${slug}/compile`, { method: 'POST' })
+//
+// `init` is how useCompileJob reuses one X-Trace-Id across this POST and
+// the polls that follow (SPA-205).
+export async function compileService(slug: string, init?: RequestInit): Promise<Job> {
+  return apiRequest<Job>(`/api/services/${slug}/compile`, { ...init, method: 'POST' })
 }
 
 // Reads a service's latest compiled graph without recompiling. 404s when the

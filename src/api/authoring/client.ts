@@ -1,7 +1,7 @@
 // Shared HTTP helpers for the authoring API client.
 import { STOP_PLACEMENT_FAULT_KINDS } from './types'
 import type { FaultedStop, StopPlacementFault } from './types'
-import { newTraceId } from '../traceId'
+import { TRACE_HEADER, newTraceId } from '../traceId'
 
 // Resolves the API base URL, overridable via VITE_API_BASE_URL.
 export function apiBase(): string {
@@ -106,9 +106,10 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
     if (token) headers.set('Authorization', `Bearer ${token}`)
   }
 
-  // A fresh id per request so it can be followed through the API's logs.
-  if (!headers.has('X-Trace-Id')) {
-    headers.set('X-Trace-Id', newTraceId())
+  // A fresh id per request unless the caller already set one — an
+  // enqueue-then-poll job mints once and reuses it (see traceId.ts).
+  if (!headers.has(TRACE_HEADER)) {
+    headers.set(TRACE_HEADER, newTraceId())
   }
 
   const res = await fetch(`${apiBase()}${path}`, { ...init, headers })

@@ -48,8 +48,11 @@ export async function deleteScenario(slug: string): Promise<void> {
 // Triggers a compile of a scenario's member services into one connected
 // graph. Returns the queued job immediately; poll it via fetchJob /
 // pollJobToResult (or the jobs store's track) to reach the compiled graph.
-export async function compileScenario(slug: string): Promise<Job> {
-  return apiRequest<Job>(`/api/user-scenarios/${slug}/compile`, { method: 'POST' })
+//
+// `init` is how useCompileJob reuses one X-Trace-Id across this POST and
+// the polls that follow (SPA-205).
+export async function compileScenario(slug: string, init?: RequestInit): Promise<Job> {
+  return apiRequest<Job>(`/api/user-scenarios/${slug}/compile`, { ...init, method: 'POST' })
 }
 
 // Reads a scenario's latest compiled graph without recompiling. 404s when the
