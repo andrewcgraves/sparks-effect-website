@@ -28,6 +28,14 @@ describe('fetchJob', () => {
     expect(url).toContain('/api/jobs/job1')
     expect(result).toEqual(job)
   })
+
+  it('sends a caller-supplied X-Trace-Id rather than minting a new one', async () => {
+    const job: Job = { id: 'job1', kind: 'compile_user_service', status: 'running' }
+    vi.mocked(fetch).mockResolvedValueOnce(jobResponse(job))
+    await fetchJob('job1', { headers: { 'X-Trace-Id': 'compile-trace' } })
+    const headers = new Headers(vi.mocked(fetch).mock.calls[0][1]?.headers)
+    expect(headers.get('X-Trace-Id')).toBe('compile-trace')
+  })
 })
 
 describe('pollJobToResult', () => {
@@ -136,5 +144,25 @@ describe('pollJobToResult', () => {
     controller.abort()
 
     await settled
+  })
+
+  // SPA-205: when a compile stamps a trace id, every poll carries it rather
+  // than minting a fresh one per GET.
+  it('reuses a supplied traceId on every poll GET', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(jobResponse({ id: 'job1', kind: 'compile_user_service', status: 'queued' }))
+      .mockResolvedValueOnce(
+        jobResponse({ id: 'job1', kind: 'compile_user_service', status: 'succeeded', result: stubGraph }),
+      )
+
+    const promise = pollJobToResult('job1', { intervalMs: 1000, timeoutMs: 60000, traceId: 'compile-trace' })
+
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.advanceTimersByTimeAsync(1000)
+
+    await promise
+
+    const ids = vi.mocked(fetch).mock.calls.map(([, init]) => new Headers(init?.headers).get('X-Trace-Id'))
+    expect(ids).toEqual(['compile-trace', 'compile-trace'])
   })
 })

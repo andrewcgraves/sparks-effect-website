@@ -192,6 +192,8 @@ describe('apiRequest', () => {
     expect(headers.get('X-Trace-Id')).toMatch(/^[0-9a-f-]{36}$/)
   })
 
+  // One-shot requests still get a unique id each. A job that wants to reuse
+  // one id across enqueue+poll supplies it explicitly (the test below).
   it('sends a different X-Trace-Id on each request', async () => {
     vi.mocked(fetch).mockResolvedValue({ ok: true, status: 200, json: async () => ({}) } as Response)
     await apiRequest('/api/things')

@@ -27,7 +27,7 @@ export interface IsochronePayload {
  * which trio of endpoints they are plotted against.
  */
 export interface AuthoredGraphTarget {
-  compile: (slug: string) => Promise<Job>
+  compile: (slug: string, init?: RequestInit) => Promise<Job>
   fetchGraph: (slug: string) => Promise<TransitGraph>
   isochrone: (slug: string, request: AuthoredIsochroneRequest) => Promise<ChainResponse>
 }

@@ -350,7 +350,7 @@ describe('useServiceDraft', () => {
         route_slug: 'main-line',
         name: 'Northbound Express',
       }))
-      expect(compileService).toHaveBeenCalledWith('northbound-express')
+      expect(compileService).toHaveBeenCalledWith('northbound-express', expect.any(Object))
       expect(draft.submitted.value).toBe(true)
       expect(useDraftsStore().serviceDraft).toBeNull()
     })

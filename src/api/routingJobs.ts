@@ -9,6 +9,7 @@
 import { ApiError, apiRequest } from './authoring/client'
 import type { TravelMode } from './authoring/types'
 import { pollUntilSucceeded, type JobStatus } from './polling'
+import { newTraceId, traceHeaders } from './traceId'
 import type { ChainResponse } from '../fixtures/isochrone'
 
 // The point, budget, and mode every isochrone endpoint takes. The seeded one
@@ -85,9 +86,11 @@ export function backlogFullError(err: unknown): string | null {
   return BACKLOG_FULL_MESSAGE
 }
 
-// Reads a routing job's current state.
-export function fetchRoutingJob(id: string): Promise<RoutingJob> {
-  return apiRequest<RoutingJob>(`/api/routing-jobs/${id}`)
+// Reads a routing job's current state. `init` is how an enqueue reuses its
+// trace id on every poll (SPA-205); one-shot callers omit it and get a
+// fresh id from apiRequest.
+export function fetchRoutingJob(id: string, init?: RequestInit): Promise<RoutingJob> {
+  return apiRequest<RoutingJob>(`/api/routing-jobs/${id}`, init)
 }
 
 // Requests an isochrone and resolves with the chain once the worker has
@@ -102,20 +105,32 @@ export async function enqueueIsochrone(
   request: IsochroneParams,
 ): Promise<ChainResponse> {
   const startedAt = Date.now()
+  // One id for the enqueue and every poll of this job — grepping logs for it
+  // reconstructs the whole wait, not just the POST (SPA-205).
+  const traceId = newTraceId()
   const job = await apiRequest<RoutingJob>(path, {
     method: 'POST',
     body: JSON.stringify(request),
+    headers: traceHeaders(traceId),
   })
-  return awaitIsochrone(job.id, startedAt)
+  return awaitIsochrone(job.id, startedAt, traceId)
 }
 
 // Waits out an already-enqueued routing job, spending what is left of the
 // deadline that started at `startedAt` — so a slow enqueue eats into the wait
 // rather than being granted a fresh one on top of it.
-async function awaitIsochrone(jobId: string, startedAt: number): Promise<ChainResponse> {
-  const succeeded = await pollUntilSucceeded(jobId, fetchRoutingJob, {
-    intervalMs: POLL_INTERVAL_MS,
-    timeoutMs: ISOCHRONE_DEADLINE_MS - (Date.now() - startedAt),
-  })
+async function awaitIsochrone(
+  jobId: string,
+  startedAt: number,
+  traceId: string,
+): Promise<ChainResponse> {
+  const succeeded = await pollUntilSucceeded(
+    jobId,
+    (id) => fetchRoutingJob(id, { headers: traceHeaders(traceId) }),
+    {
+      intervalMs: POLL_INTERVAL_MS,
+      timeoutMs: ISOCHRONE_DEADLINE_MS - (Date.now() - startedAt),
+    },
+  )
   return succeeded.result
 }

@@ -118,6 +118,14 @@ describe('scenarios CRUD', () => {
     expect(result).toEqual(job)
   })
 
+  it('forwards a caller-supplied X-Trace-Id on the compile POST', async () => {
+    const job: Job = { id: 'job1', kind: 'compile_user_scenario', status: 'queued' }
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 202, json: async () => job } as Response)
+    await compileScenario('ca-hsr', { headers: { 'X-Trace-Id': 'compile-trace' } })
+    const headers = new Headers(vi.mocked(fetch).mock.calls[0][1]?.headers)
+    expect(headers.get('X-Trace-Id')).toBe('compile-trace')
+  })
+
   it('fetchScenarioGraph GETs /api/user-scenarios/{slug}/graph', async () => {
     const graph = { services: [] }
     vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 200, json: async () => graph } as Response)

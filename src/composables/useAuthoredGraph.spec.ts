@@ -29,7 +29,7 @@ const stale = () => new ApiError('stale', 409, 'stale_graph')
 // The module takes its three endpoints as arguments, so the tests inject bare
 // spies rather than mocking an api module — which is also what lets one suite
 // cover the behaviour both the scenario and service pages rely on.
-let compile: Mock<(slug: string) => Promise<Job>>
+let compile: Mock<(slug: string, init?: RequestInit) => Promise<Job>>
 let fetchGraph: Mock<(slug: string) => Promise<TransitGraph>>
 let isochrone: Mock<(slug: string, request: AuthoredIsochroneRequest) => Promise<ChainResponse>>
 
@@ -102,7 +102,7 @@ describe('useAuthoredGraph', () => {
 
       await loadGraph('ca-hsr')
 
-      expect(compile).toHaveBeenCalledWith('ca-hsr')
+      expect(compile).toHaveBeenCalledWith('ca-hsr', expect.any(Object))
       expect(graphFailed.value).toBe(false)
     })
 
@@ -147,7 +147,7 @@ describe('useAuthoredGraph', () => {
 
       await triggerCompile('ca-hsr')
 
-      expect(compile).toHaveBeenCalledWith('ca-hsr')
+      expect(compile).toHaveBeenCalledWith('ca-hsr', expect.any(Object))
       expect(graph.value).toEqual({ services: [{ service_id: 's1', edges: [], wait_secs: 0 }] })
       expect(compileError.value).toBe('')
       expect(compiling.value).toBe(false)
@@ -242,7 +242,7 @@ describe('useAuthoredGraph', () => {
 
       await handleIsochroneSubmit(payload)
 
-      expect(compile).toHaveBeenCalledWith('ca-hsr')
+      expect(compile).toHaveBeenCalledWith('ca-hsr', expect.any(Object))
       expect(compile).toHaveBeenCalledTimes(1)
       expect(isochroneData.value).toEqual(chain)
       expect(isochroneError.value).toBeNull()

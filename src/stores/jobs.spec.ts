@@ -161,4 +161,22 @@ describe('useJobsStore', () => {
     // The replacement watch is still live.
     expect(jobs.isPending('job1')).toBe(true)
   })
+
+  it('reuses a supplied traceId on every poll GET', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(jobResponse({ id: 'job1', kind: 'compile_user_service', status: 'running' }))
+      .mockResolvedValueOnce(
+        jobResponse({ id: 'job1', kind: 'compile_user_service', status: 'succeeded', result: stubGraph }),
+      )
+
+    const jobs = useJobsStore()
+    const tracked = jobs.track('job1', { intervalMs: 1000, traceId: 'compile-trace' })
+
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.advanceTimersByTimeAsync(1000)
+    await tracked
+
+    const ids = vi.mocked(fetch).mock.calls.map(([, init]) => new Headers(init?.headers).get('X-Trace-Id'))
+    expect(ids).toEqual(['compile-trace', 'compile-trace'])
+  })
 })

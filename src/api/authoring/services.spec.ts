@@ -126,6 +126,14 @@ describe('services CRUD', () => {
     expect((init as RequestInit).method).toBe('POST')
     expect(result).toEqual(stubJob)
   })
+
+  it('forwards a caller-supplied X-Trace-Id on the compile POST', async () => {
+    const stubJob: Job = { id: 'job1', kind: 'compile_user_service', status: 'queued' }
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 202, json: async () => stubJob } as Response)
+    await compileService('northbound-express', { headers: { 'X-Trace-Id': 'compile-trace' } })
+    const headers = new Headers(vi.mocked(fetch).mock.calls[0][1]?.headers)
+    expect(headers.get('X-Trace-Id')).toBe('compile-trace')
+  })
   it('fetchServiceGraph GETs /api/services/{slug}/graph', async () => {
     const graph = { services: [], routes: [] }
     vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 200, json: async () => graph } as Response)

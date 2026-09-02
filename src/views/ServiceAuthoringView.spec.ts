@@ -374,7 +374,7 @@ describe('ServiceAuthoringView', () => {
     await flushPromises()
 
     expect(createService).toHaveBeenCalledWith(expect.objectContaining({ route_slug: 'main-line', name: 'Northbound Express' }))
-    expect(compileService).toHaveBeenCalledWith('northbound-express')
+    expect(compileService).toHaveBeenCalledWith('northbound-express', expect.any(Object))
     expect(wrapper.find('[data-testid="compile-result"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="compile-result"]').text()).toContain('1 service')
     const edgeRows = wrapper.findAll('[data-testid="compile-edge-row"]')

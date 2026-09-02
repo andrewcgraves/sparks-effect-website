@@ -107,7 +107,7 @@ describe('AuthoredScenarioView', () => {
     vi.mocked(compileScenario).mockResolvedValue({ id: 'job1', kind: 'compile_user_scenario', status: 'queued' })
     const wrapper = mountView()
     await flushPromises()
-    expect(compileScenario).toHaveBeenCalledWith('ca-hsr')
+    expect(compileScenario).toHaveBeenCalledWith('ca-hsr', expect.any(Object))
     expect(wrapper.find('[data-testid="map"]').exists()).toBe(true)
   })
 
