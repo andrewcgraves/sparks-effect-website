@@ -1,7 +1,9 @@
-// jsdom 29 on Node 26+ leaves window.localStorage undefined: it defers to Node's
-// built-in Web Storage, which stays disabled unless --localstorage-file is passed.
-// sessionStorage is unaffected, and real browsers are unaffected — this gap exists
-// only under the test environment, so the shim lives here rather than in the app.
+// Inert under happy-dom, which implements localStorage itself. It is kept for the
+// jsdom fallback: jsdom 29 on Node 26+ leaves window.localStorage undefined, since
+// it defers to Node's built-in Web Storage, which stays disabled unless
+// --localstorage-file is passed. sessionStorage is unaffected, and real browsers are
+// unaffected — the gap exists only under a test environment, so the shim lives here
+// rather than in the app. The guard below is what makes it a no-op when unneeded.
 if (typeof window !== 'undefined' && !window.localStorage) {
   const entries = new Map<string, string>()
 

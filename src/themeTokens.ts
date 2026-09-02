@@ -1,8 +1,8 @@
 /* MapLibre paints to WebGL and cannot read CSS variables, so the layers it draws
    resolve their colours to hex once at map init. theme.css is the single source of
    truth for the values; the fallbacks below exist only for environments with no
-   stylesheet (jsdom), and themeTokens.spec.ts parses theme.css to prove they still
-   agree with it. */
+   stylesheet (the test DOM), and themeTokens.spec.ts parses theme.css to prove they
+   still agree with it. */
 export const THEME_TOKEN_FALLBACKS = {
   '--color-data-origin': '#1034b1',
   '--color-data-egress': '#f28f29',

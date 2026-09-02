@@ -1,3 +1,6 @@
+// @vitest-environment node
+// No DOM in this file. See the environment note in vite.config.ts.
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getCurrentPosition } from './geolocation'
 
