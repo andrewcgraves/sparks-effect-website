@@ -1,3 +1,6 @@
+// @vitest-environment node
+// No DOM in this file. See the environment note in vite.config.ts.
+
 import { describe, it, expect } from 'vitest'
 import {
   buildTimeRemainingGraph,

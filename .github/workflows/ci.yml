@@ -6,7 +6,13 @@ on:
   pull_request:
 
 jobs:
-  test-and-lint:
+  # One job rather than two. The build used to live in a separate job that
+  # `needs:` the test job — so it never overlapped with it, and every run paid
+  # for a second runner, checkout, Node setup and `npm ci` just to arrive at a
+  # working tree identical to the one the first job already had. Steps in a
+  # single job give the same ordering guarantee for one install: a failing lint
+  # or test still stops the build.
+  ci:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,17 +23,7 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run test
-
-  build:
-    needs: test-and-lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-      - run: npm ci
+      # `build` is `vue-tsc -b && vite build`, so this covers the typecheck too.
       - run: npm run build
       - uses: actions/upload-artifact@v4
         with:
