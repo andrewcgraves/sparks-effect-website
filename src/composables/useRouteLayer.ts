@@ -49,8 +49,11 @@ export function tripProgressLines(
   routes: Route[],
   progress: TripProgress[] | undefined,
 ): TripProgressLines {
-  // A record rather than a Map: maplibre's own `Map` is the one imported into
-  // this module, and `new Map` here would resolve to it.
+  // A record rather than a Map: `Map` in this module is maplibre's, so `new Map`
+  // here is a typecheck failure (TS1361, "cannot be used as a value because it
+  // was imported using 'import type'") rather than anything silent. The
+  // alternative is aliasing the import; a record is less machinery for a lookup
+  // this small.
   const byID: Record<string, Route> = {}
   for (const r of routes) byID[r.id] = r
 

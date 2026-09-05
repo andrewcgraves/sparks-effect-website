@@ -78,6 +78,12 @@ export function chainageAlong(coordinates: [number, number][]): number[] {
  * of the alignment is clamped to it, so a stub stops where the geometry does
  * rather than being dropped: progress is decoration, and the map failing to
  * draw a station's leg is a far smaller fault than the map failing.
+ *
+ * The fraction is clamped to 0…1 here rather than trusted. The worker clamps it
+ * too, but this module makes a promise about undrawable input and a fraction
+ * above 1 would quietly break it in the worst direction: the stub would run
+ * *past* the station the rider never reached, and the cap marking where the
+ * budget ran out would be planted beyond it.
  */
 export function sliceAlignment(
   coordinates: [number, number][],
@@ -87,7 +93,8 @@ export function sliceAlignment(
 ): [number, number][] {
   if (coordinates.length < 2) return []
 
-  const cutM = fromChainageM + fraction * (toChainageM - fromChainageM)
+  const covered = Math.min(1, Math.max(0, fraction))
+  const cutM = fromChainageM + covered * (toChainageM - fromChainageM)
   const ascending = cutM >= fromChainageM
   const lo = ascending ? fromChainageM : cutM
   const hi = ascending ? cutM : fromChainageM
@@ -114,11 +121,19 @@ function spanBetween(
   const hi = Math.max(0, Math.min(hiM, lineLengthM))
   if (hi - lo <= 0) return []
 
-  const out: [number, number][] = [pointAt(coordinates, chainage, lo)]
+  const start = pointAt(coordinates, chainage, lo)
+  const end = pointAt(coordinates, chainage, hi)
+  // A span shorter than the coordinates can express collapses to a single
+  // point. "No floor on the fraction" still requires a line to be a line: two
+  // identical coordinates would put a zero-length LineString on the map and
+  // plant a cap on it with nothing underneath.
+  if (start[0] === end[0] && start[1] === end[1]) return []
+
+  const out: [number, number][] = [start]
   for (let i = 0; i < coordinates.length; i++) {
     if (chainage[i] > lo && chainage[i] < hi) out.push(coordinates[i])
   }
-  out.push(pointAt(coordinates, chainage, hi))
+  out.push(end)
   return out
 }
 

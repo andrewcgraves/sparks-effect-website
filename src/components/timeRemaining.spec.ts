@@ -5,6 +5,7 @@ import { describe, it, expect } from 'vitest'
 import {
   buildTimeRemainingGraph,
   formatDuration,
+  formatProgressPercent,
   formatTimeRemaining,
   laneWidthFor,
   shortLineName,
@@ -761,5 +762,63 @@ describe('buildTimeRemainingGraph trip progress', () => {
     const beta = trunkRow(forked, 'beta')
     expect(beta.detail.progressTo).toBe('omega')
     expect(beta.detail.progressFraction).toBe(0.8)
+  })
+
+  /**
+   * A station reached on one line and boarded on another appears in both views.
+   * The unfinished leg belongs to the view of the line its own hop runs over —
+   * beta is where the rider boards the spur, and the trunk view carries on past
+   * beta to gamma, so announcing spur progress under the trunk's beta row would
+   * put it under a row that is not the end of that branch and name a station on
+   * a different line.
+   */
+  it('reports an unfinished leg only in the view of the line it runs over', () => {
+    const onTheSpur = [{ ...PROGRESS[0], from: 'beta', to: 'zeta', service_id: 'spur' }]
+    const views = buildWithProgress(INTERCHANGE, onTheSpur).views
+
+    const trunk = views.find((v) => v.key === 'trunk')
+    if (!trunk) throw new Error('no trunk view')
+    expect(rowFor(trunk, 'beta').detail.progressTo).toBeUndefined()
+
+    const spur = views.find((v) => v.key === 'spur')
+    if (!spur) throw new Error('no spur view')
+    expect(rowFor(spur, 'beta').detail.progressTo).toBe('zeta')
+  })
+
+  /**
+   * "I boarded and barely moved": the only unfinished leg is the first ride, so
+   * nothing on that line was ever reached and it has no view of its own. The
+   * fact still has to reach the reader, so it falls back to whichever view holds
+   * the station the rider left from.
+   */
+  it('still reports a leg whose line has no view of its own', () => {
+    const unreachedLine = [{ ...PROGRESS[0], from: 'beta', to: 'zeta', service_id: 'unbuilt' }]
+    const trunk = buildWithProgress(INTERCHANGE, unreachedLine).views.find((v) => v.key === 'trunk')
+    if (!trunk) throw new Error('no trunk view')
+    expect(rowFor(trunk, 'beta').detail.progressTo).toBe('zeta')
+  })
+})
+
+describe('formatProgressPercent', () => {
+  it('reports the whole percent for an ordinary fraction', () => {
+    expect(formatProgressPercent(0.35)).toBe('35%')
+    expect(formatProgressPercent(0.9109)).toBe('91%')
+  })
+
+  // A fraction of 1 is the band where the remaining time covers the ride but
+  // not the dwell. The station stays unlit and gets no polygon, so "100% of the
+  // way toward Millbrae" beside an unlit Millbrae is the one thing this must
+  // never say.
+  it('never reads as an arrival, because a fraction of one is not one', () => {
+    expect(formatProgressPercent(1)).toBe('99%')
+    expect(formatProgressPercent(0.996)).toBe('99%')
+  })
+
+  // There is deliberately no floor on the fraction itself — a barely-moved stub
+  // is drawn rather than suppressed — so rounding it away in words while the map
+  // still draws the line would undo that.
+  it('never reads as no progress at all, because the map is drawing a stub', () => {
+    expect(formatProgressPercent(0.001)).toBe('1%')
+    expect(formatProgressPercent(0.004)).toBe('1%')
   })
 })

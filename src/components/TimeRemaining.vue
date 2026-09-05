@@ -2,7 +2,7 @@
 import { computed, ref, watch, nextTick } from 'vue'
 import SegmentedControl from './SegmentedControl.vue'
 import TooltipPanel from './TooltipPanel.vue'
-import { formatDuration, formatTimeRemaining, laneWidthFor } from './timeRemaining'
+import { formatDuration, formatProgressPercent, formatTimeRemaining, laneWidthFor } from './timeRemaining'
 import type { TimeRemainingRow, TimeRemainingView } from './timeRemaining'
 
 // The trip a plotted isochrone describes, drawn one line at a time as a
@@ -313,9 +313,9 @@ watch(
             <!-- Last, because it is what happens after everything above: the
                  branch ends here, and this is how far past it the rider got.
                  The percentage is the same number the map's stub is drawn to. -->
-            <div v-if="row.detail.progressTo">
+            <div v-if="row.detail.progressTo && row.detail.progressFraction !== undefined">
               <dt class="inline">
-                Got {{ Math.round((row.detail.progressFraction ?? 0) * 100) }}% of the way toward
+                Got {{ formatProgressPercent(row.detail.progressFraction) }} of the way toward
               </dt>
               <dd class="ml-1 inline">
                 {{ row.detail.progressTo }}

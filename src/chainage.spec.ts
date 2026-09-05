@@ -132,6 +132,24 @@ describe('sliceAlignment', () => {
     expect(sliceAlignment([], 0, 100, 0.5)).toEqual([])
   })
 
+  /**
+   * The worker clamps the fraction too, but this module promises an empty line
+   * for anything undrawable, and a fraction above 1 would break that in the
+   * worst direction: a stub running past the station the rider never reached,
+   * with the cap marking where their budget ran out planted beyond it.
+   */
+  it('never draws past the destination, whatever fraction it is handed', () => {
+    const whole = sliceAlignment(line, wholeLine.from, wholeLine.to, 1)
+    expect(sliceAlignment(line, wholeLine.from, wholeLine.to, 1.5)).toEqual(whole)
+    expect(sliceAlignment(line, wholeLine.from, wholeLine.to, -0.5)).toEqual([])
+  })
+
+  it('draws nothing for a span too short for the coordinates to express', () => {
+    // Sub-float-resolution: both ends resolve to the same point, and a
+    // zero-length line would still plant a cap with nothing underneath it.
+    expect(sliceAlignment(line, 1000, 1000.0000000001, 1)).toEqual([])
+  })
+
   it('clamps a span that runs past the end of the alignment', () => {
     // A chainage beyond the line's own length cannot be drawn to, and returning
     // a truncated span is better than a wrong one: the stub simply stops where

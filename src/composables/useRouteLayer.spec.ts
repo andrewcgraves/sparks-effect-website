@@ -18,7 +18,6 @@ import {
   tripProgressCaps,
   type TripProgressLines,
 } from './useRouteLayer'
-import { chainageAlong } from '../chainage'
 import type { Route, Station } from '../api/scenarios'
 import type { ChainResponse, TripProgress } from '../fixtures/isochrone'
 
@@ -386,13 +385,13 @@ describe('useRouteLayer', () => {
       expect(drawn[0]).toEqual([-122.0, 37.0])
       expect(drawn.length).toBeGreaterThan(2)
 
-      const walked = chainageAlong(progressRoute.geometry.coordinates as [number, number][])
-      const end = drawn[drawn.length - 1]
       // Half of a span running the whole line lands partway along the middle
-      // leg, which runs due east at 37.2.
+      // leg, which runs due east at 37.2 — so the cut is strictly between that
+      // leg's two ends rather than at either of them.
+      const end = drawn[drawn.length - 1]
       expect(end[1]).toBeCloseTo(37.2, 9)
       expect(end[0]).toBeGreaterThan(-122.0)
-      expect(end[0]).toBeLessThan(walked.length ? -121.8 : 0)
+      expect(end[0]).toBeLessThan(-121.8)
     })
 
     it('puts the cap at the point the budget ran out', () => {
