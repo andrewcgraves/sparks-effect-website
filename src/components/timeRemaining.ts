@@ -1,4 +1,4 @@
-import type { ChainMetadata, JourneyLeg, ReachableStation } from '../fixtures/isochrone'
+import type { ChainMetadata, JourneyLeg, ReachableStation, TripProgress } from '../fixtures/isochrone'
 
 /**
  * The trip a plotted isochrone describes, as one branching graph per line.
@@ -42,6 +42,15 @@ export interface RowDetail {
   // station it leads to.
   accessSecs?: number
   accessTo?: string
+  // How far past this station the rider got on a branch that ends here, and the
+  // station they were heading for (SPA-264). Present only on the last row of a
+  // branch that runs out of budget partway along its next hop — a branch that
+  // simply stops, with nothing further in reach, still says nothing.
+  //
+  // The fraction is the wire's own, unrounded, so the card and the map cannot
+  // disagree about how close the rider came.
+  progressTo?: string
+  progressFraction?: number
 }
 
 export interface TimeRemainingRow {
@@ -275,10 +284,16 @@ export function buildTimeRemainingGraph(
   // change — is a fact about the trip, not about the view it is being read in,
   // so a station carries the same answer in every view it appears in. Only
   // membership, parentage and lane geometry are per-view.
+  const furthestProgress = progressByOrigin(metadata.trip_progress)
   const content = new Map(
     ordered.map((station) => [
       station.station_slug,
-      buildStationRow(station, childrenOf.get(station.station_slug) ?? [], context),
+      buildStationRow(
+        station,
+        childrenOf.get(station.station_slug) ?? [],
+        context,
+        furthestProgress.get(station.station_slug),
+      ),
     ]),
   )
   const originRow = buildOriginRow(metadata, childrenOf.get(ORIGIN_KEY) ?? [], context)
@@ -295,6 +310,32 @@ export function buildTimeRemainingGraph(
     buildView(membership, trip),
   )
   return { views: views.filter((view) => view.rows.length > 1) }
+}
+
+/**
+ * The unfinished leg to report against each station, keyed by the station the
+ * leg leaves from.
+ *
+ * A station can have more than one: both branches out of an interchange may run
+ * out of budget. The row carries the one that got furthest, because that is the
+ * branch a reader is being told about when the card says how close they came;
+ * ties go to the lower destination slug, so one trip always reads the same way
+ * however the worker happened to order its list.
+ *
+ * A station this trip does not reach is not silently added — nothing here
+ * creates rows, and an entry naming one is simply never looked up.
+ */
+function progressByOrigin(progress: TripProgress[] | undefined): Map<string, TripProgress> {
+  const out = new Map<string, TripProgress>()
+  for (const leg of progress ?? []) {
+    const held = out.get(leg.from)
+    const furtherThanHeld =
+      !held ||
+      leg.fraction > held.fraction ||
+      (leg.fraction === held.fraction && leg.to < held.to)
+    if (furtherThanHeld) out.set(leg.from, leg)
+  }
+  return out
 }
 
 // Everything a view needs from the trip as a whole, gathered once: the rows
@@ -440,6 +481,7 @@ function buildStationRow(
   station: ReachableStation,
   children: ReachableStation[],
   context: TimeRemainingContext,
+  progress?: TripProgress,
 ): TimeRemainingRow {
   const arrival = lastLeg(station)
   const dwellSecs = arrival?.dwell_s ?? 0
@@ -450,6 +492,10 @@ function buildStationRow(
   if (dwellSecs + waitSecs > 0) detail.arrivalSecs = remainingSecs + dwellSecs + waitSecs
   if (dwellSecs > 0) detail.dwellSecs = dwellSecs
   if (arrival) detail.rideSecs = arrival.secs - (arrival.dwell_s ?? 0)
+  if (progress) {
+    detail.progressTo = context.stationName(progress.to)
+    detail.progressFraction = progress.fraction
+  }
 
   return {
     key: station.station_slug,

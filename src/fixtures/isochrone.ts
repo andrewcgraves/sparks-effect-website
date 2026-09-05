@@ -62,6 +62,46 @@ export interface StarterWalk {
   geometry: LineString
 }
 
+/**
+ * How far along a leg the rider's budget would have carried them, for a leg
+ * they do not finish.
+ *
+ * A station the budget does not quite reach used to leave no trace at all, so a
+ * rider who got 91% of the way from San José to Millbrae saw exactly what a
+ * rider who never left San José saw. This says how close they came.
+ *
+ * The field names match `JourneyLeg`'s deliberately: `from`, `to` and
+ * `service_id` name the same things there, and a reader should not have to
+ * learn a second vocabulary for the leg the rider did not complete.
+ *
+ * It carries the route and both chainages rather than referring to them,
+ * because the public scenario page fetches the scenario and never the compiled
+ * graph. With the copy, drawing a stub needs only this and the routes array
+ * every map surface already holds.
+ *
+ * It is never a claim of arrival: `to` stays out of `reachable_stations`, unlit
+ * and without an egress polygon, even where `fraction` is exactly 1 — which
+ * happens when the remaining time covers the ride but not the dwell at the end
+ * of it.
+ */
+export interface TripProgress {
+  from: string
+  to: string
+  service_id?: string
+  route_id: string
+  // Where the two stations sit along the route's alignment, in metres. They may
+  // descend, when the leg runs against the direction the alignment was drawn
+  // in; slicing between them needs no special case for that.
+  from_chainage_m: number
+  to_chainage_m: number
+  // The share of the leg's *running* time the remaining budget covers, applied
+  // uniformly to arc length. A fair impression of progress, not a claim about
+  // where a train would physically be.
+  fraction: number
+  remaining_secs: number
+  ride_secs: number
+}
+
 export interface ChainMetadata {
   reachable_stations: ReachableStation[]
   origin_budget_mins: number
@@ -78,6 +118,14 @@ export interface ChainMetadata {
   // route call for one failed — the surface is complete either way, and the
   // line is what is missing, not the plot.
   starter_walk?: StarterWalk
+  // The unfinished legs, one per branch that runs out of budget. A flat list
+  // rather than something hung off `reachable_stations`, because none of its
+  // entries name a station that was reached — that is the point of them.
+  //
+  // Absent on a result plotted before the worker reported it, and on one plotted
+  // over a graph compiled before the API could supply the placement it needs.
+  // Such a plot renders exactly as it always did.
+  trip_progress?: TripProgress[]
 }
 
 export interface IsochroneFeatureProperties {

@@ -310,6 +310,17 @@ watch(
                 {{ row.detail.transferFrom }}
               </dd>
             </div>
+            <!-- Last, because it is what happens after everything above: the
+                 branch ends here, and this is how far past it the rider got.
+                 The percentage is the same number the map's stub is drawn to. -->
+            <div v-if="row.detail.progressTo">
+              <dt class="inline">
+                Got {{ Math.round((row.detail.progressFraction ?? 0) * 100) }}% of the way toward
+              </dt>
+              <dd class="ml-1 inline">
+                {{ row.detail.progressTo }}
+              </dd>
+            </div>
           </dl>
         </TooltipPanel>
       </li>
