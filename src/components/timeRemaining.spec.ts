@@ -5,6 +5,7 @@ import { describe, it, expect } from 'vitest'
 import {
   buildTimeRemainingGraph,
   formatDuration,
+  formatProgressPercent,
   formatTimeRemaining,
   laneWidthFor,
   shortLineName,
@@ -636,5 +637,188 @@ describe('laneWidthFor', () => {
   it('stops narrowing at a legible floor, past which the names give up the room', () => {
     expect(laneWidthFor(40)).toBe(MIN_LANE_PX)
     expect(laneWidthFor(40) * 40).toBeGreaterThan(GRAPH_COLUMN_PX)
+  })
+})
+
+/**
+ * A branch that runs out of budget used to end in silence: the last station the
+ * rider reached, and nothing to say what came next. It now says how far past
+ * that station they got and toward where, so the card tells the same story the
+ * map draws (SPA-264).
+ *
+ * The addition is a detail on a row that already exists. No new rows, and no
+ * change to row order, lane assignment or connector geometry — a view a rider
+ * already knows how to read still reads the same way.
+ */
+describe('buildTimeRemainingGraph trip progress', () => {
+  const PROGRESS: NonNullable<ChainMetadata['trip_progress']> = [
+    {
+      from: 'gamma',
+      to: 'epsilon',
+      service_id: 'trunk',
+      route_id: 'rt-trunk',
+      from_chainage_m: 10000,
+      to_chainage_m: 25000,
+      fraction: 0.35,
+      remaining_secs: 300,
+      ride_secs: 855,
+    },
+  ]
+
+  function buildWithProgress(
+    stations: ReachableStation[],
+    progress: NonNullable<ChainMetadata['trip_progress']>,
+  ) {
+    return buildTimeRemainingGraph(
+      { ...metadata(stations), trip_progress: progress },
+      {
+        stationName: (slug) => NAMES[slug] ?? slug,
+        serviceName: (id) => SERVICES[id] ?? id,
+        mode: 'walk',
+      },
+    )
+  }
+
+  function trunkRow(progress: NonNullable<ChainMetadata['trip_progress']>, slug: string) {
+    const view = buildWithProgress(INTERCHANGE, progress).views.find((v) => v.key === 'trunk')
+    if (!view) throw new Error('no trunk view')
+    return rowFor(view, slug)
+  }
+
+  it("says how far past a branch's last station the rider got, and toward where", () => {
+    // The station headed toward is named, not slugged: it goes in front of a
+    // reader, and it is a station the trip never lists, so nothing else would
+    // resolve it.
+    const gamma = trunkRow(PROGRESS, 'gamma')
+    expect(gamma.detail.progressTo).toBe('Epsilon')
+    expect(gamma.detail.progressFraction).toBe(0.35)
+  })
+
+  // The card and the map read the same number from the same field, so there is
+  // never a question of which surface to believe.
+  it('reports the fraction the wire gave it, unrounded', () => {
+    const odd = [{ ...PROGRESS[0], fraction: 0.9114 }]
+    expect(trunkRow(odd, 'gamma').detail.progressFraction).toBe(0.9114)
+  })
+
+  it('leaves every other row alone', () => {
+    const view = buildWithProgress(INTERCHANGE, PROGRESS).views.find((v) => v.key === 'trunk')
+    if (!view) throw new Error('no trunk view')
+    for (const row of view.rows) {
+      if (row.slug === 'gamma') continue
+      expect(row.detail.progressTo).toBeUndefined()
+      expect(row.detail.progressFraction).toBeUndefined()
+    }
+  })
+
+  it('is exactly what it is today when the plot carries no progress', () => {
+    expect(buildWithProgress(INTERCHANGE, [])).toEqual(build(INTERCHANGE))
+    expect(
+      buildTimeRemainingGraph(metadata(INTERCHANGE), {
+        stationName: (slug) => NAMES[slug] ?? slug,
+        serviceName: (id) => SERVICES[id] ?? id,
+        mode: 'walk',
+      }),
+    ).toEqual(build(INTERCHANGE))
+  })
+
+  it('leaves row order, lanes and connectors exactly as they were', () => {
+    const geometry = (graph: ReturnType<typeof build>) =>
+      graph.views.map((view) => ({
+        key: view.key,
+        laneCount: view.laneCount,
+        rows: view.rows.map((r) => ({
+          key: r.key,
+          parentKey: r.parentKey,
+          lane: r.lane,
+          through: r.through,
+          forks: r.forks,
+          incoming: r.incoming,
+          flag: r.flag,
+        })),
+      }))
+
+    expect(geometry(buildWithProgress(INTERCHANGE, PROGRESS))).toEqual(geometry(build(INTERCHANGE)))
+  })
+
+  it('ignores an entry whose station is not in the trip at all', () => {
+    const orphan = [{ ...PROGRESS[0], from: 'nowhere' }]
+    const view = buildWithProgress(INTERCHANGE, orphan).views.find((v) => v.key === 'trunk')
+    if (!view) throw new Error('no trunk view')
+    for (const row of view.rows) expect(row.detail.progressTo).toBeUndefined()
+  })
+
+  /**
+   * A station both of whose onward branches run out of budget has two entries.
+   * The row carries the one that got furthest, which is the branch a reader is
+   * being told about when the card says how close they came; ties go to the
+   * lower station slug so the same trip always reads the same way.
+   */
+  it('reports the furthest of several unfinished branches off one station', () => {
+    const forked = [
+      { ...PROGRESS[0], from: 'beta', to: 'zeta', fraction: 0.2 },
+      { ...PROGRESS[0], from: 'beta', to: 'omega', fraction: 0.8 },
+    ]
+    const beta = trunkRow(forked, 'beta')
+    expect(beta.detail.progressTo).toBe('omega')
+    expect(beta.detail.progressFraction).toBe(0.8)
+  })
+
+  /**
+   * A station reached on one line and boarded on another appears in both views.
+   * The unfinished leg belongs to the view of the line its own hop runs over —
+   * beta is where the rider boards the spur, and the trunk view carries on past
+   * beta to gamma, so announcing spur progress under the trunk's beta row would
+   * put it under a row that is not the end of that branch and name a station on
+   * a different line.
+   */
+  it('reports an unfinished leg only in the view of the line it runs over', () => {
+    const onTheSpur = [{ ...PROGRESS[0], from: 'beta', to: 'zeta', service_id: 'spur' }]
+    const views = buildWithProgress(INTERCHANGE, onTheSpur).views
+
+    const trunk = views.find((v) => v.key === 'trunk')
+    if (!trunk) throw new Error('no trunk view')
+    expect(rowFor(trunk, 'beta').detail.progressTo).toBeUndefined()
+
+    const spur = views.find((v) => v.key === 'spur')
+    if (!spur) throw new Error('no spur view')
+    expect(rowFor(spur, 'beta').detail.progressTo).toBe('zeta')
+  })
+
+  /**
+   * "I boarded and barely moved": the only unfinished leg is the first ride, so
+   * nothing on that line was ever reached and it has no view of its own. The
+   * fact still has to reach the reader, so it falls back to whichever view holds
+   * the station the rider left from.
+   */
+  it('still reports a leg whose line has no view of its own', () => {
+    const unreachedLine = [{ ...PROGRESS[0], from: 'beta', to: 'zeta', service_id: 'unbuilt' }]
+    const trunk = buildWithProgress(INTERCHANGE, unreachedLine).views.find((v) => v.key === 'trunk')
+    if (!trunk) throw new Error('no trunk view')
+    expect(rowFor(trunk, 'beta').detail.progressTo).toBe('zeta')
+  })
+})
+
+describe('formatProgressPercent', () => {
+  it('reports the whole percent for an ordinary fraction', () => {
+    expect(formatProgressPercent(0.35)).toBe('35%')
+    expect(formatProgressPercent(0.9109)).toBe('91%')
+  })
+
+  // A fraction of 1 is the band where the remaining time covers the ride but
+  // not the dwell. The station stays unlit and gets no polygon, so "100% of the
+  // way toward Millbrae" beside an unlit Millbrae is the one thing this must
+  // never say.
+  it('never reads as an arrival, because a fraction of one is not one', () => {
+    expect(formatProgressPercent(1)).toBe('99%')
+    expect(formatProgressPercent(0.996)).toBe('99%')
+  })
+
+  // There is deliberately no floor on the fraction itself — a barely-moved stub
+  // is drawn rather than suppressed — so rounding it away in words while the map
+  // still draws the line would undo that.
+  it('never reads as no progress at all, because the map is drawing a stub', () => {
+    expect(formatProgressPercent(0.001)).toBe('1%')
+    expect(formatProgressPercent(0.004)).toBe('1%')
   })
 })

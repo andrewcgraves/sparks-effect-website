@@ -1,4 +1,4 @@
-import type { ChainMetadata, JourneyLeg, ReachableStation } from '../fixtures/isochrone'
+import type { ChainMetadata, JourneyLeg, ReachableStation, TripProgress } from '../fixtures/isochrone'
 
 /**
  * The trip a plotted isochrone describes, as one branching graph per line.
@@ -42,6 +42,15 @@ export interface RowDetail {
   // station it leads to.
   accessSecs?: number
   accessTo?: string
+  // How far past this station the rider got on a branch that ends here, and the
+  // station they were heading for (SPA-264). Present only on the last row of a
+  // branch that runs out of budget partway along its next hop — a branch that
+  // simply stops, with nothing further in reach, still says nothing.
+  //
+  // The fraction is the wire's own, unrounded, so the card and the map cannot
+  // disagree about how close the rider came.
+  progressTo?: string
+  progressFraction?: number
 }
 
 export interface TimeRemainingRow {
@@ -154,6 +163,29 @@ export function formatDuration(totalSecs: number): string {
   if (secs < 60) return `${secs}s`
   const minutes = Math.floor(secs / 60)
   return minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`
+}
+
+/**
+ * How far along an unfinished leg the rider got, as a whole percent.
+ *
+ * Held off both ends of the range, which plain rounding does not do and which
+ * matters at both:
+ *
+ * A fraction of exactly 1 is not an arrival. It is the band where the remaining
+ * time covers the ride but not the dwell at the end of it, and the station stays
+ * out of the reachable set, unlit and without an egress polygon. "100% of the
+ * way toward Millbrae" printed beside an unlit Millbrae is the one thing the
+ * wire contract says this must never say, so the top of the range reads 99%.
+ *
+ * At the other end there is deliberately no floor on the fraction itself — a
+ * barely-moved stub is drawn rather than suppressed, because any floor would
+ * recreate this feature's own fault at a smaller scale. Rounding 0.001 to "0%"
+ * would undo that in words while the map still draws the line, so the bottom of
+ * the range reads 1%.
+ */
+export function formatProgressPercent(fraction: number): string {
+  const percent = Math.round(fraction * 100)
+  return `${Math.min(99, Math.max(1, percent))}%`
 }
 
 /**
@@ -283,18 +315,76 @@ export function buildTimeRemainingGraph(
   )
   const originRow = buildOriginRow(metadata, childrenOf.get(ORIGIN_KEY) ?? [], context)
 
+  const memberships = viewMemberships(ordered, bySlug, parentKeyOf, context)
+
   const trip: Trip = {
     originRow,
     content,
     arrivedOn: new Map(ordered.map((station) => [station.station_slug, lastLeg(station)?.service_id])),
     byRemaining: (a, b) => byRemaining(bySlug.get(a)!, bySlug.get(b)!),
     context,
+    progress: progressByOrigin(metadata.trip_progress),
+    viewKeys: new Set(memberships.map((m) => m.key)),
   }
 
-  const views = viewMemberships(ordered, bySlug, parentKeyOf, context).map((membership) =>
-    buildView(membership, trip),
-  )
+  const views = memberships.map((membership) => buildView(membership, trip))
   return { views: views.filter((view) => view.rows.length > 1) }
+}
+
+/**
+ * The unfinished legs, gathered by the station each leaves from.
+ *
+ * A station this trip does not reach is not silently added — nothing here
+ * creates rows, and an entry naming one is simply never looked up.
+ */
+function progressByOrigin(progress: TripProgress[] | undefined): Map<string, TripProgress[]> {
+  const out = new Map<string, TripProgress[]>()
+  for (const leg of progress ?? []) {
+    out.set(leg.from, [...(out.get(leg.from) ?? []), leg])
+  }
+  return out
+}
+
+/**
+ * The unfinished leg to report against one row, read inside one view.
+ *
+ * Which view matters. A station reached on one line and boarded on another
+ * appears in both, and an unfinished leg belongs to the view of the line its own
+ * hop runs over — otherwise the trunk view announces progress toward a station
+ * on the spur, under a row that is not even the end of the trunk's branch.
+ * Selecting per view rather than once per station is why this is read here, next
+ * to the departure flag, which is settled the same way and for the same reason.
+ *
+ * A line with no view of its own is the exception. Nothing on it was reached, so
+ * it is nobody's destination and `viewMemberships` never offered it — which is
+ * exactly the shape of "I boarded and barely moved", where the only unfinished
+ * leg is the first ride. That entry falls back to whichever view holds the
+ * station it leaves from, since that is the only place a reader could find it.
+ *
+ * A station can still have more than one candidate within one view, where a line
+ * forks and neither branch is completed. The row carries the one that got the
+ * largest share of the way, ties going to the lower destination slug so that one
+ * trip always reads the same way however the worker ordered its list.
+ */
+function progressFor(rowKey: string, viewKey: string, trip: Trip): TripProgress | undefined {
+  let best: TripProgress | undefined
+  for (const leg of trip.progress.get(rowKey) ?? []) {
+    const home = lineKeyOf(leg, trip.context)
+    if (home !== undefined && home !== viewKey && trip.viewKeys.has(home)) continue
+    const furtherThanBest =
+      !best || leg.fraction > best.fraction || (leg.fraction === best.fraction && leg.to < best.to)
+    if (furtherThanBest) best = leg
+  }
+  return best
+}
+
+// The view an unfinished leg belongs to: the line its service runs over, by the
+// same resolution `viewMemberships` uses, so the two cannot disagree about which
+// key a service maps to. Undefined for a leg naming no service, which then
+// belongs wherever its origin station is read.
+function lineKeyOf(leg: TripProgress, context: TimeRemainingContext): string | undefined {
+  if (!leg.service_id) return undefined
+  return context.line?.(leg.service_id).key ?? leg.service_id
 }
 
 // Everything a view needs from the trip as a whole, gathered once: the rows
@@ -306,6 +396,11 @@ interface Trip {
   arrivedOn: Map<string, string | undefined>
   byRemaining: (a: string, b: string) => number
   context: TimeRemainingContext
+  // The unfinished legs by the station each leaves from, and the keys of every
+  // view on offer. Both are read per view rather than per station — see
+  // progressFor.
+  progress: Map<string, TripProgress[]>
+  viewKeys: Set<string>
 }
 
 interface ViewMembership {
@@ -408,6 +503,12 @@ function buildView({ key, label, members }: ViewMembership, trip: Trip): TimeRem
     const { flag, transferFrom } = departure(row.key, childrenOf.get(row.key) ?? [], trip)
     row.flag = flag
     if (transferFrom) row.detail.transferFrom = transferFrom
+
+    const unfinished = progressFor(row.key, key, trip)
+    if (unfinished) {
+      row.detail.progressTo = trip.context.stationName(unfinished.to)
+      row.detail.progressFraction = unfinished.fraction
+    }
   }
 
   return { key, label, rows, laneCount: assignLanes(rows, childrenOf) }
