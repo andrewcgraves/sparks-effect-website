@@ -1,9 +1,7 @@
-// Shared HTTP helpers for the authoring API client.
 import { STOP_PLACEMENT_FAULT_KINDS } from './types'
 import type { FaultedStop, StopPlacementFault } from './types'
 import { TRACE_HEADER, newTraceId } from '../traceId'
 
-// Resolves the API base URL, overridable via VITE_API_BASE_URL.
 export function apiBase(): string {
   return import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
 }
@@ -48,9 +46,6 @@ function isFaultedStop(value: unknown): value is FaultedStop {
   )
 }
 
-// Reads a stop-placement fault out of a rejected write, or null when there
-// isn't one to read.
-//
 // Null is the answer for everything that is not a fault this build can attribute
 // to specific rows — a different code, a kind we have never heard of, a detail
 // whose shape doesn't hold up — because the caller's fallback is the same in
@@ -81,18 +76,15 @@ export function stopPlacementFault(err: unknown): StopPlacementFault | null {
   }
 }
 
-// Supplies the current bearer token, or null when signed out.
 export type AuthTokenProvider = () => string | null
 
 // Registered by the app so requests carry auth without the client importing the store.
 let authTokenProvider: AuthTokenProvider | null = null
 
-// Wires up (or clears, with null) the source of the bearer token for API requests.
 export function setAuthTokenProvider(provider: AuthTokenProvider | null): void {
   authTokenProvider = provider
 }
 
-// Performs a fetch against the authoring API, handling auth, JSON headers, errors, and 204s.
 export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers)
   // Only advertise a JSON body when we actually send one; don't clobber caller headers.
@@ -116,7 +108,6 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
   const method = init?.method ?? 'GET'
 
   if (!res.ok) {
-    // Best-effort extraction of an { error, code?, detail? } body.
     let message = ''
     let code: string | undefined
     let detail: unknown
@@ -126,12 +117,11 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
       code = body?.code
       detail = body?.detail
     } catch {
-      // Non-JSON or empty error body; fall back to status only.
+      // Error responses are not always JSON.
     }
     throw new ApiError(`${method} ${path} failed: ${res.status}${message}`, res.status, code, detail)
   }
 
-  // 204 No Content carries no body to parse.
   if (res.status === 204) return undefined as T
   return res.json() as Promise<T>
 }

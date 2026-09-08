@@ -26,7 +26,6 @@ export function newTraceId(): string {
   return crypto.randomUUID()
 }
 
-// Headers carrying `id` as X-Trace-Id, for spreading into fetch / apiRequest.
 export function traceHeaders(id: string): { [TRACE_HEADER]: string } {
   return { [TRACE_HEADER]: id }
 }

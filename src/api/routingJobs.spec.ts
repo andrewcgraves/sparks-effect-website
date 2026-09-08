@@ -33,7 +33,6 @@ function routingJob(overrides: Partial<RoutingJob> = {}): RoutingJob {
   }
 }
 
-// The 202 the isochrone endpoints answer with, and the 200s the poll reads.
 function enqueued(): Response {
   return { ok: true, status: 202, json: async () => routingJob() } as Response
 }

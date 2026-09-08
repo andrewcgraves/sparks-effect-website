@@ -38,11 +38,10 @@ export interface FrequencyWindow {
 
 export interface Service {
   id: string
-  // The line this service runs over. Several services can share one — an
-  // express and a local pattern are two services and one route — so this is
-  // what to group by when presenting the network as lines. Optional: an API
-  // older than SPA-223 does not report it, and a caller that needs it has to
-  // cope with not being told.
+  // Several services can share one route — an express and a local pattern are
+  // two services and one route — so this is what to group by when presenting
+  // the network as lines. Optional: an API older than SPA-223 does not report
+  // it, and a caller that needs it has to cope with not being told.
   route_id?: string
   name: string
   vehicle_type: VehicleTypeSummary
@@ -52,24 +51,22 @@ export interface Service {
   frequency_windows: FrequencyWindow[]
 }
 
-// Run-time-only seconds for one adjacent station pair, stored in the service's
-// own direction. Absent reverse_run_seconds means the reverse hop reuses the
-// forward duration; a present value is the reverse-direction run time.
+// Absent reverse_run_seconds means the reverse hop reuses the forward
+// duration; a present value is the reverse-direction run time.
 export interface SegmentTime {
   from: string
   to: string
   run_seconds: number
   reverse_run_seconds?: number
-  // The line this hop belongs to. A scenario's segments are several corridors
-  // laid end to end, not one path, so this is what to group by before reading
-  // them in stop order. Optional for the same reason as Service.route_id: an
-  // older API does not report it, and the caller has to cope with not being
-  // told.
+  // A scenario's segments are several corridors laid end to end, not one path,
+  // so this is what to group by before reading them in stop order. Optional
+  // for the same reason as Service.route_id: an older API does not report it,
+  // and the caller has to cope with not being told.
   route_id?: string
 }
 
-// A seeded scenario's adjacent-segment run times. The full origin–destination
-// matrix is deliberately not served; callers sum consecutive segments.
+// The full origin–destination matrix is deliberately not served; callers sum
+// consecutive segments.
 export interface TravelTimes {
   scenario_slug: string
   provenance: Provenance
@@ -118,10 +115,10 @@ export interface ScenarioSummary {
 // if listRoutes (below) comes back empty or fails.
 export const FEATURED_SCENARIO_SLUGS = ['ca-hsr']
 
-// Fetches every scenario worth featuring on the home page: the known slug(s)
-// above, plus one per published route (/api/routes is public and unscoped,
-// unlike the owner-scoped /api/user-scenarios). A route without a same-slug
-// scenario just 404s and is dropped, same as any other unresolved slug.
+// The known slug(s) above, plus one per published route (/api/routes is public
+// and unscoped, unlike the owner-scoped /api/user-scenarios). A route without
+// a same-slug scenario just 404s and is dropped, same as any other unresolved
+// slug.
 export async function fetchFeaturedScenarios(): Promise<ScenarioSummary[]> {
   const routeSlugs = await listRoutes().then((routes) => routes.map((route) => route.slug)).catch(() => [])
   const slugs = Array.from(new Set([...FEATURED_SCENARIO_SLUGS, ...routeSlugs]))
