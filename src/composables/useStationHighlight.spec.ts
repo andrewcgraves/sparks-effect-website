@@ -38,8 +38,6 @@ import {
 
 type Handler = (event: unknown) => void
 
-// Records the handlers useStationHighlight registers so tests can fire
-// MapLibre events at it, the same shape useStopDrag.spec.ts uses.
 function makeMockMap() {
   const handlers: { type: string; layer: string | null; handler: Handler }[] = []
   const canvas = { style: { cursor: '' } }

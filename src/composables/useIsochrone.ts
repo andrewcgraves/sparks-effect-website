@@ -7,18 +7,16 @@ import { checkOriginReach, outOfRangeError, outOfRangeMessage } from '../originR
 import type { Station } from '../api/scenarios'
 import type { ChainResponse } from '../fixtures/isochrone'
 
-/**
- * Owns the isochrone request lifecycle. Unlike `useScenario`, it fires on user
- * action rather than on mount, so it takes the fully-assembled request from the
- * caller and exposes an explicit `generate`. `generate` mutates refs only — the
- * refs are the single source of truth — and never rejects.
- *
- * `getStations` is how the origin-range check (SPA-200) sees where the stations
- * are. It is a getter rather than a value because the caller resolves them from
- * a request of its own that may not have answered yet; an empty list means the
- * check is skipped and the API decides, which is what a page that has not
- * loaded its scenario should do.
- */
+// Unlike `useScenario`, it fires on user action rather than on mount, so it
+// takes the fully-assembled request from the caller and exposes an explicit
+// `generate`. `generate` mutates refs only — the refs are the single source of
+// truth — and never rejects.
+//
+// `getStations` is how the origin-range check (SPA-200) sees where the stations
+// are. It is a getter rather than a value because the caller resolves them from
+// a request of its own that may not have answered yet; an empty list means the
+// check is skipped and the API decides, which is what a page that has not
+// loaded its scenario should do.
 export function useIsochrone(getStations: () => Station[] = () => []) {
   const data = ref<ChainResponse | null>(null)
   const loading = ref(false)
@@ -77,16 +75,11 @@ export function useIsochrone(getStations: () => Station[] = () => []) {
     }
   }
 
-  /**
-   * Draws a chain this composable did not fetch — a pre-rendered isochrone the
-   * rider picked, which is already plotted and so skips `generate` entirely.
-   *
-   * It is a setter rather than the caller writing `data.value` because the refs
-   * are only a single source of truth while one thing writes them: a shown
-   * chain is also the answer now on screen, so a stale error from an earlier
-   * failed generate has to go with it, and nothing outside here should have to
-   * remember that.
-   */
+  // A setter rather than the caller writing `data.value` because the refs
+  // are only a single source of truth while one thing writes them: a shown
+  // chain is also the answer now on screen, so a stale error from an earlier
+  // failed generate has to go with it, and nothing outside here should have to
+  // remember that.
   function show(result: ChainResponse): void {
     data.value = result
     error.value = null

@@ -16,19 +16,16 @@ export const ISOCHRONE_SOURCE_ID = 'isochrone-source'
 // Splitting by source makes the stack the layer order, which we own.
 export const ISOCHRONE_ORIGIN_LAYER_ID = 'isochrone-origin-fill'
 
-// Every station's egress polygon.
 export const ISOCHRONE_LAYER_ID = 'isochrone-fill'
 
-// Draws only the hovered/selected station's egress polygon, filtered from the
-// same source, stacked above ISOCHRONE_LAYER_ID. Opacity alone can't promote
-// a feature above its overlapping neighbours — MapLibre paints one layer's
-// features in source-array order regardless of fill-opacity — so bringing a
-// polygon "to the top" needs a second layer rather than a paint tweak
-// (SPA-211 follow-up).
+// Filtered from the same source, stacked above ISOCHRONE_LAYER_ID. Opacity
+// alone can't promote a feature above its overlapping neighbours — MapLibre
+// paints one layer's features in source-array order regardless of fill-opacity
+// — so bringing a polygon "to the top" needs a second layer rather than a
+// paint tweak (SPA-211 follow-up).
 export const ISOCHRONE_HIGHLIGHT_LAYER_ID = 'isochrone-highlight-fill'
 
-// The same polygon's edge, stroked at full strength on top of the fill. A
-// translucent fill promoted over another translucent fill differs only by a
+// A translucent fill promoted over another translucent fill differs only by a
 // blend; a hard edge says which polygon is being singled out no matter what
 // is underneath it (SPA-224).
 export const ISOCHRONE_HIGHLIGHT_OUTLINE_LAYER_ID = 'isochrone-highlight-outline'
@@ -69,35 +66,26 @@ export function isochroneLegend(colors: IsochroneColors = resolveIsochroneColors
   ] as const
 }
 
-/**
- * The fill-opacity for the egress layer.
- *
- * `false` is the plain, pre-SPA-211 opacity every feature shared. `true`
- * dims every egress polygon uniformly, regardless of which station is
- * highlighted — that station's own polygon is repainted at full strength by
- * ISOCHRONE_HIGHLIGHT_LAYER_ID, on top of this one, so this layer never needs
- * to know which slug is highlighted. A flat number rather than the `case`
- * expression this used to be: since SPA-224 the origin lives on its own
- * layer, so there is no second source to tell apart here.
- */
+// `false` is the plain, pre-SPA-211 opacity every feature shared. `true`
+// dims every egress polygon uniformly, regardless of which station is
+// highlighted — that station's own polygon is repainted at full strength by
+// ISOCHRONE_HIGHLIGHT_LAYER_ID, on top of this one, so this layer never needs
+// to know which slug is highlighted. A flat number rather than the `case`
+// expression this used to be: since SPA-224 the origin lives on its own
+// layer, so there is no second source to tell apart here.
 export function isochroneEgressOpacity(dimmed: boolean): number {
   return dimmed ? ISOCHRONE_DIM_OPACITY : ISOCHRONE_FILL_OPACITY
 }
 
-/** The fill-opacity for the origin layer, dimmed while a station is highlighted. */
 export function isochroneOriginOpacity(dimmed: boolean): number {
   return dimmed ? ISOCHRONE_ORIGIN_DIM_OPACITY : ISOCHRONE_FILL_OPACITY
 }
 
-/**
- * The station slugs the plot actually drew an egress polygon for.
- *
- * Not the same list as `metadata.reachable_stations`: a station can be lit as
- * reachable and still have no polygon in the collection. Highlighting such a
- * station used to dim every other isochrone and promote nothing, leaving the
- * blue origin fill alone on screen — the "sometimes" in SPA-224. Callers use
- * this to leave the map alone instead.
- */
+// Not the same list as `metadata.reachable_stations`: a station can be lit as
+// reachable and still have no polygon in the collection. Highlighting such a
+// station used to dim every other isochrone and promote nothing, leaving the
+// blue origin fill alone on screen — the "sometimes" in SPA-224. Callers use
+// this to leave the map alone instead.
 export function egressStationSlugs(data: FeatureCollection | null): Set<string> {
   const slugs = new Set<string>()
   for (const feature of data?.features ?? []) {
@@ -112,10 +100,6 @@ export function egressStationSlugs(data: FeatureCollection | null): Set<string> 
 // of what shape the data takes.
 const MATCH_NO_STATION: ExpressionSpecification = ['in', ['get', 'station_slug'], ['literal', []]]
 
-/**
- * The filter for ISOCHRONE_HIGHLIGHT_LAYER_ID: which single station's egress
- * polygon (if any) it should repaint on top of the base layer.
- */
 export function isochroneHighlightFilter(highlightedStationSlug: string | null): ExpressionSpecification {
   if (!highlightedStationSlug) return MATCH_NO_STATION
   return ['==', ['get', 'station_slug'], highlightedStationSlug]
@@ -199,13 +183,9 @@ export function useIsochroneLayer(
   }
 }
 
-/**
- * The isochrone fill as a map module.
- *
- * The first plot adds the source and layer; every later one rewrites the same
- * source's data, which is what keeps the fill from flashing between plots.
- * MapView used to make that add-or-update choice itself by probing getSource.
- */
+// The first plot adds the source and layer; every later one rewrites the same
+// source's data, which is what keeps the fill from flashing between plots.
+// MapView used to make that add-or-update choice itself by probing getSource.
 export function isochroneLayerModule(
   data: () => FeatureCollection | null,
   colors: IsochroneColors,

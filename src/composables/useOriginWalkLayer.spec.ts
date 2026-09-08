@@ -166,7 +166,6 @@ describe('useOriginWalkLayer', () => {
 describe('originWalkModule', () => {
   const ALL_RIDDEN = response([reachable('sf', 4, 'svc-1')])
 
-  // A mutable stand-in for the prop MapView reads this off.
   function inputsFor(data: ChainResponse) {
     const state = { data }
     return { state, inputs: { data: () => state.data } }

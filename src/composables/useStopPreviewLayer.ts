@@ -10,7 +10,6 @@ export const SNAPPED_STOP_LAYER_ID = 'stop-preview-snapped'
 export const LEADER_SOURCE_ID = 'stop-preview-leader-source'
 export const LEADER_LAYER_ID = 'stop-preview-leader'
 
-// One stop's raw-input/snapped-position pairing for the authoring map preview.
 // snapped is null until the snap-preview call for it has resolved.
 export interface StopPreviewPair {
   id: string
@@ -59,11 +58,8 @@ function snapshot(pairs: StopPreviewPair[]): StopPreviewPair[] {
   }))
 }
 
-// Draws the raw pin, the snapped pin, and a leader line between them for each
-// stop being authored — the before/after pairing the amendment calls for,
-// meaningful only while a service is being drafted (the snap is never
-// persisted). Call update() whenever the stop list or a snap-preview result
-// changes; sources are created once, up front.
+// Meaningful only while a service is being drafted — the snap is never
+// persisted. Sources are created once, up front.
 export function useStopPreviewLayer(map: Map): { update: (pairs: StopPreviewPair[]) => void } {
   const rawColor = readThemeToken('--color-ink-muted')
   const snappedColor = readThemeToken('--color-ink')
@@ -164,13 +160,9 @@ export function useStopPreviewLayer(map: Map): { update: (pairs: StopPreviewPair
   return { update }
 }
 
-/**
- * The raw/snapped stop preview as a map module.
- *
- * Absent for every caller but the service-authoring form, so `pairs` returning
- * null keeps it unattached rather than adding three empty sources to every map
- * in the app.
- */
+// Absent for every caller but the service-authoring form, so `pairs` returning
+// null keeps it unattached rather than adding three empty sources to every map
+// in the app.
 export function stopPreviewModule(pairs: () => StopPreviewPair[] | null): MapModule {
   let layer: { update: (pairs: StopPreviewPair[]) => void } | null = null
 
