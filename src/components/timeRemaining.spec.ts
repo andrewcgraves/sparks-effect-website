@@ -640,16 +640,14 @@ describe('laneWidthFor', () => {
   })
 })
 
-/**
- * A branch that runs out of budget used to end in silence: the last station the
- * rider reached, and nothing to say what came next. It now says how far past
- * that station they got and toward where, so the card tells the same story the
- * map draws (SPA-264).
- *
- * The addition is a detail on a row that already exists. No new rows, and no
- * change to row order, lane assignment or connector geometry — a view a rider
- * already knows how to read still reads the same way.
- */
+// A branch that runs out of budget used to end in silence: the last station the
+// rider reached, and nothing to say what came next. It now says how far past
+// that station they got and toward where, so the card tells the same story the
+// map draws (SPA-264).
+//
+// The addition is a detail on a row that already exists. No new rows, and no
+// change to row order, lane assignment or connector geometry — a view a rider
+// already knows how to read still reads the same way.
 describe('buildTimeRemainingGraph trip progress', () => {
   const PROGRESS: NonNullable<ChainMetadata['trip_progress']> = [
     {
@@ -748,12 +746,10 @@ describe('buildTimeRemainingGraph trip progress', () => {
     for (const row of view.rows) expect(row.detail.progressTo).toBeUndefined()
   })
 
-  /**
-   * A station both of whose onward branches run out of budget has two entries.
-   * The row carries the one that got furthest, which is the branch a reader is
-   * being told about when the card says how close they came; ties go to the
-   * lower station slug so the same trip always reads the same way.
-   */
+  // A station both of whose onward branches run out of budget has two entries.
+  // The row carries the one that got furthest, which is the branch a reader is
+  // being told about when the card says how close they came; ties go to the
+  // lower station slug so the same trip always reads the same way.
   it('reports the furthest of several unfinished branches off one station', () => {
     const forked = [
       { ...PROGRESS[0], from: 'beta', to: 'zeta', fraction: 0.2 },
@@ -764,14 +760,12 @@ describe('buildTimeRemainingGraph trip progress', () => {
     expect(beta.detail.progressFraction).toBe(0.8)
   })
 
-  /**
-   * A station reached on one line and boarded on another appears in both views.
-   * The unfinished leg belongs to the view of the line its own hop runs over —
-   * beta is where the rider boards the spur, and the trunk view carries on past
-   * beta to gamma, so announcing spur progress under the trunk's beta row would
-   * put it under a row that is not the end of that branch and name a station on
-   * a different line.
-   */
+  // A station reached on one line and boarded on another appears in both views.
+  // The unfinished leg belongs to the view of the line its own hop runs over —
+  // beta is where the rider boards the spur, and the trunk view carries on past
+  // beta to gamma, so announcing spur progress under the trunk's beta row would
+  // put it under a row that is not the end of that branch and name a station on
+  // a different line.
   it('reports an unfinished leg only in the view of the line it runs over', () => {
     const onTheSpur = [{ ...PROGRESS[0], from: 'beta', to: 'zeta', service_id: 'spur' }]
     const views = buildWithProgress(INTERCHANGE, onTheSpur).views
@@ -785,12 +779,10 @@ describe('buildTimeRemainingGraph trip progress', () => {
     expect(rowFor(spur, 'beta').detail.progressTo).toBe('zeta')
   })
 
-  /**
-   * "I boarded and barely moved": the only unfinished leg is the first ride, so
-   * nothing on that line was ever reached and it has no view of its own. The
-   * fact still has to reach the reader, so it falls back to whichever view holds
-   * the station the rider left from.
-   */
+  // "I boarded and barely moved": the only unfinished leg is the first ride, so
+  // nothing on that line was ever reached and it has no view of its own. The
+  // fact still has to reach the reader, so it falls back to whichever view holds
+  // the station the rider left from.
   it('still reports a leg whose line has no view of its own', () => {
     const unreachedLine = [{ ...PROGRESS[0], from: 'beta', to: 'zeta', service_id: 'unbuilt' }]
     const trunk = buildWithProgress(INTERCHANGE, unreachedLine).views.find((v) => v.key === 'trunk')

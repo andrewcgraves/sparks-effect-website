@@ -54,7 +54,6 @@ const pickArmed = ref(false)
 const addressAutocompleteRef = ref<InstanceType<typeof AddressAutocomplete> | null>(null)
 let locationRequestId = 0
 
-// Shared origin parse used by both the submit gate and the origin-change watcher.
 function parseOrigin(latText: string, lngText: string): { lat: number; lng: number } | null {
   const parsedLat = parseFloat(latText)
   const parsedLng = parseFloat(lngText)
@@ -109,10 +108,10 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleKeydown)
 })
 
-// Called by the parent when a click lands on the armed map. One click is the
-// whole pick, so this disarms. Coordinates only — no reverse geocode — so the
-// address field is cleared rather than left naming somewhere the origin no
-// longer is, and it deliberately does not submit: generating stays explicit.
+// One click is the whole pick, so this disarms. Coordinates only — no reverse
+// geocode — so the address field is cleared rather than left naming somewhere
+// the origin no longer is, and it deliberately does not submit: generating
+// stays explicit.
 function setOriginFromMap(coord: { lat: number; lng: number }) {
   if (!pickArmed.value) return
   pickArmed.value = false

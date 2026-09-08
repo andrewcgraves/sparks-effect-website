@@ -26,19 +26,16 @@ const props = defineProps<{
   stations: Station[]
   services: Service[]
   hideIsochroneLegend?: boolean
-  // Raw/snapped stop pairs for the service-authoring preview (draw the raw
-  // pin, the snapped pin, and a leader line between them). Absent by default
-  // — every other caller of this component leaves it unset.
+  // Absent by default — every other caller of this component leaves it unset.
   stopPreviewPairs?: StopPreviewPair[]
-  // Arms click-to-place: while set, a click on the map reports its coordinates
-  // through map-click instead of being ignored. The caller owns when it turns
-  // off — stop authoring keeps it on for a run of clicks, origin picking drops
-  // it after one — and says what the map is armed for through placementCue.
+  // The caller owns when it turns off — stop authoring keeps it on for a run
+  // of clicks, origin picking drops it after one — and says what the map is
+  // armed for through placementCue.
   placementArmed?: boolean
   placementCue?: string
-  // The station the page has highlighted, which this map is only one source of
-  // — the Time remaining card raises one too. Passed in rather than kept here
-  // so both surfaces read the same single reference.
+  // This map is only one source — the Time remaining card raises one too.
+  // Passed in rather than kept here so both surfaces read the same single
+  // reference.
   activeStation?: string | null
 }>()
 
@@ -51,9 +48,9 @@ const emit = defineEmits<{
 
 const ORIGIN_SNAP_ZOOM = 9
 
-/* Resolved once, from the CSS tokens, because MapLibre paints to WebGL and
-   cannot read CSS variables. The legend reads the same values so the key and
-   the fills can never drift apart. */
+// Resolved once, from the CSS tokens, because MapLibre paints to WebGL and
+// cannot read CSS variables. The legend reads the same values so the key and
+// the fills can never drift apart.
 const isochroneColors = resolveIsochroneColors()
 const legend = isochroneLegend(isochroneColors)
 
@@ -62,13 +59,13 @@ let map: Map | null = null
 let resizeObserver: ResizeObserver | null = null
 let hasFittedToSegments = false
 let hasFittedToRoutes = false
-// Map state, not module state: whether the style is up. Every module asks for
-// it, and none of them keeps its own copy.
+// Map state, not module state. Every module asks for it, and none of them
+// keeps its own copy.
 let isMapLoaded = false
-// The point last reported through map-click. A caller that turns a click into
-// the origin hands that same point straight back as a prop, and flying to
-// somewhere the user just clicked would only yank the view off what they were
-// aiming at — so that one origin is left to arrive without a camera move.
+// A caller that turns a click into the origin hands that same point straight
+// back as a prop, and flying to somewhere the user just clicked would only yank
+// the view off what they were aiming at — so that one origin is left to arrive
+// without a camera move.
 let lastClickedPoint: LatLng | null = null
 
 const MAP_FIT_PADDING = { top: 56, bottom: 112, left: 56, right: 56 }
@@ -89,8 +86,8 @@ function fitMapToStaticFallback(): void {
   applyBoundsFit(ISOCHRONE_BOUNDS_CORNERS)
 }
 
-/* Routes load asynchronously from the scenario fetch, so this fit needs to
-   run both on the initial map load and again whenever routes arrive later. */
+// Routes load asynchronously from the scenario fetch, so this fit needs to
+// run both on the initial map load and again whenever routes arrive later.
 function fitMapToRoutes(): boolean {
   const corners = routeBoundsCorners(props.routes)
   if (!corners) return false
@@ -122,10 +119,10 @@ function fitMapToIsochrone(data: ChainResponse): void {
   hasFittedToSegments = true
 }
 
-// Everything drawn on this map, in dependency order: stop dragging binds its
-// listeners to the layer the stop preview creates, so the preview comes first.
-// Each entry decides for itself when it is ready and what it owns; this
-// component no longer keeps a flag per module or a guard per call site.
+// Stop dragging binds its listeners to the layer the stop preview creates, so
+// the preview comes first. Each entry decides for itself when it is ready and
+// what it owns; this component no longer keeps a flag per module or a guard per
+// call site.
 const stopPreviewPairs = () => props.stopPreviewPairs ?? null
 
 const idleCursor = () => (props.placementArmed ? 'crosshair' : '')
@@ -193,7 +190,7 @@ function applyPlacementMode(): void {
 watch(() => props.placementArmed, applyPlacementMode)
 
 // The camera is this component's own: it owns the viewport, and no module has
-// any business moving it. What follows is only about where to look.
+// any business moving it.
 watch(
   () => props.isochroneData,
   (data) => {

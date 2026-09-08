@@ -43,10 +43,9 @@ const {
   show: showIsochrone,
 } = useIsochrone(() => stations.value)
 
-// The one station highlighted on this page, and which surface raised it. Both
-// the map and the Time remaining card feed it and both read it back, so the
-// last interaction wins wherever it came from; the card scrolls a row into view
-// only when the map is what named it.
+// Both the map and the Time remaining card feed it and both read it back, so
+// the last interaction wins wherever it came from; the card scrolls a row into
+// view only when the map is what named it.
 const activeStation = ref<{ slug: string; fromMap: boolean } | null>(null)
 
 function highlight(slug: string | null, fromMap: boolean) {
@@ -76,8 +75,7 @@ const timeRemaining = computed(() =>
   }),
 )
 
-// Which pre-rendered entry the map is currently drawing, owned here because
-// generating a new isochrone also has to unmark it.
+// Owned here because generating a new isochrone also has to unmark it.
 const selectedPrerenderedId = ref<string | null>(null)
 
 function onOriginChange(coords: { lat: number; lng: number } | null) {

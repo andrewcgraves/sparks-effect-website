@@ -8,8 +8,7 @@ import type { Route, Station } from '../api/scenarios'
 import type { ChainResponse } from '../fixtures/isochrone'
 import type { IsochronePayload } from '../composables/useAuthoredGraph'
 
-// The preview half of a compiled scenario or service — map, plot form, and what
-// the merge did. Shared by the detail pages at /authoring/scenarios/:slug and
+// Shared by the detail pages at /authoring/scenarios/:slug and
 // /authoring/services/:slug, which show the same thing and differ only in the
 // status note above the reports. Nothing here is scenario-specific: a lone
 // service is the degenerate one-member case, so it passes itself as the single
@@ -22,7 +21,6 @@ const props = defineProps<{
   nearMisses: NearMiss[]
   realisedClusters: StopCluster[]
   services: Service[]
-  // The compiled graph as map layers: stop dots and the lines between them.
   mapStations?: Station[]
   mapRoutes?: Route[]
   statusNote?: string | null

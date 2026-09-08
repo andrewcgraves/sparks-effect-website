@@ -1,15 +1,14 @@
 import type { GraphEdge, Service, TransitGraph } from '../api/authoring/types'
 import type { Route, SegmentTime, Station } from '../api/scenarios'
 
-// One adjacent-station hop, ready to render: endpoints already resolved to
-// display names, so the table never has to know where a name came from.
+// Endpoints already resolved to display names, so the table never has to know
+// where a name came from.
 export interface StationTimeRow {
   from: string
   to: string
   seconds: number
 }
 
-// One way of reading a service's hops, named by the terminus it heads for.
 // Directions are not mirrors of each other: the compiler charges the dwell of
 // the stop each leg arrives at, so the same hop can differ by direction.
 export interface StationTimeDirection {
@@ -17,19 +16,17 @@ export interface StationTimeDirection {
   rows: StationTimeRow[]
 }
 
-// The hops of one service. A group with two directions gets a toggle; one
-// direction (a one-way compile, or seeded data that stores a single
-// direction) is shown as it is. `label` is null when the rows cannot be
-// attributed to a named service, which is the seeded case until segments
-// carry service ids.
+// A group with two directions gets a toggle; one direction (a one-way compile,
+// or seeded data that stores a single direction) is shown as it is. `label` is
+// null when the rows cannot be attributed to a named service, which is the
+// seeded case until segments carry service ids.
 export interface StationTimeGroup {
   key: string
   label: string | null
   directions: StationTimeDirection[]
 }
 
-// Run time of one adjacent-station hop, as `m:ss`. Shared with the compile
-// table so the same segment reads the same on both screens.
+// Shared with the compile table so the same segment reads the same on both screens.
 export function formatRunTime(total: number): string {
   const minutes = Math.floor(total / 60)
   const seconds = total % 60

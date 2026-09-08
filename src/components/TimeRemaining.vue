@@ -5,30 +5,29 @@ import TooltipPanel from './TooltipPanel.vue'
 import { formatDuration, formatProgressPercent, formatTimeRemaining, laneWidthFor } from './timeRemaining'
 import type { TimeRemainingRow, TimeRemainingView } from './timeRemaining'
 
-// The trip a plotted isochrone describes, drawn one line at a time as a
-// branching graph in the manner of a commit graph. Purely presentational: the
-// caller turns a chain response into views, rows and lanes with the module
-// beside this one, so nothing here knows about slugs, waits, or the wire.
+// Purely presentational: the caller turns a chain response into views, rows
+// and lanes with the module beside this one, so nothing here knows about slugs,
+// waits, or the wire.
 const props = defineProps<{
   views: TimeRemainingView[]
-  // The station highlighted anywhere on the page. The row for it is expanded,
-  // wherever the highlight came from, so the map and this card always agree.
+  // Expanded wherever the highlight came from, so the map and this card always
+  // agree.
   activeSlug: string | null
-  // Whether that highlight came from the map. A map hover scrolls its row into
-  // view; one the rider made in here never does, because the list moving out
-  // from under their own cursor is the one thing worse than not seeing it.
+  // A map hover scrolls its row into view; one the rider made in here never
+  // does, because the list moving out from under their own cursor is the one
+  // thing worse than not seeing it.
   activeFromMap?: boolean
 }>()
 
 const emit = defineEmits<{ activate: [slug: string | null] }>()
 
-// Where a row's node sits, and where its connectors start and stop. The node
-// band is a fixed height so the dot stays put and stays round while an expanded
-// row grows beneath it — the connectors below stretch instead of re-routing.
+// The node band is a fixed height so the dot stays put and stays round while
+// an expanded row grows beneath it — the connectors below stretch instead of
+// re-routing.
 const NODE_BAND_PX = 26
 
-// Which line is being read. Held here rather than raised, the way the
-// neighbouring card holds which direction each of its groups is read in.
+// Held here rather than raised, the way the neighbouring card holds which
+// direction each of its groups is read in.
 //
 // The first view is the line that gets the rider furthest, which is the one to
 // open on. It used to be the access leg that came first and had to be skipped
@@ -47,9 +46,8 @@ const listEl = ref<HTMLElement | null>(null)
 // A fresh plot has its own lines, and the one being read may not be among them.
 watch(() => props.views, () => { chosen.value = 0 }, { immediate: true })
 
-// The bar the branches leave along, spanning the lanes they leave for. A lane
-// freed by a branch that ended above can be reused to the left of this row's
-// own, so the span is taken from both ends rather than measured outward.
+// A lane freed by a branch that ended above can be reused to the left of this
+// row's own, so the span is taken from both ends rather than measured outward.
 function forkBarStyle(row: TimeRemainingRow): Record<string, string> {
   const xs = row.forks.map(laneX)
   const left = Math.min(...xs)
@@ -69,10 +67,9 @@ function hasDetail(row: TimeRemainingRow): boolean {
   return Object.values(row.detail).some((value) => value !== undefined)
 }
 
-// The leg that brought the rider here, named by where it started. The time is
-// the ride alone — the stop served on arrival is reported separately — and the
-// station it started from is this row's parent, which the view already holds
-// as a row of its own, so no resolver is needed to name it.
+// The time is the ride alone — the stop served on arrival is reported
+// separately — and the station it started from is this row's parent, which the
+// view already holds as a row of its own, so no resolver is needed to name it.
 //
 // It used to read "Ride in 15m", which said the opposite of what it meant:
 // that the rider would arrive in fifteen minutes, rather than that fifteen
@@ -84,10 +81,9 @@ function rideTerm(row: TimeRemainingRow): string {
   return from ? `Rode in from ${from}` : 'Rode in'
 }
 
-// The element TooltipPanel measures off. Held here rather than inside it
-// because a map hover has to name the row after scrolling it into view, and
-// that measurement has to happen after the scroll, not against where the row
-// started.
+// Held here rather than inside TooltipPanel because a map hover has to name
+// the row after scrolling it into view, and that measurement has to happen
+// after the scroll, not against where the row started.
 const anchor = ref<Element | null>(null)
 
 function setAnchor(el?: Element | null): void {
@@ -182,31 +178,27 @@ watch(
         @focus="activate(row, $event)"
         @blur="emit('activate', null)"
       >
-        <!-- The connector column, drawn entirely in absolutely positioned
-             boxes anchored to the row's own edges. Nothing here scrolls and
-             nothing is measured: every line either spans the row top to bottom
-             or hangs off one edge, so a row that grows under the pointer
-             lengthens its lines instead of re-routing them. -->
+        <!-- Drawn entirely in absolutely positioned boxes anchored to the
+             row's own edges. Nothing here scrolls and nothing is measured:
+             every line either spans the row top to bottom or hangs off one
+             edge, so a row that grows under the pointer lengthens its lines
+             instead of re-routing them. -->
         <div
           class="relative shrink-0"
           :style="{ width: `${graphWidth}px` }"
         >
-          <!-- Lanes reserved for a row further down, passing this one by. -->
           <span
             v-for="lane in row.through"
             :key="`through-${lane}`"
             class="absolute w-px bg-border"
             :style="{ left: `${laneX(lane)}px`, top: '0', bottom: '0' }"
           />
-          <!-- The connector arriving from above, stopping at the node. -->
           <span
             v-if="row.incoming"
             class="absolute w-px bg-border"
             :style="{ left: `${laneX(row.lane)}px`, top: '0', height: `${NODE_BAND_PX / 2}px` }"
           />
-          <!-- Where a row branches, the branches leave along one horizontal bar
-               level with the node and then drop straight down their own lanes.
-               An elbow rather than a fan of diagonals: a diagonal's angle
+          <!-- An elbow rather than a fan of diagonals: a diagonal's angle
                depends on how tall the row is, so it had to be redrawn every
                time a row expanded, and it needed an SVG stretched across the
                whole column to live in. These are two plain boxes, and the
@@ -216,8 +208,7 @@ watch(
             class="absolute h-px bg-border"
             :style="forkBarStyle(row)"
           />
-          <!-- The drop down each branch's lane, including this row's own —
-               anchored to the bottom edge, which is what makes it stretch. -->
+          <!-- Anchored to the bottom edge, which is what makes it stretch. -->
           <span
             v-for="lane in row.forks"
             :key="`fork-${lane}`"
@@ -251,12 +242,12 @@ watch(
           {{ formatTimeRemaining(row.remainingSecs) }}
         </p>
 
-        <!-- What the row's single number hides, shown beside the row rather
-             than inside it. TooltipPanel hangs the box out of the list's
-             flow and out of its scroller, so nothing moves or resizes while
-             a pointer travels down the rows. It follows the pointer's row
-             and is never pointed at itself, so it takes no hover of its own
-             to keep it open — visibility is the row being active. -->
+        <!-- Shown beside the row rather than inside it. TooltipPanel hangs
+             the box out of the list's flow and out of its scroller, so nothing
+             moves or resizes while a pointer travels down the rows. It follows
+             the pointer's row and is never pointed at itself, so it takes no
+             hover of its own to keep it open — visibility is the row being
+             active. -->
         <TooltipPanel
           v-if="isExpanded(row) && hasDetail(row)"
           :open="true"

@@ -18,9 +18,8 @@ const props = withDefaults(
     // and focus decide. null rather than undefined: Vue casts a Boolean prop
     // that was not passed to false, which would look like a closed caller.
     open?: boolean | null
-    // The element the box is measured off. Defaults to the trigger. Callers
-    // that open from somewhere other than the trigger — a map hover scrolling
-    // a row into view — pass the element that should own the box.
+    // Callers that open from somewhere other than the trigger — a map hover
+    // scrolling a row into view — pass the element that should own the box.
     anchor?: Element | null
     width?: number
   }>(),

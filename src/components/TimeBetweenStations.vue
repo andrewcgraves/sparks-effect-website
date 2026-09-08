@@ -3,7 +3,6 @@ import { ref } from 'vue'
 import { formatRunTime } from './stationTimes'
 import type { StationTimeGroup } from './stationTimes'
 
-// The compile table's adjacent-segment run times, on the isochrone screens.
 // Purely presentational: callers turn their own data — a compiled graph on the
 // authored pages, seeded travel times on the scenario page — into groups, so
 // this knows only about hops and the directions they can be read in.
@@ -12,8 +11,7 @@ const props = defineProps<{
   loading?: boolean
 }>()
 
-// Which direction each group is being read in, by group key. Absent means the
-// first, so a group arrives in stop order without seeding this.
+// Absent means the first, so a group arrives in stop order without seeding this.
 const chosen = ref<Record<string, number>>({})
 
 function chosenIndex(group: StationTimeGroup): number {

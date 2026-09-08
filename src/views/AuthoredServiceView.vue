@@ -160,10 +160,10 @@ watch(service, (loaded) => {
         @origin-change="onOriginChange"
       />
 
-      <!-- The supporting detail, as equal cards that flow into as many columns
-           as the viewport has room for rather than one stack per column.
-           auto-fill, not auto-fit: a leftover track stays empty so the cards
-           keep a readable width instead of stretching to fill the row. -->
+      <!-- Equal cards that flow into as many columns as the viewport has room
+           for rather than one stack per column. auto-fill, not auto-fit: a
+           leftover track stays empty so the cards keep a readable width instead
+           of stretching to fill the row. -->
       <div class="mt-8 grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] items-start gap-4">
         <section class="rounded-(--radius-box) border border-border bg-surface p-4">
           <h2 class="font-display text-h3 text-ink-true">

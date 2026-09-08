@@ -9,15 +9,13 @@ import {
 } from '../api/prerenderedIsochrones'
 import type { ChainResponse } from '../fixtures/isochrone'
 
-/**
- * The isochrones a seeded scenario already ships plotted, offered alongside the
- * generate form rather than in place of it: picking one draws immediately
- * instead of spending a routing job and the wait that comes with it.
- *
- * It owns its own fetch, so a scenario with none of these — or a list request
- * that fails — costs the page nothing: the card is simply not there, and the
- * form beside it is unaffected either way.
- */
+// Offered alongside the generate form rather than in place of it: picking one
+// draws immediately instead of spending a routing job and the wait that comes
+// with it.
+//
+// It owns its own fetch, so a scenario with none of these — or a list request
+// that fails — costs the page nothing: the card is simply not there, and the
+// form beside it is unaffected either way.
 const props = defineProps<{ slug: string; selectedId: string | null }>()
 
 const emit = defineEmits<{
@@ -31,7 +29,7 @@ const emit = defineEmits<{
 // the three cases where this card renders nothing at all.
 const { items } = useOwnedList(() => listPrerenderedIsochrones(props.slug))
 
-// Which entry's chain is being fetched, so only that row reports itself busy.
+// Per entry, so only that row reports itself busy rather than the whole list.
 const pendingId = ref<string | null>(null)
 const detailError = ref<string | null>(null)
 

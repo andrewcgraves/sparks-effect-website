@@ -8,8 +8,7 @@ import { formatRunTime } from '../components/stationTimes'
 import { STOP_PLACEMENT_CUE } from '../components/placementCues'
 
 // Every rule about what a draft is, when it can be previewed, and when it can
-// be submitted lives in the composable. What is left here is the form itself:
-// its own inputs, its arming toggle, and how the state renders.
+// be submitted lives in the composable.
 const {
   stops,
   frequencyWindows,

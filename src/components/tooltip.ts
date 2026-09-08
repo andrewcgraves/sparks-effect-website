@@ -1,9 +1,9 @@
-/* Placement and the panel recipe for Tooltip.vue. MapLibre popups reuse the
-   same chrome (they cannot mount a Vue component on a canvas feature), so the
-   class string and the content node live here rather than inside the SFC.
-
-   Utilities and tokens only — same reason as fieldStyles.ts: Tailwind scans
-   .ts sources, and this project does not use @apply. */
+// MapLibre popups reuse the same chrome (they cannot mount a Vue component on
+// a canvas feature), so the class string and the content node live here rather
+// than inside the SFC.
+//
+// Utilities and tokens only — same reason as fieldStyles.ts: Tailwind scans
+// .ts sources, and this project does not use @apply.
 
 export const TOOLTIP_WIDTH_PX = 240
 export const TOOLTIP_GAP_PX = 8
@@ -40,14 +40,10 @@ export interface TooltipPlacement {
   bottom?: number
 }
 
-/**
- * Where the box should sit so it stays on-screen next to its anchor.
- *
- * Prefers below the anchor, aligned to the anchor's left edge. Flips above
- * when the foot of the viewport is closer than the box is tall, and slides
- * left or right when that alignment would cross a viewport edge — the case
- * a narrow rail or a station near the map frame actually hits.
- */
+// Prefers below the anchor, aligned to the anchor's left edge. Flips above
+// when the foot of the viewport is closer than the box is tall, and slides
+// left or right when that alignment would cross a viewport edge — the case
+// a narrow rail or a station near the map frame actually hits.
 export function placeTooltip(
   anchor: TooltipAnchor,
   viewport: TooltipViewport,
@@ -77,7 +73,7 @@ export function tooltipStyle(placement: TooltipPlacement): Record<string, string
   return style
 }
 
-/** A text node wearing the panel recipe, for MapLibre's setDOMContent. */
+// MapLibre's setDOMContent needs a text node wearing the panel recipe.
 export function tooltipContent(text: string): HTMLElement {
   const node = document.createElement('div')
   node.className = `${TOOLTIP_PANEL_CLASS} font-body text-caption text-ink`
