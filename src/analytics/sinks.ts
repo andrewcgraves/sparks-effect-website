@@ -7,11 +7,6 @@ export const consoleSink: AnalyticsSink = (event) => {
   console.log('[analytics]', event)
 }
 
-// Vercel collects page views on every plan but bills `track()` custom events as
-// a Pro/Enterprise feature. On a Hobby project set `VITE_VERCEL_CUSTOM_EVENTS=off`
-// so the custom events stop here, in one named place, rather than being posted to
-// an endpoint that will not keep them. Page views are unaffected either way —
-// `<Analytics />` in `App.vue` reports those, not this sink.
 function customEventsEnabled(): boolean {
   return (import.meta.env.VITE_VERCEL_CUSTOM_EVENTS as string | undefined) !== 'off'
 }
