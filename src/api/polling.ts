@@ -1,11 +1,8 @@
-// The queued -> running -> succeeded/failed poll, over any surface that reports
-// work in those terms.
-//
-// Two surfaces do: compile jobs at /api/jobs (api/authoring/jobs) and routing
-// jobs at /api/routing-jobs (api/routingJobs). The loop, its cadence, its
-// deadline, and its abort handling are identical for both, and the only thing
-// that differs is which endpoint answers — so that is the parameter, and there
-// is one poller rather than two.
+// Two surfaces poll work: compile jobs at /api/jobs (api/authoring/jobs) and
+// routing jobs at /api/routing-jobs (api/routingJobs). The loop, its cadence,
+// its deadline, and its abort handling are identical for both, and the only
+// thing that differs is which endpoint answers — so that is the parameter, and
+// there is one poller rather than two.
 
 // Both surfaces speak this same vocabulary deliberately: a client polling
 // either should not have to learn two spellings of the same four states.
@@ -43,7 +40,6 @@ export class JobFailedError extends Error {
   }
 }
 
-// Abortable delay so a signal abort short-circuits the wait instead of stalling.
 function delay(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     if (signal?.aborted) {
@@ -79,7 +75,6 @@ export async function pollUntilSucceeded<T extends PollableJob>(
 
   if (signal?.aborted) throw new Error('Polling aborted')
 
-  // Poll immediately, then wait between subsequent polls.
   for (;;) {
     const job = await fetchOne(jobId)
     options?.onStatus?.(job)

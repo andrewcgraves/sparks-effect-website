@@ -39,9 +39,6 @@ export async function deleteScenario(slug: string): Promise<void> {
   await apiRequest<void>(`/api/user-scenarios/${slug}`, { method: 'DELETE' })
 }
 
-// Returns the queued job immediately; poll it via fetchJob / pollJobToResult
-// (or the jobs store's track) to reach the compiled graph.
-//
 // `init` is how useCompileJob reuses one X-Trace-Id across this POST and
 // the polls that follow (SPA-205).
 export async function compileScenario(slug: string, init?: RequestInit): Promise<Job> {

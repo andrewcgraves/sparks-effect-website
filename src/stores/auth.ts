@@ -37,7 +37,6 @@ export const useAuthStore = defineStore('auth', () => {
   const userId = ref<string | null>(restored?.userId ?? null)
   const user = ref<AuthUser | null>(null)
 
-  // Mirrors readPersistedToken: an empty token authenticates nothing.
   const isAuthenticated = computed(() => Boolean(token.value))
 
   // Persistence is best-effort: a full or disabled store must not break sign-in.

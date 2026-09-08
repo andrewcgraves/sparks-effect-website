@@ -119,11 +119,10 @@ export const TRAVEL_MODES = ['walk', 'bike', 'drive', 'transit'] as const
 
 export type TravelMode = (typeof TRAVEL_MODES)[number]
 
-// Request body for the owner-scoped isochrones — POST
-// /api/user-scenarios/{slug}/isochrone and POST /api/services/{slug}/isochrone,
-// which take the identical body. The target is named in the URL, not the body,
-// unlike the seeded /api/isochrone, which carries scenario_slug alongside these
-// same fields.
+// POST /api/user-scenarios/{slug}/isochrone and POST /api/services/{slug}/isochrone
+// take this identical body. The target is named in the URL, not the body, unlike
+// the seeded /api/isochrone, which carries scenario_slug alongside these same
+// fields.
 export interface AuthoredIsochroneRequest {
   lat: number
   lng: number
@@ -192,7 +191,6 @@ export interface SnapStopsResponse {
 // and a routing copy that must agree forever.
 export type { JobStatus }
 
-// Discriminator for which target id is set.
 export type JobKind = 'compile_scenario' | 'compile_user_scenario' | 'compile_user_service'
 
 export interface GraphEdge {

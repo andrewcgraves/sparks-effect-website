@@ -37,8 +37,7 @@ export async function deleteService(slug: string): Promise<void> {
   await apiRequest<void>(`/api/services/${slug}`, { method: 'DELETE' })
 }
 
-// Degenerate as a one-member scenario. Returns the queued job immediately;
-// poll it via fetchJob / pollJobToResult to reach the compiled TransitGraph.
+// Degenerate as a one-member scenario.
 //
 // `init` is how useCompileJob reuses one X-Trace-Id across this POST and
 // the polls that follow (SPA-205).
@@ -55,9 +54,6 @@ export async function fetchServiceGraph(slug: string): Promise<TransitGraph> {
   return apiRequest<TransitGraph>(`/api/services/${slug}/graph`)
 }
 
-// The single-service counterpart to fetchScenarioIsochrone, for a service
-// compiled alone rather than as a scenario member.
-//
 // A 409 whose ApiError.code is 'stale_graph' means the compiled graph fell
 // behind an edit to the service itself; the caller should recompile and retry.
 // The check runs before anything is enqueued, so it arrives from the POST.

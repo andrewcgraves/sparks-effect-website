@@ -1,4 +1,3 @@
-// Progress survives view navigation.
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { pollJobToResult, type Job, type JobStatus, type PollJobOptions, type TransitGraph } from '../api/authoring'
