@@ -1,9 +1,9 @@
-// Tracks async authoring jobs so their progress survives view navigation.
+// Progress survives view navigation.
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { pollJobToResult, type Job, type JobStatus, type PollJobOptions, type TransitGraph } from '../api/authoring'
 
-// A job the store is watching. 'cancelled' is store-local: the API never reports it.
+// 'cancelled' is store-local: the API never reports it.
 export interface TrackedJob {
   id: string
   status: JobStatus | 'cancelled'
@@ -11,7 +11,6 @@ export interface TrackedJob {
   error: string | null
 }
 
-// Statuses that mean the job is still in flight.
 const PENDING: ReadonlySet<TrackedJob['status']> = new Set(['queued', 'running'])
 
 function initialEntry(id: string): TrackedJob {
@@ -37,9 +36,6 @@ export const useJobsStore = defineStore('jobs', () => {
     controllers.delete(jobId)
   }
 
-  // Watches a job to completion, mirroring its progress into the store.
-  // Resolves with the succeeded job (its `result` is the compiled graph), or
-  // rejects if the job fails, times out, or is cancelled.
   function track(
     jobId: string,
     options?: Omit<PollJobOptions, 'signal' | 'onStatus'>,
@@ -93,7 +89,6 @@ export const useJobsStore = defineStore('jobs', () => {
       })
   }
 
-  // Stops watching a job, leaving its entry visible as 'cancelled'.
   function cancel(jobId: string): void {
     const entry = entries.value[jobId]
     if (!entry) return
@@ -101,7 +96,6 @@ export const useJobsStore = defineStore('jobs', () => {
     entries.value[jobId] = { ...entry, status: 'cancelled' }
   }
 
-  // Stops watching a job and forgets it entirely.
   function clear(jobId: string): void {
     abort(jobId)
     delete entries.value[jobId]

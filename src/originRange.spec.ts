@@ -15,8 +15,7 @@ import { ApiError } from './api/authoring/client'
 import type { Station } from './api/scenarios'
 
 const ORIGIN = { lat: 37.7, lng: -122.4 }
-// A degree of latitude, in km. Going north rather than east keeps the
-// conversion exact at any latitude.
+// Going north rather than east keeps the conversion exact at any latitude.
 const KM_PER_DEG_LAT = 111.194926644559
 
 function stationAt(km: number, name = 'Somewhere'): Station {

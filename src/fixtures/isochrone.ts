@@ -1,15 +1,10 @@
 import type { FeatureCollection, LineString, Polygon } from 'geojson'
 import sampleIsochroneResponse from './sample-isochrone-response.json'
 
-/**
- * One hop of a journey: the ride from one station to the next on one service,
- * and the dwell served on arrival.
- *
- * `secs` is the whole hop and `dwell_s` the part of it the vehicle spends
- * standing at `to`, so the ride itself is the difference. Dwell is absent on a
- * graph compiled before the API reported it, which reads as a journey with no
- * dwell anywhere — incomplete, never wrong.
- */
+// `secs` is the whole hop and `dwell_s` the part of it the vehicle spends
+// standing at `to`, so the ride itself is the difference. Dwell is absent on a
+// graph compiled before the API reported it, which reads as a journey with no
+// dwell anywhere — incomplete, never wrong.
 export interface JourneyLeg {
   from: string
   to: string
@@ -42,56 +37,44 @@ export interface ReachableStation {
   // one — a transfer costs nothing.
   board_slug?: string
   board_wait_secs?: number
-  // The journey retraced, boarding station first. Empty for a station the rider
-  // walked to and rode nothing from.
+  // Empty for a station the rider walked to and rode nothing from.
   legs?: JourneyLeg[]
 }
 
-/**
- * The walk from the origin to the station the rider boards at, as the worker
- * routed it.
- *
- * The geometry is Valhalla's own, so it follows streets rather than cutting
- * across them, and its endpoints are where the timing actually started and
- * ended: the origin snapped to the nearest routable edge, and the graph node
- * the access time was measured to rather than wherever the station's row sits
- * now. Nothing here needs to be joined against the station list to be drawn.
- */
+// The geometry is Valhalla's own, so it follows streets rather than cutting
+// across them, and its endpoints are where the timing actually started and
+// ended: the origin snapped to the nearest routable edge, and the graph node
+// the access time was measured to rather than wherever the station's row sits
+// now. Nothing here needs to be joined against the station list to be drawn.
 export interface StarterWalk {
   station_slug: string
   geometry: LineString
 }
 
-/**
- * How far along a leg the rider's budget would have carried them, for a leg
- * they do not finish.
- *
- * A station the budget does not quite reach used to leave no trace at all, so a
- * rider who got 91% of the way from San José to Millbrae saw exactly what a
- * rider who never left San José saw. This says how close they came.
- *
- * The field names match `JourneyLeg`'s deliberately: `from`, `to` and
- * `service_id` name the same things there, and a reader should not have to
- * learn a second vocabulary for the leg the rider did not complete.
- *
- * It carries the route and both chainages rather than referring to them,
- * because the public scenario page fetches the scenario and never the compiled
- * graph. With the copy, drawing a stub needs only this and the routes array
- * every map surface already holds.
- *
- * It is never a claim of arrival: `to` stays out of `reachable_stations`, unlit
- * and without an egress polygon, even where `fraction` is exactly 1 — which
- * happens when the remaining time covers the ride but not the dwell at the end
- * of it.
- */
+// A station the budget does not quite reach used to leave no trace at all, so a
+// rider who got 91% of the way from San José to Millbrae saw exactly what a
+// rider who never left San José saw. This says how close they came.
+//
+// The field names match `JourneyLeg`'s deliberately: `from`, `to` and
+// `service_id` name the same things there, and a reader should not have to
+// learn a second vocabulary for the leg the rider did not complete.
+//
+// It carries the route and both chainages rather than referring to them,
+// because the public scenario page fetches the scenario and never the compiled
+// graph. With the copy, drawing a stub needs only this and the routes array
+// every map surface already holds.
+//
+// It is never a claim of arrival: `to` stays out of `reachable_stations`, unlit
+// and without an egress polygon, even where `fraction` is exactly 1 — which
+// happens when the remaining time covers the ride but not the dwell at the end
+// of it.
 export interface TripProgress {
   from: string
   to: string
   service_id?: string
   route_id: string
-  // Where the two stations sit along the route's alignment, in metres. They may
-  // descend, when the leg runs against the direction the alignment was drawn
-  // in; slicing between them needs no special case for that.
+  // They may descend, when the leg runs against the direction the alignment was
+  // drawn in; slicing between them needs no special case for that.
   from_chainage_m: number
   to_chainage_m: number
   // The share of the leg's *running* time the remaining budget covers, applied
@@ -105,10 +88,9 @@ export interface TripProgress {
 export interface ChainMetadata {
   reachable_stations: ReachableStation[]
   origin_budget_mins: number
-  // The compiled graph the surface was plotted over, named by the job that
-  // produced it. The worker has no scenario identity to report — the queue
-  // message carries only this — so the scenario slug this field used to be
-  // matched the checked-in sample and nothing the worker ever sent.
+  // The worker has no scenario identity to report — the queue message carries
+  // only this — so the scenario slug this field used to be matched the
+  // checked-in sample and nothing the worker ever sent.
   compile_job_id: string
   mode: string
   wait_model: string

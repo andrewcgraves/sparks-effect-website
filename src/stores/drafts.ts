@@ -1,6 +1,5 @@
-// In-progress service and scenario drafts, held centrally so they survive
-// navigation, and persisted so they survive a reload. A draft is the one piece
-// of authoring state no API can hand back, so losing it loses real work.
+// A draft is the one piece of authoring state no API can hand back, so losing
+// it loses real work.
 import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import type {
@@ -13,8 +12,7 @@ import type {
 import { useAuthStore } from './auth'
 import { readJson, removeKey, writeJson } from './storage'
 
-// Prefix for the localStorage entry holding a user's drafts. A service with
-// stops is a few KB, far inside quota, so localStorage is enough.
+// A service with stops is a few KB, far inside quota, so localStorage is enough.
 const DRAFTS_STORAGE_KEY_PREFIX = 'sparks-effect.drafts'
 
 // Drafts are keyed by owner rather than stored under one shared key, so a
@@ -23,7 +21,6 @@ export function draftsStorageKey(userId: string): string {
   return `${DRAFTS_STORAGE_KEY_PREFIX}.${userId}`
 }
 
-// Starting physics for a new service; authors tune these in the vehicle form.
 const DEFAULT_VEHICLE: VehicleParams = {
   max_speed_kmh: 80,
   acceleration_ms2: 1.0,
@@ -39,15 +36,12 @@ function emptyScenarioDraft(): ScenarioInput {
   return { name: '', description: '', service_ids: [] }
 }
 
-// The auto-generated name a click-placed stop gets, e.g. `Stop 3`.
 const AUTO_STOP_NAME = /^Stop (\d+)$/
 
-// Rewrites seq to match array order, keeping stop ordering canonical after edits.
 function renumber(stops: Stop[]): Stop[] {
   return stops.map((stop, index) => ({ ...stop, seq: index }))
 }
 
-// Everything the store needs to resume editing exactly where the author left off.
 export interface PersistedDrafts {
   serviceDraft: ServiceInput | null
   scenarioDraft: ScenarioInput | null
@@ -121,9 +115,8 @@ function isScenarioInput(value: unknown): value is ScenarioInput {
   )
 }
 
-// Reads a user's drafts, tolerating absent, corrupt, or partial data. A draft
-// for an existing record is restored as-is and wins over the server copy: it is
-// the newer edit, and the author is mid-sentence in it.
+// A draft for an existing record is restored as-is and wins over the server
+// copy: it is the newer edit, and the author is mid-sentence in it.
 function readPersistedDrafts(userId: string): PersistedDrafts {
   const parsed = readJson<PersistedDrafts>(draftsStorageKey(userId))
   if (!parsed) return emptyPersistedDrafts()
@@ -152,15 +145,12 @@ export const useDraftsStore = defineStore('drafts', () => {
 
   const serviceDraft = ref<ServiceInput | null>(null)
   const scenarioDraft = ref<ScenarioInput | null>(null)
-  // Set when the draft edits an existing record; null means "creating new".
   const editingServiceId = ref<string | null>(null)
   const editingScenarioId = ref<string | null>(null)
-  // Highest `Stop N` handed out for the service draft. See takeStopNumber.
   const serviceStopCounter = ref(0)
 
-  // Who the in-memory drafts belong to, null while signed out. Writes go under
-  // this id rather than reading auth again, so drafts can never land under the
-  // key of an account that signed in after they were typed.
+  // Writes go under this id rather than reading auth again, so drafts can never
+  // land under the key of an account that signed in after they were typed.
   let ownerId: string | null = null
 
   const hasServiceDraft = computed(() => serviceDraft.value !== null)
@@ -171,7 +161,6 @@ export const useDraftsStore = defineStore('drafts', () => {
     const owner = ownerId
     if (!owner) return
 
-    // No draft left to resume — clearing one, or saving it, ends here.
     if (!serviceDraft.value && !scenarioDraft.value) {
       removeKey(draftsStorageKey(owner))
       return
@@ -258,8 +247,6 @@ export const useDraftsStore = defineStore('drafts', () => {
     serviceDraft.value.stops = renumber(serviceDraft.value.stops.filter((_, i) => i !== index))
   }
 
-  // Patches one stop in place by index (its raw lat/lng/name as the author
-  // edits them), leaving the rest of the list untouched.
   function updateStop(index: number, patch: Partial<Stop>): void {
     if (!serviceDraft.value) return
     const stops = serviceDraft.value.stops
@@ -267,9 +254,8 @@ export const useDraftsStore = defineStore('drafts', () => {
     serviceDraft.value.stops = stops.map((s, i) => (i === index ? { ...s, ...patch } : s))
   }
 
-  // Swaps a stop with its neighbor in the given direction (-1 or 1) and
-  // renumbers — the reordering the order-fault check asks the user to do by
-  // hand, since map-drag reordering is out of scope.
+  // The reordering the order-fault check asks the user to do by hand, since
+  // map-drag reordering is out of scope.
   function moveStop(index: number, direction: -1 | 1): void {
     if (!serviceDraft.value) return
     const stops = serviceDraft.value.stops
@@ -314,7 +300,6 @@ export const useDraftsStore = defineStore('drafts', () => {
     scenarioDraft.value = { ...scenarioDraft.value, ...patch }
   }
 
-  // Adds or removes a service from the scenario's selection.
   function toggleService(serviceId: string): void {
     if (!scenarioDraft.value) return
     const selected = scenarioDraft.value.service_ids

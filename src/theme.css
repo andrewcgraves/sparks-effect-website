@@ -4,7 +4,6 @@
    the data palette: change it there first, then re-sync here. */
 
 @theme {
-  /* Palette — verbatim from reference */
   --color-ink: #121212;
   --color-ink-true: #000000;
   --color-ink-muted: #4a4a4f;
@@ -29,7 +28,6 @@
   --color-data-origin: #1034b1;
   --color-data-egress: #f28f29;
 
-  /* Fonts */
   --font-display: "Inter Variable", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
   --font-body: "Open Sans Variable", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
 
@@ -77,7 +75,6 @@
   --radius-field: 0.25rem;
   --radius-box: 0.5rem;
 
-  /* Elevation — the panel shadow, worn by the map key and the address foldout. */
   --shadow-panel: 0 1px 4px rgb(0 0 0 / 20%);
 }
 

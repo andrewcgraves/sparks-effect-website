@@ -2,18 +2,13 @@ import { describe, it, expect } from 'vitest'
 import { chainageAlong, sliceAlignment } from './chainage'
 import chainageFixture from './fixtures/chainage.golden.json'
 
-/**
- * The alignment from the shared fixture, and the chainages the API says each of
- * its vertices sits at.
- *
- * This file is a byte-for-byte copy of sparks-effect-api's
- * `internal/physics/testdata/chainage.golden.json`, and both sides assert
- * against it. That is the whole reason it exists: the API hands this front end
- * two chainages measured in its own planar frame, and a front end accumulating
- * a different metric would produce a scale that quietly disagrees — visibly so
- * on a long alignment, and with nothing to catch it. Change the projection or
- * the Earth radius on either side and both suites go red.
- */
+// This file is a byte-for-byte copy of sparks-effect-api's
+// `internal/physics/testdata/chainage.golden.json`, and both sides assert
+// against it. That is the whole reason it exists: the API hands this front end
+// two chainages measured in its own planar frame, and a front end accumulating
+// a different metric would produce a scale that quietly disagrees — visibly so
+// on a long alignment, and with nothing to catch it. Change the projection or
+// the Earth radius on either side and both suites go red.
 const line = chainageFixture.line as [number, number][]
 const expectedChainage = chainageFixture.vertex_chainage_m
 
@@ -55,14 +50,12 @@ describe('sliceAlignment', () => {
   // leg, which runs due north from (-121.8, 37.2).
   const wholeLine = { from: 0, to: expectedChainage[3] }
 
-  /**
-   * Half the fixture line lands partway along its middle leg, which runs due
-   * east from vertex 1 to vertex 2. Where exactly is derived here from the
-   * fixture's own chainages rather than re-measured off the returned span:
-   * chainage is defined against the *whole* line's mean latitude, so walking a
-   * slice in its own frame is a different measurement and would disagree by
-   * metres — correctly, and confusingly.
-   */
+  // Half the fixture line lands partway along its middle leg, which runs due
+  // east from vertex 1 to vertex 2. Where exactly is derived here from the
+  // fixture's own chainages rather than re-measured off the returned span:
+  // chainage is defined against the *whole* line's mean latitude, so walking a
+  // slice in its own frame is a different measurement and would disagree by
+  // metres — correctly, and confusingly.
   const cutPointAtHalf = (): [number, number] => {
     const cutM = wholeLine.to * 0.5
     const t = (cutM - expectedChainage[1]) / (expectedChainage[2] - expectedChainage[1])
@@ -91,12 +84,10 @@ describe('sliceAlignment', () => {
     expect(whole[whole.length - 1]).toEqual([-121.8, 37.5])
   })
 
-  /**
-   * A hop running against the direction its alignment was drawn in has a higher
-   * from-chainage than to-chainage. That is an authoring detail the rider never
-   * sees and must not be a special case: the stub still starts at the station
-   * the rider left and still ends at the point their budget reached.
-   */
+  // A hop running against the direction its alignment was drawn in has a higher
+  // from-chainage than to-chainage. That is an authoring detail the rider never
+  // sees and must not be a special case: the stub still starts at the station
+  // the rider left and still ends at the point their budget reached.
   it('handles descending chainage without a special case', () => {
     const got = sliceAlignment(line, wholeLine.to, wholeLine.from, 0.5)
     expect(got[0]).toEqual([-121.8, 37.5])
@@ -119,7 +110,6 @@ describe('sliceAlignment', () => {
     expect(got[0][0]).toBeCloseTo(-122.0, 9)
     expect(got[0][1]).toBeCloseTo(37.2, 9)
     expect(got[got.length - 1][1]).toBeCloseTo(37.2, 9)
-    // 40% of the way east along a leg spanning 0.2° of longitude.
     expect(got[got.length - 1][0]).toBeCloseTo(-122.0 + 0.4 * 0.2, 6)
   })
 
@@ -132,12 +122,10 @@ describe('sliceAlignment', () => {
     expect(sliceAlignment([], 0, 100, 0.5)).toEqual([])
   })
 
-  /**
-   * The worker clamps the fraction too, but this module promises an empty line
-   * for anything undrawable, and a fraction above 1 would break that in the
-   * worst direction: a stub running past the station the rider never reached,
-   * with the cap marking where their budget ran out planted beyond it.
-   */
+  // The worker clamps the fraction too, but this module promises an empty line
+  // for anything undrawable, and a fraction above 1 would break that in the
+  // worst direction: a stub running past the station the rider never reached,
+  // with the cap marking where their budget ran out planted beyond it.
   it('never draws past the destination, whatever fraction it is handed', () => {
     const whole = sliceAlignment(line, wholeLine.from, wholeLine.to, 1)
     expect(sliceAlignment(line, wholeLine.from, wholeLine.to, 1.5)).toEqual(whole)
