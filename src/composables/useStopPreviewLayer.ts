@@ -10,7 +10,6 @@ export const SNAPPED_STOP_LAYER_ID = 'stop-preview-snapped'
 export const LEADER_SOURCE_ID = 'stop-preview-leader-source'
 export const LEADER_LAYER_ID = 'stop-preview-leader'
 
-// snapped is null until the snap-preview call for it has resolved.
 export interface StopPreviewPair {
   id: string
   raw: LatLng
@@ -32,8 +31,6 @@ function sameCoord(a: LatLng | null | undefined, b: LatLng | null | undefined): 
   return a.lat === b.lat && a.lng === b.lng
 }
 
-// Compares what the layers actually draw: position, pairing, and off-route
-// state. Anything else a pair carries cannot change a rendered feature.
 function samePairs(a: StopPreviewPair[], b: StopPreviewPair[]): boolean {
   return (
     a.length === b.length &&
@@ -47,8 +44,6 @@ function samePairs(a: StopPreviewPair[], b: StopPreviewPair[]): boolean {
   )
 }
 
-// Detached from the caller's objects, so a later in-place edit to a stop can't
-// rewrite the record of what was drawn and make a real change look like a no-op.
 function snapshot(pairs: StopPreviewPair[]): StopPreviewPair[] {
   return pairs.map((pair) => ({
     id: pair.id,
@@ -58,8 +53,6 @@ function snapshot(pairs: StopPreviewPair[]): StopPreviewPair[] {
   }))
 }
 
-// Meaningful only while a service is being drafted — the snap is never
-// persisted. Sources are created once, up front.
 export function useStopPreviewLayer(map: Map): { update: (pairs: StopPreviewPair[]) => void } {
   const rawColor = readThemeToken('--color-ink-muted')
   const snappedColor = readThemeToken('--color-ink')
@@ -160,9 +153,6 @@ export function useStopPreviewLayer(map: Map): { update: (pairs: StopPreviewPair
   return { update }
 }
 
-// Absent for every caller but the service-authoring form, so `pairs` returning
-// null keeps it unattached rather than adding three empty sources to every map
-// in the app.
 export function stopPreviewModule(pairs: () => StopPreviewPair[] | null): MapModule {
   let layer: { update: (pairs: StopPreviewPair[]) => void } | null = null
 

@@ -50,9 +50,6 @@ function makeMockMap(): Pick<Map, 'addSource' | 'addLayer' | 'getSource'> {
   }
 }
 
-// The shared chainage fixture's own line, so the chainages below are the
-// numbers the API would actually hand over for these two stations rather than
-// round figures invented here.
 const progressRoute: Route = {
   id: 'rt-progress',
   scenario_id: 's1',

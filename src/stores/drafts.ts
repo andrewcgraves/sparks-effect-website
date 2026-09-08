@@ -1,5 +1,3 @@
-// A draft is the one piece of authoring state no API can hand back, so losing
-// it loses real work.
 import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import type {
@@ -12,11 +10,8 @@ import type {
 import { useAuthStore } from './auth'
 import { readJson, removeKey, writeJson } from './storage'
 
-// A service with stops is a few KB, far inside quota, so localStorage is enough.
 const DRAFTS_STORAGE_KEY_PREFIX = 'sparks-effect.drafts'
 
-// Drafts are keyed by owner rather than stored under one shared key, so a
-// second account on the same browser can never open someone else's work.
 export function draftsStorageKey(userId: string): string {
   return `${DRAFTS_STORAGE_KEY_PREFIX}.${userId}`
 }
@@ -60,9 +55,6 @@ function emptyPersistedDrafts(): PersistedDrafts {
   }
 }
 
-// Persisted drafts are validated field by field on the way in: a draft written
-// by an older build, or half-written by a crashed tab, must be discarded rather
-// than handed to a form that assumes the current shape.
 function isStop(value: unknown): value is Stop {
   const stop = value as Partial<Stop> | null
   return (
@@ -115,8 +107,6 @@ function isScenarioInput(value: unknown): value is ScenarioInput {
   )
 }
 
-// A draft for an existing record is restored as-is and wins over the server
-// copy: it is the newer edit, and the author is mid-sentence in it.
 function readPersistedDrafts(userId: string): PersistedDrafts {
   const parsed = readJson<PersistedDrafts>(draftsStorageKey(userId))
   if (!parsed) return emptyPersistedDrafts()

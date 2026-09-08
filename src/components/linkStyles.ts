@@ -1,4 +1,3 @@
-// Same reason as fieldStyles: utilities and design tokens only, no @apply.
 export const ACTION_LINK_CLASS =
   'font-display text-btn cursor-pointer text-ink-muted uppercase transition-colors duration-200 ease-(--ease-smooth) hover:text-coral'
 

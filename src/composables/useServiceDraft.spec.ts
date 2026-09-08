@@ -58,8 +58,6 @@ function snapResponse(overrides: Partial<SnapStopsResponse> = {}): SnapStopsResp
 
 type Draft = ReturnType<typeof useServiceDraft>
 
-// Drives a draft to the point where canSubmit is true, which every submission
-// case below starts from.
 async function submittable(draft: Draft): Promise<void> {
   await draft.start()
   await draft.selectRoute('main-line')

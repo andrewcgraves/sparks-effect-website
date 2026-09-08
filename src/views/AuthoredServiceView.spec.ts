@@ -23,11 +23,7 @@ import { compileService, fetchService, fetchServiceGraph, fetchServiceIsochrone 
 
 const Stub = { template: '<div>stub</div>' }
 
-// A compiled single-service graph: one service, its stops as nodes, and the
-// route the API bundles onto the read so the map can follow the alignment.
 const graph = {
-  // Each hop compiles with its return leg; the two differ by the dwell at the
-  // stop each one arrives at.
   services: [{
     service_id: 'svc1',
     wait_secs: 0,

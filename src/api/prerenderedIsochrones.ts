@@ -1,14 +1,6 @@
 import { newTraceId } from './traceId'
 import type { ChainResponse } from '../fixtures/isochrone'
 
-// The list endpoint reports metadata only. The chain itself is 300–500KB, so a
-// scenario's whole list would be megabytes if the payloads came along — the
-// list names them, and the detail endpoint below serves the one that is asked
-// for.
-//
-// `outdated` means the scenario's routes or services have moved on since this
-// was plotted. It is still worth showing — it is a real answer, plotted from a
-// real graph — so the flag is presented rather than acted on.
 export interface PrerenderedIsochroneSummary {
   id: string
   label: string

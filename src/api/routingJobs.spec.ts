@@ -1,5 +1,4 @@
 // @vitest-environment node
-// No DOM in this file. See the environment note in vite.config.ts.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -241,9 +240,6 @@ describe('enqueueIsochrone', () => {
   })
 })
 
-// SPA-219: the API caps how much routing work may be in flight and refuses the
-// enqueue with 429 + `backlog_full` once it is full. Nothing about the request
-// is wrong, so the reader gets told to wait rather than that it failed.
 describe('backlogFullError', () => {
   it('reads a refused enqueue and returns a message saying to try again', () => {
     const err = new ApiError('POST /api/isochrone failed: 429', 429, BACKLOG_FULL_CODE)

@@ -180,9 +180,6 @@ const stubService: Service = {
   frequency_windows: [],
 }
 
-// The walk the worker routed to stubStation. It bends, and neither end is the
-// origin the request was made from or the station row's own coordinates —
-// which is exactly what makes it Valhalla's shape rather than a rebuilt one.
 const routedToStub: StarterWalk = {
   station_slug: 'sf',
   geometry: {
@@ -195,8 +192,6 @@ const routedToStub: StarterWalk = {
   },
 }
 
-// A plot that walked to stubStation and rode on from there. Features are
-// irrelevant to the walking line, which reads only the metadata.
 function chainWith(
   stations: ChainResponse['metadata']['reachable_stations'],
   starterWalk?: StarterWalk,
@@ -235,7 +230,6 @@ async function triggerMapLoad() {
   if (typeof cb === 'function') await cb()
 }
 
-// Fires a map-level (unscoped) MapLibre event registered through map.on().
 function fireMapEvent(type: string, event: unknown) {
   const call = mockOn.mock.calls.find(
     (args: unknown[]) => args[0] === type && typeof args[1] === 'function',
@@ -244,8 +238,6 @@ function fireMapEvent(type: string, event: unknown) {
   cb?.(event)
 }
 
-// Fires a layer-scoped MapLibre event, i.e. one registered as
-// map.on(type, layerId, handler).
 function fireLayerEvent(type: string, layer: string, event: unknown) {
   const call = mockOn.mock.calls.find((args: unknown[]) => args[0] === type && args[1] === layer)
   const cb = call?.[2] as ((e: unknown) => void) | undefined

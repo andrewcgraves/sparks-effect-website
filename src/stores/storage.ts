@@ -1,9 +1,3 @@
-// Every call here is best-effort. Storage can be disabled (private mode,
-// blocked cookies) or full, and neither may break a session or an edit in
-// flight — so failures leave the caller's in-memory state as the truth.
-
-// Fields are returned unvalidated, since only the caller knows which of them
-// it can still use.
 export function readJson<T>(key: string): Partial<T> | null {
   let raw: string | null
   try {

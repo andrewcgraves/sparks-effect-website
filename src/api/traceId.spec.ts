@@ -1,5 +1,4 @@
 // @vitest-environment node
-// No DOM in this file. See the environment note in vite.config.ts.
 
 import { describe, expect, it } from 'vitest'
 import { TRACE_HEADER, newTraceId, traceHeaders } from './traceId'

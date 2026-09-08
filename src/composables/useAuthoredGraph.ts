@@ -8,9 +8,6 @@ import { graphRoutes, graphStations } from './scenarioGraphMap'
 import { checkOriginReach, outOfRangeError, outOfRangeMessage } from '../originRange'
 import { backlogFullError } from '../api/routingJobs'
 
-// A stale-graph retry should settle in one or two hops in practice; this just
-// bounds it so a persistently stale signal can't spin the UI forever. It is the
-// one copy — nothing else recovers from stale_graph.
 export const MAX_STALE_GRAPH_RETRIES = 3
 
 export interface IsochronePayload {
@@ -20,23 +17,12 @@ export interface IsochronePayload {
   mode: TravelMode
 }
 
-// Injected rather than imported so one implementation serves both Services and
-// Scenarios. A Service compiled alone is the degenerate one-member Scenario, so
-// the two differ in nothing but which trio of endpoints they are plotted against.
 export interface AuthoredGraphTarget {
   compile: (slug: string, init?: RequestInit) => Promise<Job>
   fetchGraph: (slug: string) => Promise<TransitGraph>
   isochrone: (slug: string, request: AuthoredIsochroneRequest) => Promise<ChainResponse>
 }
 
-// A stale isochrone recompiles and retries, so a single user gesture can have
-// two requests and a job poll in flight, and the retry bound has to be counted
-// across all of it rather than per call. That sequencing used to be split
-// across a compile composable, an isochrone composable, and each detail view's
-// own copy of "fetch the graph, or compile on a 404".
-//
-// The slug arrives as a getter because callers resolve it late, from their route
-// props rather than at setup time.
 export function useAuthoredGraph(getSlug: () => string | null, target: AuthoredGraphTarget) {
   const {
     compiling,

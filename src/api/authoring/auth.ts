@@ -1,5 +1,3 @@
-// There is no registration endpoint by design — accounts are provisioned by
-// an admin via POST /api/admin/users.
 import { apiRequest } from './client'
 
 export interface CurrentUser {
@@ -15,8 +13,6 @@ export interface LoginResponse {
   user: CurrentUser
 }
 
-// A 401 covers unknown email, wrong password, and no-password-set alike (the
-// API avoids account enumeration).
 export async function login(email: string, password: string): Promise<LoginResponse> {
   return apiRequest<LoginResponse>('/api/auth/login', {
     method: 'POST',

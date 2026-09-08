@@ -4,14 +4,6 @@ import { latestAttempt } from './latestAttempt'
 import { newTraceId, traceHeaders } from '../api/traceId'
 import type { Job, TransitGraph } from '../api/authoring'
 
-// This is the compile -> poll adapter beneath useAuthoredGraph, and it is also
-// the whole of what the service authoring form needs: that form compiles a
-// service it has just created, so there is no existing graph of its own that
-// could have gone stale underneath it.
-//
-// Stale-graph recovery deliberately does not live here. Only the isochrone
-// endpoint answers 409 stale_graph, so useAuthoredGraph owns that retry and its
-// bound (SPA-148). This used to retry it too, on a branch nothing could reach.
 export function useCompileJob(compile: (slug: string, init?: RequestInit) => Promise<Job>) {
   const jobs = useJobsStore()
   const compiling = ref(false)

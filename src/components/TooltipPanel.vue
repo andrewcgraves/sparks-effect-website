@@ -12,14 +12,7 @@ defineOptions({ name: 'TooltipPanel' })
 
 const props = withDefaults(
   defineProps<{
-    // When a boolean is passed, the caller owns visibility. Time remaining
-    // does, because a row being active also lights the map, and those two
-    // facts have to stay one fact. Leave it null and the trigger's own hover
-    // and focus decide. null rather than undefined: Vue casts a Boolean prop
-    // that was not passed to false, which would look like a closed caller.
     open?: boolean | null
-    // Callers that open from somewhere other than the trigger — a map hover
-    // scrolling a row into view — pass the element that should own the box.
     anchor?: Element | null
     width?: number
   }>(),
@@ -56,9 +49,6 @@ function onClose(): void {
   setOpen(false)
 }
 
-// display:contents takes the wrapper out of layout so wrapping a block-level
-// trigger does not shrink it. The wrapper's own box is then empty, so the
-// trigger's first child is what we measure.
 function triggerAnchor(): Element | null {
   return triggerEl.value?.firstElementChild ?? triggerEl.value
 }
@@ -112,11 +102,7 @@ onBeforeUnmount(stopListening)
 </script>
 
 <template>
-  <!-- The box is fixed rather than laid out next to the trigger, so opening
-       it cannot resize whatever the trigger sits in — a list that used to
-       reflow under the pointer, a rail that would shove its neighbours.
-       Fixed also escapes an ancestor's overflow, which would otherwise clip
-       the box on the last few rows of a scrolling card. -->
+  
   <span
     v-if="hasTrigger"
     ref="triggerEl"

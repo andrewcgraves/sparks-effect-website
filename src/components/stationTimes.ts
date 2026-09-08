@@ -1,32 +1,23 @@
 import type { GraphEdge, Service, TransitGraph } from '../api/authoring/types'
 import type { Route, SegmentTime, Station } from '../api/scenarios'
 
-// Endpoints already resolved to display names, so the table never has to know
-// where a name came from.
 export interface StationTimeRow {
   from: string
   to: string
   seconds: number
 }
 
-// Directions are not mirrors of each other: the compiler charges the dwell of
-// the stop each leg arrives at, so the same hop can differ by direction.
 export interface StationTimeDirection {
   terminus: string
   rows: StationTimeRow[]
 }
 
-// A group with two directions gets a toggle; one direction (a one-way compile,
-// or seeded data that stores a single direction) is shown as it is. `label` is
-// null when the rows cannot be attributed to a named service, which is the
-// seeded case until segments carry service ids.
 export interface StationTimeGroup {
   key: string
   label: string | null
   directions: StationTimeDirection[]
 }
 
-// Shared with the compile table so the same segment reads the same on both screens.
 export function formatRunTime(total: number): string {
   const minutes = Math.floor(total / 60)
   const seconds = total % 60
@@ -44,10 +35,6 @@ function directionsFrom(rows: StationTimeRow[], returnRows: StationTimeRow[]): S
   return [outbound, { terminus: returnRows[returnRows.length - 1].to, rows: returnRows }]
 }
 
-// Splits a service's compiled edges into the two ways of riding it. The
-// compiler emits each hop as a forward edge followed by its return leg, so
-// the first time a station pair is seen is the outbound direction and the
-// second is the return; a hop compiled only one way yields no return leg.
 function splitByDirection(edges: GraphEdge[], displayName: (slug: string) => string) {
   const outbound: StationTimeRow[] = []
   const returning: StationTimeRow[] = []
@@ -66,11 +53,6 @@ function splitByDirection(edges: GraphEdge[], displayName: (slug: string) => str
   return { outbound, returning }
 }
 
-// A compiled graph as one group per member service, each read in stop order
-// by default. A graph still being read yields no groups, which the caller
-// distinguishes from "compiled to nothing" by its own loading flag. Services
-// that compiled no edges are dropped rather than shown as empty groups — a
-// single-stop service has nothing to say about time between stations.
 export function graphStationTimeGroups(graph: TransitGraph | null, services: Service[]): StationTimeGroup[] {
   if (!graph) return []
 
@@ -90,14 +72,6 @@ export function graphStationTimeGroups(graph: TransitGraph | null, services: Ser
     })
 }
 
-// A seeded scenario's segments, read one line at a time. The endpoint serves
-// the segments of every route in one list, so they have to be grouped by
-// route_id before they can be read in stop order: a scenario is several
-// corridors laid end to end, not one path, and the later ones branch off the
-// middle of an earlier one rather than continuing from its terminus. Each
-// group's return direction is built from its own hops' reverse_run_seconds,
-// falling back to run_seconds; two directions are shown only when at least one
-// hop in that group actually differs.
 export function segmentStationTimeGroups(
   segments: SegmentTime[],
   stations: Station[],
@@ -141,12 +115,6 @@ export function segmentStationTimeGroups(
   })
 }
 
-// What to head a seeded group with. The route's own name when it can be
-// resolved; otherwise nothing when the scenario is a single group, since a
-// lone table has nothing to be told apart from. Several groups always get a
-// heading — two unheaded tables one above the other are unreadable — and an
-// unresolved route is headed by the corridor it covers, which says more to a
-// reader than the bare uuid the route id is.
 function groupLabel(
   routeId: string | undefined,
   routes: Route[],

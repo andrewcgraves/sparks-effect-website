@@ -1,5 +1,4 @@
 // @vitest-environment node
-// No DOM in this file. See the environment note in vite.config.ts.
 
 import { describe, it, expect } from 'vitest'
 import {
@@ -29,11 +28,6 @@ function metadata(stations: ReachableStation[], budgetMins = 120): ChainMetadata
   }
 }
 
-// alpha --trunk--> beta --trunk--> gamma
-//                    \--spur--> delta
-//
-// A 120-minute budget, a 5-minute walk to alpha, a 10-minute wait to board the
-// trunk, then 15 minutes to beta, 15 more to gamma, or 10 from beta to delta.
 const INTERCHANGE: ReachableStation[] = [
   {
     station_slug: 'alpha',
@@ -86,8 +80,6 @@ const INTERCHANGE: ReachableStation[] = [
   },
 ]
 
-// The rider walks to a station mid-line and rides it both ways: the shape a
-// per-service view exists to show.
 const BOTH_DIRECTIONS: ReachableStation[] = [
   { station_slug: 'middle', access_mins: 5, access_secs: 300, remaining_mins: 115, remaining_secs: 6900 },
   {
@@ -110,13 +102,6 @@ const BOTH_DIRECTIONS: ReachableStation[] = [
   },
 ]
 
-// Two stopping patterns over one railway, and a branch line that is genuinely
-// its own: `express` runs alpha→gamma, `local` calls at beta and carries on
-// from gamma to delta, and `spur` leaves the railway at beta. Express and local
-// are one line; spur is another.
-//
-// The rider walks to alpha and waits ten minutes to board there; every change
-// after that is free, which is what the shared board_slug says.
 const SHARED_LINE: ReachableStation[] = [
   { station_slug: 'alpha', access_mins: 5, access_secs: 300, remaining_mins: 115, remaining_secs: 6900 },
   {
@@ -192,7 +177,6 @@ function build(stations: ReachableStation[], budgetMins = 120) {
   })
 }
 
-// The same, for a page that knows which line each service runs over.
 function buildByLine(stations: ReachableStation[], budgetMins = 120) {
   return buildTimeRemainingGraph(metadata(stations, budgetMins), {
     stationName: (slug) => NAMES[slug] ?? slug,
@@ -640,14 +624,6 @@ describe('laneWidthFor', () => {
   })
 })
 
-// A branch that runs out of budget used to end in silence: the last station the
-// rider reached, and nothing to say what came next. It now says how far past
-// that station they got and toward where, so the card tells the same story the
-// map draws (SPA-264).
-//
-// The addition is a detail on a row that already exists. No new rows, and no
-// change to row order, lane assignment or connector geometry — a view a rider
-// already knows how to read still reads the same way.
 describe('buildTimeRemainingGraph trip progress', () => {
   const PROGRESS: NonNullable<ChainMetadata['trip_progress']> = [
     {

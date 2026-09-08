@@ -5,7 +5,6 @@ import { RAW_STOP_LAYER_ID } from './useStopPreviewLayer'
 
 type Handler = (event: unknown) => void
 
-// Layer-scoped registrations carry a layer id; map-wide ones don't.
 function makeMockMap() {
   const handlers: { type: string; layer: string | null; handler: Handler; once: boolean }[] = []
   const canvas = { style: { cursor: '' } }

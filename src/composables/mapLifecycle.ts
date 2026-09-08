@@ -1,43 +1,18 @@
 import { watch } from 'vue'
 import type { Map } from 'maplibre-gl'
 
-// Before this existed the five of them each had their own, and MapView made up
-// the difference with a flag per module and a pair of `maybeAdd…` guards it had
-// to remember to call from both the style's load handler and a watcher.
 export interface MapModule {
-  // The driver watches it and re-applies this module alone when it changes, so
-  // moving a stop pin does not also make the origin marker and the isochrone
-  // re-apply data neither of them has changed.
   deps: () => unknown
 
-  // A module that is not ready is skipped and asked again next time, so a layer
-  // whose data arrives from a fetch attaches when it arrives.
-  //
-  // `styleLoaded` is the one thing they all have to ask about: sources and
-  // layers cannot be added before the style is up, though a Marker can.
   isReady: (styleLoaded: boolean) => boolean
 
   attach: (map: Map) => void
 
   sync: (map: Map) => void
 
-  // Sources and layers are deliberately not removed here. They belong to the
-  // map, which is torn down immediately afterwards — removing them one by one
-  // first would be ceremony with a real failure mode, since a module asked to
-  // remove a layer it never added has to guess.
   detach: () => void
 }
 
-// List order is dependency order and is load-bearing: stop dragging binds its
-// listeners to the layer the stop preview creates, so the preview is listed
-// first. That used to be an implicit property of which line came first inside a
-// `maybeInit…` function.
-//
-// Each module is watched on its own `deps`, so the owner does not maintain a
-// list of which props to watch — adding a module is one entry in one list.
-//
-// Must be called from a component's setup, so the watchers it registers are
-// disposed with that component.
 export function mapModules(modules: readonly MapModule[]) {
   const attached = new Set<MapModule>()
 

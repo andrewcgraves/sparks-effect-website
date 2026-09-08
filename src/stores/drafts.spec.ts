@@ -23,7 +23,6 @@ function scenario(name: string): ScenarioInput {
   return { name, description: 'Rush hour', service_ids: ['svc-1'] }
 }
 
-// A fresh Pinia with the same signed-in user stands in for a page reload.
 function reloadAs(userId: string) {
   setActivePinia(createPinia())
   useAuthStore().signIn(`tok-${userId}`, { id: userId })

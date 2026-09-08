@@ -66,14 +66,8 @@ const stubStations: Station[] = [
   },
 ]
 
-// A pin about 1.4 km from the San Francisco station above — inside a 30-minute
-// walk, so the origin-range check (SPA-200) lets it through. The tests that use
-// it are about the request lifecycle rather than about how far away the origin
-// is, and a pin the check refuses never reaches the request at all.
 const NEARBY_ORIGIN = { lat: 37.71, lng: -122.41 }
 
-// Far enough from every station that no mode or budget the form offers could
-// reach one.
 const DISTANT_ORIGIN = { lat: 51.5074, lng: -0.1278 }
 
 const stubTravelTimes: TravelTimes = {

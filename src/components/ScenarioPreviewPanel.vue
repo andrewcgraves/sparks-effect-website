@@ -8,11 +8,6 @@ import type { Route, Station } from '../api/scenarios'
 import type { ChainResponse } from '../fixtures/isochrone'
 import type { IsochronePayload } from '../composables/useAuthoredGraph'
 
-// Shared by the detail pages at /authoring/scenarios/:slug and
-// /authoring/services/:slug, which show the same thing and differ only in the
-// status note above the reports. Nothing here is scenario-specific: a lone
-// service is the degenerate one-member case, so it passes itself as the single
-// entry in `services`.
 const props = defineProps<{
   origin: { lat: number; lng: number } | null
   isochroneData: ChainResponse | null
@@ -31,13 +26,8 @@ defineEmits<{
   'origin-change': [coords: { lat: number; lng: number } | null]
 }>()
 
-// A picked origin reaches the page above this panel the usual way, as an
-// origin-change out of the form, so nothing extra is emitted for it.
 const { pickArmed, onMapClick } = useOriginPick()
 
-// Near-misses and clusters name stops by service_id; the compile result does
-// not carry display names, so resolve them against the caller's service list
-// rather than have the result carry names twice.
 function serviceName(serviceId: string): string {
   return props.services.find((service) => service.id === serviceId)?.name ?? serviceId
 }

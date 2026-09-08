@@ -2,7 +2,6 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { pollJobToResult, type Job, type JobStatus, type PollJobOptions, type TransitGraph } from '../api/authoring'
 
-// 'cancelled' is store-local: the API never reports it.
 export interface TrackedJob {
   id: string
   status: JobStatus | 'cancelled'

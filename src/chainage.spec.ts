@@ -2,13 +2,6 @@ import { describe, it, expect } from 'vitest'
 import { chainageAlong, sliceAlignment } from './chainage'
 import chainageFixture from './fixtures/chainage.golden.json'
 
-// This file is a byte-for-byte copy of sparks-effect-api's
-// `internal/physics/testdata/chainage.golden.json`, and both sides assert
-// against it. That is the whole reason it exists: the API hands this front end
-// two chainages measured in its own planar frame, and a front end accumulating
-// a different metric would produce a scale that quietly disagrees — visibly so
-// on a long alignment, and with nothing to catch it. Change the projection or
-// the Earth radius on either side and both suites go red.
 const line = chainageFixture.line as [number, number][]
 const expectedChainage = chainageFixture.vertex_chainage_m
 

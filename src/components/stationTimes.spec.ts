@@ -1,5 +1,4 @@
 // @vitest-environment node
-// No DOM in this file. See the environment note in vite.config.ts.
 
 import { describe, expect, it } from 'vitest'
 import { formatRunTime, graphStationTimeGroups, segmentStationTimeGroups } from './stationTimes'
@@ -46,9 +45,6 @@ const nodes = [
   { slug: 'fresno', lat: 36.7, lng: -119.8, names: ['Fresno'] },
 ]
 
-// The compiler emits each hop as an adjacent forward/reverse pair, in stop
-// order, and the two directions differ by the dwell at the stop each one
-// arrives at — so the return leg is not simply a mirror of the outbound.
 const graph: TransitGraph = {
   services: [{
     service_id: 'svc1',

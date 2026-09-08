@@ -3,15 +3,11 @@ import { ref } from 'vue'
 import { formatRunTime } from './stationTimes'
 import type { StationTimeGroup } from './stationTimes'
 
-// Purely presentational: callers turn their own data — a compiled graph on the
-// authored pages, seeded travel times on the scenario page — into groups, so
-// this knows only about hops and the directions they can be read in.
 const props = defineProps<{
   groups: StationTimeGroup[]
   loading?: boolean
 }>()
 
-// Absent means the first, so a group arrives in stop order without seeding this.
 const chosen = ref<Record<string, number>>({})
 
 function chosenIndex(group: StationTimeGroup): number {
@@ -63,7 +59,7 @@ function choose(group: StationTimeGroup, index: number): void {
           {{ group.label }}
         </h3>
 
-        <!-- A service compiled one way has nothing to toggle between. -->
+        
         <div
           v-if="group.directions.length > 1"
           class="mt-2 flex flex-wrap gap-2"

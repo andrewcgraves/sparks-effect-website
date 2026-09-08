@@ -1,8 +1,6 @@
 import type { TransitGraph } from '../api/authoring'
 import type { Route, Station } from '../api/scenarios'
 
-// Display-only glue from a compiled graph onto the shapes MapView draws —
-// scenario_id and the physics fields MapView never reads are filled with empties.
 export function graphStations(graph: TransitGraph | null): Station[] {
   return (graph?.nodes ?? []).map((node) => ({
     id: node.slug,
@@ -14,10 +12,6 @@ export function graphStations(graph: TransitGraph | null): Station[] {
   }))
 }
 
-// A service's stops follow its route, so the connecting line is the route's own
-// geometry — not a straight chord between stops, which would cut every curve.
-// The geometry is bundled onto the graph read by the API (SPA-133); absent it,
-// no lines.
 export function graphRoutes(graph: TransitGraph | null): Route[] {
   return (graph?.routes ?? []).map((route) => ({
     id: route.id,

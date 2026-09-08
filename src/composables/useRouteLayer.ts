@@ -27,18 +27,6 @@ export interface TripProgressProperties {
 export type TripProgressLines = FeatureCollection<LineString, TripProgressProperties>
 export type TripProgressCaps = FeatureCollection<Point, TripProgressProperties>
 
-// The alignment is sliced rather than a chord drawn between the two stations,
-// so the stub reads as travel along a railway and not as a line across the
-// landscape. Where the slicing happens is `../chainage`, which measures in the
-// same planar frame the API's chainages were measured in.
-//
-// A leg naming a route this map does not hold is skipped rather than thrown on:
-// progress is decoration, and a station's missing stub is a far smaller fault
-// than a map that fails to render. So is a zero fraction, and a span of no
-// length — but nothing else. There is deliberately no minimum: any fraction
-// floor would recreate at a smaller scale the very fault this feature fixes,
-// and a floor expressed as a fraction means wildly different things on a 400 km
-// hop and an 800 m one.
 export function tripProgressLines(
   routes: Route[],
   progress: TripProgress[] | undefined,
@@ -78,8 +66,6 @@ export function tripProgressLines(
   return { type: 'FeatureCollection', features }
 }
 
-// Derived from the drawn lines rather than recomputed, so "how far" is a
-// definite place on the very line beside it and the two cannot disagree.
 export function tripProgressCaps(lines: TripProgressLines): TripProgressCaps {
   return {
     type: 'FeatureCollection',
@@ -98,8 +84,6 @@ export function reachableStationSlugs(data: ChainResponse | null): string[] {
   return data?.metadata.reachable_stations.map((s) => s.station_slug) ?? []
 }
 
-// A `match` expression needs at least one label, so an empty reach falls
-// back to the plain default color rather than a degenerate expression.
 export function stationDotColor(
   reachableSlugs: string[],
   highlightColor: string,
@@ -108,9 +92,6 @@ export function stationDotColor(
   return ['match', ['get', 'slug'], reachableSlugs, highlightColor, STATION_DOT_DEFAULT_COLOR]
 }
 
-// A fixed absolute-degree pad would swamp a short local route and be
-// negligible on a cross-state one, so pad proportionally to the route's own
-// extent instead — this is what keeps the fit generalized across route scales.
 export function routeBoundsCorners(
   routes: Route[],
   paddingFraction = 0.1,
@@ -239,9 +220,6 @@ export function useRouteLayer(
   })
 }
 
-// Not ready until there is at least one route: adding an empty source would
-// draw nothing and then never be revisited, and routes arrive from the scenario
-// fetch well after the map itself.
 export function routeLayerModule(
   inputs: () => { routes: Route[]; stations: Station[] },
   isochroneData: () => ChainResponse | null,

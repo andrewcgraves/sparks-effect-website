@@ -33,8 +33,6 @@ function reachable(slug: string, accessMins: number, viaService?: string): Reach
   }
 }
 
-// A shape that bends, the way a walk along streets does. A straight segment
-// between the same two points would be two positions; this is four.
 const ROUTED_TO_SAN_JOSE: StarterWalk = {
   station_slug: 'san-jose',
   geometry: {

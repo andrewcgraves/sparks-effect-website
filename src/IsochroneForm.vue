@@ -38,8 +38,6 @@ const props = withDefaults(
 const emit = defineEmits<{
   submit: [payload: { lat: number; lng: number; duration: number; mode: TravelMode }]
   'origin-change': [origin: { lat: number; lng: number } | null]
-  // Reported rather than owned: the map that has to go into crosshair mode is
-  // the form's sibling, not its child, so the parent mirrors this onto MapView.
   'pick-armed': [armed: boolean]
 }>()
 
@@ -60,13 +58,8 @@ function parseOrigin(latText: string, lngText: string): { lat: number; lng: numb
   return isFinite(parsedLat) && isFinite(parsedLng) ? { lat: parsedLat, lng: parsedLng } : null
 }
 
-// Duration is always one of DURATION_OPTIONS, so a parseable origin is the only
-// remaining gate.
 const isValid = computed(() => parseOrigin(lat.value, lng.value) !== null)
 
-// The fetch error is owned by the parent, but a stale error shouldn't linger once
-// the user starts fixing their input. Locally suppress it after any field edit; a
-// fresh error prop (including the null→message flip on the next submit) un-suppresses.
 const errorDismissed = ref(false)
 watch(() => props.error, () => {
   errorDismissed.value = false
@@ -86,16 +79,10 @@ watch(pickArmed, (armed) => {
   emit('pick-armed', armed)
 })
 
-// Typing an origin ends the pick, because the map is no longer waiting on the
-// user. The other ways in disarm at their own call sites rather than here, so
-// that re-picking or re-selecting the same coordinates still counts as setting
-// the origin even though the values never changed.
 watch([lat, lng], () => {
   pickArmed.value = false
 })
 
-// Global rather than scoped to the form: the click being cancelled is aimed at
-// the map, so that is where the user's attention (and often the focus) is.
 function handleKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape') pickArmed.value = false
 }
@@ -108,10 +95,6 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleKeydown)
 })
 
-// One click is the whole pick, so this disarms. Coordinates only — no reverse
-// geocode — so the address field is cleared rather than left naming somewhere
-// the origin no longer is, and it deliberately does not submit: generating
-// stays explicit.
 function setOriginFromMap(coord: { lat: number; lng: number }) {
   if (!pickArmed.value) return
   pickArmed.value = false

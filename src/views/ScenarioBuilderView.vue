@@ -49,11 +49,6 @@ const canSubmit = computed(() => {
   return draft.name.trim() !== '' && draft.service_ids.length > 0
 })
 
-// After saving, hand off to the scenario's own preview page rather than
-// plotting the isochrone inline here: /authoring/scenarios/:slug loads the
-// saved scenario, compiles it if needed, and plots against it — the same
-// experience, but reachable again later instead of only in this one post-save
-// session (and it opens on the drawn map rather than an empty one).
 async function handleSave(): Promise<void> {
   const draft = drafts.scenarioDraft
   if (!draft || !canSubmit.value) return
@@ -68,7 +63,6 @@ async function handleSave(): Promise<void> {
     submitting.value = false
   }
 }
-
 </script>
 
 <template>

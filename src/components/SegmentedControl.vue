@@ -1,7 +1,4 @@
 <script setup lang="ts">
-// Reads better than a slider once the option count/labels get a little busy.
-// Built on native radio inputs (visually hidden behind the pill labels) so
-// grouping, keyboard nav, and labelling all come for free.
 withDefaults(
   defineProps<{
     modelValue: number

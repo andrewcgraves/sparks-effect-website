@@ -5,8 +5,6 @@ import { mapModules, type MapModule } from './mapLifecycle'
 
 const map = {} as Map
 
-// A module that records what it was asked to do, and can be told when it is
-// ready — which is the only thing that varies between the real five.
 function fake(options: { ready?: boolean; label?: string; log?: string[] } = {}) {
   const log = options.log ?? []
   let ready = options.ready ?? true
@@ -127,7 +125,6 @@ describe('mapModules', () => {
 
     expect(log).toEqual(['one:attach', 'two:attach', 'three:attach'])
   })
-
 
   // The whole reason each module declares its own deps: moving a stop pin
   // fires on every pointer move, and re-applying the origin marker there would

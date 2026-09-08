@@ -1,8 +1,3 @@
-/* Design tokens mirrored from a sibling project: the `andrewcgraves.com` repo,
-   styles/globals.css, at its commit 42a22e8 (2026-07-15) — that SHA lives in that
-   repo, not this one. That file is the source of truth for everything below except
-   the data palette: change it there first, then re-sync here. */
-
 @theme {
   --color-ink: #121212;
   --color-ink-true: #000000;
@@ -14,24 +9,12 @@
   --color-apricot: #ef9261;
   --color-slate: #1e293b;
 
-  /* Data palette — sparks-effect only; no counterpart in the reference.
-     Chosen against the colours as MapLibre actually paints them: composited at
-     fill-opacity 0.35 over the Positron basemap background (#f2f3f0), not as
-     solid swatches. The raw hexes look loud on purpose — at 0.35 they read as
-     #a3b0da / #f2d0aa, which is where the restraint lives. Separation of the
-     composited pair: ΔE 16.9 to normal vision, 14.7 under protanopia (the
-     previous #4A90D9 / #E8734A scored 9.3 / 6.9, below the legibility floor of
-     15). Where the two fills overlap they composite to #bfa49c, which stays
-     under that floor: a property of 0.35 opacity rather than of these hues — no
-     pair of colours clears it at this alpha. The map key carries text labels so
-     the fills are never identified by colour alone. */
   --color-data-origin: #1034b1;
   --color-data-egress: #f28f29;
 
   --font-display: "Inter Variable", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
   --font-body: "Open Sans Variable", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
 
-  /* Type scale — derived from the reference's .t-* primitives */
   --text-display: clamp(36px, 6vw, 64px);
   --text-display--line-height: 1;
   --text-display--letter-spacing: -0.02em;
@@ -68,9 +51,6 @@
   --text-btn--letter-spacing: 0.06em;
   --text-btn--font-weight: 700;
 
-  /* Radii — the reference declares these in a daisyUI theme block. daisyUI is not
-     a dependency here (the reference does not actually use it), so they are plain
-     tokens. --radius-selector is carried for parity; nothing here uses it yet. */
   --radius-selector: 1rem;
   --radius-field: 0.25rem;
   --radius-box: 0.5rem;

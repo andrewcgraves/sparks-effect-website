@@ -7,16 +7,6 @@ import { checkOriginReach, outOfRangeError, outOfRangeMessage } from '../originR
 import type { Station } from '../api/scenarios'
 import type { ChainResponse } from '../fixtures/isochrone'
 
-// Unlike `useScenario`, it fires on user action rather than on mount, so it
-// takes the fully-assembled request from the caller and exposes an explicit
-// `generate`. `generate` mutates refs only — the refs are the single source of
-// truth — and never rejects.
-//
-// `getStations` is how the origin-range check (SPA-200) sees where the stations
-// are. It is a getter rather than a value because the caller resolves them from
-// a request of its own that may not have answered yet; an empty list means the
-// check is skipped and the API decides, which is what a page that has not
-// loaded its scenario should do.
 export function useIsochrone(getStations: () => Station[] = () => []) {
   const data = ref<ChainResponse | null>(null)
   const loading = ref(false)

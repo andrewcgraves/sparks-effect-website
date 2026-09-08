@@ -7,12 +7,6 @@ export const AUTH_STORAGE_KEY = 'sparks-effect.auth'
 
 export type AuthUser = CurrentUser
 
-// The rest of the user record is deliberately not persisted: it comes back from
-// /api/auth/me and never goes stale the way a cached copy would — notably
-// is_admin, which gates admin-only UI. The id is the one exception, because it
-// cannot go stale (a token belongs to one account for its whole life) and
-// because state scoped per user — authoring drafts — has to know whose it is
-// the moment the page boots, not whenever the network gets round to answering.
 interface PersistedSession {
   token: string
   userId?: string

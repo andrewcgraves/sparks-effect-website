@@ -15,7 +15,6 @@ const props = defineProps<{ slug: string }>()
 
 const { item: scenario, loading, notFound, error } = useOwnedDetail<Scenario>(fetchScenario, props.slug)
 
-// Named by the route, so plotting never waits on the detail fetch.
 const {
   compiling,
   compileError,
@@ -38,13 +37,10 @@ const {
   isochrone: fetchScenarioIsochrone,
 })
 
-// Near-miss rows name their services; the panel resolves ids against this.
 const { items: services } = useOwnedList(fetchMyServices)
 
 const stationTimeGroups = computed(() => graphStationTimeGroups(graph.value, services.value))
 
-// Run times are read off the compiled graph, so a graph that never arrives
-// takes the section with it rather than leaving it loading for good.
 const stationTimesFailed = computed(() => Boolean(graphFailed.value || (compileError.value && !graph.value)))
 
 watch(scenario, (loaded) => {
@@ -125,9 +121,7 @@ watch(scenario, (loaded) => {
       >
         Couldn't load this scenario's compiled graph.
       </p>
-      <!-- A failed compile only replaces the preview while there is no graph
-           to show; once one has loaded, a failed recompile is reported beside
-           the map rather than taking the plotted isochrone with it. -->
+      
       <p
         v-else-if="compileError && !graph"
         class="font-body text-caption mt-8 text-coral"
@@ -153,9 +147,7 @@ watch(scenario, (loaded) => {
         @origin-change="onOriginChange"
       />
 
-      <!-- Sized as one card in the same flowing grid the service page uses, so
-           the run times sit at a readable width rather than spanning the page
-           and so later cards slot in beside them. -->
+      
       <div
         v-if="!stationTimesFailed"
         class="mt-8 grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] items-start gap-4"
