@@ -102,7 +102,6 @@ onBeforeUnmount(stopListening)
 </script>
 
 <template>
-  
   <span
     v-if="hasTrigger"
     ref="triggerEl"

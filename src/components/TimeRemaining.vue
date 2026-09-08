@@ -135,7 +135,6 @@ watch(
         @focus="activate(row, $event)"
         @blur="emit('activate', null)"
       >
-        
         <div
           class="relative shrink-0"
           :style="{ width: `${graphWidth}px` }"
@@ -201,7 +200,6 @@ watch(
             class="font-body text-micro flex flex-col gap-0.5 text-ink-muted"
             data-testid="time-remaining-detail"
           >
-            
             <div v-if="row.detail.accessTo">
               <dt class="inline">
                 {{ row.flag }} to {{ row.detail.accessTo }}

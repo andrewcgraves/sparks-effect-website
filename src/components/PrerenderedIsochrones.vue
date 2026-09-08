@@ -64,7 +64,6 @@ function summarise(entry: PrerenderedIsochroneSummary): string {
         v-for="entry in items"
         :key="entry.id"
       >
-        
         <button
           type="button"
           class="group font-body text-body flex w-full cursor-pointer flex-col gap-1 rounded-(--radius-field) border border-border bg-white px-3 py-2 text-left text-ink transition-colors duration-200 ease-(--ease-smooth) hover:border-coral disabled:cursor-progress disabled:opacity-60 aria-pressed:border-coral aria-pressed:bg-coral aria-pressed:text-white"
