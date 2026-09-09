@@ -115,25 +115,73 @@ jobs:
             echo "url=$url"
           } >> "$GITHUB_OUTPUT"
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-
-      - name: Install the Vercel CLI
-        run: npm install --global vercel@latest
-
       # Promotion re-serves the build staging already ran — it does not rebuild,
       # so what production serves is byte-for-byte what was verified.
       #
-      # No `vercel pull` first: that command exists to fetch build settings for a
-      # local build, and this job never builds. It was also the step that failed,
-      # because the CLI reads VERCEL_TOKEN / VERCEL_ORG_ID / VERCEL_PROJECT_ID
-      # from the environment on its own — passing --token explicitly trips a
-      # token-validation bug that reports "User not found".
+      # Promoted over HTTP rather than with `vercel promote`: before it will act,
+      # the CLI resolves a scope name, and that resolution reads the
+      # account-level /v2/user. A token scoped to a single project cannot address
+      # that endpoint, so the read 404s and the CLI reports "User not found"
+      # without ever attempting the promotion. The REST call needs only the
+      # project and team ids we already hold, which lets the token stay scoped to
+      # this project alone.
       - name: Promote it to production
         env:
           UID: ${{ steps.deployment.outputs.uid }}
-        run: vercel promote "$UID" --yes
+        run: |
+          set -euo pipefail
+          promote_url="https://api.vercel.com/v10/projects/$VERCEL_PROJECT_ID/promote/$UID"
+          status_url="https://api.vercel.com/v9/projects/$VERCEL_PROJECT_ID?rollbackInfo=true"
+
+          # A personal account's org id is a user id, which these endpoints reject
+          # as a teamId; only a team's belongs on the query.
+          if [[ "$VERCEL_ORG_ID" == team_* ]]; then
+            promote_url="$promote_url?teamId=$VERCEL_ORG_ID"
+            status_url="$status_url&teamId=$VERCEL_ORG_ID"
+          fi
+
+          curl -sS --fail-with-body -X POST \
+            -H "Authorization: Bearer $VERCEL_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{}' \
+            "$promote_url" > /dev/null
+
+          # The POST only queues the alias move, so a 2xx on its own would let a
+          # promotion that later failed still pass as a green release. The
+          # outcome lands on the project's lastAliasRequest, which is what
+          # `rollbackInfo=true` surfaces.
+          status=""
+          target=""
+          for _ in $(seq 60); do
+            request="$(curl -sS --fail-with-body \
+              -H "Authorization: Bearer $VERCEL_TOKEN" \
+              "$status_url" | jq -c '.lastAliasRequest // {}')"
+
+            status="$(jq -r '.jobStatus // empty' <<<"$request")"
+            target="$(jq -r '.toDeploymentId // empty' <<<"$request")"
+
+            if [[ "$target" == "$UID" && "$status" != "pending" && "$status" != "in-progress" ]]; then
+              break
+            fi
+            sleep 5
+          done
+
+          if [[ "$target" != "$UID" ]]; then
+            echo "::error::production's last alias request targets '${target:-none}', not $UID"
+            exit 1
+          fi
+
+          case "$status" in
+            succeeded)
+              ;;
+            skipped)
+              echo "::notice::promotion skipped — production already served $UID"
+              ;;
+            *)
+              echo "::error::promotion of $UID finished as '${status:-unknown}'"
+              exit 1
+              ;;
+          esac
 
       - name: Summarise
         env:
