@@ -115,73 +115,133 @@ jobs:
             echo "url=$url"
           } >> "$GITHUB_OUTPUT"
 
-      # Promotion re-serves the build staging already ran — it does not rebuild,
-      # so what production serves is byte-for-byte what was verified.
-      #
       # Promoted over HTTP rather than with `vercel promote`: before it will act,
       # the CLI resolves a scope name, and that resolution reads the
       # account-level /v2/user. A token scoped to a single project cannot address
       # that endpoint, so the read 404s and the CLI reports "User not found"
-      # without ever attempting the promotion. The REST call needs only the
+      # without ever attempting the promotion. The REST calls need only the
       # project and team ids we already hold, which lets the token stay scoped to
       # this project alone.
+      #
+      # Which call promotes depends on what the deployment was built as, exactly
+      # as the CLI decides it. /promote only accepts a deployment already built
+      # for production and answers 422 for anything else, and `trunk` is the
+      # staging branch here — see docs/releases.md.
       - name: Promote it to production
         env:
           UID: ${{ steps.deployment.outputs.uid }}
         run: |
           set -euo pipefail
-          promote_url="https://api.vercel.com/v10/projects/$VERCEL_PROJECT_ID/promote/$UID"
-          status_url="https://api.vercel.com/v9/projects/$VERCEL_PROJECT_ID?rollbackInfo=true"
 
-          # A personal account's org id is a user id, which these endpoints reject
-          # as a teamId; only a team's belongs on the query.
+          # A personal account's org id is a user id, which these endpoints
+          # reject as a teamId; only a team's belongs on the query.
+          team_q=""
           if [[ "$VERCEL_ORG_ID" == team_* ]]; then
-            promote_url="$promote_url?teamId=$VERCEL_ORG_ID"
-            status_url="$status_url&teamId=$VERCEL_ORG_ID"
+            team_q="?teamId=$VERCEL_ORG_ID"
           fi
 
-          curl -sS --fail-with-body -X POST \
-            -H "Authorization: Bearer $VERCEL_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d '{}' \
-            "$promote_url" > /dev/null
-
-          # The POST only queues the alias move, so a 2xx on its own would let a
-          # promotion that later failed still pass as a green release. The
-          # outcome lands on the project's lastAliasRequest, which is what
-          # `rollbackInfo=true` surfaces.
-          status=""
-          target=""
-          for _ in $(seq 60); do
-            request="$(curl -sS --fail-with-body \
-              -H "Authorization: Bearer $VERCEL_TOKEN" \
-              "$status_url" | jq -c '.lastAliasRequest // {}')"
-
-            status="$(jq -r '.jobStatus // empty' <<<"$request")"
-            target="$(jq -r '.toDeploymentId // empty' <<<"$request")"
-
-            if [[ "$target" == "$UID" && "$status" != "pending" && "$status" != "in-progress" ]]; then
-              break
+          # Vercel explains a 4xx in the response body, which plain --fail throws
+          # away; without this a failure reads only as an exit code.
+          api() {
+            local out
+            if ! out="$(curl -sS --fail-with-body "$@")"; then
+              echo "::error::Vercel API call failed: $out" >&2
+              return 1
             fi
-            sleep 5
-          done
+            printf '%s' "$out"
+          }
 
-          if [[ "$target" != "$UID" ]]; then
-            echo "::error::production's last alias request targets '${target:-none}', not $UID"
-            exit 1
-          fi
+          deployment="$(api -H "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v13/deployments/$UID$team_q")"
+          target="$(jq -r '.target // empty' <<<"$deployment")"
 
-          case "$status" in
-            succeeded)
-              ;;
-            skipped)
-              echo "::notice::promotion skipped — production already served $UID"
-              ;;
-            *)
-              echo "::error::promotion of $UID finished as '${status:-unknown}'"
+          if [[ "$target" == "production" ]]; then
+            # Already a production build, so promoting only moves the domains.
+            # Nothing rebuilds: production serves the artifact staging verified.
+            api -X POST \
+              -H "Authorization: Bearer $VERCEL_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d '{}' \
+              "https://api.vercel.com/v10/projects/$VERCEL_PROJECT_ID/promote/$UID$team_q" > /dev/null
+
+            # The POST only queues the alias move, so a 2xx on its own would let
+            # a promotion that later failed still pass as a green release. The
+            # outcome lands on the project's lastAliasRequest, which is what
+            # `rollbackInfo=true` surfaces.
+            status=""
+            promoted=""
+            status_url="https://api.vercel.com/v9/projects/$VERCEL_PROJECT_ID?rollbackInfo=true${team_q:+&teamId=$VERCEL_ORG_ID}"
+            for _ in $(seq 60); do
+              request="$(api -H "Authorization: Bearer $VERCEL_TOKEN" "$status_url" \
+                | jq -c '.lastAliasRequest // {}')"
+              status="$(jq -r '.jobStatus // empty' <<<"$request")"
+              promoted="$(jq -r '.toDeploymentId // empty' <<<"$request")"
+
+              if [[ "$promoted" == "$UID" && "$status" != "pending" && "$status" != "in-progress" ]]; then
+                break
+              fi
+              sleep 5
+            done
+
+            if [[ "$promoted" != "$UID" ]]; then
+              echo "::error::production's last alias request targets '${promoted:-none}', not $UID"
               exit 1
-              ;;
-          esac
+            fi
+
+            case "$status" in
+              succeeded)
+                ;;
+              skipped)
+                echo "::notice::promotion skipped — production already served $UID"
+                ;;
+              *)
+                echo "::error::promotion of $UID finished as '${status:-unknown}'"
+                exit 1
+                ;;
+            esac
+          else
+            # Built for staging, so Vercel will only move it to production by
+            # creating a production deployment from it — the same request
+            # `vercel promote --yes` makes. Per docs/releases.md this is
+            # byte-for-byte only while `trunk` builds with production's
+            # environment variables; otherwise Vercel rebuilds here.
+            echo "::notice::$UID was built for '${target:-preview}', creating a production deployment from it"
+
+            created="$(api -X POST \
+              -H "Authorization: Bearer $VERCEL_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "$(jq -nc --arg d "$UID" --arg n "$(jq -r '.name' <<<"$deployment")" \
+                    '{deploymentId:$d,name:$n,target:"production",meta:{action:"promote"}}')" \
+              "https://api.vercel.com/v13/deployments$team_q")"
+
+            new_id="$(jq -r '.id' <<<"$created")"
+            echo "production deployment $new_id created from $UID"
+
+            # The CLI returns as soon as the request is accepted. That would let
+            # a release go green while the build it just queued is still running,
+            # so wait for the deployment that production will actually serve.
+            state=""
+            for _ in $(seq 120); do
+              state="$(api -H "Authorization: Bearer $VERCEL_TOKEN" \
+                "https://api.vercel.com/v13/deployments/$new_id$team_q" \
+                | jq -r '.readyState // .status // empty')"
+              case "$state" in
+                READY)
+                  break
+                  ;;
+                ERROR|CANCELED)
+                  echo "::error::production deployment $new_id ended as $state"
+                  exit 1
+                  ;;
+              esac
+              sleep 5
+            done
+
+            if [[ "$state" != "READY" ]]; then
+              echo "::error::production deployment $new_id did not become READY (last state '${state:-unknown}')"
+              exit 1
+            fi
+          fi
 
       - name: Summarise
         env:
