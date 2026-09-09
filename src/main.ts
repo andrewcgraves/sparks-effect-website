@@ -6,8 +6,6 @@ import { installStores } from './stores'
 import { configureSink } from './analytics/index'
 import { vercelSink } from './analytics/sinks'
 
-// Dev keeps the console sink the analytics module defaults to, so events stay
-// readable locally and nothing local reaches Vercel.
 if (import.meta.env.PROD) {
   configureSink(vercelSink)
 }

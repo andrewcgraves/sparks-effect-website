@@ -4,7 +4,6 @@
 @import './theme.css';
 
 :root {
-  /* Light only — a real dark mode would need a second basemap. */
   color-scheme: light;
 }
 
@@ -47,9 +46,6 @@ body {
   }
 }
 
-/* MapLibre wraps every Popup in its own chrome. A popup wearing
-   .tooltip-popup is a TooltipPanel that MapLibre is placing on the canvas,
-   so strip that chrome and let TOOLTIP_PANEL_CLASS paint the box. */
 .maplibregl-popup.tooltip-popup .maplibregl-popup-content {
   background: none;
   box-shadow: none;

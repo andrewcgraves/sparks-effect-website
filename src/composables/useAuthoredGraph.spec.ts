@@ -26,9 +26,6 @@ const queuedJob = { id: 'job1', kind: 'compile_user_scenario', status: 'queued' 
 
 const stale = () => new ApiError('stale', 409, 'stale_graph')
 
-// The module takes its three endpoints as arguments, so the tests inject bare
-// spies rather than mocking an api module — which is also what lets one suite
-// cover the behaviour both the scenario and service pages rely on.
 let compile: Mock<(slug: string, init?: RequestInit) => Promise<Job>>
 let fetchGraph: Mock<(slug: string) => Promise<TransitGraph>>
 let isochrone: Mock<(slug: string, request: AuthoredIsochroneRequest) => Promise<ChainResponse>>
@@ -37,8 +34,6 @@ function subject(getSlug: () => string | null = () => 'ca-hsr') {
   return useAuthoredGraph(getSlug, { compile, fetchGraph, isochrone })
 }
 
-// Compiling polls the job endpoint through the jobs store; a succeeding job
-// fetch is all this needs from the network.
 function succeedingJobFetch(result: unknown) {
   return vi.fn().mockResolvedValue({
     ok: true,
@@ -47,9 +42,6 @@ function succeedingJobFetch(result: unknown) {
   } as Response)
 }
 
-// A job that polls to 'failed': the compile call was accepted and the work blew
-// up afterwards, which reaches the caller by a different path from a compile
-// call that is refused outright.
 function failingJobFetch(error: string) {
   return vi.fn().mockResolvedValue({
     ok: true,
@@ -58,8 +50,6 @@ function failingJobFetch(error: string) {
   } as Response)
 }
 
-// Resolves only when the returned `release` is called, so a test can hold one
-// attempt open while a second overtakes it.
 function deferred<T>() {
   let release!: (value: T) => void
   const promise = new Promise<T>((resolve) => { release = resolve })

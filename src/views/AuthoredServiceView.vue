@@ -13,12 +13,8 @@ const props = defineProps<{ slug: string }>()
 
 const { item: service, loading, notFound, error } = useOwnedDetail<Service>(fetchService, props.slug)
 
-// seq is the authored order; don't trust the array to arrive in it.
 const stops = computed(() => [...(service.value?.stops ?? [])].sort((a, b) => a.seq - b.seq))
 
-// Named by the route, so plotting never waits on the detail fetch. Compiling a
-// service alone is the degenerate one-member scenario, so this is the same
-// workflow the scenario page runs, against the service endpoints.
 const {
   compiling,
   compileError,
@@ -41,15 +37,10 @@ const {
   isochrone: fetchServiceIsochrone,
 })
 
-// The panel resolves service ids to names for its near-miss and cluster rows. A
-// service is its own sole member, so this one record is the whole lookup — no
-// need for the list fetch the scenario page makes.
 const services = computed(() => (service.value ? [service.value] : []))
 
 const stationTimeGroups = computed(() => graphStationTimeGroups(graph.value, services.value))
 
-// Run times are read off the compiled graph, so a graph that never arrives
-// takes the section with it rather than leaving it loading for good.
 const stationTimesFailed = computed(() => Boolean(graphFailed.value || (compileError.value && !graph.value)))
 
 watch(service, (loaded) => {
@@ -115,8 +106,7 @@ watch(service, (loaded) => {
         {{ service.description }}
       </p>
 
-      <!-- The render is why the page gets opened, so it sits above the text
-           sections — the same ordering as the scenario detail page. -->
+      
       <p
         v-if="compiling && !graph"
         class="font-body text-caption mt-8 text-ink-muted italic"
@@ -132,9 +122,7 @@ watch(service, (loaded) => {
       >
         Couldn't load this service's compiled graph.
       </p>
-      <!-- A failed compile only replaces the preview while there is no graph
-           to show; once one has loaded, a failed recompile is reported beside
-           the map rather than taking the plotted isochrone with it. -->
+      
       <p
         v-else-if="compileError && !graph"
         class="font-body text-caption mt-8 text-coral"
@@ -160,10 +148,7 @@ watch(service, (loaded) => {
         @origin-change="onOriginChange"
       />
 
-      <!-- The supporting detail, as equal cards that flow into as many columns
-           as the viewport has room for rather than one stack per column.
-           auto-fill, not auto-fit: a leftover track stays empty so the cards
-           keep a readable width instead of stretching to fill the row. -->
+      
       <div class="mt-8 grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] items-start gap-4">
         <section class="rounded-(--radius-box) border border-border bg-surface p-4">
           <h2 class="font-display text-h3 text-ink-true">

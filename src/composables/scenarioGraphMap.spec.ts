@@ -1,5 +1,4 @@
 // @vitest-environment node
-// No DOM in this file. See the environment note in vite.config.ts.
 
 import { describe, expect, it } from 'vitest'
 import { graphStations, graphRoutes } from './scenarioGraphMap'
@@ -20,7 +19,6 @@ const graph = {
       name: 'Main Line',
       mode: 'rail',
       bidirectional: true,
-      // A curved alignment: three points, not the two the stops would chord.
       geometry: { type: 'LineString', coordinates: [[-119.02, 35.39], [-118.6, 34.9], [-118.23, 34.05]] },
       segments: [],
     },

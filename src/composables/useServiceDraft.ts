@@ -17,30 +17,8 @@ import type {
 import type { Route as ScenarioRoute } from '../api/scenarios'
 import type { StopPreviewPair } from './useStopPreviewLayer'
 
-// Live preview trades a little latency for not hammering the snap endpoint on
-// every keystroke; 400ms is long enough to coalesce a burst of edits and short
-// enough that the preview still feels immediate.
 export const PREVIEW_DEBOUNCE_MS = 400
 
-/**
- * One authored Service, from the first empty draft to the compiled graph.
- *
- * This is the whole edit lifecycle in one place: which route the draft is
- * against, its stops and their numbering, the snap preview that tells the
- * author whether those stops are placeable, whether the draft is complete
- * enough to submit, and the submission itself. Those rules used to be split
- * between the drafts store and the authoring view, which meant a single
- * lifecycle — add a stop, see it snapped, find out it is off-route, move it —
- * was answered by two modules with no single owner of the sequencing.
- *
- * What stays outside: the drafts store remains the persistence layer, so a
- * draft still survives a reload and still cannot be read by a second account
- * on the same browser; the api modules remain the transport; and the view keeps
- * its own form inputs and rendering. This owns the rules between them.
- *
- * start() and dispose() are explicit rather than lifecycle hooks so the module
- * can be driven directly by its tests, which is the point of having it.
- */
 export function useServiceDraft() {
   const drafts = useDraftsStore()
   const {
@@ -218,7 +196,6 @@ export function useServiceDraft() {
     }
   }
 
-  /** Loads the route picker and opens a draft, resuming a persisted one if there is one. */
   async function start(): Promise<void> {
     if (!drafts.hasServiceDraft) drafts.startServiceDraft()
     unwatchDraft ??= watch(
@@ -242,7 +219,7 @@ export function useServiceDraft() {
     }
   }
 
-  /** Drops the pending preview and stops watching. The draft itself is persisted, so it survives. */
+  // The draft itself is persisted, so it survives.
   function dispose(): void {
     if (previewTimer) clearTimeout(previewTimer)
     previewTimer = null
@@ -310,7 +287,6 @@ export function useServiceDraft() {
     }
   }
 
-  /** Clears the finished service away and opens an empty draft in its place. */
   function startAnother(): void {
     submitted.value = false
     submitError.value = ''
@@ -322,7 +298,6 @@ export function useServiceDraft() {
   }
 
   return {
-    // Draft state
     draft,
     stops,
     frequencyWindows,
@@ -332,14 +307,12 @@ export function useServiceDraft() {
     accelerationMs2,
     decelerationMs2,
     dwellS,
-    // Routes
     routes,
     routesLoading,
     routesError,
     selectedRoute,
     mapRoutes,
     selectRoute,
-    // Stops
     addStop,
     addStopAt,
     updateStop: drafts.updateStop,
@@ -347,16 +320,13 @@ export function useServiceDraft() {
     moveStop: drafts.moveStop,
     dragStop,
     dropStop,
-    // Frequency windows
     addFrequencyWindow: drafts.addFrequencyWindow,
     removeFrequencyWindow: drafts.removeFrequencyWindow,
-    // Preview
     preview,
     previewLoading,
     previewError,
     stopPreviewPairs,
     orderWarning,
-    // Submission
     canSubmit,
     submitting,
     submitted,
@@ -365,11 +335,9 @@ export function useServiceDraft() {
     stopFaultMessage,
     submit,
     startAnother,
-    // Compile
     compiling,
     compileError,
     compiledGraph,
-    // Lifecycle
     start,
     dispose,
   }

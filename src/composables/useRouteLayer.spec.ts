@@ -50,13 +50,6 @@ function makeMockMap(): Pick<Map, 'addSource' | 'addLayer' | 'getSource'> {
   }
 }
 
-/**
- * The alignment the progress cases slice, and the one entry they slice it with.
- *
- * It is the shared chainage fixture's own line, so the chainages below are the
- * numbers the API would actually hand over for these two stations rather than
- * round figures invented here.
- */
 const progressRoute: Route = {
   id: 'rt-progress',
   scenario_id: 's1',
@@ -340,16 +333,11 @@ describe('useRouteLayer', () => {
     })
   })
 
-  /**
-   * Progress stubs: how far along an unfinished leg the rider's budget carried
-   * them, drawn along the real alignment.
-   *
-   * These sit beside the route-line and station-dot cases above rather than in
-   * a module of their own, because that is where the code sits: this module
-   * already receives the routes and the plot, already owns the line the stub
-   * runs along and the dots it sits between, and already re-applies on a change
-   * of reach — which is exactly when a stub moves.
-   */
+  // These sit beside the route-line and station-dot cases above rather than in
+  // a module of their own, because that is where the code sits: this module
+  // already receives the routes and the plot, already owns the line the stub
+  // runs along and the dots it sits between, and already re-applies on a change
+  // of reach — which is exactly when a stub moves.
   describe('trip progress', () => {
     it('adds a dashed line layer and a cap between the route line and the station dots', () => {
       const map = makeMockMap()
@@ -407,11 +395,9 @@ describe('useRouteLayer', () => {
       expect(tripProgressLines([progressRoute], []).features).toHaveLength(0)
     })
 
-    /**
-     * A hop whose route is not among the ones this map holds cannot be drawn.
-     * Progress is decoration: the rest of the map must still render, so the
-     * entry is skipped rather than thrown on.
-     */
+    // A hop whose route is not among the ones this map holds cannot be drawn.
+    // Progress is decoration: the rest of the map must still render, so the
+    // entry is skipped rather than thrown on.
     it('skips a hop whose route cannot be resolved rather than throwing', () => {
       const entries = [progressEntry({ fraction: 0.5, route_id: 'nowhere' }), progressEntry({ fraction: 0.5 })]
       expect(() => tripProgressLines([progressRoute], entries)).not.toThrow()
@@ -427,11 +413,9 @@ describe('useRouteLayer', () => {
       ).toHaveLength(0)
     })
 
-    /**
-     * There is no fraction floor. Any floor would recreate at a smaller scale
-     * the very fault this feature fixes, and a floor expressed as a fraction
-     * means wildly different things on a 400 km hop and an 800 m one.
-     */
+    // There is no fraction floor. Any floor would recreate at a smaller scale
+    // the very fault this feature fixes, and a floor expressed as a fraction
+    // means wildly different things on a 400 km hop and an 800 m one.
     it('draws a very short stub rather than suppressing it', () => {
       const lines = tripProgressLines([progressRoute], [progressEntry({ fraction: 0.001 })])
       expect(lines.features).toHaveLength(1)

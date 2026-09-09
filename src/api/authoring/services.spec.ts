@@ -1,5 +1,4 @@
 // @vitest-environment node
-// No DOM in this file. See the environment note in vite.config.ts.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -40,9 +39,6 @@ const stubService: Service = {
 
 const stubChain = { type: 'FeatureCollection', features: [], metadata: {} } as unknown as ChainResponse
 
-// The endpoint answers 202 with a routing job now (SPA-182), so a result takes
-// two responses: the enqueue, then a poll. Succeeding on the first poll keeps
-// these timer-free — the cadence and deadline are routingJobs.spec's subject.
 function enqueueThenSucceed(): void {
   vi.mocked(fetch)
     .mockResolvedValueOnce({ ok: true, status: 202, json: async () => ({ id: 'rj1' }) } as Response)

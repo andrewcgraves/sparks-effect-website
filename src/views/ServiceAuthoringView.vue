@@ -7,9 +7,6 @@ import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
 import { formatRunTime } from '../components/stationTimes'
 import { STOP_PLACEMENT_CUE } from '../components/placementCues'
 
-// Every rule about what a draft is, when it can be previewed, and when it can
-// be submitted lives in the composable. What is left here is the form itself:
-// its own inputs, its arming toggle, and how the state renders.
 const {
   stops,
   frequencyWindows,
@@ -61,7 +58,6 @@ const newWindowStart = ref('06:00')
 const newWindowEnd = ref('22:00')
 const newWindowHeadwayMin = ref<number | null>(null)
 
-// Arming is sticky so a ten-stop line is one toggle and ten clicks.
 const placingStops = ref(false)
 
 onMounted(() => {
@@ -96,8 +92,6 @@ function handleAddFrequencyWindow(): void {
   newWindowHeadwayMin.value = null
 }
 
-// Preview pair ids are stop indices (see stopPreviewPairs), so the round trip
-// through a string is this component's own.
 function handleStopDrag(pairId: string, coord: LatLng): void {
   dragStop(Number(pairId), coord)
 }
@@ -288,8 +282,7 @@ const allEdges = computed<GraphEdge[]>(() => compiledGraph.value?.services.flatM
               {{ orderWarning }}
             </p>
 
-            <!-- sm, not the page's lg: this grid is already inside the lg two-column
-                 split, so it needs its own earlier breakpoint. -->
+            
             <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-[2fr_1fr_1fr_auto]">
               <label :class="[FIELD_LABEL_CLASS, 'col-span-2 sm:col-span-1']">
                 Name

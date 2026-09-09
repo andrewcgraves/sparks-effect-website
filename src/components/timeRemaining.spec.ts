@@ -1,5 +1,4 @@
 // @vitest-environment node
-// No DOM in this file. See the environment note in vite.config.ts.
 
 import { describe, it, expect } from 'vitest'
 import {
@@ -29,11 +28,6 @@ function metadata(stations: ReachableStation[], budgetMins = 120): ChainMetadata
   }
 }
 
-// alpha --trunk--> beta --trunk--> gamma
-//                    \--spur--> delta
-//
-// A 120-minute budget, a 5-minute walk to alpha, a 10-minute wait to board the
-// trunk, then 15 minutes to beta, 15 more to gamma, or 10 from beta to delta.
 const INTERCHANGE: ReachableStation[] = [
   {
     station_slug: 'alpha',
@@ -86,8 +80,6 @@ const INTERCHANGE: ReachableStation[] = [
   },
 ]
 
-// The rider walks to a station mid-line and rides it both ways: the shape a
-// per-service view exists to show.
 const BOTH_DIRECTIONS: ReachableStation[] = [
   { station_slug: 'middle', access_mins: 5, access_secs: 300, remaining_mins: 115, remaining_secs: 6900 },
   {
@@ -110,13 +102,6 @@ const BOTH_DIRECTIONS: ReachableStation[] = [
   },
 ]
 
-// Two stopping patterns over one railway, and a branch line that is genuinely
-// its own: `express` runs alpha→gamma, `local` calls at beta and carries on
-// from gamma to delta, and `spur` leaves the railway at beta. Express and local
-// are one line; spur is another.
-//
-// The rider walks to alpha and waits ten minutes to board there; every change
-// after that is free, which is what the shared board_slug says.
 const SHARED_LINE: ReachableStation[] = [
   { station_slug: 'alpha', access_mins: 5, access_secs: 300, remaining_mins: 115, remaining_secs: 6900 },
   {
@@ -192,7 +177,6 @@ function build(stations: ReachableStation[], budgetMins = 120) {
   })
 }
 
-// The same, for a page that knows which line each service runs over.
 function buildByLine(stations: ReachableStation[], budgetMins = 120) {
   return buildTimeRemainingGraph(metadata(stations, budgetMins), {
     stationName: (slug) => NAMES[slug] ?? slug,
@@ -640,16 +624,6 @@ describe('laneWidthFor', () => {
   })
 })
 
-/**
- * A branch that runs out of budget used to end in silence: the last station the
- * rider reached, and nothing to say what came next. It now says how far past
- * that station they got and toward where, so the card tells the same story the
- * map draws (SPA-264).
- *
- * The addition is a detail on a row that already exists. No new rows, and no
- * change to row order, lane assignment or connector geometry — a view a rider
- * already knows how to read still reads the same way.
- */
 describe('buildTimeRemainingGraph trip progress', () => {
   const PROGRESS: NonNullable<ChainMetadata['trip_progress']> = [
     {
@@ -748,12 +722,10 @@ describe('buildTimeRemainingGraph trip progress', () => {
     for (const row of view.rows) expect(row.detail.progressTo).toBeUndefined()
   })
 
-  /**
-   * A station both of whose onward branches run out of budget has two entries.
-   * The row carries the one that got furthest, which is the branch a reader is
-   * being told about when the card says how close they came; ties go to the
-   * lower station slug so the same trip always reads the same way.
-   */
+  // A station both of whose onward branches run out of budget has two entries.
+  // The row carries the one that got furthest, which is the branch a reader is
+  // being told about when the card says how close they came; ties go to the
+  // lower station slug so the same trip always reads the same way.
   it('reports the furthest of several unfinished branches off one station', () => {
     const forked = [
       { ...PROGRESS[0], from: 'beta', to: 'zeta', fraction: 0.2 },
@@ -764,14 +736,12 @@ describe('buildTimeRemainingGraph trip progress', () => {
     expect(beta.detail.progressFraction).toBe(0.8)
   })
 
-  /**
-   * A station reached on one line and boarded on another appears in both views.
-   * The unfinished leg belongs to the view of the line its own hop runs over —
-   * beta is where the rider boards the spur, and the trunk view carries on past
-   * beta to gamma, so announcing spur progress under the trunk's beta row would
-   * put it under a row that is not the end of that branch and name a station on
-   * a different line.
-   */
+  // A station reached on one line and boarded on another appears in both views.
+  // The unfinished leg belongs to the view of the line its own hop runs over —
+  // beta is where the rider boards the spur, and the trunk view carries on past
+  // beta to gamma, so announcing spur progress under the trunk's beta row would
+  // put it under a row that is not the end of that branch and name a station on
+  // a different line.
   it('reports an unfinished leg only in the view of the line it runs over', () => {
     const onTheSpur = [{ ...PROGRESS[0], from: 'beta', to: 'zeta', service_id: 'spur' }]
     const views = buildWithProgress(INTERCHANGE, onTheSpur).views
@@ -785,12 +755,10 @@ describe('buildTimeRemainingGraph trip progress', () => {
     expect(rowFor(spur, 'beta').detail.progressTo).toBe('zeta')
   })
 
-  /**
-   * "I boarded and barely moved": the only unfinished leg is the first ride, so
-   * nothing on that line was ever reached and it has no view of its own. The
-   * fact still has to reach the reader, so it falls back to whichever view holds
-   * the station the rider left from.
-   */
+  // "I boarded and barely moved": the only unfinished leg is the first ride, so
+  // nothing on that line was ever reached and it has no view of its own. The
+  // fact still has to reach the reader, so it falls back to whichever view holds
+  // the station the rider left from.
   it('still reports a leg whose line has no view of its own', () => {
     const unreachedLine = [{ ...PROGRESS[0], from: 'beta', to: 'zeta', service_id: 'unbuilt' }]
     const trunk = buildWithProgress(INTERCHANGE, unreachedLine).views.find((v) => v.key === 'trunk')

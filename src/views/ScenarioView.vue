@@ -27,14 +27,9 @@ const {
   failed: travelTimesFailed,
 } = useScenarioTravelTimes(props.slug)
 
-// The routes come along so each corridor's table can be headed by the line it
-// belongs to, rather than the whole scenario being read as one path.
 const stationTimeGroups = computed(() =>
   segmentStationTimeGroups(segments.value, stations.value, routes.value),
 )
-// The stations are handed over as a getter so the range check reads whatever
-// has loaded by the time the form is submitted, rather than the empty list this
-// page starts with.
 const {
   data: isochroneData,
   loading: isLoading,
@@ -43,20 +38,12 @@ const {
   show: showIsochrone,
 } = useIsochrone(() => stations.value)
 
-// The one station highlighted on this page, and which surface raised it. Both
-// the map and the Time remaining card feed it and both read it back, so the
-// last interaction wins wherever it came from; the card scrolls a row into view
-// only when the map is what named it.
 const activeStation = ref<{ slug: string; fromMap: boolean } | null>(null)
 
 function highlight(slug: string | null, fromMap: boolean) {
   activeStation.value = slug ? { slug, fromMap } : null
 }
 
-// The line a service runs over, so the card is read one railway at a time
-// rather than one timetable at a time. A service whose route the API has not
-// reported stands as its own line, which is what the card drew before routes
-// were on the wire.
 function lineOf(id: string): { key: string; label: string } {
   const service = services.value.find((s) => s.id === id)
   const route = service?.route_id
@@ -76,8 +63,6 @@ const timeRemaining = computed(() =>
   }),
 )
 
-// Which pre-rendered entry the map is currently drawing, owned here because
-// generating a new isochrone also has to unmark it.
 const selectedPrerenderedId = ref<string | null>(null)
 
 function onOriginChange(coords: { lat: number; lng: number } | null) {
@@ -107,7 +92,7 @@ async function handleFormSubmit(payload: { lat: number; lng: number; duration: n
       <h1 class="font-display text-display text-ink-true">
         Route: {{ name || 'Sparks Effect' }}
       </h1>
-      <!-- Static copy: the scenario API exposes no field for this kicker yet. -->
+      
       <p class="font-body text-micro text-ink-muted italic uppercase">
         Electrified · High-speed rail · Greenfield
       </p>
@@ -139,20 +124,13 @@ async function handleFormSubmit(payload: { lat: number; lng: number; duration: n
           @origin-change="onOriginChange"
           @pick-armed="pickArmed = $event"
         />
-        <!-- Always beside the form, never instead of it: these are answers the
-             scenario already has, and the form is for the question it doesn't.
-             A pick lands in the same ref a generated chain does, so the map and
-             the Time remaining card below read it without knowing which it is. -->
+        
         <PrerenderedIsochrones
           v-model:selected-id="selectedPrerenderedId"
           :slug="props.slug"
           @select="showIsochrone"
         />
-        <!-- Above the station times, because it is the answer to what was just
-             asked. Only once a plot has actually succeeded: there is nothing to
-             draw while the form is being filled in, and a skeleton in its place
-             would make the rail jump every time a plot is asked for — so until
-             then the station times sit directly under the form as before. -->
+        
         <TimeRemaining
           v-if="timeRemaining.views.length"
           :views="timeRemaining.views"
@@ -181,7 +159,7 @@ async function handleFormSubmit(payload: { lat: number; lng: number; duration: n
       <h2 class="font-display text-h2 text-ink-true">
         Technology assumptions
       </h2>
-      <!-- Awaiting a `technology_assumptions` field on the scenario API. -->
+      
       <p class="font-body text-caption mt-3 text-ink-muted italic">
         Placeholder — awaiting a field on the scenario API.
       </p>

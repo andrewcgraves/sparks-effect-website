@@ -1,8 +1,4 @@
 <script setup lang="ts">
-// A single-choice control rendered as a row of pill segments rather than a
-// continuous track — reads better than a slider once the option count/labels
-// get a little busy. Built on native radio inputs (visually hidden behind the
-// pill labels) so grouping, keyboard nav, and labelling all come for free.
 withDefaults(
   defineProps<{
     modelValue: number

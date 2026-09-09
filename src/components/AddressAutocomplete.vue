@@ -81,7 +81,6 @@ defineExpose({ setInputValue })
 </script>
 
 <template>
-  <!-- .address-autocomplete is kept as a hook for IsochroneForm.spec.ts. -->
   <div class="address-autocomplete">
     <label :class="FIELD_LABEL_CLASS">
       Location

@@ -49,9 +49,6 @@ export const router = createRouter({
       component: ScenarioBuilderView,
       meta: { requiresAuth: true },
     },
-    // Read-only detail pages for the signed-in user's own records. The /new
-    // forms above still win their paths: vue-router ranks a static segment
-    // above a param regardless of declaration order.
     {
       path: '/authoring/services/:slug',
       name: 'service-detail',
@@ -80,8 +77,6 @@ export const router = createRouter({
   ],
 })
 
-// Invite-only auth: gate authoring routes behind sign-in, and keep a
-// signed-in user off the login page rather than showing it pointlessly.
 router.beforeEach((to) => {
   const auth = useAuthStore()
 

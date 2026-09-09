@@ -4,12 +4,8 @@ import { RAW_STOP_LAYER_ID } from './useStopPreviewLayer'
 import type { MapModule } from './mapLifecycle'
 
 export interface StopDragCallbacks {
-  // Fires continuously while the pointer moves, so the pin can follow it.
   onDrag: (id: string, coord: LatLng) => void
-  // Fires once, on release — the point at which it is worth re-snapping.
   onDragEnd: (id: string, coord: LatLng) => void
-  // What the canvas cursor should return to once the pointer leaves a pin.
-  // The caller owns it because click-to-place mode paints its own crosshair.
   idleCursor: () => string
 }
 
@@ -17,12 +13,6 @@ function coordOf(event: { lngLat: { lat: number; lng: number } }): LatLng {
   return { lat: event.lngLat.lat, lng: event.lngLat.lng }
 }
 
-// Makes the raw stop pins draggable by hand-wiring pointer events against the
-// existing circle layer, rather than swapping it for MapLibre Marker
-// instances. Markers would have meant maintaining a parallel set of DOM
-// elements for pins the snapped-pin and leader-line layers already read out of
-// the same GeoJSON source — this way the whole preview keeps rendering from
-// one source of truth, and a drag is just a coordinate edit like any other.
 export function useStopDrag(map: Map, callbacks: StopDragCallbacks): { release: () => void } {
   const canvas = map.getCanvas()
   let draggingId: string | null = null
@@ -123,12 +113,6 @@ export function useStopDrag(map: Map, callbacks: StopDragCallbacks): { release: 
   }
 }
 
-/**
- * Stop dragging as a map module.
- *
- * Bound to the layer the stop preview creates, so it must be listed after that
- * module — the ordering the list in MapView now states outright.
- */
 export function stopDragModule(
   pairs: () => unknown | null,
   callbacks: StopDragCallbacks,

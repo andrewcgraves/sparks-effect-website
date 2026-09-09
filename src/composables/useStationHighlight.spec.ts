@@ -38,8 +38,6 @@ import {
 
 type Handler = (event: unknown) => void
 
-// Records the handlers useStationHighlight registers so tests can fire
-// MapLibre events at it, the same shape useStopDrag.spec.ts uses.
 function makeMockMap() {
   const handlers: { type: string; layer: string | null; handler: Handler }[] = []
   const canvas = { style: { cursor: '' } }
@@ -80,12 +78,6 @@ function stationEvent(slug: string, name: string, lng: number, lat: number) {
   }
 }
 
-// Both stations the tests hover have a polygon in the plot unless a test says
-// otherwise — the no-polygon case is its own describe block below.
-//
-// The active station stands in for the page's own single reference, which both
-// this map and the Time remaining card feed. Hovering a dot here only reports
-// the hover; nothing lights up until the page hands the station back.
 function setup(idleCursor = () => '', egressSlugs = () => new Set(['sf', 'gilroy'])) {
   const mock = makeMockMap()
   let active: string | null = null

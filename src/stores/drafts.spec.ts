@@ -23,7 +23,6 @@ function scenario(name: string): ScenarioInput {
   return { name, description: 'Rush hour', service_ids: ['svc-1'] }
 }
 
-// A fresh Pinia with the same signed-in user stands in for a page reload.
 function reloadAs(userId: string) {
   setActivePinia(createPinia())
   useAuthStore().signIn(`tok-${userId}`, { id: userId })
@@ -207,7 +206,6 @@ describe('useDraftsStore', () => {
         vehicle: { max_speed_kmh: 90, acceleration_ms2: 1, deceleration_ms2: 1, dwell_s: 20 },
         frequency_windows: [],
       })
-      // A different view calling useDraftsStore() sees the same shared state.
       expect(useDraftsStore().serviceDraft?.name).toBe('Persisted')
     })
 
@@ -471,7 +469,6 @@ describe('useDraftsStore', () => {
       expect(drafts.serviceDraft).toBeNull()
       expect(drafts.editingServiceId).toBeNull()
 
-      // Signing back in returns the work rather than silently discarding it.
       expect(reloadAs('u1').serviceDraft?.name).toBe('Blue Line')
     })
 

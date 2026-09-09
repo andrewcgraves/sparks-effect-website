@@ -14,31 +14,10 @@ export interface OriginWalkProperties {
 
 export type OriginWalkLine = FeatureCollection<LineString, OriginWalkProperties>
 
-/**
- * Where the walking line reads its one input from.
- *
- * A getter rather than a value, so the module can be handed props once and
- * still see them change — see `originWalkModule`.
- */
 export interface OriginWalkInputs {
   data: () => ChainResponse | null
 }
 
-/**
- * The routed walking leg from the origin to the starter station, or null when
- * there is no such leg to draw.
- *
- * This builds no geometry. The worker routes that leg against the street
- * network and reports the shape it walked (SPA-196), so what is drawn is the
- * thing that was measured: it follows streets rather than cutting across them,
- * it starts where Valhalla snapped the origin rather than at the raw point the
- * user gave, and it ends at the graph node the access time was measured to
- * rather than wherever the station's row sits now. All three used to diverge
- * when this function drew a segment between two points of its own choosing.
- *
- * The access time is the one thing still joined on: the walk names its station,
- * and the plot's own accounting is what says how long the walk took.
- */
 export function originWalkLine(data: ChainResponse | null): OriginWalkLine | null {
   if (!data) return null
 
@@ -67,8 +46,6 @@ export function originWalkLine(data: ChainResponse | null): OriginWalkLine | nul
   }
 }
 
-// A fresh one per call: MapLibre keeps whatever it is handed, and one shared
-// object passed to every map's setData would be held in several places at once.
 function emptyLine(): OriginWalkLine {
   return { type: 'FeatureCollection', features: [] }
 }
@@ -96,21 +73,6 @@ export function useOriginWalkLayer(
   })
 }
 
-/**
- * The origin-to-starter-station walk as a map module.
- *
- * The plot is the only thing watched, and now the only thing read. The origin
- * moves under a live form — every keystroke in the coordinate fields reports a
- * new one — and the station rows move whenever a scenario is edited, but
- * neither changes a walk that has already been routed and timed. Redrawing on
- * the plot alone pins the line to the thing it describes.
- *
- * Not ready until there is a line: a plot that reached no station on foot has
- * no walking leg to show, and adding an empty source to every map in the app to
- * hold nothing would be waste. Once attached it stays, and a later plot without
- * a walking leg blanks the source rather than leaving the previous plot's line
- * standing.
- */
 export function originWalkModule(inputs: OriginWalkInputs, color: string): MapModule {
   const line = () => originWalkLine(inputs.data())
 
