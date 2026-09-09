@@ -1,9 +1,6 @@
 import { ref } from 'vue'
-import { fetchIsochrone, IsochroneApiError, type IsochroneRequest } from '../api/isochrone'
-import { JobFailedError } from '../api/polling'
-import { backlogFullError } from '../api/routingJobs'
-import { trackIsochroneRequest, trackIsochroneError } from '../analytics/index'
-import { checkOriginReach, outOfRangeError, outOfRangeMessage } from '../originRange'
+import { fetchIsochrone, type IsochroneRequest } from '../api/isochrone'
+import { isochroneFault, isochroneRangeRefusal, isochroneRequested } from '../api/isochroneFault'
 import type { Station } from '../api/scenarios'
 import type { ChainResponse } from '../fixtures/isochrone'
 
@@ -17,49 +14,27 @@ export function useIsochrone(getStations: () => Station[] = () => []) {
     // question the page can already answer, and answering it here costs no
     // round trip and spends none of the worker's time. The API runs the same
     // check and is the one that binds — see originRange.
-    const reach = checkOriginReach(
+    const refusal = isochroneRangeRefusal(
       getStations(),
       { lat: request.lat, lng: request.lng },
       request.mode,
       request.budget_mins,
     )
-    if (reach && !reach.inRange) {
+    if (refusal) {
       data.value = null
       loading.value = false
-      trackIsochroneError(request.mode, request.budget_mins, null)
-      error.value = outOfRangeMessage(reach, request.mode, request.budget_mins)
+      error.value = refusal
       return
     }
 
     loading.value = true
     error.value = null
-    trackIsochroneRequest(request.mode, request.budget_mins)
+    isochroneRequested(request.mode, request.budget_mins)
     try {
       data.value = await fetchIsochrone(request)
     } catch (e) {
       console.error(e)
-      const status = e instanceof IsochroneApiError ? e.status : null
-      trackIsochroneError(request.mode, request.budget_mins, status)
-      // The API refusing the origin as out of range is a case the local check
-      // above could not see: a station list that has gone stale, or one whose
-      // stations differ from the compiled graph's nodes. Its own distances are
-      // the accurate ones, so its message wins over the generic failure.
-      //
-      // A routing job that reached `failed` — the isochrone service being down
-      // chief among the reasons (SPA-230) — carries its own reason from the
-      // API too, and that wins the same way for the same reason: it says
-      // something a generic "try again" cannot, like whether trying again is
-      // even worth it right now.
-      //
-      // A refused enqueue (SPA-219) is the third: the request was fine and the
-      // service is simply busy, so "try again" is the actual advice rather than
-      // the shrug the generic message is.
-      const cause = e instanceof IsochroneApiError ? e.cause : e
-      error.value =
-        outOfRangeError(cause, request.mode, request.budget_mins) ??
-        backlogFullError(cause) ??
-        (e instanceof JobFailedError ? e.jobError || null : null) ??
-        'Failed to generate isochrone. Please try again.'
+      error.value = isochroneFault(e, request.mode, request.budget_mins)
     } finally {
       loading.value = false
     }

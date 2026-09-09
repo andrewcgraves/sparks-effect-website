@@ -4,7 +4,15 @@ import { flushPromises } from '@vue/test-utils'
 import { ApiError } from '../api/authoring/client'
 import type { AuthoredIsochroneRequest, Job, TransitGraph } from '../api/authoring'
 import type { ChainResponse } from '../fixtures/isochrone'
+import { JobFailedError } from '../api/polling'
 import { useAuthoredGraph } from './useAuthoredGraph'
+
+vi.mock('../analytics/index', () => ({
+  trackIsochroneRequest: vi.fn(),
+  trackIsochroneError: vi.fn(),
+}))
+
+import { trackIsochroneError, trackIsochroneRequest } from '../analytics/index'
 
 const payload = { lat: 37.7, lng: -122.4, duration: 30, mode: 'walk' as const }
 const chain = { features: [] } as unknown as ChainResponse
@@ -62,6 +70,8 @@ describe('useAuthoredGraph', () => {
     compile = vi.fn()
     fetchGraph = vi.fn()
     isochrone = vi.fn()
+    vi.mocked(trackIsochroneRequest).mockClear()
+    vi.mocked(trackIsochroneError).mockClear()
     vi.stubGlobal('fetch', succeedingJobFetch({ services: [] }))
   })
 
@@ -270,6 +280,56 @@ describe('useAuthoredGraph', () => {
       expect(compile).not.toHaveBeenCalled()
       expect(isochroneError.value).toBe('Failed to generate isochrone. Please try again.')
     })
+
+    it('fires trackIsochroneRequest on attempt with mode and budget', async () => {
+      isochrone.mockResolvedValue(chain)
+      const { handleIsochroneSubmit } = subject()
+
+      await handleIsochroneSubmit(payload)
+
+      expect(trackIsochroneRequest).toHaveBeenCalledWith('walk', 30)
+    })
+
+    it('fires trackIsochroneError with the HTTP status on an API error', async () => {
+      isochrone.mockRejectedValue(new ApiError('boom', 500))
+      const { handleIsochroneSubmit } = subject()
+
+      await handleIsochroneSubmit(payload)
+
+      expect(trackIsochroneError).toHaveBeenCalledWith('walk', 30, 500)
+    })
+  })
+
+  // SPA-230: a routing job the API gave up on — the isochrone service being
+  // down, chief among the reasons — carries its own reason, and that reason is
+  // what the user should see, on the authored pages the same as on the seeded
+  // one.
+  describe('a routing job the API failed', () => {
+    it('shows the API error text rather than the generic fallback', async () => {
+      isochrone.mockRejectedValue(
+        new JobFailedError(
+          'rj1',
+          "The isochrone service isn't responding right now. Please try again in a few minutes.",
+        ),
+      )
+      const { handleIsochroneSubmit, isochroneError } = subject()
+
+      await handleIsochroneSubmit(payload)
+
+      expect(compile).not.toHaveBeenCalled()
+      expect(isochroneError.value).toBe(
+        "The isochrone service isn't responding right now. Please try again in a few minutes.",
+      )
+    })
+
+    it('falls back to the generic message when the API gave no reason', async () => {
+      isochrone.mockRejectedValue(new JobFailedError('rj1', ''))
+      const { handleIsochroneSubmit, isochroneError } = subject()
+
+      await handleIsochroneSubmit(payload)
+
+      expect(isochroneError.value).toBe('Failed to generate isochrone. Please try again.')
+    })
   })
 
   // SPA-200. Unlike the seeded page, this measures against the compiled graph's
@@ -299,6 +359,15 @@ describe('useAuthoredGraph', () => {
 
       expect(isochrone).not.toHaveBeenCalled()
       expect(isochroneError.value).toContain('nearest station')
+    })
+
+    it('counts a refusal as an error, not as a request', async () => {
+      const { handleIsochroneSubmit } = await loadedOver(graphWithStationAt(100))
+
+      await handleIsochroneSubmit(payload)
+
+      expect(trackIsochroneRequest).not.toHaveBeenCalled()
+      expect(trackIsochroneError).toHaveBeenCalledWith('walk', 30, null)
     })
 
     it('leaves nothing spinning and no stale plot behind', async () => {

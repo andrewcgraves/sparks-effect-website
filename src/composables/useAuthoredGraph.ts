@@ -1,12 +1,11 @@
 import { computed, ref } from 'vue'
 import { ApiError } from '../api/authoring/client'
 import type { AuthoredIsochroneRequest, Job, TransitGraph, TravelMode } from '../api/authoring'
+import { isochroneFault, isochroneRangeRefusal, isochroneRequested } from '../api/isochroneFault'
 import type { ChainResponse } from '../fixtures/isochrone'
 import { useCompileJob } from './useCompileJob'
 import { latestAttempt } from './latestAttempt'
 import { graphRoutes, graphStations } from './scenarioGraphMap'
-import { checkOriginReach, outOfRangeError, outOfRangeMessage } from '../originRange'
-import { backlogFullError } from '../api/routingJobs'
 
 export const MAX_STALE_GRAPH_RETRIES = 3
 
@@ -121,18 +120,11 @@ export function useAuthoredGraph(getSlug: () => string | null, target: AuthoredG
           return
         }
       }
-      // An origin the API refused as out of range is reported in its own terms.
-      // handleIsochroneSubmit catches most of these before the request is made;
-      // this is the arm for the ones it could not, notably a recompile that has
-      // just moved or dropped the station the local check measured against.
-      //
-      // A refused enqueue (SPA-219) is reported in its own terms too: the
-      // request was fine and the routing backlog is simply full, so the
-      // isochrone is worth asking for again in a moment.
-      isochroneError.value =
-        outOfRangeError(err, payload.mode, payload.duration) ??
-        backlogFullError(err) ??
-        'Failed to generate isochrone. Please try again.'
+      // Local range refusals are handled before the request; this is the arm
+      // for the ones it could not see — notably a recompile that has just
+      // moved or dropped the station the local check measured against — and
+      // for every other routing fault (SPA-230, SPA-219).
+      isochroneError.value = isochroneFault(err, payload.mode, payload.duration)
     } finally {
       // Left alone when superseded: the attempt that replaced this one set it,
       // and owns clearing it.
@@ -153,15 +145,16 @@ export function useAuthoredGraph(getSlug: () => string | null, target: AuthoredG
     // the API measures against — so unlike the seeded page, the two agree
     // exactly. Numbered like the plot it stands in for, so it supersedes an
     // in-flight plot the same way a real one would.
-    const reach = checkOriginReach(mapStations.value, payload, payload.mode, payload.duration)
-    if (reach && !reach.inRange) {
+    const refusal = isochroneRangeRefusal(mapStations.value, payload, payload.mode, payload.duration)
+    if (refusal) {
       plots.begin()
       isochroneData.value = null
       isochroneLoading.value = false
-      isochroneError.value = outOfRangeMessage(reach, payload.mode, payload.duration)
+      isochroneError.value = refusal
       return
     }
 
+    isochroneRequested(payload.mode, payload.duration)
     await plot(slug, payload, plots.begin(), 1)
   }
 
