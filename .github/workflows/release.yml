@@ -20,6 +20,10 @@ on:
         description: "Existing release tag to promote, e.g. v1.4.2. Pass an older tag to roll back."
         required: true
         type: string
+      base_ref:
+        description: "Optional exclusive git ref for Linear's commit scan (e.g. v0.1.0). Leave empty to use the last Linear release in the production pipeline."
+        required: false
+        type: string
 
 # Two promotions racing would leave production on whichever alias switch landed
 # last rather than whichever was asked for last.
@@ -242,6 +246,62 @@ jobs:
               exit 1
             fi
           fi
+
+      # Linear scans this working tree, so it must be the promoted commit —
+      # not `trunk`. A tag push already checks out that SHA; workflow_dispatch
+      # of an older tag would otherwise scan trunk HEAD and attach issues
+      # that are not in the promoted deployment.
+      - name: Check out the promoted commit
+        env:
+          SHA: ${{ steps.target.outputs.sha }}
+        run: git checkout --detach "$SHA"
+
+      # Production is a different Linear pipeline from staging: the same issue
+      # can sit on staging for a while before a tag promotes it, and staging
+      # can already be several commits ahead. See docs/releases.md.
+      #
+      # Secrets cannot be referenced in `if:` (GitHub treats that as a
+      # workflow-file error), so the empty check lives in a shell step.
+      - name: Check for the production pipeline key
+        id: linear
+        env:
+          LINEAR_ACCESS_KEY_PRODUCTION: ${{ secrets.LINEAR_ACCESS_KEY_PRODUCTION }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${LINEAR_ACCESS_KEY_PRODUCTION:-}" ]]; then
+            echo "::notice::LINEAR_ACCESS_KEY_PRODUCTION is not set — add the Website Build Production access key as a secret on the production environment"
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Two steps because `base_ref` has no "unset" value once written — passing
+      # it empty would scan from nothing rather than from the last Linear
+      # release. The pair is mutually exclusive: the second only runs when a
+      # workflow_dispatch supplied a base_ref, which is how a promoted tag gets
+      # backfilled.
+      - name: Sync Linear production release
+        if: steps.linear.outputs.configured == 'true' && (github.event_name != 'workflow_dispatch' || github.event.inputs.base_ref == '')
+        uses: linear/linear-release-action@v0
+        with:
+          access_key: ${{ secrets.LINEAR_ACCESS_KEY_PRODUCTION }}
+          name: ${{ steps.target.outputs.tag }}
+          version: ${{ steps.target.outputs.tag }}
+          links: |
+            Commit=${{ github.server_url }}/${{ github.repository }}/commit/${{ steps.target.outputs.sha }}
+            CI run=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Sync Linear production release with explicit scan base
+        if: steps.linear.outputs.configured == 'true' && github.event_name == 'workflow_dispatch' && github.event.inputs.base_ref != ''
+        uses: linear/linear-release-action@v0
+        with:
+          access_key: ${{ secrets.LINEAR_ACCESS_KEY_PRODUCTION }}
+          name: ${{ steps.target.outputs.tag }}
+          version: ${{ steps.target.outputs.tag }}
+          base_ref: ${{ github.event.inputs.base_ref }}
+          links: |
+            Commit=${{ github.server_url }}/${{ github.repository }}/commit/${{ steps.target.outputs.sha }}
+            CI run=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
       - name: Summarise
         env:
