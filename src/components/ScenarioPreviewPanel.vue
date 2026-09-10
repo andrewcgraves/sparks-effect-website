@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import IsochroneForm from '../IsochroneForm.vue'
 import MapView from './MapView.vue'
 import { ORIGIN_PICK_CUE } from './placementCues'
+import { buildTimeRemainingGraph, remainingSecsBySlug } from './timeRemaining'
 import { useOriginPick } from '../composables/useOriginPick'
 import type { NearMiss, Service, StopCluster } from '../api/authoring/types'
 import type { Route, Station } from '../api/scenarios'
@@ -28,6 +30,20 @@ defineEmits<{
 
 const { pickArmed, onMapClick } = useOriginPick()
 
+const remainingBySlug = computed(() =>
+  remainingSecsBySlug(
+    buildTimeRemainingGraph(props.isochroneData?.metadata ?? null, {
+      stationName: (slug) => props.mapStations?.find((station) => station.slug === slug)?.name ?? slug,
+      serviceName: (id) => props.services.find((service) => service.id === id)?.name ?? id,
+      mode: props.isochroneData?.metadata.mode ?? 'walk',
+    }),
+  ),
+)
+
+function remainingSecs(slug: string): number | null {
+  return remainingBySlug.value(slug)
+}
+
 function serviceName(serviceId: string): string {
   return props.services.find((service) => service.id === serviceId)?.name ?? serviceId
 }
@@ -49,6 +65,7 @@ function formatMeters(total: number): string {
         :services="[]"
         :placement-armed="pickArmed"
         :placement-cue="ORIGIN_PICK_CUE"
+        :remaining-secs="remainingSecs"
         @map-click="onMapClick"
       />
     </div>

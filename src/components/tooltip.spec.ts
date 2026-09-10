@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   placeTooltip,
+  stationTooltipContent,
   tooltipContent,
   tooltipStyle,
   TOOLTIP_GAP_PX,
@@ -113,5 +114,39 @@ describe('tooltipContent', () => {
     expect(node.textContent).toBe('San Francisco')
     expect(node.className).toContain(TOOLTIP_PANEL_CLASS)
     expect(node.className).toContain('font-body')
+  })
+})
+
+describe('stationTooltipContent', () => {
+  it('is the name alone when remaining is unknown', () => {
+    const node = stationTooltipContent('San Francisco', null)
+
+    expect(node.textContent).toBe('San Francisco')
+    expect(node.className).toContain(TOOLTIP_PANEL_CLASS)
+    expect(node.textContent).not.toContain('left')
+    expect(node.textContent).not.toContain('0m')
+  })
+
+  it('adds the remaining line when seconds are known', () => {
+    const node = stationTooltipContent('San Francisco', 2700)
+
+    expect(node.textContent).toContain('San Francisco')
+    expect(node.textContent).toContain('45m left')
+    expect(node.children[0].className).toContain('text-caption')
+    expect(node.children[1].className).toContain('tabular-nums')
+    expect(node.children[1].className).toContain('text-ink-muted')
+  })
+
+  it('renders hours the way the card does, not as a pile of minutes', () => {
+    const node = stationTooltipContent('San Jose', 5400)
+
+    expect(node.textContent).toContain('1h 30m left')
+    expect(node.textContent).not.toContain('90m')
+  })
+
+  it('prints 0m left when the rider leaves with nothing', () => {
+    const node = stationTooltipContent('Gilroy', 0)
+
+    expect(node.textContent).toContain('0m left')
   })
 })

@@ -1,7 +1,7 @@
 import { Popup, type Map, type MapLayerMouseEvent } from 'maplibre-gl'
 import type { MapModule } from './mapLifecycle'
 import { STATION_DOTS_LAYER_ID } from './useRouteLayer'
-import { TOOLTIP_MAP_POPUP_CLASS, tooltipContent } from '../components/tooltip'
+import { TOOLTIP_MAP_POPUP_CLASS, stationTooltipContent } from '../components/tooltip'
 import {
   ISOCHRONE_LAYER_ID,
   ISOCHRONE_ORIGIN_LAYER_ID,
@@ -22,6 +22,7 @@ export interface StationHighlightCallbacks {
   idleCursor: () => string
   egressSlugs: () => Set<string>
   activeSlug: () => string | null
+  remainingSecs: (slug: string) => number | null
   onHover: (slug: string | null) => void
 }
 
@@ -72,8 +73,14 @@ export function useStationHighlight(map: Map, callbacks: StationHighlightCallbac
     // The popup belongs to this map's own pointer. A station made active from
     // the card has no dot under the cursor to hang one off, and putting one up
     // anyway would leave the map annotating something nobody is pointing at.
-    if (hovered) popup.setLngLat(hovered.lngLat).setDOMContent(tooltipContent(hovered.name)).addTo(map)
-    else popup.remove()
+    if (hovered) {
+      popup
+        .setLngLat(hovered.lngLat)
+        .setDOMContent(stationTooltipContent(hovered.name, callbacks.remainingSecs(hovered.slug)))
+        .addTo(map)
+    } else {
+      popup.remove()
+    }
   }
 
   function handleEnter(event: MapLayerMouseEvent): void {

@@ -64,6 +64,16 @@ export function formatTimeRemaining(totalSecs: number): string {
   return hours > 0 ? `${hours}h ${minutes % 60}m` : `${minutes}m`
 }
 
+export function remainingSecsBySlug(graph: TimeRemainingGraph): (slug: string) => number | null {
+  const bySlug = new Map<string, number>()
+  for (const view of graph.views) {
+    for (const row of view.rows) {
+      if (row.slug !== null) bySlug.set(row.slug, row.remainingSecs)
+    }
+  }
+  return (slug) => bySlug.get(slug) ?? null
+}
+
 export function formatDuration(totalSecs: number): string {
   const secs = Math.max(0, Math.round(totalSecs))
   if (secs < 60) return `${secs}s`

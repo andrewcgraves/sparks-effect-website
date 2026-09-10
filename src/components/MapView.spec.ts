@@ -1213,6 +1213,24 @@ describe('MapView', () => {
       expect(mockOn).toHaveBeenCalledWith('mouseenter', STATION_DOTS_LAYER_ID, expect.any(Function))
     })
 
+    it('adds remaining time to the popup when the page provides a lookup', async () => {
+      mount(MapView, {
+        props: {
+          ...defaultProps,
+          routes: [stubRoute],
+          stations: [stubStation],
+          remainingSecs: (slug: string) => slug === stubStation.slug ? 2700 : null,
+        },
+      })
+      await triggerMapLoad()
+
+      fireLayerEvent('mouseenter', STATION_DOTS_LAYER_ID, stationEvent(stubStation))
+
+      const node = mockPopupSetDOMContent.mock.calls[0]?.[0] as HTMLElement
+      expect(node.textContent).toContain('San Francisco')
+      expect(node.textContent).toContain('45m left')
+    })
+
     it('promotes the active station\'s polygon above the rest via the dedicated highlight layer', async () => {
       mockGetLayer.mockImplementation((id: string) =>
         [ISOCHRONE_LAYER_ID, ISOCHRONE_ORIGIN_LAYER_ID, ISOCHRONE_HIGHLIGHT_LAYER_ID, ISOCHRONE_HIGHLIGHT_OUTLINE_LAYER_ID].includes(id) ? { id } : undefined,

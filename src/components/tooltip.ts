@@ -1,3 +1,5 @@
+import { formatTimeRemaining } from './timeRemaining'
+
 export const TOOLTIP_WIDTH_PX = 240
 export const TOOLTIP_GAP_PX = 8
 export const TOOLTIP_ROOM_PX = 140
@@ -62,5 +64,24 @@ export function tooltipContent(text: string): HTMLElement {
   const node = document.createElement('div')
   node.className = `${TOOLTIP_PANEL_CLASS} font-body text-caption text-ink`
   node.textContent = text
+  return node
+}
+
+export function stationTooltipContent(name: string, remainingSecs: number | null): HTMLElement {
+  const node = document.createElement('div')
+  node.className = TOOLTIP_PANEL_CLASS
+
+  const title = document.createElement('p')
+  title.className = 'font-body text-caption text-ink'
+  title.textContent = name
+  node.append(title)
+
+  if (remainingSecs !== null) {
+    const remaining = document.createElement('p')
+    remaining.className = 'font-body text-micro tabular-nums text-ink-muted'
+    remaining.textContent = `${formatTimeRemaining(remainingSecs)} left`
+    node.append(remaining)
+  }
+
   return node
 }
