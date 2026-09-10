@@ -2,7 +2,7 @@ import type { ExpressionSpecification, FillLayerSpecification, GeoJSONSource, Li
 import type { MapModule } from './mapLifecycle'
 import type { FeatureCollection } from 'geojson'
 import { readThemeToken } from '../themeTokens'
-import { ROUTE_LINE_LAYER_ID } from './useRouteLayer'
+import { addLayerInStack } from './layerStack'
 
 export const ISOCHRONE_SOURCE_ID = 'isochrone-source'
 
@@ -122,24 +122,10 @@ export function useIsochroneLayer(
     },
   }
 
-  // The isochrone usually arrives well after the scenario's route and station
-  // layers are already on the map — it is drawn only once the rider submits
-  // the isochrone form, while routes/stations come from the scenario fetch on
-  // load. addLayer with no beforeId always appends on top, so without this the
-  // fill would paint over routes and stations that were already there
-  // (SPA-213). Stacking it under the route line also puts it under the
-  // station dots, which useRouteLayer always adds immediately above the line.
-  //
-  // All four go in with the same beforeId, so they stack in the order they are
-  // added and the whole group stays under the route line and station dots:
-  // origin fill, every station's egress fill, the highlighted station's fill,
-  // then its outline on top.
-  const stack = [originLayer, layer, highlightLayer, highlightOutlineLayer]
-  const beforeId = map.getLayer(ROUTE_LINE_LAYER_ID) ? ROUTE_LINE_LAYER_ID : undefined
-  for (const entry of stack) {
-    if (beforeId) map.addLayer(entry, beforeId)
-    else map.addLayer(entry)
-  }
+  addLayerInStack(map, originLayer)
+  addLayerInStack(map, layer)
+  addLayerInStack(map, highlightLayer)
+  addLayerInStack(map, highlightOutlineLayer)
 }
 
 export function isochroneLayerModule(

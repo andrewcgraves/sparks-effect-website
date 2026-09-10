@@ -17,7 +17,6 @@ import {
   ISOCHRONE_DIM_OPACITY,
   ISOCHRONE_ORIGIN_DIM_OPACITY,
 } from './useIsochroneLayer'
-import { ROUTE_LINE_LAYER_ID } from './useRouteLayer'
 import { THEME_TOKEN_FALLBACKS } from '../themeTokens'
 import { staticIsochroneResponse } from '../fixtures/isochrone'
 
@@ -79,27 +78,6 @@ describe('useIsochroneLayer', () => {
     )
   })
 
-  it('adds the fill layer with no beforeId when the route line does not exist yet', () => {
-    const map = makeMockMap()
-    useIsochroneLayer(map as Map, staticIsochroneResponse)
-    expect(map.addLayer).toHaveBeenCalledWith(
-      expect.objectContaining({ id: ISOCHRONE_LAYER_ID }),
-    )
-  })
-
-  // SPA-213: routes/stations are drawn from the scenario fetch well before the
-  // isochrone is generated, so without stacking under the route line on
-  // purpose the fill would paint over them the moment it attaches.
-  it('inserts the fill layer below the route line when it already exists', () => {
-    const map = makeMockMap()
-    ;(map.getLayer as ReturnType<typeof vi.fn>).mockReturnValue({ id: ROUTE_LINE_LAYER_ID })
-    useIsochroneLayer(map as Map, staticIsochroneResponse)
-    expect(map.addLayer).toHaveBeenCalledWith(
-      expect.objectContaining({ id: ISOCHRONE_LAYER_ID }),
-      ROUTE_LINE_LAYER_ID,
-    )
-  })
-
   // A per-feature fill-opacity expression can't reorder features within one
   // layer, so promoting a highlighted station above its overlapping
   // neighbours (SPA-211) needs a second, filtered layer painted on top.
@@ -136,16 +114,6 @@ describe('useIsochroneLayer', () => {
         ISOCHRONE_HIGHLIGHT_LAYER_ID,
         ISOCHRONE_HIGHLIGHT_OUTLINE_LAYER_ID,
       ])
-    })
-
-    it('stacks below the route line when one already exists, same as the base layer', () => {
-      const map = makeMockMap()
-      ;(map.getLayer as ReturnType<typeof vi.fn>).mockReturnValue({ id: ROUTE_LINE_LAYER_ID })
-      useIsochroneLayer(map as Map, staticIsochroneResponse)
-      expect(map.addLayer).toHaveBeenCalledWith(
-        expect.objectContaining({ id: ISOCHRONE_HIGHLIGHT_LAYER_ID }),
-        ROUTE_LINE_LAYER_ID,
-      )
     })
 
     // The fills differ only by a blend where they overlap, which is not much
@@ -187,15 +155,6 @@ describe('useIsochroneLayer', () => {
       expect(addedLayer(map, ISOCHRONE_LAYER_ID)).toMatchObject({
         filter: ['==', ['get', 'source'], 'egress'],
       })
-    })
-
-    it('stacks below the route line when one already exists, same as the rest', () => {
-      const map = makeMockMap()
-      ;(map.getLayer as ReturnType<typeof vi.fn>).mockReturnValue({ id: ROUTE_LINE_LAYER_ID })
-      useIsochroneLayer(map as Map, staticIsochroneResponse)
-      for (const id of [ISOCHRONE_ORIGIN_LAYER_ID, ISOCHRONE_HIGHLIGHT_OUTLINE_LAYER_ID]) {
-        expect(map.addLayer).toHaveBeenCalledWith(expect.objectContaining({ id }), ROUTE_LINE_LAYER_ID)
-      }
     })
   })
 

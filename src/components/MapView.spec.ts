@@ -1202,6 +1202,17 @@ describe('MapView', () => {
       expect(mockPopupAddTo).toHaveBeenCalled()
     })
 
+    it('does not bind station hover until the route layer has attached', async () => {
+      const wrapper = mount(MapView, { props: defaultProps })
+      await triggerMapLoad()
+
+      expect(mockOn.mock.calls.some((args: unknown[]) => args[0] === 'mouseenter' && args[1] === STATION_DOTS_LAYER_ID)).toBe(false)
+
+      await wrapper.setProps({ routes: [stubRoute], stations: [stubStation] })
+
+      expect(mockOn).toHaveBeenCalledWith('mouseenter', STATION_DOTS_LAYER_ID, expect.any(Function))
+    })
+
     it('adds remaining time to the popup when the page provides a lookup', async () => {
       mount(MapView, {
         props: {

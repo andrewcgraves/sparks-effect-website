@@ -2,6 +2,7 @@ import type { Map, GeoJSONSource } from 'maplibre-gl'
 import type { MapModule } from './mapLifecycle'
 import { readThemeToken } from '../themeTokens'
 import type { SnapCoord as LatLng } from '../api/authoring/types'
+import { addLayerInStack } from './layerStack'
 
 export const RAW_STOP_SOURCE_ID = 'stop-preview-raw-source'
 export const RAW_STOP_LAYER_ID = 'stop-preview-raw'
@@ -59,7 +60,7 @@ export function useStopPreviewLayer(map: Map): { update: (pairs: StopPreviewPair
   const offRouteColor = readThemeToken('--color-coral')
 
   map.addSource(RAW_STOP_SOURCE_ID, { type: 'geojson', data: emptyFeatureCollection() })
-  map.addLayer({
+  addLayerInStack(map, {
     id: RAW_STOP_LAYER_ID,
     type: 'circle',
     source: RAW_STOP_SOURCE_ID,
@@ -72,7 +73,7 @@ export function useStopPreviewLayer(map: Map): { update: (pairs: StopPreviewPair
   })
 
   map.addSource(LEADER_SOURCE_ID, { type: 'geojson', data: emptyFeatureCollection() })
-  map.addLayer({
+  addLayerInStack(map, {
     id: LEADER_LAYER_ID,
     type: 'line',
     source: LEADER_SOURCE_ID,
@@ -85,7 +86,7 @@ export function useStopPreviewLayer(map: Map): { update: (pairs: StopPreviewPair
   })
 
   map.addSource(SNAPPED_STOP_SOURCE_ID, { type: 'geojson', data: emptyFeatureCollection() })
-  map.addLayer({
+  addLayerInStack(map, {
     id: SNAPPED_STOP_LAYER_ID,
     type: 'circle',
     source: SNAPPED_STOP_SOURCE_ID,

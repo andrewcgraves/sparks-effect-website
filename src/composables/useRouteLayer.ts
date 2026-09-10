@@ -5,6 +5,7 @@ import type { ChainResponse, TripProgress } from '../fixtures/isochrone'
 import type { Route, Station } from '../api/scenarios'
 import { readThemeToken } from '../themeTokens'
 import { sliceAlignment } from '../chainage'
+import { addLayerInStack } from './layerStack'
 
 export const ROUTE_SOURCE_ID = 'route-source'
 export const ROUTE_LINE_LAYER_ID = 'route-line'
@@ -152,7 +153,7 @@ export function useRouteLayer(
     },
   })
 
-  map.addLayer({
+  addLayerInStack(map, {
     id: ROUTE_LINE_LAYER_ID,
     type: 'line',
     source: ROUTE_SOURCE_ID,
@@ -166,7 +167,7 @@ export function useRouteLayer(
   // whose unlit state is the point being made.
   const stubs = tripProgressLines(routes, progress)
   map.addSource(PROGRESS_SOURCE_ID, { type: 'geojson', data: stubs })
-  map.addLayer({
+  addLayerInStack(map, {
     id: PROGRESS_LINE_LAYER_ID,
     type: 'line',
     source: PROGRESS_SOURCE_ID,
@@ -183,7 +184,7 @@ export function useRouteLayer(
   })
 
   map.addSource(PROGRESS_CAP_SOURCE_ID, { type: 'geojson', data: tripProgressCaps(stubs) })
-  map.addLayer({
+  addLayerInStack(map, {
     id: PROGRESS_CAP_LAYER_ID,
     type: 'circle',
     source: PROGRESS_CAP_SOURCE_ID,
@@ -207,7 +208,7 @@ export function useRouteLayer(
     },
   })
 
-  map.addLayer({
+  addLayerInStack(map, {
     id: STATION_DOTS_LAYER_ID,
     type: 'circle',
     source: STATION_SOURCE_ID,

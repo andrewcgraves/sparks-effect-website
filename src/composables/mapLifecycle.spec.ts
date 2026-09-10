@@ -5,7 +5,7 @@ import { mapModules, type MapModule } from './mapLifecycle'
 
 const map = {} as Map
 
-function fake(options: { ready?: boolean; label?: string; log?: string[] } = {}) {
+function fake(options: { ready?: boolean; label?: string; log?: string[]; requires?: readonly MapModule[] } = {}) {
   const log = options.log ?? []
   let ready = options.ready ?? true
   const label = options.label ?? 'module'
@@ -15,6 +15,7 @@ function fake(options: { ready?: boolean; label?: string; log?: string[] } = {})
     attach: () => log.push(`${label}:attach`),
     sync: () => log.push(`${label}:sync`),
     detach: () => log.push(`${label}:detach`),
+    requires: options.requires,
   }
   return { module, log, becomeReady: () => { ready = true } }
 }
@@ -64,8 +65,8 @@ describe('mapModules', () => {
     expect(log).toEqual(['module:attach'])
   })
 
-  // Stop dragging binds to the layer the stop preview creates, so list order
-  // is the dependency order.
+  // Stop dragging binds to the layer the stop preview creates; list order is
+  // still the attach order among modules that are independently ready.
   it('attaches in list order', () => {
     const log: string[] = []
     const first = fake({ label: 'preview', log })
@@ -74,6 +75,62 @@ describe('mapModules', () => {
     mapModules([first.module, second.module]).sync(map, true)
 
     expect(log).toEqual(['preview:attach', 'drag:attach'])
+  })
+
+  // Highlight's isReady is just styleLoaded; the route module also wants
+  // routes. List order used to be the only guard, so highlight bound to
+  // station dots that did not exist yet.
+  it('does not attach a module whose requirement has not attached', () => {
+    const log: string[] = []
+    const route = fake({ ready: false, label: 'route', log })
+    const highlight = fake({ label: 'highlight', log, requires: [route.module] })
+
+    mapModules([route.module, highlight.module]).sync(map, true)
+
+    expect(log).toEqual([])
+  })
+
+  it('attaches a waiting dependent once its requirement attaches on the same sync', () => {
+    const log: string[] = []
+    const route = fake({ ready: false, label: 'route', log })
+    const highlight = fake({ label: 'highlight', log, requires: [route.module] })
+    const modules = mapModules([route.module, highlight.module])
+
+    modules.sync(map, true)
+    route.becomeReady()
+    modules.sync(map, true)
+
+    expect(log).toEqual(['route:attach', 'highlight:attach'])
+  })
+
+  it('attaches a waiting dependent when its requirement becomes ready through its own deps', async () => {
+    const log: string[] = []
+    const ready = ref(false)
+    const route: MapModule = {
+      deps: () => ready.value,
+      isReady: (styleLoaded) => styleLoaded && ready.value,
+      attach: () => log.push('route:attach'),
+      sync: () => log.push('route:sync'),
+      detach: vi.fn(),
+    }
+    const highlight = fake({ label: 'highlight', log, requires: [route] })
+    mapModules([route, highlight.module]).sync(map, true)
+    expect(log).toEqual([])
+
+    ready.value = true
+    await nextTick()
+
+    expect(log).toEqual(['route:attach', 'highlight:attach'])
+  })
+
+  it('attaches a dependent listed before its requirement, once the requirement is ready', () => {
+    const log: string[] = []
+    const route = fake({ label: 'route', log })
+    const highlight = fake({ label: 'highlight', log, requires: [route.module] })
+
+    mapModules([highlight.module, route.module]).sync(map, true)
+
+    expect(log).toEqual(['route:attach', 'highlight:attach'])
   })
 
   it('detaches everything it attached', () => {
