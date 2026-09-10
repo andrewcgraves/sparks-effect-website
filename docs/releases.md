@@ -70,11 +70,11 @@ on the `production` environment — staging records every trunk CI run:
 | --- | --- | --- |
 | `LINEAR_ACCESS_KEY_STAGING` | secret | Access key for the **Website Build Staging** Linear release pipeline. |
 
-Without either Linear key the matching sync step is skipped rather than failed,
-so a missing pipeline does not block CI or a promotion.
-
 Adding required reviewers to that `production` environment is what puts a human
 approval in front of a promotion, if that is wanted later.
+
+Without either Linear key the matching sync step is skipped rather than failed,
+so a missing pipeline does not block CI or a promotion.
 
 ## Linear
 
@@ -104,7 +104,11 @@ table above. Do not use a personal API key. The action is bound to whichever
 pipeline issued the key.
 
 The first sync in each pipeline only sees the current commit — there is no
-previous SHA to bound the range from. To backfill, re-run with an explicit
-`--base-ref` pointing at the last commit that should count as already released.
-A rollback (re-promoting an older tag) does not rewrite Linear history: the
-original production release stays as the one that first shipped those issues.
+previous SHA to bound the range from.
+
+To backfill an already-promoted tag, re-run **Release** (*Run workflow*) with
+that tag and `base_ref` set to the previous release tag. Linear scans
+`<base_ref>..HEAD` exclusively, so `v0.2.0` with `base_ref=v0.1.0` attaches
+every `SPA-` issue in that range rather than only HEAD. A rollback
+(re-promoting an older tag) does not rewrite Linear history: the original
+production release stays as the one that first shipped those issues.
