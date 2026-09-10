@@ -38,6 +38,7 @@ import {
 import type { Route, Station, TravelTimes } from '../api/scenarios'
 import type { PrerenderedIsochrone } from '../api/prerenderedIsochrones'
 import type { ChainResponse } from '../fixtures/isochrone'
+import { formatTimeRemaining } from '../components/timeRemaining'
 
 const stubStations: Station[] = [
   {
@@ -613,6 +614,18 @@ describe('ScenarioView', () => {
       await wrapper.findAll('[data-testid="time-remaining-row"]')[2].trigger('mouseenter')
 
       expect(wrapper.findComponent({ name: 'MapView' }).props('activeStation')).toBe('sj')
+    })
+
+    it('hands the map the same remaining number the card shows for that station', async () => {
+      const wrapper = await plot()
+      const remainingSecs = wrapper.findComponent({ name: 'MapView' }).props('remainingSecs') as
+        (slug: string) => number | null
+      const sf = wrapper.findAll('[data-testid="time-remaining-row"]')
+        .find((row) => row.text().includes('San Francisco'))
+        ?.get('[data-testid="time-remaining-value"]').text()
+
+      expect(formatTimeRemaining(remainingSecs('sf')!)).toBe(sf)
+      expect(remainingSecs('nowhere')).toBeNull()
     })
 
     it('takes a station hovered on the map back and expands its row', async () => {

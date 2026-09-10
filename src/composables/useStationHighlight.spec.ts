@@ -78,7 +78,11 @@ function stationEvent(slug: string, name: string, lng: number, lat: number) {
   }
 }
 
-function setup(idleCursor = () => '', egressSlugs = () => new Set(['sf', 'gilroy'])) {
+function setup(
+  idleCursor = () => '',
+  egressSlugs = () => new Set(['sf', 'gilroy']),
+  remainingSecs: (slug: string) => number | null = () => null,
+) {
   const mock = makeMockMap()
   let active: string | null = null
   const onHover = vi.fn((slug: string | null) => { active = slug })
@@ -86,13 +90,18 @@ function setup(idleCursor = () => '', egressSlugs = () => new Set(['sf', 'gilroy
     idleCursor,
     egressSlugs,
     activeSlug: () => active,
+    remainingSecs,
     onHover,
   })
   return { ...mock, highlight, onHover, setActive: (slug: string | null) => { active = slug } }
 }
 
+function popupNode(): HTMLElement | undefined {
+  return mockPopupSetDOMContent.mock.calls[0]?.[0] as HTMLElement | undefined
+}
+
 function popupNamed(name: string): boolean {
-  const node = mockPopupSetDOMContent.mock.calls[0]?.[0] as HTMLElement | undefined
+  const node = popupNode()
   return node?.textContent === name && node.className.includes(TOOLTIP_PANEL_CLASS.split(' ')[0])
 }
 
@@ -165,6 +174,7 @@ describe('useStationHighlight', () => {
       fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))
 
       expect(popupNamed('San Francisco')).toBe(true)
+      expect(popupNode()?.textContent).not.toContain('left')
       expect(mockPopupAddTo).toHaveBeenCalled()
     })
 
@@ -279,6 +289,50 @@ describe('useStationHighlight', () => {
       highlight.sync()
 
       expect(mockPopupAddTo).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('remaining time in the popup', () => {
+    it('names a reachable station and how much budget is left on leaving it', () => {
+      const { fire } = setup(undefined, undefined, (slug) => slug === 'sf' ? 2700 : null)
+
+      fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))
+
+      const node = popupNode()
+      expect(node?.textContent).toContain('San Francisco')
+      expect(node?.textContent).toContain('45m left')
+      expect(node?.className).toContain(TOOLTIP_PANEL_CLASS.split(' ')[0])
+      expect(Popup).toHaveBeenCalledWith(expect.objectContaining({
+        className: TOOLTIP_MAP_POPUP_CLASS,
+      }))
+    })
+
+    it('renders hours the way the card does', () => {
+      const { fire } = setup(undefined, undefined, () => 5400)
+
+      fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('sj', 'San Jose', -121.9, 37.3))
+
+      expect(popupNode()?.textContent).toContain('1h 30m left')
+      expect(popupNode()?.textContent).not.toContain('90m left')
+    })
+
+    it('stays name-only when the lookup has nothing for that slug', () => {
+      const { fire } = setup(undefined, undefined, () => null)
+
+      fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))
+
+      expect(popupNamed('San Francisco')).toBe(true)
+      expect(popupNode()?.textContent).not.toContain('left')
+      expect(popupNode()?.textContent).not.toContain('0m')
+    })
+
+    it('prints 0m left when the rider leaves with nothing, so a finished trip is not an unreachable one', () => {
+      const { fire } = setup(undefined, undefined, () => 0)
+
+      fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('gilroy', 'Gilroy', -121.57, 37.0))
+
+      expect(popupNode()?.textContent).toContain('Gilroy')
+      expect(popupNode()?.textContent).toContain('0m left')
     })
   })
 

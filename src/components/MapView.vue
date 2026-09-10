@@ -30,6 +30,7 @@ const props = defineProps<{
   placementArmed?: boolean
   placementCue?: string
   activeStation?: string | null
+  remainingSecs?: (slug: string) => number | null
 }>()
 
 const emit = defineEmits<{
@@ -118,6 +119,7 @@ const modules = mapModules([
     idleCursor,
     egressSlugs: () => egressStationSlugs(props.isochroneData),
     activeSlug: () => props.activeStation ?? null,
+    remainingSecs: (slug) => props.remainingSecs?.(slug) ?? null,
     onHover: (slug) => emit('station-hover', slug),
   }),
   stopPreviewModule(stopPreviewPairs),
