@@ -1202,6 +1202,17 @@ describe('MapView', () => {
       expect(mockPopupAddTo).toHaveBeenCalled()
     })
 
+    it('does not bind station hover until the route layer has attached', async () => {
+      const wrapper = mount(MapView, { props: defaultProps })
+      await triggerMapLoad()
+
+      expect(mockOn.mock.calls.some((args: unknown[]) => args[0] === 'mouseenter' && args[1] === STATION_DOTS_LAYER_ID)).toBe(false)
+
+      await wrapper.setProps({ routes: [stubRoute], stations: [stubStation] })
+
+      expect(mockOn).toHaveBeenCalledWith('mouseenter', STATION_DOTS_LAYER_ID, expect.any(Function))
+    })
+
     it('promotes the active station\'s polygon above the rest via the dedicated highlight layer', async () => {
       mockGetLayer.mockImplementation((id: string) =>
         [ISOCHRONE_LAYER_ID, ISOCHRONE_ORIGIN_LAYER_ID, ISOCHRONE_HIGHLIGHT_LAYER_ID, ISOCHRONE_HIGHLIGHT_OUTLINE_LAYER_ID].includes(id) ? { id } : undefined,

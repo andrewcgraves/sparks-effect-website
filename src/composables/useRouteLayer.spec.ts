@@ -39,7 +39,7 @@ const station: Station = {
   platform_height: '0',
 }
 
-function makeMockMap(): Pick<Map, 'addSource' | 'addLayer' | 'getSource'> {
+function makeMockMap(): Pick<Map, 'addSource' | 'addLayer' | 'getSource' | 'getLayer'> {
   return {
     addSource: vi.fn(),
     addLayer: vi.fn(),
@@ -47,6 +47,7 @@ function makeMockMap(): Pick<Map, 'addSource' | 'addLayer' | 'getSource'> {
     // The module's sync reaches for the progress sources through optional
     // chaining precisely so that case is a no-op rather than a crash.
     getSource: vi.fn(),
+    getLayer: vi.fn(),
   }
 }
 

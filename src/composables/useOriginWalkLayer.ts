@@ -3,6 +3,7 @@ import type { FeatureCollection, LineString } from 'geojson'
 import type { MapModule } from './mapLifecycle'
 import type { ChainResponse } from '../fixtures/isochrone'
 import { readThemeToken } from '../themeTokens'
+import { addLayerInStack } from './layerStack'
 
 export const ORIGIN_WALK_SOURCE_ID = 'origin-walk-source'
 export const ORIGIN_WALK_LAYER_ID = 'origin-walk-line'
@@ -60,7 +61,7 @@ export function useOriginWalkLayer(
     data: line,
   })
 
-  map.addLayer({
+  addLayerInStack(map, {
     id: ORIGIN_WALK_LAYER_ID,
     type: 'line',
     source: ORIGIN_WALK_SOURCE_ID,

@@ -105,27 +105,37 @@ const stopPreviewPairs = () => props.stopPreviewPairs ?? null
 
 const idleCursor = () => (props.placementArmed ? 'crosshair' : '')
 
+const routeLayer = routeLayerModule(
+  () => ({ routes: props.routes, stations: props.stations }),
+  () => props.isochroneData,
+  isochroneColors.egress,
+)
+
+const stationHighlight = stationHighlightModule({
+  idleCursor,
+  egressSlugs: () => egressStationSlugs(props.isochroneData),
+  activeSlug: () => props.activeStation ?? null,
+  onHover: (slug) => emit('station-hover', slug),
+})
+stationHighlight.requires = [routeLayer]
+
+const stopPreview = stopPreviewModule(stopPreviewPairs)
+
+const stopDrag = stopDragModule(stopPreviewPairs, {
+  onDrag: (id, coord) => emit('stop-drag', id, coord),
+  onDragEnd: (id, coord) => emit('stop-drag-end', id, coord),
+  idleCursor,
+})
+stopDrag.requires = [stopPreview]
+
 const modules = mapModules([
-  routeLayerModule(
-    () => ({ routes: props.routes, stations: props.stations }),
-    () => props.isochroneData,
-    isochroneColors.egress,
-  ),
+  routeLayer,
   isochroneLayerModule(() => props.isochroneData, isochroneColors),
   originWalkModule({ data: () => props.isochroneData }, isochroneColors.origin),
   originMarkerModule(() => props.origin),
-  stationHighlightModule({
-    idleCursor,
-    egressSlugs: () => egressStationSlugs(props.isochroneData),
-    activeSlug: () => props.activeStation ?? null,
-    onHover: (slug) => emit('station-hover', slug),
-  }),
-  stopPreviewModule(stopPreviewPairs),
-  stopDragModule(stopPreviewPairs, {
-    onDrag: (id, coord) => emit('stop-drag', id, coord),
-    onDragEnd: (id, coord) => emit('stop-drag-end', id, coord),
-    idleCursor,
-  }),
+  stationHighlight,
+  stopPreview,
+  stopDrag,
 ])
 
 function syncModules(): void {
