@@ -30,6 +30,13 @@ comments that only repeat a declaration.
 
 ## Agent skills
 
+### Ticket template
+
+The canonical ticket shape for the whole project — front block, definition of ready
+for `ready-for-agent`, six paste-ready bodies, cross-repo seams — is
+[sparks-effect-api's `docs/agents/ticket-template.md`](https://github.com/andrewcgraves/sparks-effect-api/blob/main/docs/agents/ticket-template.md),
+which also carries the steps for installing the variants as Linear templates.
+
 ### Issue tracker
 
 Issues live in Linear, team `Sparks Effect` (`SPA-` prefix). See `docs/agents/issue-tracker.md`.
