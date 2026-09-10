@@ -6,7 +6,7 @@ import PrerenderedIsochrones from '../components/PrerenderedIsochrones.vue'
 import TimeBetweenStations from '../components/TimeBetweenStations.vue'
 import TimeRemaining from '../components/TimeRemaining.vue'
 import { segmentStationTimeGroups } from '../components/stationTimes'
-import { buildTimeRemainingGraph, shortLineName } from '../components/timeRemaining'
+import { buildTimeRemainingGraph, remainingSecsBySlug, shortLineName } from '../components/timeRemaining'
 import { ORIGIN_PICK_CUE } from '../components/placementCues'
 import { useScenario } from '../composables/useScenario'
 import { useScenarioTravelTimes } from '../composables/useScenarioTravelTimes'
@@ -63,6 +63,12 @@ const timeRemaining = computed(() =>
   }),
 )
 
+const remainingBySlug = computed(() => remainingSecsBySlug(timeRemaining.value))
+
+function remainingSecs(slug: string): number | null {
+  return remainingBySlug.value(slug)
+}
+
 const selectedPrerenderedId = ref<string | null>(null)
 
 function onOriginChange(coords: { lat: number; lng: number } | null) {
@@ -110,6 +116,7 @@ async function handleFormSubmit(payload: { lat: number; lng: number; duration: n
           :placement-armed="pickArmed"
           :placement-cue="ORIGIN_PICK_CUE"
           :active-station="activeStation?.slug ?? null"
+          :remaining-secs="remainingSecs"
           @map-click="onMapClick"
           @station-hover="highlight($event, true)"
         />

@@ -6,6 +6,7 @@ import {
   formatDuration,
   formatProgressPercent,
   formatTimeRemaining,
+  remainingSecsBySlug,
   laneWidthFor,
   shortLineName,
   ACCESS_VIEW_KEY,
@@ -573,6 +574,29 @@ describe('formatTimeRemaining', () => {
 
   it('never reports a negative time', () => {
     expect(formatTimeRemaining(-60)).toBe('0m')
+  })
+})
+
+describe('remainingSecsBySlug', () => {
+  it('returns nothing when the graph has no stations', () => {
+    const lookup = remainingSecsBySlug({ views: [] })
+    expect(lookup('alpha')).toBeNull()
+  })
+
+  it('looks up departure remaining for a station the graph reached', () => {
+    const lookup = remainingSecsBySlug(build(INTERCHANGE))
+    expect(lookup('alpha')).toBe(rowFor(viewFor(INTERCHANGE, 'trunk'), 'alpha').remainingSecs)
+    expect(lookup('beta')).toBe(rowFor(viewFor(INTERCHANGE, 'trunk'), 'beta').remainingSecs)
+  })
+
+  it('returns nothing for a station that is not in the graph', () => {
+    expect(remainingSecsBySlug(build(INTERCHANGE))('nowhere')).toBeNull()
+  })
+
+  it('skips the starting location, which has no slug to hang a map popup on', () => {
+    const graph = build(INTERCHANGE)
+    expect(graph.views[0].rows[0].slug).toBeNull()
+    expect(remainingSecsBySlug(graph)('origin')).toBeNull()
   })
 })
 
