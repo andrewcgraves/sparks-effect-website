@@ -39,7 +39,7 @@ import {
   ISOCHRONE_CENTER,
 } from '../fixtures/isochrone'
 import type { ChainResponse, StarterWalk } from '../fixtures/isochrone'
-import type { Route, Station, Service } from '../api/scenarios'
+import type { Route, Station } from '../api/scenarios'
 
 const mockSetData = vi.fn()
 
@@ -165,21 +165,6 @@ const stubStation: Station = {
   platform_height: '0',
 }
 
-const stubService: Service = {
-  id: 'svc1',
-  name: 'Northbound Express',
-  vehicle_type: {
-    id: 'vt1',
-    name: 'High-Speed Rail',
-    propulsion: 'electric',
-    max_speed_kmh: 320,
-  },
-  direction: 'northbound',
-  provenance: 'calibrated',
-  stop_count: 2,
-  frequency_windows: [],
-}
-
 const routedToStub: StarterWalk = {
   station_slug: 'sf',
   geometry: {
@@ -220,7 +205,7 @@ const walkedToStub = chainWith(
   routedToStub,
 )
 
-const defaultProps = { isochroneData: null, loading: false, routes: [], stations: [], services: [] }
+const defaultProps = { isochroneData: null, loading: false, routes: [], stations: [] }
 
 const stubRouteCorners = routeBoundsCorners([stubRoute]) as [[number, number], [number, number]]
 
@@ -927,11 +912,6 @@ describe('MapView', () => {
   it('does not fly to origin before the map load event', () => {
     mount(MapView, { props: { ...defaultProps, origin: { lat: 34.05, lng: -118.25 } } })
     expect(mockFlyTo).not.toHaveBeenCalled()
-  })
-
-  it('accepts a services prop', () => {
-    const wrapper = mount(MapView, { props: { ...defaultProps, services: [stubService] } })
-    expect(wrapper.props('services')).toEqual([stubService])
   })
 
   describe('stopPreviewPairs', () => {

@@ -2,11 +2,9 @@ import { ApiError } from './api/authoring/client'
 import type { TravelMode } from './api/authoring/types'
 import type { Station } from './api/scenarios'
 
-export type Mode = TravelMode
-
 export const ORIGIN_OUT_OF_RANGE_CODE = 'origin_out_of_range'
 
-const SPEED_KMH: Record<Mode, number> = {
+const SPEED_KMH: Record<TravelMode, number> = {
   walk: 5,
   bike: 15,
   drive: 80,
@@ -15,7 +13,7 @@ const SPEED_KMH: Record<Mode, number> = {
 
 const EARTH_RADIUS_KM = 6371
 
-export function reachKm(mode: Mode, budgetMins: number): number {
+export function reachKm(mode: TravelMode, budgetMins: number): number {
   if (budgetMins <= 0) return 0
   return (SPEED_KMH[mode] * budgetMins) / 60
 }
@@ -45,7 +43,7 @@ export interface OriginReach {
 export function checkOriginReach(
   stations: Station[],
   origin: { lat: number; lng: number },
-  mode: Mode,
+  mode: TravelMode,
   budgetMins: number,
 ): OriginReach | null {
   if (stations.length === 0) return null
@@ -72,7 +70,7 @@ function formatKm(km: number): string {
   return `${Math.round(km)} km`
 }
 
-const MODE_VERB: Record<Mode, string> = {
+const MODE_VERB: Record<TravelMode, string> = {
   walk: 'walk',
   bike: 'ride',
   drive: 'drive',
@@ -81,7 +79,7 @@ const MODE_VERB: Record<Mode, string> = {
 
 export function outOfRangeMessage(
   reach: Pick<OriginReach, 'nearestKm' | 'maxReachKm'>,
-  mode: Mode,
+  mode: TravelMode,
   budgetMins: number,
 ): string {
   return (
@@ -92,7 +90,7 @@ export function outOfRangeMessage(
   )
 }
 
-export function outOfRangeError(err: unknown, mode: Mode, budgetMins: number): string | null {
+export function outOfRangeError(err: unknown, mode: TravelMode, budgetMins: number): string | null {
   if (!(err instanceof ApiError) || err.code !== ORIGIN_OUT_OF_RANGE_CODE) return null
 
   const detail = err.detail as { nearest_station_km?: unknown; max_reach_km?: unknown } | null

@@ -62,7 +62,6 @@ function formatMeters(total: number): string {
         :loading="props.loading"
         :routes="props.mapRoutes ?? []"
         :stations="props.mapStations ?? []"
-        :services="[]"
         :placement-armed="pickArmed"
         :placement-cue="ORIGIN_PICK_CUE"
         :remaining-secs="remainingSecs"

@@ -112,7 +112,6 @@ async function handleFormSubmit(payload: { lat: number; lng: number; duration: n
           :loading="isLoading"
           :routes="routes"
           :stations="stations"
-          :services="services"
           :placement-armed="pickArmed"
           :placement-cue="ORIGIN_PICK_CUE"
           :active-station="activeStation?.slug ?? null"

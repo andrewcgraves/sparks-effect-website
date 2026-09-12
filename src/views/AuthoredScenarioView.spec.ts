@@ -16,7 +16,7 @@ vi.mock('../api/authoring/services', () => ({
 }))
 vi.mock('../components/MapView.vue', () => ({
   default: {
-    props: ['origin', 'isochroneData', 'loading', 'routes', 'stations', 'services'],
+    props: ['origin', 'isochroneData', 'loading', 'routes', 'stations'],
     template: '<div data-testid="map" :data-stations="stations.length" :data-routes="routes.length" />',
   },
 }))

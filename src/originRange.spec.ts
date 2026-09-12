@@ -68,7 +68,7 @@ describe('reachKm', () => {
   })
 
   // SPA-248's lesson: a mode added to the set without a speed is a zero
-  // radius, which would refuse every origin on earth. Record<Mode, number>
+  // radius, which would refuse every origin on earth. Record<TravelMode, number>
   // makes that a compile error; this asserts the runtime table is the same set.
   it('has an assumed speed for every travel mode', () => {
     for (const mode of TRAVEL_MODES) {
