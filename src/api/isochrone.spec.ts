@@ -1,7 +1,8 @@
 // @vitest-environment node
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fetchIsochrone, IsochroneApiError, type IsochroneRequest } from './isochrone'
+import { fetchIsochrone, type IsochroneRequest } from './isochrone'
+import { ApiError } from './authoring/client'
 import type { ChainResponse } from '../fixtures/isochrone'
 
 const validRequest: IsochroneRequest = {
@@ -100,29 +101,52 @@ describe('fetchIsochrone', () => {
     expect(result).toEqual(mockChainResponse)
   })
 
-  it('throws an IsochroneApiError carrying the status when the enqueue is rejected', async () => {
+  it('throws an ApiError carrying the status when the enqueue is rejected', async () => {
     vi.mocked(fetch).mockResolvedValueOnce({ ok: false, status: 500 } as Response)
 
     await expect(fetchIsochrone(validRequest)).rejects.toThrow('500')
     expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1)
   })
 
-  it('sets the status property on the thrown IsochroneApiError', async () => {
+  it('sets the status property on the thrown ApiError', async () => {
     vi.mocked(fetch).mockResolvedValueOnce({ ok: false, status: 422 } as Response)
 
     await fetchIsochrone(validRequest).then(
       () => { throw new Error('expected rejection') },
       (err: unknown) => {
-        expect(err).toBeInstanceOf(IsochroneApiError)
-        expect((err as IsochroneApiError).status).toBe(422)
+        expect(err).toBeInstanceOf(ApiError)
+        expect((err as ApiError).status).toBe(422)
       },
     )
   })
 
-  // A rejected poll is still this request failing, so it is reported the same
-  // way a rejected enqueue is rather than as a stray authoring-client error
-  // this module's callers have no case for.
-  it('reports a rejected poll as an IsochroneApiError carrying the poll status', async () => {
+  // SPA-290: a seeded isochrone used to arrive in a second envelope that kept
+  // only the status, so the code and detail that name the fault were reachable
+  // only through `cause`. One envelope, and the whole vocabulary survives.
+  it('keeps the error code and detail of a refused enqueue', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: false,
+      status: 422,
+      json: async () => ({
+        error: 'too far',
+        code: 'origin_out_of_range',
+        detail: { nearest_station_km: 60.6, max_reach_km: 2.5 },
+      }),
+    } as Response)
+
+    await fetchIsochrone(validRequest).then(
+      () => { throw new Error('expected rejection') },
+      (err: unknown) => {
+        expect(err).toBeInstanceOf(ApiError)
+        expect((err as ApiError).code).toBe('origin_out_of_range')
+        expect((err as ApiError).detail).toEqual({ nearest_station_km: 60.6, max_reach_km: 2.5 })
+      },
+    )
+  })
+
+  // A rejected poll is still this request failing, and it reaches callers the
+  // same way a rejected enqueue does.
+  it('reports a rejected poll as an ApiError carrying the poll status', async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce({ ok: true, status: 202, json: async () => ({ id: 'rj1' }) } as Response)
       .mockResolvedValueOnce({ ok: false, status: 404, json: async () => ({}) } as Response)
@@ -130,8 +154,8 @@ describe('fetchIsochrone', () => {
     await fetchIsochrone(validRequest).then(
       () => { throw new Error('expected rejection') },
       (err: unknown) => {
-        expect(err).toBeInstanceOf(IsochroneApiError)
-        expect((err as IsochroneApiError).status).toBe(404)
+        expect(err).toBeInstanceOf(ApiError)
+        expect((err as ApiError).status).toBe(404)
       },
     )
   })

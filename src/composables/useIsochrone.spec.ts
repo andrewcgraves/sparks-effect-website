@@ -2,7 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useIsochrone } from './useIsochrone'
-import { IsochroneApiError, type IsochroneRequest } from '../api/isochrone'
+import type { IsochroneRequest } from '../api/isochrone'
 import { ApiError } from '../api/authoring/client'
 import { JobFailedError } from '../api/polling'
 import type { Station } from '../api/scenarios'
@@ -92,7 +92,7 @@ describe('useIsochrone', () => {
   })
 
   it('sets a generic error message when the fetch throws', async () => {
-    vi.mocked(fetchIsochrone).mockRejectedValueOnce(new IsochroneApiError(500))
+    vi.mocked(fetchIsochrone).mockRejectedValueOnce(new ApiError('boom', 500))
     const { data, error, loading, generate } = useIsochrone()
     await generate(request)
     expect(error.value).toBe('Failed to generate isochrone. Please try again.')
@@ -102,7 +102,7 @@ describe('useIsochrone', () => {
 
   it('logs the real error detail via console.error on failure', async () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
-    const realError = new IsochroneApiError(500)
+    const realError = new ApiError('boom', 500)
     vi.mocked(fetchIsochrone).mockRejectedValueOnce(realError)
     const { generate } = useIsochrone()
     await generate(request)
@@ -111,7 +111,7 @@ describe('useIsochrone', () => {
 
   it('fires trackIsochroneError with the HTTP status on an API error', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
-    vi.mocked(fetchIsochrone).mockRejectedValueOnce(new IsochroneApiError(503))
+    vi.mocked(fetchIsochrone).mockRejectedValueOnce(new ApiError('boom', 503))
     const { generate } = useIsochrone()
     await generate(request)
     expect(trackIsochroneError).toHaveBeenCalledWith('walk', 30, 503)
@@ -189,12 +189,10 @@ describe('useIsochrone', () => {
     it('reports the API refusal in its own terms', async () => {
       vi.spyOn(console, 'error').mockImplementation(() => {})
       vi.mocked(fetchIsochrone).mockRejectedValueOnce(
-        new IsochroneApiError(422, {
-          cause: new ApiError('too far', 422, 'origin_out_of_range', {
-            nearest_station_slug: 'sf',
-            nearest_station_km: 60.6,
-            max_reach_km: 2.5,
-          }),
+        new ApiError('too far', 422, 'origin_out_of_range', {
+          nearest_station_slug: 'sf',
+          nearest_station_km: 60.6,
+          max_reach_km: 2.5,
         }),
       )
       const { error, generate } = useIsochrone()
@@ -248,11 +246,7 @@ describe('useIsochrone', () => {
   describe('an enqueue the API refused as backlog-full', () => {
     it('says the service is busy rather than the generic failure', async () => {
       vi.spyOn(console, 'error').mockImplementation(() => {})
-      vi.mocked(fetchIsochrone).mockRejectedValueOnce(
-        new IsochroneApiError(429, {
-          cause: new ApiError('busy', 429, 'backlog_full'),
-        }),
-      )
+      vi.mocked(fetchIsochrone).mockRejectedValueOnce(new ApiError('busy', 429, 'backlog_full'))
       const { error, generate } = useIsochrone()
 
       await generate(request)
@@ -264,7 +258,7 @@ describe('useIsochrone', () => {
 
   it('clears a prior error at the start of the next generate', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
-    vi.mocked(fetchIsochrone).mockRejectedValueOnce(new IsochroneApiError(500))
+    vi.mocked(fetchIsochrone).mockRejectedValueOnce(new ApiError('boom', 500))
     const { error, generate } = useIsochrone()
     await generate(request)
     expect(error.value).not.toBeNull()
@@ -291,7 +285,7 @@ describe('useIsochrone', () => {
     // nothing left to describe.
     it("clears a failed generate's error", async () => {
       vi.spyOn(console, 'error').mockImplementation(() => {})
-      vi.mocked(fetchIsochrone).mockRejectedValueOnce(new IsochroneApiError(500))
+      vi.mocked(fetchIsochrone).mockRejectedValueOnce(new ApiError('boom', 500))
       const { data, error, generate, show } = useIsochrone()
       await generate(request)
       expect(error.value).not.toBeNull()
