@@ -28,15 +28,10 @@ because they restated their declarations. Domain meaning belongs in `CONTEXT.md`
 rationale belongs in in-function comments and the README. Do not reintroduce
 comments that only repeat a declaration.
 
-## Agent skills
+## Issues
 
-### Issue tracker
-
-Issues live in Linear, team `Sparks Effect` (`SPA-` prefix). See `docs/agents/issue-tracker.md`.
-
-### Triage labels
-
-The five canonical roles, each label string equal to its name. See `docs/agents/triage-labels.md`.
+Issues live in Linear, team `Sparks Effect` (`SPA-` prefix). Commits and PR titles
+must include the identifier in the subject, e.g. `SPA-84: add authoring API client, domain types, and job-polling helper`.
 
 ## Branching
 
