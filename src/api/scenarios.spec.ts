@@ -1,6 +1,7 @@
 // @vitest-environment node
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ApiError, setAuthTokenProvider } from './authoring/client'
 import {
   fetchScenario,
   fetchScenarioTravelTimes,
@@ -72,6 +73,7 @@ describe('fetchScenario', () => {
   })
 
   afterEach(() => {
+    setAuthTokenProvider(null)
     vi.restoreAllMocks()
     vi.unstubAllEnvs()
   })
@@ -101,9 +103,37 @@ describe('fetchScenario', () => {
     expect(result.services).toEqual([stubService])
   })
 
-  it('throws when the response is not ok', async () => {
-    vi.mocked(fetch).mockResolvedValueOnce({ ok: false, status: 404 } as Response)
-    await expect(fetchScenario('ca-hsr')).rejects.toThrow()
+  // SPA-290: a plain Error is what every fault-narrowing function in the app
+  // rejects on its first line, so this endpoint could not reach any of them.
+  // An ApiError carries the status and the API's own words instead. This route
+  // refuses one way only — a code-less `scenario not found` — so there is no
+  // code here to read, and none is invented.
+  it('throws an ApiError carrying the status and message of a refusal', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      json: async () => ({ error: 'scenario not found' }),
+    } as Response)
+
+    const err = await fetchScenario('ca-hsr').catch((e: unknown) => e)
+
+    expect(err).toBeInstanceOf(ApiError)
+    expect((err as ApiError).status).toBe(404)
+    expect((err as ApiError).message).toContain('scenario not found')
+    expect((err as ApiError).code).toBeUndefined()
+    expect((err as ApiError).detail).toBeUndefined()
+  })
+
+  // These reads are public, but they are on the shared client now, so a
+  // signed-in reader's session token rides along as it does everywhere else.
+  // The API ignores it on this route; pinned so a change either way is a
+  // decision rather than a surprise.
+  it('sends the ambient session token', async () => {
+    setAuthTokenProvider(() => 'tok-1')
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: true, json: async () => stubDetail } as Response)
+    await fetchScenario('ca-hsr')
+    const init = vi.mocked(fetch).mock.calls[0][1] as RequestInit
+    expect(new Headers(init.headers).get('Authorization')).toBe('Bearer tok-1')
   })
 
   it('sends a X-Trace-Id header', async () => {
@@ -144,9 +174,17 @@ describe('fetchScenarioTravelTimes', () => {
     expect(result.segments).toEqual([{ from: 'sf', to: 'sj', run_seconds: 1800 }])
   })
 
-  it('throws when the response is not ok', async () => {
-    vi.mocked(fetch).mockResolvedValueOnce({ ok: false, status: 404 } as Response)
-    await expect(fetchScenarioTravelTimes('ca-hsr')).rejects.toThrow()
+  it('throws an ApiError carrying the status when the response is not ok', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      json: async () => ({ error: 'scenario not found' }),
+    } as Response)
+
+    const err = await fetchScenarioTravelTimes('ca-hsr').catch((e: unknown) => e)
+
+    expect(err).toBeInstanceOf(ApiError)
+    expect((err as ApiError).status).toBe(404)
   })
 
   it('sends a X-Trace-Id header', async () => {

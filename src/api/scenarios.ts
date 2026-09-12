@@ -1,5 +1,5 @@
+import { apiRequest } from './authoring/client'
 import { listRoutes } from './authoring/routes'
-import { newTraceId } from './traceId'
 
 export type Provenance = 'computed' | 'calibrated' | 'frozen'
 
@@ -73,24 +73,12 @@ export interface ScenarioDetail {
   services: Service[]
 }
 
-function apiBase(): string {
-  return import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
+export function fetchScenario(scenarioSlug: string): Promise<ScenarioDetail> {
+  return apiRequest<ScenarioDetail>(`/api/scenarios/${scenarioSlug}`)
 }
 
-export async function fetchScenario(scenarioSlug: string): Promise<ScenarioDetail> {
-  const res = await fetch(`${apiBase()}/api/scenarios/${scenarioSlug}`, {
-    headers: { 'X-Trace-Id': newTraceId() },
-  })
-  if (!res.ok) throw new Error(`Failed to fetch scenario ${scenarioSlug}: ${res.status}`)
-  return res.json() as Promise<ScenarioDetail>
-}
-
-export async function fetchScenarioTravelTimes(scenarioSlug: string): Promise<TravelTimes> {
-  const res = await fetch(`${apiBase()}/api/scenarios/${scenarioSlug}/travel-times`, {
-    headers: { 'X-Trace-Id': newTraceId() },
-  })
-  if (!res.ok) throw new Error(`Failed to fetch travel times for ${scenarioSlug}: ${res.status}`)
-  return res.json() as Promise<TravelTimes>
+export function fetchScenarioTravelTimes(scenarioSlug: string): Promise<TravelTimes> {
+  return apiRequest<TravelTimes>(`/api/scenarios/${scenarioSlug}/travel-times`)
 }
 
 export interface ScenarioSummary {
