@@ -15,7 +15,7 @@ import { mapModules } from '../composables/mapLifecycle'
 import { ISOCHRONE_BOUNDS_CORNERS, ISOCHRONE_CENTER, isochroneBoundsCorners } from '../fixtures/isochrone'
 import type { ChainResponse } from '../fixtures/isochrone'
 import { resolveMapStyleUrl } from '../mapStyle'
-import type { Route, Station, Service } from '../api/scenarios'
+import type { Route, Station } from '../api/scenarios'
 import type { SnapCoord as LatLng } from '../api/authoring/types'
 
 const props = defineProps<{
@@ -24,7 +24,6 @@ const props = defineProps<{
   origin?: { lat: number; lng: number } | null
   routes: Route[]
   stations: Station[]
-  services: Service[]
   hideIsochroneLegend?: boolean
   stopPreviewPairs?: StopPreviewPair[]
   placementArmed?: boolean

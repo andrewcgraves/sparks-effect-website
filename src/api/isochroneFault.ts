@@ -1,6 +1,7 @@
 import { trackIsochroneError, trackIsochroneRequest } from '../analytics/index'
-import { checkOriginReach, outOfRangeError, outOfRangeMessage, type Mode } from '../originRange'
+import { checkOriginReach, outOfRangeError, outOfRangeMessage } from '../originRange'
 import { ApiError } from './authoring/client'
+import type { TravelMode } from './authoring/types'
 import { JobFailedError } from './polling'
 import { backlogFullError } from './routingJobs'
 import type { Station } from './scenarios'
@@ -15,7 +16,7 @@ function httpStatus(err: unknown): number | null {
 export function isochroneRangeRefusal(
   stations: Station[],
   origin: { lat: number; lng: number },
-  mode: Mode,
+  mode: TravelMode,
   budgetMins: number,
 ): string | null {
   const reach = checkOriginReach(stations, origin, mode, budgetMins)
@@ -24,11 +25,11 @@ export function isochroneRangeRefusal(
   return outOfRangeMessage(reach, mode, budgetMins)
 }
 
-export function isochroneRequested(mode: Mode, budgetMins: number): void {
+export function isochroneRequested(mode: TravelMode, budgetMins: number): void {
   trackIsochroneRequest(mode, budgetMins)
 }
 
-export function isochroneFault(err: unknown, mode: Mode, budgetMins: number): string {
+export function isochroneFault(err: unknown, mode: TravelMode, budgetMins: number): string {
   trackIsochroneError(mode, budgetMins, httpStatus(err))
 
   // Seeded and authored isochrones are the same worker failing the same way,

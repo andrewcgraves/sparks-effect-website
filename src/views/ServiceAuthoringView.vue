@@ -475,7 +475,6 @@ const allEdges = computed<GraphEdge[]>(() => compiledGraph.value?.services.flatM
             :isochrone-data="null"
             :routes="mapRoutes"
             :stations="[]"
-            :services="[]"
             :stop-preview-pairs="stopPreviewPairs"
             :placement-armed="placingStops"
             :placement-cue="STOP_PLACEMENT_CUE"
