@@ -14,6 +14,13 @@ import {
   STATION_DOT_DEFAULT_COLOR,
   PROGRESS_LINE_LAYER_ID,
   PROGRESS_CAP_LAYER_ID,
+  RIDDEN_LINE_LAYER_ID,
+  RIDDEN_SOURCE_ID,
+  RIDDEN_LINE_WIDTH,
+  UNRIDDEN_LINE_WIDTH,
+  riddenLegs,
+  riddenLines,
+  routeLinePaint,
   tripProgressLines,
   tripProgressCaps,
   type TripProgressLines,
@@ -51,6 +58,16 @@ function makeMockMap(): Pick<Map, 'addSource' | 'addLayer' | 'getSource' | 'getL
   }
 }
 
+function paintOf(
+  map: Pick<Map, 'addLayer'>,
+  layerID: string,
+): Record<string, unknown> {
+  const call = (map.addLayer as ReturnType<typeof vi.fn>).mock.calls.find(
+    (c: unknown[]) => (c[0] as { id: string }).id === layerID,
+  )
+  return call?.[0].paint
+}
+
 const progressRoute: Route = {
   id: 'rt-progress',
   scenario_id: 's1',
@@ -69,6 +86,28 @@ const progressRoute: Route = {
 }
 
 const PROGRESS_LINE_LENGTH_M = 73305.61201653583
+
+// Stations on the progress route: two of its vertices, plus one nowhere near it.
+function stationAt(slug: string, coordinates: [number, number]): Station {
+  return {
+    id: `st-${slug}`,
+    scenario_id: 's1',
+    slug,
+    name: slug,
+    location: { type: 'Point', coordinates },
+    platform_height: '0',
+  }
+}
+
+const stationA = stationAt('a', [-122.0, 37.0])
+const stationB = stationAt('b', [-121.8, 37.2])
+const stationC = stationAt('c', [-121.8, 37.5])
+
+function chainWithLegs(
+  legs: NonNullable<ChainResponse['metadata']['reachable_stations'][number]['legs']>,
+): ChainResponse {
+  return chainWith([{ station_slug: 'b', access_mins: 5, remaining_mins: 10, legs }])
+}
 
 function progressEntry(overrides: Partial<TripProgress> = {}): TripProgress {
   return {
@@ -179,7 +218,16 @@ describe('useRouteLayer', () => {
 
   it('paints station dots with a match expression against the reachable slugs', () => {
     const map = makeMockMap()
-    useRouteLayer(map as Map, [], [station], ['sf', 'gilroy'], '#f28f29')
+    useRouteLayer(
+      map as Map,
+      [],
+      [station],
+      chainWith([
+        { station_slug: 'sf', access_mins: 5, remaining_mins: 10 },
+        { station_slug: 'gilroy', access_mins: 9, remaining_mins: 4 },
+      ]),
+      '#f28f29',
+    )
     const call = (map.addLayer as ReturnType<typeof vi.fn>).mock.calls.find(
       (c: unknown[]) => (c[0] as { id: string }).id === STATION_DOTS_LAYER_ID,
     )
@@ -268,6 +316,157 @@ describe('useRouteLayer', () => {
     })
   })
 
+  describe('ridden legs', () => {
+    const leg = (from: string, to: string) => ({ from, to, service_id: 'svc', secs: 600 })
+
+    it('reads the ridden path off every reachable station, drawing a shared hop once', () => {
+      const data = chainWith([
+        { station_slug: 'b', access_mins: 5, remaining_mins: 40, legs: [leg('a', 'b')] },
+        { station_slug: 'c', access_mins: 5, remaining_mins: 10, legs: [leg('a', 'b'), leg('b', 'c')] },
+      ])
+      expect(riddenLegs(data)).toEqual([
+        { from: 'a', to: 'b', service_id: 'svc' },
+        { from: 'b', to: 'c', service_id: 'svc' },
+      ])
+    })
+
+    it('finds nothing ridden on a plot with no transit legs, or no plot at all', () => {
+      expect(riddenLegs(null)).toEqual([])
+      expect(riddenLegs(chainWith([{ station_slug: 'b', access_mins: 5, remaining_mins: 10 }]))).toEqual([])
+    })
+
+    it('draws the alignment between the two stations, not a chord', () => {
+      const lines = riddenLines([progressRoute], [stationA, stationB], [
+        { from: 'a', to: 'b' },
+      ])
+      expect(lines.features).toHaveLength(1)
+      expect(lines.features[0].geometry.coordinates).toEqual([
+        [-122.0, 37.0],
+        [-122.0, 37.2],
+        [-121.8, 37.2],
+      ])
+    })
+
+    it('draws a leg ridden against the alignment direction from the station left behind', () => {
+      const lines = riddenLines([progressRoute], [stationA, stationB], [
+        { from: 'b', to: 'a' },
+      ])
+      expect(lines.features[0].geometry.coordinates).toEqual([
+        [-121.8, 37.2],
+        [-122.0, 37.2],
+        [-122.0, 37.0],
+      ])
+    })
+
+    it('draws every hop of a path, end to end', () => {
+      const lines = riddenLines([progressRoute], [stationA, stationB, stationC], [
+        { from: 'a', to: 'b' },
+        { from: 'b', to: 'c' },
+      ])
+      expect(lines.features).toHaveLength(2)
+      const first = lines.features[0].geometry.coordinates
+      const second = lines.features[1].geometry.coordinates
+      expect(second[0]).toEqual(first[first.length - 1])
+      expect(second[second.length - 1]).toEqual([-121.8, 37.5])
+    })
+
+    it('carries the leg it describes onto the feature', () => {
+      const lines = riddenLines([progressRoute], [stationA, stationB], [
+        { from: 'a', to: 'b', service_id: 'svc' },
+      ])
+      expect(lines.features[0].properties).toEqual({ from: 'a', to: 'b', service_id: 'svc' })
+    })
+
+    // A leg is only drawable against an alignment both its stations stand on, and
+    // the map must still render without it.
+    it('skips a leg whose stations this map does not hold', () => {
+      const lines = riddenLines([progressRoute], [stationA], [{ from: 'a', to: 'b' }])
+      expect(lines.features).toHaveLength(0)
+    })
+
+    it('skips a leg whose stations sit off every alignment on the map', () => {
+      const offRoute = stationAt('far', [-121.0, 37.2])
+      const lines = riddenLines([progressRoute], [stationA, offRoute], [{ from: 'a', to: 'far' }])
+      expect(lines.features).toHaveLength(0)
+    })
+
+    it('prefers the alignment the two stations stand closest to', () => {
+      const detour: Route = {
+        ...progressRoute,
+        id: 'rt-detour',
+        geometry: {
+          type: 'LineString',
+          coordinates: [
+            [-122.002, 37.0],
+            [-122.002, 37.2],
+            [-121.802, 37.2],
+          ],
+        },
+      }
+      const lines = riddenLines([detour, progressRoute], [stationA, stationB], [{ from: 'a', to: 'b' }])
+      expect(lines.features[0].geometry.coordinates).toEqual([
+        [-122.0, 37.0],
+        [-122.0, 37.2],
+        [-121.8, 37.2],
+      ])
+    })
+  })
+
+  describe('the three states of a line', () => {
+    it('draws the whole network in ink at full width when there is no plot', () => {
+      expect(routeLinePaint(false)).toEqual({ 'line-color': '#121212', 'line-width': RIDDEN_LINE_WIDTH })
+    })
+
+    it('drops the network back to grey and thinner once there is a plot to be unridden against', () => {
+      expect(routeLinePaint(true)).toEqual({ 'line-color': '#4a4a4f', 'line-width': UNRIDDEN_LINE_WIDTH })
+      expect(UNRIDDEN_LINE_WIDTH).toBeLessThan(RIDDEN_LINE_WIDTH)
+    })
+
+    it('paints the route line for the plot it was attached with', () => {
+      const plotted = makeMockMap()
+      useRouteLayer(plotted as Map, [progressRoute], [stationA, stationB], chainWithLegs([]))
+      expect(paintOf(plotted, ROUTE_LINE_LAYER_ID)).toEqual(routeLinePaint(true))
+
+      const bare = makeMockMap()
+      useRouteLayer(bare as Map, [progressRoute], [stationA, stationB])
+      expect(paintOf(bare, ROUTE_LINE_LAYER_ID)).toEqual(routeLinePaint(false))
+    })
+
+    it('draws the ridden legs over the network in ink at full width', () => {
+      const map = makeMockMap()
+      useRouteLayer(
+        map as Map,
+        [progressRoute],
+        [stationA, stationB],
+        chainWithLegs([{ from: 'a', to: 'b', service_id: 'svc', secs: 600 }]),
+      )
+      expect(paintOf(map, RIDDEN_LINE_LAYER_ID)).toEqual({
+        'line-color': '#121212',
+        'line-width': RIDDEN_LINE_WIDTH,
+      })
+
+      const source = (map.addSource as ReturnType<typeof vi.fn>).mock.calls.find(
+        (c: unknown[]) => c[0] === RIDDEN_SOURCE_ID,
+      )
+      expect(source?.[1].data.features).toHaveLength(1)
+    })
+
+    // The cap is a full stop on the dashes rather than a station, and every
+    // station dot on this map is ringed.
+    it('caps the unfinished leg with a plain ink dot', () => {
+      const map = makeMockMap()
+      useRouteLayer(
+        map as Map,
+        [progressRoute],
+        [stationA],
+        chainWithProgress([progressEntry({ fraction: 0.5 })]),
+      )
+      const cap = paintOf(map, PROGRESS_CAP_LAYER_ID)
+      expect(cap['circle-color']).toBe('#121212')
+      expect(cap['circle-stroke-width']).toBeUndefined()
+    })
+  })
+
   describe('routeLayerModule', () => {
     it('attaches the station layer already painted with the initial reach', () => {
       const map = makeMockMap()
@@ -307,6 +506,60 @@ describe('useRouteLayer', () => {
       ])
     })
 
+    it('re-paints the network grey and thin when the first plot arrives', () => {
+      const map: Pick<Map, 'addSource' | 'addLayer' | 'setPaintProperty'> = {
+        ...makeMockMap(),
+        setPaintProperty: vi.fn(),
+      }
+      let data: ChainResponse | null = null
+      const module = routeLayerModule(
+        () => ({ routes: [progressRoute], stations: [stationA, stationB] }),
+        () => data,
+        '#f28f29',
+      )
+      module.attach(map as Map)
+      expect(paintOf(map, ROUTE_LINE_LAYER_ID)).toEqual(routeLinePaint(false))
+
+      data = chainWithLegs([{ from: 'a', to: 'b', service_id: 'svc', secs: 600 }])
+      module.sync(map as Map)
+
+      expect(map.setPaintProperty).toHaveBeenCalledWith(
+        ROUTE_LINE_LAYER_ID,
+        'line-color',
+        routeLinePaint(true)['line-color'],
+      )
+      expect(map.setPaintProperty).toHaveBeenCalledWith(
+        ROUTE_LINE_LAYER_ID,
+        'line-width',
+        UNRIDDEN_LINE_WIDTH,
+      )
+    })
+
+    it('re-draws the ridden legs on sync, because a new reach rides different ones', () => {
+      const setData = vi.fn()
+      const map: Pick<Map, 'addSource' | 'addLayer' | 'setPaintProperty'> & {
+        getSource: ReturnType<typeof vi.fn>
+      } = {
+        ...makeMockMap(),
+        setPaintProperty: vi.fn(),
+        getSource: vi.fn((id: string) => (id === RIDDEN_SOURCE_ID ? { setData } : undefined)),
+      }
+
+      let data: ChainResponse | null = null
+      const module = routeLayerModule(
+        () => ({ routes: [progressRoute], stations: [stationA, stationB] }),
+        () => data,
+        '#f28f29',
+      )
+      module.attach(map as unknown as Map)
+
+      data = chainWithLegs([{ from: 'a', to: 'b', service_id: 'svc', secs: 600 }])
+      module.sync(map as unknown as Map)
+
+      expect(setData).toHaveBeenCalledTimes(1)
+      expect(setData.mock.calls[0][0].features).toHaveLength(1)
+    })
+
     it('re-draws the progress stubs on sync, because a new reach moves them', () => {
       const map: Pick<Map, 'addSource' | 'addLayer' | 'setPaintProperty'> & {
         getSource: ReturnType<typeof vi.fn>
@@ -342,13 +595,20 @@ describe('useRouteLayer', () => {
   describe('trip progress', () => {
     it('adds a dashed line layer and a cap between the route line and the station dots', () => {
       const map = makeMockMap()
-      useRouteLayer(map as Map, [route], [station], [], '#f28f29', [progressEntry({ fraction: 0.5 })])
+      useRouteLayer(
+        map as Map,
+        [route],
+        [station],
+        chainWithProgress([progressEntry({ fraction: 0.5 })]),
+        '#f28f29',
+      )
 
       const ids = (map.addLayer as ReturnType<typeof vi.fn>).mock.calls.map(
         (c: unknown[]) => (c[0] as { id: string }).id,
       )
       expect(ids).toEqual([
         ROUTE_LINE_LAYER_ID,
+        RIDDEN_LINE_LAYER_ID,
         PROGRESS_LINE_LAYER_ID,
         PROGRESS_CAP_LAYER_ID,
         STATION_DOTS_LAYER_ID,
@@ -357,11 +617,12 @@ describe('useRouteLayer', () => {
       const stub = (map.addLayer as ReturnType<typeof vi.fn>).mock.calls.find(
         (c: unknown[]) => (c[0] as { id: string }).id === PROGRESS_LINE_LAYER_ID,
       )?.[0]
-      // Dashed, and in the egress data colour. A fully ridden hop carries no
-      // highlight at all, so a solid overlay would make the one leg nobody
-      // completes read as more reached than the legs actually ridden.
+      // Dashed ink at the ridden width: the grey network shows through the gaps,
+      // so a leg half ridden reads as half of each state. A solid overlay would
+      // make the one leg nobody completes read as ridden.
       expect(stub.paint['line-dasharray']).toBeDefined()
-      expect(stub.paint['line-color']).toBe('#f28f29')
+      expect(stub.paint['line-color']).toBe('#121212')
+      expect(stub.paint['line-width']).toBe(RIDDEN_LINE_WIDTH)
     })
 
     it('draws the alignment sliced to the fraction, not a chord between stations', () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { chainageAlong, sliceAlignment } from './chainage'
+import { chainageAlong, projectOntoAlignment, sliceAlignment } from './chainage'
 import chainageFixture from './fixtures/chainage.golden.json'
 
 const line = chainageFixture.line as [number, number][]
@@ -35,6 +35,54 @@ describe('chainageAlong', () => {
 
   it('has one entry for a degenerate single-vertex line', () => {
     expect(chainageAlong([[-122, 37]])).toEqual([0])
+  })
+})
+
+describe('projectOntoAlignment', () => {
+  it('gives a vertex its own chainage and no offset', () => {
+    line.forEach((vertex, i) => {
+      const got = projectOntoAlignment(line, vertex)
+      expect(got?.chainageM).toBeCloseTo(expectedChainage[i], 4)
+      expect(got?.offsetM).toBeCloseTo(0, 6)
+    })
+  })
+
+  it('measures a point beside the line as an offset from the chainage abeam it', () => {
+    // Due east of the first leg, which runs due north from the first vertex.
+    const got = projectOntoAlignment(line, [-121.99, 37.1])
+    expect(got?.chainageM).toBeCloseTo(expectedChainage[1] / 2, 0)
+    // 0.01° of longitude at the line's mean latitude, the frame chainage is
+    // measured in.
+    const eastward = ((6371000 * 0.01 * Math.PI) / 180) * Math.cos((37.225 * Math.PI) / 180)
+    expect(got?.offsetM).toBeCloseTo(eastward, 3)
+  })
+
+  it('clamps a point beyond an end to that end rather than off the line', () => {
+    const before = projectOntoAlignment(line, [-122.0, 36.9])
+    expect(before?.chainageM).toBeCloseTo(0, 6)
+
+    const after = projectOntoAlignment(line, [-121.8, 37.6])
+    expect(after?.chainageM).toBeCloseTo(expectedChainage[3], 4)
+  })
+
+  it('picks the leg the point is nearest, not the first one it is abeam of', () => {
+    // Inside the corner at the second vertex: nearer the leg running east than
+    // the leg running north into it.
+    const got = projectOntoAlignment(line, [-121.9, 37.19])
+    expect(got?.chainageM).toBeGreaterThan(expectedChainage[1])
+    expect(got?.chainageM).toBeLessThan(expectedChainage[2])
+  })
+
+  it('has nothing to project onto for a line of fewer than two vertices', () => {
+    expect(projectOntoAlignment([], [-122, 37])).toBeNull()
+    expect(projectOntoAlignment([[-122, 37]], [-122, 37])).toBeNull()
+  })
+
+  it('survives a duplicated vertex rather than dividing by its zero length', () => {
+    const doubled: [number, number][] = [[-122, 37], [-122, 37], [-122, 37.2]]
+    const got = projectOntoAlignment(doubled, [-122, 37.1])
+    expect(got?.offsetM).toBeCloseTo(0, 6)
+    expect(got?.chainageM).toBeGreaterThan(0)
   })
 })
 

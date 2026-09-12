@@ -47,6 +47,23 @@ Two related row facts, both per-view:
   service they arrived on. This is the frontend's own presentation of a change of
   train; there is no transfer edge in the graph it is reading.
 
+## The three states of a line
+
+The route map draws one railway in three states, and nothing else on it carries
+those weights:
+
+| State | Drawn as | What it means |
+| --- | --- | --- |
+| **Ridden** | Ink, full width | A leg the rider covered end to end. Read off the `legs` of every reachable station, so a hop early in a path is drawn once no matter how many stations sit downstream of it |
+| **Unridden** | Grey, thinner | Every alignment on the map, under the ridden legs. Grey only once there *is* a plot to be unridden against — with no plot the network is drawn in ink at full width, because the authoring and preview maps show no rider at all |
+| **Unfinished** | Ink dashes at the ridden width, capped with a plain ink dot | An unfinished leg (below), the grey alignment showing through the gaps. The cap is where the budget ran out: a full stop on the dashes, not a station — every station dot on this map is ringed |
+
+A ridden leg names two stations rather than a route and a chainage span the way
+`trip_progress` does, so the frontend recovers the span: the alignment both
+stations project closest to, cut between where each lands on it. A leg whose
+stations sit further off every alignment than the authoring API's own off-route
+threshold is not drawn.
+
 ## Progress
 
 An **unfinished leg** is a hop the budget could not complete: the rider gets part

@@ -2,15 +2,28 @@ const EARTH_RADIUS_M = 6371000
 
 const toRad = (deg: number): number => (deg * Math.PI) / 180
 
-export function chainageAlong(coordinates: [number, number][]): number[] {
-  if (coordinates.length === 0) return []
+interface PlanarFrame {
+  x: (lng: number) => number
+  y: (lat: number) => number
+}
 
+// The frame the shared fixture pins: equirectangular about the *whole* line's
+// mean latitude, so every leg of one line is measured at the same scale.
+function planarFrame(coordinates: [number, number][]): PlanarFrame {
   const refLatRad = toRad(
     coordinates.reduce((sum, [, lat]) => sum + lat, 0) / coordinates.length,
   )
   const cosRef = Math.cos(refLatRad)
-  const x = (lng: number): number => EARTH_RADIUS_M * toRad(lng) * cosRef
-  const y = (lat: number): number => EARTH_RADIUS_M * toRad(lat)
+  return {
+    x: (lng: number): number => EARTH_RADIUS_M * toRad(lng) * cosRef,
+    y: (lat: number): number => EARTH_RADIUS_M * toRad(lat),
+  }
+}
+
+export function chainageAlong(coordinates: [number, number][]): number[] {
+  if (coordinates.length === 0) return []
+
+  const { x, y } = planarFrame(coordinates)
 
   const out = [0]
   for (let i = 1; i < coordinates.length; i++) {
@@ -19,6 +32,45 @@ export function chainageAlong(coordinates: [number, number][]): number[] {
     out.push(out[i - 1] + Math.hypot(x(bLng) - x(aLng), y(bLat) - y(aLat)))
   }
   return out
+}
+
+export interface AlignmentProjection {
+  chainageM: number
+  offsetM: number
+}
+
+export function projectOntoAlignment(
+  coordinates: [number, number][],
+  point: [number, number],
+): AlignmentProjection | null {
+  if (coordinates.length < 2) return null
+
+  const { x, y } = planarFrame(coordinates)
+  const chainage = chainageAlong(coordinates)
+  const px = x(point[0])
+  const py = y(point[1])
+
+  let best: AlignmentProjection | null = null
+  for (let i = 1; i < coordinates.length; i++) {
+    const ax = x(coordinates[i - 1][0])
+    const ay = y(coordinates[i - 1][1])
+    const bx = x(coordinates[i][0])
+    const by = y(coordinates[i][1])
+    const dx = bx - ax
+    const dy = by - ay
+    const legLengthSqM = dx * dx + dy * dy
+    // A duplicate vertex is a leg with no direction to project onto; either of
+    // its ends is the nearest point on it.
+    const t = legLengthSqM > 0
+      ? Math.min(1, Math.max(0, ((px - ax) * dx + (py - ay) * dy) / legLengthSqM))
+      : 0
+    const offsetM = Math.hypot(px - (ax + t * dx), py - (ay + t * dy))
+    // Ties keep the earlier leg: a point abeam a vertex projects onto both legs
+    // that meet there, and they agree on the chainage anyway.
+    if (best && offsetM >= best.offsetM) continue
+    best = { chainageM: chainage[i - 1] + t * Math.sqrt(legLengthSqM), offsetM }
+  }
+  return best
 }
 
 export function sliceAlignment(
