@@ -1,4 +1,4 @@
-import type { FeatureCollection, LineString, Polygon } from 'geojson'
+import type { FeatureCollection, LineString, MultiPolygon, Polygon } from 'geojson'
 import sampleIsochroneResponse from './sample-isochrone-response.json'
 
 export interface JourneyLeg {
@@ -65,11 +65,29 @@ export interface IsochroneFeatureProperties {
   opacity?: number
 }
 
-export interface ChainResponse extends FeatureCollection<Polygon, IsochroneFeatureProperties> {
+export interface ChainResponse extends FeatureCollection<Polygon | MultiPolygon, IsochroneFeatureProperties> {
   metadata: ChainMetadata
 }
 
 export const staticIsochroneResponse = sampleIsochroneResponse as ChainResponse
+
+// Walks the nesting rather than assuming its depth: a contour comes back as a
+// Polygon when it is one piece and a MultiPolygon when denoising splits it into
+// several, and reading a MultiPolygon a ring at a time yields NaN corners —
+// which fitBounds rejects by throwing, leaving the camera exactly where it was
+// (SPA-320).
+function eachPosition(
+  coordinates: unknown,
+  visit: (lng: number, lat: number) => void,
+): void {
+  if (!Array.isArray(coordinates)) return
+  if (typeof coordinates[0] === 'number') {
+    const [lng, lat] = coordinates as number[]
+    if (Number.isFinite(lng) && Number.isFinite(lat)) visit(lng, lat)
+    return
+  }
+  for (const nested of coordinates) eachPosition(nested, visit)
+}
 
 export function boundsFromFeatures(
   features: ChainResponse['features'],
@@ -81,14 +99,12 @@ export function boundsFromFeatures(
   let maxLat = -Infinity
 
   for (const feature of features) {
-    for (const ring of feature.geometry.coordinates) {
-      for (const [lng, lat] of ring) {
-        minLng = Math.min(minLng, lng)
-        minLat = Math.min(minLat, lat)
-        maxLng = Math.max(maxLng, lng)
-        maxLat = Math.max(maxLat, lat)
-      }
-    }
+    eachPosition(feature.geometry?.coordinates, (lng, lat) => {
+      minLng = Math.min(minLng, lng)
+      minLat = Math.min(minLat, lat)
+      maxLng = Math.max(maxLng, lng)
+      maxLat = Math.max(maxLat, lat)
+    })
   }
 
   return [minLng - padding, minLat - padding, maxLng + padding, maxLat + padding]

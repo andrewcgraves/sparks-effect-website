@@ -310,6 +310,59 @@ describe('MapView', () => {
     )
   })
 
+  // SPA-320. A contour denoising split into pieces comes back as a MultiPolygon,
+  // and the bounds walk used to read it a ring at a time and produce NaN corners
+  // — which fitBounds rejects by throwing, out through this watcher, leaving the
+  // camera wherever the rider had left it while the split contour drew fine.
+  it('fits the map to a plot whose contour came back in several pieces', async () => {
+    const wrapper = mount(MapView, { props: defaultProps })
+    await triggerMapLoad()
+    mockFitBounds.mockClear()
+
+    const split = {
+      ...staticIsochroneResponse,
+      features: [
+        {
+          type: 'Feature',
+          properties: { source: 'origin' },
+          geometry: {
+            type: 'MultiPolygon',
+            coordinates: [
+              [[[-118.2, 34.6], [-118.1, 34.6], [-118.1, 34.7], [-118.2, 34.6]]],
+              [[[-118.5, 34.4], [-118.4, 34.4], [-118.4, 34.45], [-118.5, 34.4]]],
+            ],
+          },
+        },
+      ],
+    } as unknown as ChainResponse
+
+    await wrapper.setProps({ isochroneData: split })
+
+    expect(mockFitBounds).toHaveBeenCalledTimes(1)
+    const corners = mockFitBounds.mock.calls[0][0] as [[number, number], [number, number]]
+    expect(corners.flat().every(Number.isFinite)).toBe(true)
+  })
+
+  it('leaves the camera alone rather than throwing when a plot carries no readable corner', async () => {
+    const wrapper = mount(MapView, { props: defaultProps })
+    await triggerMapLoad()
+    mockFitBounds.mockClear()
+
+    const unreadable = {
+      ...staticIsochroneResponse,
+      features: [
+        {
+          type: 'Feature',
+          properties: { source: 'origin' },
+          geometry: { type: 'Polygon', coordinates: [[]] },
+        },
+      ],
+    } as unknown as ChainResponse
+
+    await expect(wrapper.setProps({ isochroneData: unreadable })).resolves.not.toThrow()
+    expect(mockFitBounds).not.toHaveBeenCalled()
+  })
+
   it('fits the map to the isochrone frame after an origin snap when isochrone is generated', async () => {
     const wrapper = mount(MapView, {
       props: { ...defaultProps, origin: { lat: 34.05, lng: -118.25 } },

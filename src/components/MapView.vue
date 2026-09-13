@@ -94,7 +94,13 @@ function snapMapToOrigin(coords: { lat: number; lng: number }): void {
 
 function fitMapToIsochrone(data: ChainResponse): void {
   if (!map || data.features.length === 0) return
-  map.fitBounds(isochroneBoundsCorners(data.features), {
+  const corners = isochroneBoundsCorners(data.features)
+  // fitBounds throws on a corner it cannot read, and the throw escapes the
+  // watcher that called this — which is how one unreadable contour used to
+  // leave the camera wherever the rider had left it (SPA-320). A frame that
+  // cannot be computed is a frame not applied, not a dead watcher.
+  if (!corners.flat().every(Number.isFinite)) return
+  map.fitBounds(corners, {
     padding: MAP_FIT_PADDING,
     duration: 800,
   })
