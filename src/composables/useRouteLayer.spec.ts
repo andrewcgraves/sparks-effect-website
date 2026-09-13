@@ -416,8 +416,8 @@ describe('useRouteLayer', () => {
       expect(routeLineColor(false)).toBe('#121212')
     })
 
-    it('drops the network to grey once there is a plot to be unridden against', () => {
-      expect(routeLineColor(true)).toBe('#4a4a4f')
+    it('drops the network to a faint grey once there is a plot to be unridden against', () => {
+      expect(routeLineColor(true)).toBe('#b8b8be')
     })
 
     it('paints the route line for the plot it was attached with', () => {

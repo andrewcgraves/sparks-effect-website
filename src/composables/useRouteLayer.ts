@@ -220,11 +220,13 @@ export function riddenLines(
 
 // Colour alone separates unridden from ridden: one width for every line on the
 // map, so a corridor does not change thickness halfway along where the rider
-// got off. And grey only once there is a plot to be unridden relative to — with
-// no plot the network is just the network, and the authoring and preview maps
-// draw no trip at all.
+// got off. The grey is far off the ink rather than a step down from it, because
+// the dashes of an unfinished leg are read against it — a near-ink grey leaves
+// black dashes on a black line. And grey only once there is a plot to be
+// unridden relative to: with no plot the network is just the network, and the
+// authoring and preview maps draw no trip at all.
 export function routeLineColor(plotted: boolean): string {
-  return readThemeToken(plotted ? '--color-ink-muted' : '--color-ink')
+  return readThemeToken(plotted ? '--color-ink-faint' : '--color-ink')
 }
 
 export function useRouteLayer(

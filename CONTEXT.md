@@ -55,11 +55,13 @@ those weights:
 | State | Drawn as | What it means |
 | --- | --- | --- |
 | **Ridden** | Ink | A leg the rider covered end to end. Read off the `legs` of every reachable station, so a hop early in a path is drawn once no matter how many stations sit downstream of it |
-| **Unridden** | Grey | Every alignment on the map, under the ridden legs. Grey only once there *is* a plot to be unridden against — with no plot the network is drawn in ink, because the authoring and preview maps show no rider at all |
+| **Unridden** | Faint grey | Every alignment on the map, under the ridden legs. Grey only once there *is* a plot to be unridden against — with no plot the network is drawn in ink, because the authoring and preview maps show no rider at all |
 | **Unfinished** | Ink dashes, capped with a plain ink dot | An unfinished leg (below), the grey alignment showing through the gaps. The cap is where the budget ran out: a full stop on the dashes, not a station — every station dot on this map is ringed |
 
 Every line is the same width; colour alone separates the states, so a corridor
-does not change thickness at the station the rider got off at. The dashes carry
+does not change thickness at the station the rider got off at. The grey sits far
+off the ink rather than a step down from it: the dashes of an unfinished leg are
+read against it, and a near-ink grey leaves black dashes on a black line. The dashes carry
 a gap several times their own length because MapLibre's round cap adds half a
 width to each end of a dash: an even pattern closes up into a solid line at the
 zoom a whole state is drawn at.

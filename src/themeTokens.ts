@@ -3,6 +3,7 @@ export const THEME_TOKEN_FALLBACKS = {
   '--color-data-egress': '#f28f29',
   '--color-ink': '#121212',
   '--color-ink-muted': '#4a4a4f',
+  '--color-ink-faint': '#b8b8be',
   '--color-coral': '#e1665b',
 } as const
 
