@@ -16,11 +16,10 @@ import {
   PROGRESS_CAP_LAYER_ID,
   RIDDEN_LINE_LAYER_ID,
   RIDDEN_SOURCE_ID,
-  RIDDEN_LINE_WIDTH,
-  UNRIDDEN_LINE_WIDTH,
+  ROUTE_LINE_WIDTH,
   riddenLegs,
   riddenLines,
-  routeLinePaint,
+  routeLineColor,
   tripProgressLines,
   tripProgressCaps,
   type TripProgressLines,
@@ -413,26 +412,39 @@ describe('useRouteLayer', () => {
   })
 
   describe('the three states of a line', () => {
-    it('draws the whole network in ink at full width when there is no plot', () => {
-      expect(routeLinePaint(false)).toEqual({ 'line-color': '#121212', 'line-width': RIDDEN_LINE_WIDTH })
+    it('draws the whole network in ink when there is no plot', () => {
+      expect(routeLineColor(false)).toBe('#121212')
     })
 
-    it('drops the network back to grey and thinner once there is a plot to be unridden against', () => {
-      expect(routeLinePaint(true)).toEqual({ 'line-color': '#4a4a4f', 'line-width': UNRIDDEN_LINE_WIDTH })
-      expect(UNRIDDEN_LINE_WIDTH).toBeLessThan(RIDDEN_LINE_WIDTH)
+    it('drops the network to grey once there is a plot to be unridden against', () => {
+      expect(routeLineColor(true)).toBe('#4a4a4f')
     })
 
     it('paints the route line for the plot it was attached with', () => {
       const plotted = makeMockMap()
       useRouteLayer(plotted as Map, [progressRoute], [stationA, stationB], chainWithLegs([]))
-      expect(paintOf(plotted, ROUTE_LINE_LAYER_ID)).toEqual(routeLinePaint(true))
+      expect(paintOf(plotted, ROUTE_LINE_LAYER_ID)['line-color']).toBe(routeLineColor(true))
 
       const bare = makeMockMap()
       useRouteLayer(bare as Map, [progressRoute], [stationA, stationB])
-      expect(paintOf(bare, ROUTE_LINE_LAYER_ID)).toEqual(routeLinePaint(false))
+      expect(paintOf(bare, ROUTE_LINE_LAYER_ID)['line-color']).toBe(routeLineColor(false))
     })
 
-    it('draws the ridden legs over the network in ink at full width', () => {
+    // Colour alone separates the two, so a corridor keeps its thickness across
+    // the station the rider got off at.
+    it('draws unridden and ridden at the same width', () => {
+      const map = makeMockMap()
+      useRouteLayer(
+        map as Map,
+        [progressRoute],
+        [stationA, stationB],
+        chainWithLegs([{ from: 'a', to: 'b', service_id: 'svc', secs: 600 }]),
+      )
+      expect(paintOf(map, ROUTE_LINE_LAYER_ID)['line-width']).toBe(ROUTE_LINE_WIDTH)
+      expect(paintOf(map, RIDDEN_LINE_LAYER_ID)['line-width']).toBe(ROUTE_LINE_WIDTH)
+    })
+
+    it('draws the ridden legs over the network in ink', () => {
       const map = makeMockMap()
       useRouteLayer(
         map as Map,
@@ -442,7 +454,7 @@ describe('useRouteLayer', () => {
       )
       expect(paintOf(map, RIDDEN_LINE_LAYER_ID)).toEqual({
         'line-color': '#121212',
-        'line-width': RIDDEN_LINE_WIDTH,
+        'line-width': ROUTE_LINE_WIDTH,
       })
 
       const source = (map.addSource as ReturnType<typeof vi.fn>).mock.calls.find(
@@ -506,7 +518,7 @@ describe('useRouteLayer', () => {
       ])
     })
 
-    it('re-paints the network grey and thin when the first plot arrives', () => {
+    it('re-paints the network grey when the first plot arrives', () => {
       const map: Pick<Map, 'addSource' | 'addLayer' | 'setPaintProperty'> = {
         ...makeMockMap(),
         setPaintProperty: vi.fn(),
@@ -518,7 +530,7 @@ describe('useRouteLayer', () => {
         '#f28f29',
       )
       module.attach(map as Map)
-      expect(paintOf(map, ROUTE_LINE_LAYER_ID)).toEqual(routeLinePaint(false))
+      expect(paintOf(map, ROUTE_LINE_LAYER_ID)['line-color']).toBe(routeLineColor(false))
 
       data = chainWithLegs([{ from: 'a', to: 'b', service_id: 'svc', secs: 600 }])
       module.sync(map as Map)
@@ -526,12 +538,7 @@ describe('useRouteLayer', () => {
       expect(map.setPaintProperty).toHaveBeenCalledWith(
         ROUTE_LINE_LAYER_ID,
         'line-color',
-        routeLinePaint(true)['line-color'],
-      )
-      expect(map.setPaintProperty).toHaveBeenCalledWith(
-        ROUTE_LINE_LAYER_ID,
-        'line-width',
-        UNRIDDEN_LINE_WIDTH,
+        routeLineColor(true),
       )
     })
 
@@ -617,12 +624,14 @@ describe('useRouteLayer', () => {
       const stub = (map.addLayer as ReturnType<typeof vi.fn>).mock.calls.find(
         (c: unknown[]) => (c[0] as { id: string }).id === PROGRESS_LINE_LAYER_ID,
       )?.[0]
-      // Dashed ink at the ridden width: the grey network shows through the gaps,
-      // so a leg half ridden reads as half of each state. A solid overlay would
-      // make the one leg nobody completes read as ridden.
-      expect(stub.paint['line-dasharray']).toBeDefined()
+      // Dashed ink, the grey network showing through the gaps, so a leg half
+      // ridden reads as half of each state. The gap outruns the dash because the
+      // round cap adds half a width to each end: an even pattern closes up into
+      // a solid line at the zoom a whole state is drawn at.
+      const [dash, gap] = stub.paint['line-dasharray']
+      expect(gap).toBeGreaterThan(dash + 2)
       expect(stub.paint['line-color']).toBe('#121212')
-      expect(stub.paint['line-width']).toBe(RIDDEN_LINE_WIDTH)
+      expect(stub.paint['line-width']).toBe(ROUTE_LINE_WIDTH)
     })
 
     it('draws the alignment sliced to the fraction, not a chord between stations', () => {

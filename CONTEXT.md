@@ -54,9 +54,15 @@ those weights:
 
 | State | Drawn as | What it means |
 | --- | --- | --- |
-| **Ridden** | Ink, full width | A leg the rider covered end to end. Read off the `legs` of every reachable station, so a hop early in a path is drawn once no matter how many stations sit downstream of it |
-| **Unridden** | Grey, thinner | Every alignment on the map, under the ridden legs. Grey only once there *is* a plot to be unridden against — with no plot the network is drawn in ink at full width, because the authoring and preview maps show no rider at all |
-| **Unfinished** | Ink dashes at the ridden width, capped with a plain ink dot | An unfinished leg (below), the grey alignment showing through the gaps. The cap is where the budget ran out: a full stop on the dashes, not a station — every station dot on this map is ringed |
+| **Ridden** | Ink | A leg the rider covered end to end. Read off the `legs` of every reachable station, so a hop early in a path is drawn once no matter how many stations sit downstream of it |
+| **Unridden** | Grey | Every alignment on the map, under the ridden legs. Grey only once there *is* a plot to be unridden against — with no plot the network is drawn in ink, because the authoring and preview maps show no rider at all |
+| **Unfinished** | Ink dashes, capped with a plain ink dot | An unfinished leg (below), the grey alignment showing through the gaps. The cap is where the budget ran out: a full stop on the dashes, not a station — every station dot on this map is ringed |
+
+Every line is the same width; colour alone separates the states, so a corridor
+does not change thickness at the station the rider got off at. The dashes carry
+a gap several times their own length because MapLibre's round cap adds half a
+width to each end of a dash: an even pattern closes up into a solid line at the
+zoom a whole state is drawn at.
 
 A ridden leg names two stations rather than a route and a chainage span the way
 `trip_progress` does, so the frontend recovers the span: the alignment both

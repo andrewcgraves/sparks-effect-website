@@ -20,8 +20,7 @@ export const PROGRESS_CAP_LAYER_ID = 'trip-progress-cap'
 
 export const STATION_DOT_DEFAULT_COLOR = '#ffffff'
 
-export const RIDDEN_LINE_WIDTH = 2.5
-export const UNRIDDEN_LINE_WIDTH = 1.25
+export const ROUTE_LINE_WIDTH = 2.5
 
 // The furthest a stop may sit from the alignment it is a stop on: the authoring
 // API rejects a placement further off-route than this. A leg whose two stations
@@ -219,15 +218,13 @@ export function riddenLines(
   return { type: 'FeatureCollection', features }
 }
 
-// Grey and thin only once there is a plot to be unridden relative to. With no
-// plot the network is just the network — the authoring and preview maps draw no
-// trip at all, and washing them out would say something about a rider who is
-// not there.
-export function routeLinePaint(plotted: boolean): { 'line-color': string; 'line-width': number } {
-  return {
-    'line-color': readThemeToken(plotted ? '--color-ink-muted' : '--color-ink'),
-    'line-width': plotted ? UNRIDDEN_LINE_WIDTH : RIDDEN_LINE_WIDTH,
-  }
+// Colour alone separates unridden from ridden: one width for every line on the
+// map, so a corridor does not change thickness halfway along where the rider
+// got off. And grey only once there is a plot to be unridden relative to — with
+// no plot the network is just the network, and the authoring and preview maps
+// draw no trip at all.
+export function routeLineColor(plotted: boolean): string {
+  return readThemeToken(plotted ? '--color-ink-muted' : '--color-ink')
 }
 
 export function useRouteLayer(
@@ -257,12 +254,11 @@ export function useRouteLayer(
     type: 'line',
     source: ROUTE_SOURCE_ID,
     layout: { 'line-join': 'round', 'line-cap': 'round' },
-    paint: routeLinePaint(plot !== null),
+    paint: { 'line-color': routeLineColor(plot !== null), 'line-width': ROUTE_LINE_WIDTH },
   })
 
-  // The ridden legs sit directly on top of the whole network, in ink and at the
-  // width the network is drawn at when nobody is riding it: what the rider
-  // covered is the emphatic state, and the rest of the map recedes behind it.
+  // The ridden legs sit directly on top of the whole network, in ink: what the
+  // rider covered is the emphatic state, and the grey recedes behind it.
   map.addSource(RIDDEN_SOURCE_ID, {
     type: 'geojson',
     data: riddenLines(routes, stations, riddenLegs(plot)),
@@ -272,7 +268,7 @@ export function useRouteLayer(
     type: 'line',
     source: RIDDEN_SOURCE_ID,
     layout: { 'line-join': 'round', 'line-cap': 'round' },
-    paint: { 'line-color': ink, 'line-width': RIDDEN_LINE_WIDTH },
+    paint: { 'line-color': ink, 'line-width': ROUTE_LINE_WIDTH },
   })
 
   // Above the route line and below the station dots. The stub belongs visually
@@ -286,14 +282,19 @@ export function useRouteLayer(
     type: 'line',
     source: PROGRESS_SOURCE_ID,
     layout: { 'line-join': 'round', 'line-cap': 'round' },
-    // Ink dashes at the ridden width, so the grey network shows through the gaps:
-    // a leg half ridden reads as half of each state rather than as a third
-    // colour. Dashed rather than solid because it is provisional — a solid ink
-    // overlay would make the one leg nobody completes read as ridden.
+    // Ink dashes with the grey network showing through the gaps: a leg half
+    // ridden reads as half of each state rather than as a third colour. Dashed
+    // rather than solid because it is provisional — a solid ink overlay would
+    // make the one leg nobody completes read as ridden.
+    //
+    // The gap is much longer than the dash because the round cap adds half a
+    // width to each end of every dash, eating a whole width-unit of gap: an
+    // even [2, 2] closes up into a solid line, which is what a whole hop looked
+    // like zoomed out to the length of a state.
     paint: {
       'line-color': ink,
-      'line-width': RIDDEN_LINE_WIDTH,
-      'line-dasharray': [2, 2],
+      'line-width': ROUTE_LINE_WIDTH,
+      'line-dasharray': [1, 3.5],
     },
   })
 
@@ -365,11 +366,9 @@ export function routeLayerModule(
         stationDotColor(reachableStationSlugs(plot), highlightColor),
       )
 
-      // The first plot is also what turns the whole network grey and thin, and
-      // clearing back to none returns it to ink.
-      const base = routeLinePaint(plot !== null)
-      map.setPaintProperty(ROUTE_LINE_LAYER_ID, 'line-color', base['line-color'])
-      map.setPaintProperty(ROUTE_LINE_LAYER_ID, 'line-width', base['line-width'])
+      // The first plot is also what turns the whole network grey, and clearing
+      // back to none returns it to ink.
+      map.setPaintProperty(ROUTE_LINE_LAYER_ID, 'line-color', routeLineColor(plot !== null))
 
       ;(map.getSource(RIDDEN_SOURCE_ID) as GeoJSONSource | undefined)?.setData(
         riddenLines(routes, stations, riddenLegs(plot)),
