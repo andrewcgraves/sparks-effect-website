@@ -14,10 +14,11 @@ Deps install automatically via `make install`; targets depend on it.
 
 ## Domain vocabulary
 
-[`CONTEXT.md`](CONTEXT.md) defines this repository's own words — splash zone, and
-the time-remaining graph's view / row / lane / through / fork. Shared domain
-vocabulary (scenario, service, station, node, edge, dwell, boarding wait, mode vs
-costing, the error codes, the job statuses) is defined once in
+[`CONTEXT.md`](CONTEXT.md) defines this repository's own words — splash zone, the
+route map's ridden / unridden / unfinished line states, and the time-remaining
+graph's view / row / lane / through / fork. Shared domain vocabulary (scenario,
+service, station, node, edge, dwell, boarding wait, mode vs costing, the error
+codes, the job statuses) is defined once in
 [sparks-effect-api's `CONTEXT.md`](https://github.com/andrewcgraves/sparks-effect-api/blob/main/CONTEXT.md),
 and chain vocabulary in
 [sparks-effect-routing-worker's](https://github.com/andrewcgraves/sparks-effect-routing-worker/blob/main/CONTEXT.md).

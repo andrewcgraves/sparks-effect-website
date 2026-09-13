@@ -47,6 +47,31 @@ Two related row facts, both per-view:
   service they arrived on. This is the frontend's own presentation of a change of
   train; there is no transfer edge in the graph it is reading.
 
+## The three states of a line
+
+The route map draws one railway in three states, and nothing else on it carries
+those weights:
+
+| State | Drawn as | What it means |
+| --- | --- | --- |
+| **Ridden** | Ink | A leg the rider covered end to end. Read off the `legs` of every reachable station, so a hop early in a path is drawn once no matter how many stations sit downstream of it |
+| **Unridden** | Faint grey | Every alignment on the map, under the ridden legs. Grey only once there *is* a plot to be unridden against — with no plot the network is drawn in ink, because the authoring and preview maps show no rider at all |
+| **Unfinished** | Ink dashes, capped with a plain ink dot | An unfinished leg (below), the grey alignment showing through the gaps. The cap is where the budget ran out: a full stop on the dashes, not a station — every station dot on this map is ringed |
+
+Every line is the same width; colour alone separates the states, so a corridor
+does not change thickness at the station the rider got off at. The grey sits far
+off the ink rather than a step down from it: the dashes of an unfinished leg are
+read against it, and a near-ink grey leaves black dashes on a black line. The dashes carry
+a gap several times their own length because MapLibre's round cap adds half a
+width to each end of a dash: an even pattern closes up into a solid line at the
+zoom a whole state is drawn at.
+
+A ridden leg names two stations rather than a route and a chainage span the way
+`trip_progress` does, so the frontend recovers the span: the alignment both
+stations project closest to, cut between where each lands on it. A leg whose
+stations sit further off every alignment than the authoring API's own off-route
+threshold is not drawn.
+
 ## Progress
 
 An **unfinished leg** is a hop the budget could not complete: the rider gets part
