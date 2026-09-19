@@ -33,17 +33,30 @@ export function resolveIsochroneColors(): IsochroneColors {
   }
 }
 
-export function isochroneLegend(colors: IsochroneColors = resolveIsochroneColors()) {
-  return [
+export function isochroneLegend(
+  colors: IsochroneColors = resolveIsochroneColors(),
+  unfinished = false,
+) {
+  const entries: {
+    source: 'origin' | 'egress' | 'unfinished'
+    label: string
+    color: string
+    swatch: 'fill' | 'dashed'
+  }[] = [
     { source: 'origin', label: 'Origin reach', color: colors.origin, swatch: 'fill' },
     { source: 'egress', label: 'From station', color: colors.egress, swatch: 'fill' },
-    {
+  ]
+  // Ink is also the network and the ridden path, so naming it "budget ran out"
+  // on a map with no stub invites the same misread this row is meant to close.
+  if (unfinished) {
+    entries.push({
       source: 'unfinished',
       label: 'Budget ran out here',
       color: readThemeToken('--color-ink'),
       swatch: 'dashed',
-    },
-  ] as const
+    })
+  }
+  return entries
 }
 
 export function isochroneEgressOpacity(dimmed: boolean): number {

@@ -14,6 +14,9 @@ import {
   STATION_DOT_DEFAULT_COLOR,
   PROGRESS_LINE_LAYER_ID,
   PROGRESS_CAP_LAYER_ID,
+  PROGRESS_CAP_HIT_LAYER_ID,
+  PROGRESS_CAP_HIT_RADIUS,
+  PROGRESS_CAP_RADIUS,
   RIDDEN_LINE_LAYER_ID,
   RIDDEN_SOURCE_ID,
   ROUTE_LINE_WIDTH,
@@ -475,7 +478,26 @@ describe('useRouteLayer', () => {
       )
       const cap = paintOf(map, PROGRESS_CAP_LAYER_ID)
       expect(cap['circle-color']).toBe('#121212')
+      expect(cap['circle-radius']).toBe(PROGRESS_CAP_RADIUS)
       expect(cap['circle-stroke-width']).toBeUndefined()
+    })
+
+    // The visible disc is too small to hover at the zoom a whole state is
+    // drawn at. The hit circle is unpainted and larger; station dots stay
+    // above it so a cap that lands on a station still loses to the station.
+    it('adds an unpainted hit circle around the cap so the pointer can find it', () => {
+      const map = makeMockMap()
+      useRouteLayer(
+        map as Map,
+        [progressRoute],
+        [stationA],
+        chainWithProgress([progressEntry({ fraction: 0.5 })]),
+      )
+      const hit = paintOf(map, PROGRESS_CAP_HIT_LAYER_ID)
+      expect(hit['circle-color']).toBe('rgba(0, 0, 0, 0)')
+      expect(hit['circle-opacity']).toBeUndefined()
+      expect(hit['circle-radius']).toBe(PROGRESS_CAP_HIT_RADIUS)
+      expect(hit['circle-radius']).toBeGreaterThan(PROGRESS_CAP_RADIUS)
     })
   })
 
@@ -618,6 +640,7 @@ describe('useRouteLayer', () => {
         RIDDEN_LINE_LAYER_ID,
         PROGRESS_LINE_LAYER_ID,
         PROGRESS_CAP_LAYER_ID,
+        PROGRESS_CAP_HIT_LAYER_ID,
         STATION_DOTS_LAYER_ID,
       ])
 

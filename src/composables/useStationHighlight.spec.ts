@@ -25,7 +25,7 @@ vi.mock('maplibre-gl', () => ({
 import { Popup } from 'maplibre-gl'
 import { TOOLTIP_MAP_POPUP_CLASS, TOOLTIP_PANEL_CLASS } from '../components/tooltip'
 import { useStationHighlight } from './useStationHighlight'
-import { PROGRESS_CAP_LAYER_ID, STATION_DOTS_LAYER_ID } from './useRouteLayer'
+import { PROGRESS_CAP_HIT_LAYER_ID, STATION_DOTS_LAYER_ID } from './useRouteLayer'
 import {
   ISOCHRONE_LAYER_ID,
   ISOCHRONE_ORIGIN_LAYER_ID,
@@ -89,7 +89,7 @@ function capEvent(
     features: [
       {
         geometry: { type: 'Point', coordinates: [lng, lat] },
-        properties: { from: 'gilroy', to, fraction, remaining_secs: 0, ride_secs: rideSecs },
+        properties: { from: 'gilroy', to, fraction, remaining_secs: rideSecs * fraction, ride_secs: rideSecs },
       },
     ],
   }
@@ -361,7 +361,7 @@ describe('useStationHighlight', () => {
         slug === 'merced' ? 'Merced' : slug,
       )
 
-      fire('mouseenter', PROGRESS_CAP_LAYER_ID, capEvent('merced', 0.38, 1839))
+      fire('mouseenter', PROGRESS_CAP_HIT_LAYER_ID, capEvent('merced', 0.38, 1839))
 
       expect(popupNode()?.textContent).toBe('38% of the way to Merced — 19m short')
       expect(mockPopupSetLngLat).toHaveBeenCalledWith([-120.5, 37.3])
@@ -371,7 +371,7 @@ describe('useStationHighlight', () => {
     it('shows a pointer cursor without promoting a station, because the cap is not one', () => {
       const { fire, canvas, onHover, setPaintProperty, setFilter } = setup()
 
-      fire('mouseenter', PROGRESS_CAP_LAYER_ID, capEvent('merced', 0.38, 1839))
+      fire('mouseenter', PROGRESS_CAP_HIT_LAYER_ID, capEvent('merced', 0.38, 1839))
 
       expect(canvas.style.cursor).toBe('pointer')
       expect(onHover).not.toHaveBeenCalled()
@@ -382,7 +382,7 @@ describe('useStationHighlight', () => {
     it('falls back to the slug when the stations list has no name for that hop', () => {
       const { fire } = setup()
 
-      fire('mouseenter', PROGRESS_CAP_LAYER_ID, capEvent('merced', 0.38, 1839))
+      fire('mouseenter', PROGRESS_CAP_HIT_LAYER_ID, capEvent('merced', 0.38, 1839))
 
       expect(popupNode()?.textContent).toBe('38% of the way to merced — 19m short')
     })
@@ -390,7 +390,7 @@ describe('useStationHighlight', () => {
     it('reads numeric properties even when MapLibre has stringified them', () => {
       const { fire } = setup(undefined, undefined, undefined, () => 'Merced')
 
-      fire('mouseenter', PROGRESS_CAP_LAYER_ID, {
+      fire('mouseenter', PROGRESS_CAP_HIT_LAYER_ID, {
         features: [
           {
             geometry: { type: 'Point', coordinates: [-120.5, 37.3] },
@@ -405,7 +405,7 @@ describe('useStationHighlight', () => {
     it('ignores a hover that carries no unfinished hop', () => {
       const { fire, canvas } = setup()
 
-      fire('mouseenter', PROGRESS_CAP_LAYER_ID, { features: [] })
+      fire('mouseenter', PROGRESS_CAP_HIT_LAYER_ID, { features: [] })
 
       expect(canvas.style.cursor).toBe('')
       expect(mockPopupAddTo).not.toHaveBeenCalled()
@@ -413,13 +413,54 @@ describe('useStationHighlight', () => {
 
     it('removes the popup and restores the idle cursor when the pointer leaves', () => {
       const { fire, canvas } = setup(() => 'crosshair')
-      fire('mouseenter', PROGRESS_CAP_LAYER_ID, capEvent('merced', 0.38, 1839))
+      fire('mouseenter', PROGRESS_CAP_HIT_LAYER_ID, capEvent('merced', 0.38, 1839))
       mockPopupRemove.mockClear()
 
-      fire('mouseleave', PROGRESS_CAP_LAYER_ID)
+      fire('mouseleave', PROGRESS_CAP_HIT_LAYER_ID)
 
       expect(mockPopupRemove).toHaveBeenCalled()
       expect(canvas.style.cursor).toBe('crosshair')
+    })
+
+    it('drops a leftover station promote when the pointer moves onto the cap', () => {
+      const { fire, onHover, setFilter } = setup()
+      fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))
+      onHover.mockClear()
+      setFilter.mockClear()
+      mockPopupSetDOMContent.mockClear()
+
+      fire('mouseenter', PROGRESS_CAP_HIT_LAYER_ID, capEvent('merced', 0.38, 1839))
+
+      expect(onHover).toHaveBeenCalledWith(null)
+      expect(setFilter).toHaveBeenCalledWith(ISOCHRONE_HIGHLIGHT_LAYER_ID, isochroneHighlightFilter(null))
+      expect(popupNode()?.textContent).toBe('38% of the way to merced — 19m short')
+    })
+
+    it('keeps the cap popup if the pointer leaves a station while still on the cap', () => {
+      const { fire, canvas } = setup()
+      fire('mouseenter', PROGRESS_CAP_HIT_LAYER_ID, capEvent('merced', 0.38, 1839))
+      fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))
+      mockPopupRemove.mockClear()
+      mockPopupSetDOMContent.mockClear()
+
+      fire('mouseleave', STATION_DOTS_LAYER_ID)
+
+      expect(canvas.style.cursor).toBe('pointer')
+      expect(mockPopupRemove).not.toHaveBeenCalled()
+      expect(popupNode()?.textContent).toBe('38% of the way to merced — 19m short')
+    })
+
+    it('restores the station popup when the pointer leaves the cap onto a station still under it', () => {
+      const { fire, onHover } = setup()
+      fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))
+      fire('mouseenter', PROGRESS_CAP_HIT_LAYER_ID, capEvent('merced', 0.38, 1839))
+      mockPopupSetDOMContent.mockClear()
+      onHover.mockClear()
+
+      fire('mouseleave', PROGRESS_CAP_HIT_LAYER_ID)
+
+      expect(onHover).toHaveBeenCalledWith('sf')
+      expect(popupNode()?.textContent).toBe('San Francisco')
     })
   })
 

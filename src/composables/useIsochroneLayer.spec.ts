@@ -181,12 +181,16 @@ describe('useIsochroneLayer', () => {
     expect(legend.map((e) => [e.source, e.color, e.swatch])).toEqual([
       ['origin', '#111111', 'fill'],
       ['egress', '#222222', 'fill'],
-      ['unfinished', THEME_TOKEN_FALLBACKS['--color-ink'], 'dashed'],
     ])
   })
 
-  it('names the unfinished stub in ink dashes, not the egress orange', () => {
-    const legend = isochroneLegend({ origin: '#111111', egress: '#f28f29' })
+  it('names the unfinished stub in ink dashes, not the egress orange, only when a stub is on the map', () => {
+    expect(isochroneLegend({ origin: '#111111', egress: '#f28f29' }).map((e) => e.source)).toEqual([
+      'origin',
+      'egress',
+    ])
+
+    const legend = isochroneLegend({ origin: '#111111', egress: '#f28f29' }, true)
     const unfinished = legend.find((e) => e.source === 'unfinished')
     expect(unfinished).toEqual({
       source: 'unfinished',

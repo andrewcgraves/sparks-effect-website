@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { Map, FullscreenControl } from 'maplibre-gl'
 import type { MapMouseEvent } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
@@ -42,7 +42,12 @@ const emit = defineEmits<{
 const ORIGIN_SNAP_ZOOM = 9
 
 const isochroneColors = resolveIsochroneColors()
-const legend = isochroneLegend(isochroneColors)
+const legend = computed(() =>
+  isochroneLegend(
+    isochroneColors,
+    (props.isochroneData?.metadata.trip_progress?.length ?? 0) > 0,
+  ),
+)
 
 const mapContainer = ref<HTMLElement | null>(null)
 let map: Map | null = null

@@ -17,6 +17,10 @@ export const PROGRESS_SOURCE_ID = 'trip-progress-source'
 export const PROGRESS_LINE_LAYER_ID = 'trip-progress-line'
 export const PROGRESS_CAP_SOURCE_ID = 'trip-progress-cap-source'
 export const PROGRESS_CAP_LAYER_ID = 'trip-progress-cap'
+export const PROGRESS_CAP_HIT_LAYER_ID = 'trip-progress-cap-hit'
+
+export const PROGRESS_CAP_RADIUS = 3.5
+export const PROGRESS_CAP_HIT_RADIUS = 12
 
 export const STATION_DOT_DEFAULT_COLOR = '#ffffff'
 
@@ -66,14 +70,14 @@ export function tripProgressLines(
 
     features.push({
       type: 'Feature',
-        properties: {
-          from: leg.from,
-          to: leg.to,
-          service_id: leg.service_id,
-          fraction: leg.fraction,
-          remaining_secs: leg.remaining_secs,
-          ride_secs: leg.ride_secs,
-        },
+      properties: {
+        from: leg.from,
+        to: leg.to,
+        service_id: leg.service_id,
+        fraction: leg.fraction,
+        remaining_secs: leg.remaining_secs,
+        ride_secs: leg.ride_secs,
+      },
       geometry: { type: 'LineString', coordinates },
     })
   }
@@ -312,8 +316,25 @@ export function useRouteLayer(
     // An unringed ink dot: the point the budget ran out is a full stop on the
     // dashes, not a station, and the ringed dots on this map are stations.
     paint: {
-      'circle-radius': 3.5,
+      'circle-radius': PROGRESS_CAP_RADIUS,
       'circle-color': ink,
+    },
+  })
+
+  // The visible cap is a 7px disc, too small to hover at the zoom a whole
+  // state is drawn at. This sibling is unpainted and larger so the pointer
+  // can find the same point; station dots stay above it so a cap that lands
+  // on a station still loses to the station.
+  addLayerInStack(map, {
+    id: PROGRESS_CAP_HIT_LAYER_ID,
+    type: 'circle',
+    source: PROGRESS_CAP_SOURCE_ID,
+    paint: {
+      'circle-radius': PROGRESS_CAP_HIT_RADIUS,
+      // Transparent colour, not circle-opacity 0: MapLibre's hover query
+      // skips a fully-opacity-zero circle, which would make the hit layer
+      // as unreachable as the 3.5px disc it is standing in for.
+      'circle-color': 'rgba(0, 0, 0, 0)',
     },
   })
 

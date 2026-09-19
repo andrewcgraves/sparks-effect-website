@@ -1,6 +1,6 @@
 import { Popup, type Map, type MapLayerMouseEvent } from 'maplibre-gl'
 import type { MapModule } from './mapLifecycle'
-import { PROGRESS_CAP_LAYER_ID, STATION_DOTS_LAYER_ID } from './useRouteLayer'
+import { PROGRESS_CAP_HIT_LAYER_ID, STATION_DOTS_LAYER_ID } from './useRouteLayer'
 import { TOOLTIP_MAP_POPUP_CLASS, progressTooltipContent, stationTooltipContent } from '../components/tooltip'
 import {
   ISOCHRONE_LAYER_ID,
@@ -115,14 +115,16 @@ export function useStationHighlight(map: Map, callbacks: StationHighlightCallbac
     if (!station) return
     hovered = station
     canvas.style.cursor = 'pointer'
-    callbacks.onHover(station.slug)
+    if (!cap) callbacks.onHover(station.slug)
     applyHighlight()
   }
 
   function handleLeave(): void {
     hovered = null
-    canvas.style.cursor = callbacks.idleCursor()
-    callbacks.onHover(null)
+    if (!cap) {
+      canvas.style.cursor = callbacks.idleCursor()
+      callbacks.onHover(null)
+    }
     applyHighlight()
   }
 
@@ -131,19 +133,29 @@ export function useStationHighlight(map: Map, callbacks: StationHighlightCallbac
     if (!next) return
     cap = next
     canvas.style.cursor = 'pointer'
+    // The cap is not a station: drop any leftover polygon promote while the
+    // pointer is explaining the unfinished hop.
+    if (hovered) callbacks.onHover(null)
     applyHighlight()
   }
 
   function handleCapLeave(): void {
     cap = null
-    canvas.style.cursor = callbacks.idleCursor()
+    if (hovered) {
+      canvas.style.cursor = 'pointer'
+      callbacks.onHover(hovered.slug)
+    } else {
+      canvas.style.cursor = callbacks.idleCursor()
+    }
     applyHighlight()
   }
 
   map.on('mouseenter', STATION_DOTS_LAYER_ID, handleEnter)
   map.on('mouseleave', STATION_DOTS_LAYER_ID, handleLeave)
-  map.on('mouseenter', PROGRESS_CAP_LAYER_ID, handleCapEnter)
-  map.on('mouseleave', PROGRESS_CAP_LAYER_ID, handleCapLeave)
+  // Bound to the unpainted hit circle, not the 3.5px disc: MapLibre hit-tests
+  // painted radius, and the visible cap is too small to find at state zoom.
+  map.on('mouseenter', PROGRESS_CAP_HIT_LAYER_ID, handleCapEnter)
+  map.on('mouseleave', PROGRESS_CAP_HIT_LAYER_ID, handleCapLeave)
 
   return {
     // The popup is a DOM element over the canvas, same as a Marker — the
