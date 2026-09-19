@@ -25,7 +25,7 @@ vi.mock('maplibre-gl', () => ({
 import { Popup } from 'maplibre-gl'
 import { TOOLTIP_MAP_POPUP_CLASS, TOOLTIP_PANEL_CLASS } from '../components/tooltip'
 import { useStationHighlight } from './useStationHighlight'
-import { STATION_DOTS_LAYER_ID } from './useRouteLayer'
+import { PROGRESS_CAP_LAYER_ID, STATION_DOTS_LAYER_ID } from './useRouteLayer'
 import {
   ISOCHRONE_LAYER_ID,
   ISOCHRONE_ORIGIN_LAYER_ID,
@@ -78,10 +78,28 @@ function stationEvent(slug: string, name: string, lng: number, lat: number) {
   }
 }
 
+function capEvent(
+  to: string,
+  fraction: number,
+  rideSecs: number,
+  lng = -120.5,
+  lat = 37.3,
+) {
+  return {
+    features: [
+      {
+        geometry: { type: 'Point', coordinates: [lng, lat] },
+        properties: { from: 'gilroy', to, fraction, remaining_secs: 0, ride_secs: rideSecs },
+      },
+    ],
+  }
+}
+
 function setup(
   idleCursor = () => '',
   egressSlugs = () => new Set(['sf', 'gilroy']),
   remainingSecs: (slug: string) => number | null = () => null,
+  stationName: (slug: string) => string = (slug) => slug,
 ) {
   const mock = makeMockMap()
   let active: string | null = null
@@ -91,6 +109,7 @@ function setup(
     egressSlugs,
     activeSlug: () => active,
     remainingSecs,
+    stationName,
     onHover,
   })
   return { ...mock, highlight, onHover, setActive: (slug: string | null) => { active = slug } }
@@ -333,6 +352,74 @@ describe('useStationHighlight', () => {
 
       expect(popupNode()?.textContent).toContain('Gilroy')
       expect(popupNode()?.textContent).toContain('0m left')
+    })
+  })
+
+  describe('the unfinished-leg cap', () => {
+    it('explains how far the hop got, naming the station the rider was heading for', () => {
+      const { fire } = setup(undefined, undefined, undefined, (slug) =>
+        slug === 'merced' ? 'Merced' : slug,
+      )
+
+      fire('mouseenter', PROGRESS_CAP_LAYER_ID, capEvent('merced', 0.38, 1839))
+
+      expect(popupNode()?.textContent).toBe('38% of the way to Merced — 19m short')
+      expect(mockPopupSetLngLat).toHaveBeenCalledWith([-120.5, 37.3])
+      expect(mockPopupAddTo).toHaveBeenCalled()
+    })
+
+    it('shows a pointer cursor without promoting a station, because the cap is not one', () => {
+      const { fire, canvas, onHover, setPaintProperty, setFilter } = setup()
+
+      fire('mouseenter', PROGRESS_CAP_LAYER_ID, capEvent('merced', 0.38, 1839))
+
+      expect(canvas.style.cursor).toBe('pointer')
+      expect(onHover).not.toHaveBeenCalled()
+      expect(setPaintProperty).toHaveBeenCalledWith(ISOCHRONE_LAYER_ID, 'fill-opacity', isochroneEgressOpacity(false))
+      expect(setFilter).toHaveBeenCalledWith(ISOCHRONE_HIGHLIGHT_LAYER_ID, isochroneHighlightFilter(null))
+    })
+
+    it('falls back to the slug when the stations list has no name for that hop', () => {
+      const { fire } = setup()
+
+      fire('mouseenter', PROGRESS_CAP_LAYER_ID, capEvent('merced', 0.38, 1839))
+
+      expect(popupNode()?.textContent).toBe('38% of the way to merced — 19m short')
+    })
+
+    it('reads numeric properties even when MapLibre has stringified them', () => {
+      const { fire } = setup(undefined, undefined, undefined, () => 'Merced')
+
+      fire('mouseenter', PROGRESS_CAP_LAYER_ID, {
+        features: [
+          {
+            geometry: { type: 'Point', coordinates: [-120.5, 37.3] },
+            properties: { to: 'merced', fraction: '0.38', ride_secs: '1839' },
+          },
+        ],
+      })
+
+      expect(popupNode()?.textContent).toBe('38% of the way to Merced — 19m short')
+    })
+
+    it('ignores a hover that carries no unfinished hop', () => {
+      const { fire, canvas } = setup()
+
+      fire('mouseenter', PROGRESS_CAP_LAYER_ID, { features: [] })
+
+      expect(canvas.style.cursor).toBe('')
+      expect(mockPopupAddTo).not.toHaveBeenCalled()
+    })
+
+    it('removes the popup and restores the idle cursor when the pointer leaves', () => {
+      const { fire, canvas } = setup(() => 'crosshair')
+      fire('mouseenter', PROGRESS_CAP_LAYER_ID, capEvent('merced', 0.38, 1839))
+      mockPopupRemove.mockClear()
+
+      fire('mouseleave', PROGRESS_CAP_LAYER_ID)
+
+      expect(mockPopupRemove).toHaveBeenCalled()
+      expect(canvas.style.cursor).toBe('crosshair')
     })
   })
 

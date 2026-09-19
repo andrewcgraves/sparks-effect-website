@@ -178,10 +178,23 @@ describe('useIsochroneLayer', () => {
 
   it('legend labels carry the same colours the fills are painted with', () => {
     const legend = isochroneLegend({ origin: '#111111', egress: '#222222' })
-    expect(legend.map((e) => [e.source, e.color])).toEqual([
-      ['origin', '#111111'],
-      ['egress', '#222222'],
+    expect(legend.map((e) => [e.source, e.color, e.swatch])).toEqual([
+      ['origin', '#111111', 'fill'],
+      ['egress', '#222222', 'fill'],
+      ['unfinished', THEME_TOKEN_FALLBACKS['--color-ink'], 'dashed'],
     ])
+  })
+
+  it('names the unfinished stub in ink dashes, not the egress orange', () => {
+    const legend = isochroneLegend({ origin: '#111111', egress: '#f28f29' })
+    const unfinished = legend.find((e) => e.source === 'unfinished')
+    expect(unfinished).toEqual({
+      source: 'unfinished',
+      label: 'Budget ran out here',
+      color: THEME_TOKEN_FALLBACKS['--color-ink'],
+      swatch: 'dashed',
+    })
+    expect(unfinished?.color).not.toBe('#f28f29')
   })
 
   it('fixture names the compiled graph it was plotted over', () => {

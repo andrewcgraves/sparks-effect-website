@@ -631,6 +631,7 @@ describe('useRouteLayer', () => {
       const [dash, gap] = stub.paint['line-dasharray']
       expect(gap).toBeGreaterThan(dash + 2)
       expect(stub.paint['line-color']).toBe('#121212')
+      expect(stub.paint['line-color']).not.toBe('#f28f29')
       expect(stub.paint['line-width']).toBe(ROUTE_LINE_WIDTH)
     })
 
@@ -692,9 +693,16 @@ describe('useRouteLayer', () => {
       expect(lines.features).toHaveLength(1)
     })
 
-    it('carries the leg it describes onto the feature, so a stub can be identified', () => {
+    it('carries the unfinished hop onto the feature, including how far the budget got', () => {
       const lines = tripProgressLines([progressRoute], [progressEntry({ fraction: 0.5 })])
-      expect(lines.features[0].properties).toMatchObject({ from: 'a', to: 'b' })
+      expect(lines.features[0].properties).toEqual({
+        from: 'a',
+        to: 'b',
+        service_id: 'svc',
+        fraction: 0.5,
+        remaining_secs: 300,
+        ride_secs: 600,
+      })
     })
   })
 })

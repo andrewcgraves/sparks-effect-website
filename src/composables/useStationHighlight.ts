@@ -1,7 +1,7 @@
 import { Popup, type Map, type MapLayerMouseEvent } from 'maplibre-gl'
 import type { MapModule } from './mapLifecycle'
-import { STATION_DOTS_LAYER_ID } from './useRouteLayer'
-import { TOOLTIP_MAP_POPUP_CLASS, stationTooltipContent } from '../components/tooltip'
+import { PROGRESS_CAP_LAYER_ID, STATION_DOTS_LAYER_ID } from './useRouteLayer'
+import { TOOLTIP_MAP_POPUP_CLASS, progressTooltipContent, stationTooltipContent } from '../components/tooltip'
 import {
   ISOCHRONE_LAYER_ID,
   ISOCHRONE_ORIGIN_LAYER_ID,
@@ -23,7 +23,15 @@ export interface StationHighlightCallbacks {
   egressSlugs: () => Set<string>
   activeSlug: () => string | null
   remainingSecs: (slug: string) => number | null
+  stationName: (slug: string) => string
   onHover: (slug: string | null) => void
+}
+
+interface UnfinishedCap {
+  to: string
+  fraction: number
+  rideSecs: number
+  lngLat: [number, number]
 }
 
 function stationOf(event: MapLayerMouseEvent): HighlightedStation | null {
@@ -32,6 +40,17 @@ function stationOf(event: MapLayerMouseEvent): HighlightedStation | null {
   const { slug, name } = feature.properties as Record<string, unknown>
   if (typeof slug !== 'string' || typeof name !== 'string') return null
   return { slug, name, lngLat: feature.geometry.coordinates as [number, number] }
+}
+
+function unfinishedCapOf(event: MapLayerMouseEvent): UnfinishedCap | null {
+  const feature = event.features?.[0]
+  if (!feature || feature.geometry.type !== 'Point') return null
+  const { to, fraction, ride_secs: rideSecs } = (feature.properties ?? {}) as Record<string, unknown>
+  if (typeof to !== 'string' || to.length === 0) return null
+  const frac = Number(fraction)
+  const ride = Number(rideSecs)
+  if (!Number.isFinite(frac) || !Number.isFinite(ride)) return null
+  return { to, fraction: frac, rideSecs: ride, lngLat: feature.geometry.coordinates as [number, number] }
 }
 
 export function useStationHighlight(map: Map, callbacks: StationHighlightCallbacks): { release: () => void; sync: () => void } {
@@ -44,6 +63,7 @@ export function useStationHighlight(map: Map, callbacks: StationHighlightCallbac
     maxWidth: 'none',
   })
   let hovered: HighlightedStation | null = null
+  let cap: UnfinishedCap | null = null
 
   function applyHighlight(): void {
     // Dimming is only worth doing when there is something to promote in its
@@ -73,7 +93,14 @@ export function useStationHighlight(map: Map, callbacks: StationHighlightCallbac
     // The popup belongs to this map's own pointer. A station made active from
     // the card has no dot under the cursor to hang one off, and putting one up
     // anyway would leave the map annotating something nobody is pointing at.
-    if (hovered) {
+    // The unfinished-leg cap is the other thing that can sit under the pointer:
+    // it is not a station, so it takes the popup without promoting a polygon.
+    if (cap) {
+      popup
+        .setLngLat(cap.lngLat)
+        .setDOMContent(progressTooltipContent(cap.fraction, callbacks.stationName(cap.to), cap.rideSecs))
+        .addTo(map)
+    } else if (hovered) {
       popup
         .setLngLat(hovered.lngLat)
         .setDOMContent(stationTooltipContent(hovered.name, callbacks.remainingSecs(hovered.slug)))
@@ -99,8 +126,24 @@ export function useStationHighlight(map: Map, callbacks: StationHighlightCallbac
     applyHighlight()
   }
 
+  function handleCapEnter(event: MapLayerMouseEvent): void {
+    const next = unfinishedCapOf(event)
+    if (!next) return
+    cap = next
+    canvas.style.cursor = 'pointer'
+    applyHighlight()
+  }
+
+  function handleCapLeave(): void {
+    cap = null
+    canvas.style.cursor = callbacks.idleCursor()
+    applyHighlight()
+  }
+
   map.on('mouseenter', STATION_DOTS_LAYER_ID, handleEnter)
   map.on('mouseleave', STATION_DOTS_LAYER_ID, handleLeave)
+  map.on('mouseenter', PROGRESS_CAP_LAYER_ID, handleCapEnter)
+  map.on('mouseleave', PROGRESS_CAP_LAYER_ID, handleCapLeave)
 
   return {
     // The popup is a DOM element over the canvas, same as a Marker — the

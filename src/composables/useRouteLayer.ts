@@ -32,6 +32,8 @@ export interface TripProgressProperties {
   to: string
   service_id?: string
   fraction: number
+  remaining_secs: number
+  ride_secs: number
 }
 
 export type TripProgressLines = FeatureCollection<LineString, TripProgressProperties>
@@ -64,12 +66,14 @@ export function tripProgressLines(
 
     features.push({
       type: 'Feature',
-      properties: {
-        from: leg.from,
-        to: leg.to,
-        service_id: leg.service_id,
-        fraction: leg.fraction,
-      },
+        properties: {
+          from: leg.from,
+          to: leg.to,
+          service_id: leg.service_id,
+          fraction: leg.fraction,
+          remaining_secs: leg.remaining_secs,
+          ride_secs: leg.ride_secs,
+        },
       geometry: { type: 'LineString', coordinates },
     })
   }

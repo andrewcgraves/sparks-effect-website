@@ -35,8 +35,14 @@ export function resolveIsochroneColors(): IsochroneColors {
 
 export function isochroneLegend(colors: IsochroneColors = resolveIsochroneColors()) {
   return [
-    { source: 'origin', label: 'Origin reach', color: colors.origin },
-    { source: 'egress', label: 'From station', color: colors.egress },
+    { source: 'origin', label: 'Origin reach', color: colors.origin, swatch: 'fill' },
+    { source: 'egress', label: 'From station', color: colors.egress, swatch: 'fill' },
+    {
+      source: 'unfinished',
+      label: 'Budget ran out here',
+      color: readThemeToken('--color-ink'),
+      swatch: 'dashed',
+    },
   ] as const
 }
 
