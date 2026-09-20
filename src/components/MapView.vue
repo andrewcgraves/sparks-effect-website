@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { Map, FullscreenControl } from 'maplibre-gl'
 import type { MapMouseEvent } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
@@ -42,7 +42,12 @@ const emit = defineEmits<{
 const ORIGIN_SNAP_ZOOM = 9
 
 const isochroneColors = resolveIsochroneColors()
-const legend = isochroneLegend(isochroneColors)
+const legend = computed(() =>
+  isochroneLegend(
+    isochroneColors,
+    (props.isochroneData?.metadata.trip_progress?.length ?? 0) > 0,
+  ),
+)
 
 const mapContainer = ref<HTMLElement | null>(null)
 let map: Map | null = null
@@ -122,6 +127,7 @@ const stationHighlight = stationHighlightModule({
   egressSlugs: () => egressStationSlugs(props.isochroneData),
   activeSlug: () => props.activeStation ?? null,
   remainingSecs: (slug) => props.remainingSecs?.(slug) ?? null,
+  stationName: (slug) => props.stations.find((s) => s.slug === slug)?.name ?? slug,
   onHover: (slug) => emit('station-hover', slug),
 })
 stationHighlight.requires = [routeLayer]
@@ -301,6 +307,17 @@ onUnmounted(() => {
           class="font-body text-caption flex items-center gap-2 text-ink"
         >
           <span
+            v-if="entry.swatch === 'dashed'"
+            class="inline-flex size-3.5 shrink-0 items-center"
+            data-testid="legend-swatch-unfinished"
+          >
+            <span
+              class="w-full border-t-2 border-dashed"
+              :style="{ borderColor: entry.color }"
+            />
+          </span>
+          <span
+            v-else
             class="inline-block size-3.5 shrink-0 rounded-[3px] opacity-85"
             :style="{ backgroundColor: entry.color }"
           />

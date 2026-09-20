@@ -13,6 +13,7 @@ import {
   isochroneHighlightFilter,
 } from '../composables/useIsochroneLayer'
 import {
+  PROGRESS_CAP_HIT_LAYER_ID,
   ROUTE_LINE_LAYER_ID,
   ROUTE_SOURCE_ID,
   STATION_DOTS_LAYER_ID,
@@ -862,6 +863,40 @@ describe('MapView', () => {
     const legend = wrapper.get('[aria-label="Isochrone color key"]')
     expect(legend.text()).toContain('Origin reach')
     expect(legend.text()).toContain('From station')
+    expect(legend.text()).not.toContain('Budget ran out here')
+  })
+
+  it('names the unfinished stub in the key only when the plot drew one', () => {
+    const wrapper = mount(MapView, {
+      props: {
+        ...defaultProps,
+        isochroneData: {
+          ...staticIsochroneResponse,
+          metadata: {
+            ...staticIsochroneResponse.metadata,
+            trip_progress: [
+              {
+                from: 'gilroy',
+                to: 'merced',
+                route_id: 'r1',
+                from_chainage_m: 0,
+                to_chainage_m: 1000,
+                fraction: 0.38,
+                remaining_secs: 699,
+                ride_secs: 1839,
+              },
+            ],
+          },
+        },
+      },
+    })
+    const legend = wrapper.get('[aria-label="Isochrone color key"]')
+    expect(legend.text()).toContain('Budget ran out here')
+
+    const unfinished = wrapper.get('[data-testid="legend-swatch-unfinished"]')
+    expect(unfinished.html()).toContain('border-dashed')
+    expect(unfinished.html()).toContain(THEME_TOKEN_FALLBACKS['--color-ink'])
+    expect(unfinished.html()).not.toContain(THEME_TOKEN_FALLBACKS['--color-data-egress'])
   })
 
   it('hides the isochrone legend when hideIsochroneLegend is set', () => {
@@ -1235,6 +1270,51 @@ describe('MapView', () => {
       expect(mockPopupAddTo).toHaveBeenCalled()
     })
 
+    it('explains the unfinished-leg cap on hover from the stations list', async () => {
+      const merced: Station = {
+        ...stubStation,
+        id: 'st-merced',
+        slug: 'merced',
+        name: 'Merced',
+        location: { type: 'Point', coordinates: [-120.5, 37.3] },
+      }
+      mount(MapView, {
+        props: { ...defaultProps, routes: [stubRoute], stations: [stubStation, merced] },
+      })
+      await triggerMapLoad()
+
+      fireLayerEvent('mouseenter', PROGRESS_CAP_HIT_LAYER_ID, {
+        features: [
+          {
+            geometry: { type: 'Point', coordinates: [-120.5, 37.3] },
+            properties: { from: 'gilroy', to: 'merced', fraction: 0.38, remaining_secs: 699, ride_secs: 1839 },
+          },
+        ],
+      })
+
+      const node = mockPopupSetDOMContent.mock.calls[0]?.[0] as HTMLElement
+      expect(node.textContent).toBe('38% of the way to Merced — 19m short')
+      expect(mockPopupAddTo).toHaveBeenCalled()
+    })
+
+    it('does not raise a station hover when the pointer is on the unfinished-leg cap', async () => {
+      const wrapper = mount(MapView, {
+        props: { ...defaultProps, routes: [stubRoute], stations: [stubStation] },
+      })
+      await triggerMapLoad()
+
+      fireLayerEvent('mouseenter', PROGRESS_CAP_HIT_LAYER_ID, {
+        features: [
+          {
+            geometry: { type: 'Point', coordinates: [-120.5, 37.3] },
+            properties: { to: 'merced', fraction: 0.38, ride_secs: 1839 },
+          },
+        ],
+      })
+
+      expect(wrapper.emitted('station-hover')).toBeUndefined()
+    })
+
     it('does not bind station hover until the route layer has attached', async () => {
       const wrapper = mount(MapView, { props: defaultProps })
       await triggerMapLoad()
@@ -1244,6 +1324,7 @@ describe('MapView', () => {
       await wrapper.setProps({ routes: [stubRoute], stations: [stubStation] })
 
       expect(mockOn).toHaveBeenCalledWith('mouseenter', STATION_DOTS_LAYER_ID, expect.any(Function))
+      expect(mockOn).toHaveBeenCalledWith('mouseenter', PROGRESS_CAP_HIT_LAYER_ID, expect.any(Function))
     })
 
     it('adds remaining time to the popup when the page provides a lookup', async () => {

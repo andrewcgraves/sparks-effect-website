@@ -1,4 +1,4 @@
-import { formatTimeRemaining } from './timeRemaining'
+import { formatProgressPercent, formatTimeRemaining } from './timeRemaining'
 
 export const TOOLTIP_WIDTH_PX = 240
 export const TOOLTIP_GAP_PX = 8
@@ -65,6 +65,19 @@ export function tooltipContent(text: string): HTMLElement {
   node.className = `${TOOLTIP_PANEL_CLASS} font-body text-caption text-ink`
   node.textContent = text
   return node
+}
+
+export function progressTooltipText(fraction: number, stationName: string, rideSecs: number): string {
+  const shortSecs = rideSecs * (1 - fraction)
+  return `${formatProgressPercent(fraction)} of the way to ${stationName} — ${formatTimeRemaining(shortSecs)} short`
+}
+
+export function progressTooltipContent(
+  fraction: number,
+  stationName: string,
+  rideSecs: number,
+): HTMLElement {
+  return tooltipContent(progressTooltipText(fraction, stationName, rideSecs))
 }
 
 export function stationTooltipContent(name: string, remainingSecs: number | null): HTMLElement {

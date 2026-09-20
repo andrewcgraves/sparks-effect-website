@@ -7,6 +7,7 @@ import {
 } from './useIsochroneLayer'
 import { ORIGIN_WALK_LAYER_ID } from './useOriginWalkLayer'
 import {
+  PROGRESS_CAP_HIT_LAYER_ID,
   PROGRESS_CAP_LAYER_ID,
   PROGRESS_LINE_LAYER_ID,
   RIDDEN_LINE_LAYER_ID,
@@ -34,6 +35,7 @@ export function layerStack(): readonly string[] {
     RIDDEN_LINE_LAYER_ID,
     PROGRESS_LINE_LAYER_ID,
     PROGRESS_CAP_LAYER_ID,
+    PROGRESS_CAP_HIT_LAYER_ID,
     STATION_DOTS_LAYER_ID,
     ORIGIN_WALK_LAYER_ID,
     LEADER_LAYER_ID,

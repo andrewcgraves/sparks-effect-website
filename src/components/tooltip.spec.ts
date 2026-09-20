@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   placeTooltip,
+  progressTooltipContent,
+  progressTooltipText,
   stationTooltipContent,
   tooltipContent,
   tooltipStyle,
@@ -148,5 +150,19 @@ describe('stationTooltipContent', () => {
     const node = stationTooltipContent('Gilroy', 0)
 
     expect(node.textContent).toContain('0m left')
+  })
+})
+
+describe('progressTooltipContent', () => {
+  it('says how far the unfinished hop got, and how far short of the station', () => {
+    expect(progressTooltipText(0.38, 'Merced', 1839)).toBe('38% of the way to Merced — 19m short')
+
+    const node = progressTooltipContent(0.38, 'Merced', 1839)
+    expect(node.textContent).toBe('38% of the way to Merced — 19m short')
+    expect(node.className).toContain(TOOLTIP_PANEL_CLASS)
+  })
+
+  it('rounds the remaining ride the way the card does, not as a pile of minutes', () => {
+    expect(progressTooltipText(0.5, 'Merced', 10800)).toBe('50% of the way to Merced — 1h 30m short')
   })
 })

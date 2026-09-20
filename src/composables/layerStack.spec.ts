@@ -9,6 +9,7 @@ import {
 } from './useIsochroneLayer'
 import { ORIGIN_WALK_LAYER_ID } from './useOriginWalkLayer'
 import {
+  PROGRESS_CAP_HIT_LAYER_ID,
   PROGRESS_CAP_LAYER_ID,
   PROGRESS_LINE_LAYER_ID,
   RIDDEN_LINE_LAYER_ID,
@@ -39,7 +40,7 @@ function paintMap() {
 }
 
 describe('layerStack', () => {
-  it('is origin, egress, highlight, outline, route, ridden, progress, dots, walk, then stop preview', () => {
+  it('is origin, egress, highlight, outline, route, ridden, progress, cap hit, dots, walk, then stop preview', () => {
     expect(layerStack()).toEqual([
       ISOCHRONE_ORIGIN_LAYER_ID,
       ISOCHRONE_LAYER_ID,
@@ -49,6 +50,7 @@ describe('layerStack', () => {
       RIDDEN_LINE_LAYER_ID,
       PROGRESS_LINE_LAYER_ID,
       PROGRESS_CAP_LAYER_ID,
+      PROGRESS_CAP_HIT_LAYER_ID,
       STATION_DOTS_LAYER_ID,
       ORIGIN_WALK_LAYER_ID,
       LEADER_LAYER_ID,
@@ -106,12 +108,14 @@ describe('addLayerInStack', () => {
     addLayerInStack(map, spec(ROUTE_LINE_LAYER_ID))
     addLayerInStack(map, spec(PROGRESS_LINE_LAYER_ID))
     addLayerInStack(map, spec(PROGRESS_CAP_LAYER_ID))
+    addLayerInStack(map, spec(PROGRESS_CAP_HIT_LAYER_ID))
     addLayerInStack(map, spec(STATION_DOTS_LAYER_ID))
 
     expect(map.ids).toEqual([
       ROUTE_LINE_LAYER_ID,
       PROGRESS_LINE_LAYER_ID,
       PROGRESS_CAP_LAYER_ID,
+      PROGRESS_CAP_HIT_LAYER_ID,
       STATION_DOTS_LAYER_ID,
       ORIGIN_WALK_LAYER_ID,
     ])
