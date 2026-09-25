@@ -131,6 +131,29 @@ describe('useServiceDraft', () => {
     })
   })
 
+  describe('prose', () => {
+    it('writes the subtext and description through to the stored draft', async () => {
+      const draft = useServiceDraft()
+      await draft.start()
+
+      draft.subtext.value = 'Electrified · Light rail'
+      draft.description.value = 'Crosstown.'
+
+      expect(useDraftsStore().serviceDraft).toEqual(expect.objectContaining({
+        subtext: 'Electrified · Light rail',
+        description: 'Crosstown.',
+      }))
+    })
+
+    it('reads a draft without prose as empty prose', async () => {
+      const draft = useServiceDraft()
+      await draft.start()
+
+      expect(draft.subtext.value).toBe('')
+      expect(draft.description.value).toBe('')
+    })
+  })
+
   describe('stops', () => {
     it('keeps seq equal to position as stops are added and reordered', async () => {
       const draft = useServiceDraft()
@@ -307,6 +330,17 @@ describe('useServiceDraft', () => {
       expect(draft.canSubmit.value).toBe(false)
     })
 
+    // A service with no prose is a legitimate service, and the server agrees.
+    it('is ready with neither a subtext nor a description', async () => {
+      const draft = useServiceDraft()
+      await submittable(draft)
+
+      draft.subtext.value = ''
+      draft.description.value = ''
+
+      expect(draft.canSubmit.value).toBe(true)
+    })
+
     it('is not ready with no frequency window', async () => {
       const draft = useServiceDraft()
       await submittable(draft)
@@ -351,6 +385,20 @@ describe('useServiceDraft', () => {
       expect(compileService).toHaveBeenCalledWith('northbound-express', expect.any(Object))
       expect(draft.submitted.value).toBe(true)
       expect(useDraftsStore().serviceDraft).toBeNull()
+    })
+
+    it('sends the subtext and description with the service', async () => {
+      const draft = useServiceDraft()
+      await submittable(draft)
+      draft.subtext.value = 'Electrified · High-speed rail'
+      draft.description.value = 'Runs the spine.\n\nStops at every town.'
+
+      await draft.submit()
+
+      expect(createService).toHaveBeenCalledWith(expect.objectContaining({
+        subtext: 'Electrified · High-speed rail',
+        description: 'Runs the spine.\n\nStops at every town.',
+      }))
     })
 
     it('does nothing when the draft is not ready', async () => {

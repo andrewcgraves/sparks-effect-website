@@ -47,6 +47,7 @@ export interface Service {
   slug: string
   route_id: string
   name: string
+  subtext?: string
   description?: string
   stops: Stop[]
   vehicle: VehicleParams
@@ -56,9 +57,16 @@ export interface Service {
   updated_at?: string
 }
 
+// Mirrors UserService.Validate() in sparks-effect-api, which counts runes. A
+// form's maxlength counts UTF-16 units instead, so it can only be the stricter.
+export const MAX_SUBTEXT_CHARS = 140
+export const MAX_DESCRIPTION_CHARS = 4000
+
 export interface ServiceInput {
   route_slug: string
   name: string
+  subtext?: string
+  description?: string
   stops: Stop[]
   vehicle: VehicleParams
   frequency_windows: FrequencyWindow[]

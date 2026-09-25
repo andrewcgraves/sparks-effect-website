@@ -84,11 +84,20 @@ function isFrequencyWindow(value: unknown): value is FrequencyWindow {
   )
 }
 
+function isAbsentOrString(value: unknown): boolean {
+  return value === undefined || typeof value === 'string'
+}
+
 function isServiceInput(value: unknown): value is ServiceInput {
   const service = value as Partial<ServiceInput> | null
+  // The prose is allowed to be missing, not just empty: every draft stored
+  // before a service had prose lacks both keys, and requiring them here would
+  // throw each of those drafts away on the next read.
   return (
     typeof service?.route_slug === 'string' &&
     typeof service.name === 'string' &&
+    isAbsentOrString(service.subtext) &&
+    isAbsentOrString(service.description) &&
     Array.isArray(service.stops) &&
     service.stops.every(isStop) &&
     isVehicleParams(service.vehicle) &&

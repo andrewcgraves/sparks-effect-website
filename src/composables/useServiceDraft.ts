@@ -66,6 +66,16 @@ export function useServiceDraft() {
     set: (value: string) => drafts.patchServiceDraft({ name: value }),
   })
 
+  const subtext = computed({
+    get: () => draft.value?.subtext ?? '',
+    set: (value: string) => drafts.patchServiceDraft({ subtext: value }),
+  })
+
+  const description = computed({
+    get: () => draft.value?.description ?? '',
+    set: (value: string) => drafts.patchServiceDraft({ description: value }),
+  })
+
   function patchVehicle(patch: Partial<VehicleParams>): void {
     if (!draft.value) return
     drafts.patchServiceDraft({ vehicle: { ...draft.value.vehicle, ...patch } })
@@ -303,6 +313,8 @@ export function useServiceDraft() {
     frequencyWindows,
     routeSlug,
     name,
+    subtext,
+    description,
     maxSpeedKmh,
     accelerationMs2,
     decelerationMs2,

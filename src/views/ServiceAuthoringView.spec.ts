@@ -382,6 +382,37 @@ describe('ServiceAuthoringView', () => {
     expect(edgeRows[0].text()).toContain('sj')
   })
 
+  it('sends the subtext and description typed into the form', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.find('[data-testid="route-select"]').setValue('main-line')
+    await flushPromises()
+    await addStop(wrapper, 'A', 37.77, -122.41)
+    await addStop(wrapper, 'B', 37.33, -121.88)
+    await vi.advanceTimersByTimeAsync(400)
+    await flushPromises()
+    await wrapper.find('[data-testid="service-name"]').setValue('Northbound Express')
+    await wrapper.find('[data-testid="service-subtext"]').setValue('Electrified · High-speed rail')
+    await wrapper.find('textarea[data-testid="service-description"]').setValue('Runs the spine.\n\nStops at every town.')
+    await wrapper.find('[data-testid="frequency-headway"]').setValue(15)
+    await wrapper.find('[data-testid="add-frequency"]').trigger('click')
+
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    expect(createService).toHaveBeenCalledWith(expect.objectContaining({
+      subtext: 'Electrified · High-speed rail',
+      description: 'Runs the spine.\n\nStops at every town.',
+    }))
+  })
+
+  it('bounds the subtext and description at the lengths the API accepts', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="service-subtext"]').attributes('maxlength')).toBe('140')
+    expect(wrapper.find('[data-testid="service-description"]').attributes('maxlength')).toBe('4000')
+  })
+
   it('shows the 422 message from the API when creation is rejected', async () => {
     vi.mocked(createService).mockRejectedValue(
       new ApiError('POST /api/services failed: 422: stop "B" is 620 m from route "main-line"', 422),
