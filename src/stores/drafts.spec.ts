@@ -523,6 +523,46 @@ describe('useDraftsStore', () => {
       expect(restored.scenarioDraft?.name).toBe('Peak service')
     })
 
+    it('restores a service draft stored before services had prose', () => {
+      // Exactly what an older build wrote: no subtext or description key at all.
+      const legacy = {
+        route_slug: 'main-line',
+        name: 'Blue Line',
+        stops: [stop('Stop 3', 0)],
+        vehicle: { max_speed_kmh: 90, acceleration_ms2: 1, deceleration_ms2: 1, dwell_s: 20 },
+        frequency_windows: [{ start_time: '06:00', end_time: '09:00', headway_s: 600 }],
+      }
+      window.localStorage.setItem(
+        draftsStorageKey('u1'),
+        JSON.stringify({ serviceDraft: legacy, editingServiceId: 'svc-1', serviceStopCounter: 7 }),
+      )
+
+      const restored = reloadAs('u1')
+      expect(restored.serviceDraft).toEqual(legacy)
+      expect(restored.editingServiceId).toBe('svc-1')
+      expect(restored.takeStopNumber()).toBe(8)
+    })
+
+    it('restores a service draft\'s subtext and description after a reload', async () => {
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft(service('Blue Line'))
+      drafts.patchServiceDraft({ subtext: 'Electrified · Light rail', description: 'First line.\n\nSecond.' })
+      await nextTick()
+
+      const restored = reloadAs('u1')
+      expect(restored.serviceDraft?.subtext).toBe('Electrified · Light rail')
+      expect(restored.serviceDraft?.description).toBe('First line.\n\nSecond.')
+    })
+
+    it.each([
+      ['subtext', 42],
+      ['description', null],
+    ])('discards a draft whose %s is not text', (field, value) => {
+      const corrupt = { ...service('Blue Line'), [field]: value }
+      window.localStorage.setItem(draftsStorageKey('u1'), JSON.stringify({ serviceDraft: corrupt }))
+      expect(reloadAs('u1').serviceDraft).toBeNull()
+    })
+
     it('discards a draft whose stops are malformed', () => {
       const corrupt = { ...service('Blue Line'), stops: [{ lat: 34.05, name: 'A' }] }
       window.localStorage.setItem(draftsStorageKey('u1'), JSON.stringify({ serviceDraft: corrupt }))

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useServiceDraft } from '../composables/useServiceDraft'
-import type { GraphEdge, SnapCoord as LatLng } from '../api/authoring'
+import { MAX_DESCRIPTION_CHARS, MAX_SUBTEXT_CHARS, type GraphEdge, type SnapCoord as LatLng } from '../api/authoring'
 import MapView from '../components/MapView.vue'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
 import { formatRunTime } from '../components/stationTimes'
@@ -12,6 +12,8 @@ const {
   frequencyWindows,
   routeSlug,
   name,
+  subtext,
+  description,
   maxSpeedKmh,
   accelerationMs2,
   decelerationMs2,
@@ -448,6 +450,29 @@ const allEdges = computed<GraphEdge[]>(() => compiledGraph.value?.services.flatM
               data-testid="service-name"
               type="text"
             >
+          </label>
+
+          <label :class="FIELD_LABEL_CLASS">
+            Subtext (optional)
+            <input
+              v-model="subtext"
+              :class="FIELD_INPUT_CLASS"
+              data-testid="service-subtext"
+              type="text"
+              :maxlength="MAX_SUBTEXT_CHARS"
+              placeholder="Electrified · High-speed rail · Greenfield"
+            >
+          </label>
+
+          <label :class="FIELD_LABEL_CLASS">
+            Description (optional)
+            <textarea
+              v-model="description"
+              :class="FIELD_INPUT_CLASS"
+              data-testid="service-description"
+              rows="5"
+              :maxlength="MAX_DESCRIPTION_CHARS"
+            />
           </label>
 
           <button

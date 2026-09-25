@@ -102,6 +102,27 @@ describe('AuthoredServiceView', () => {
     expect(wrapper.text()).toContain('northbound-express')
   })
 
+  it('shows the subtext and description once loaded', async () => {
+    vi.mocked(fetchService).mockResolvedValue({
+      ...stubService,
+      subtext: 'Electrified · High-speed rail',
+      description: 'Runs the spine.\n\nStops at every town.',
+    })
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="service-subtext"]').text()).toBe('Electrified · High-speed rail')
+    expect(wrapper.find('[data-testid="service-description"]').text()).toBe('Runs the spine.\n\nStops at every town.')
+  })
+
+  it('leaves out prose the service does not have', async () => {
+    // The API omits empty prose rather than sending an empty string.
+    vi.mocked(fetchService).mockResolvedValue({ ...stubService, description: undefined })
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="service-subtext"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="service-description"]').exists()).toBe(false)
+  })
+
   it('lists the stops in order', async () => {
     vi.mocked(fetchService).mockResolvedValue(stubService)
     const wrapper = mountView()

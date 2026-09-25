@@ -95,13 +95,21 @@ watch(service, (loaded) => {
         <h1 class="font-display text-display text-ink-true">
           {{ service.name }}
         </h1>
+        <p
+          v-if="service.subtext"
+          class="font-body text-micro text-ink-muted italic uppercase"
+          data-testid="service-subtext"
+        >
+          {{ service.subtext }}
+        </p>
         <p class="font-body text-micro text-ink-muted uppercase">
           {{ service.slug }}
         </p>
       </hgroup>
       <p
         v-if="service.description"
-        class="font-body text-body mt-3 max-w-[720px] text-ink"
+        class="font-body text-body mt-3 max-w-[720px] whitespace-pre-line text-ink"
+        data-testid="service-description"
       >
         {{ service.description }}
       </p>
