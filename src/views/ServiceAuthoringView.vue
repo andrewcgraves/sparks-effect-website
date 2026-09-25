@@ -1,13 +1,27 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useServiceDraft } from '../composables/useServiceDraft'
 import { MAX_DESCRIPTION_CHARS, MAX_SUBTEXT_CHARS, type GraphEdge, type SnapCoord as LatLng } from '../api/authoring'
 import MapView from '../components/MapView.vue'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
+import { ACTION_LINK_CLASS } from '../components/linkStyles'
 import { formatRunTime } from '../components/stationTimes'
 import { STOP_PLACEMENT_CUE } from '../components/placementCues'
 
+// One view for both writes. The form, the map, the snap preview and fault
+// attribution are the same whichever way a draft is headed; only the edges
+// differ — the heading, the button, and where a save ends up.
+const props = defineProps<{ slug?: string }>()
+
+const router = useRouter()
+
 const {
+  ready,
+  editing,
+  editNotFound,
+  editLoadFailed,
+  routeMissing,
   stops,
   frequencyWindows,
   routeSlug,
@@ -44,13 +58,21 @@ const {
   faultedStops,
   stopFaultMessage,
   submit,
+  discardEdit,
   startAnother,
   compiling,
   compileError,
   compiledGraph,
   start,
   dispose,
-} = useServiceDraft()
+} = useServiceDraft(props.slug)
+
+const servicePath = computed(() => `/authoring/services/${props.slug}`)
+
+const submitLabel = computed(() => {
+  if (props.slug) return submitting.value ? 'Saving…' : 'Save changes'
+  return submitting.value ? 'Creating…' : 'Create service'
+})
 
 const newStopName = ref('')
 const newStopLat = ref<number | null>(null)
@@ -102,16 +124,66 @@ function handleStopDragEnd(pairId: string, coord: LatLng): void {
   dropStop(Number(pairId), coord)
 }
 
+// Discarded before leaving, because leaving first would stop the gate the
+// discard is checked against.
+async function handleDiscard(): Promise<void> {
+  discardEdit()
+  await router.push(servicePath.value)
+}
+
+// An edit ends on the page of the service it saved over, but only once the
+// recompile has landed: that page reads the latest compile that succeeded, so
+// arriving any sooner would show the graph from before the edit. Replaced
+// rather than pushed, so going back does not reopen a finished edit.
+watch(compiledGraph, (graph) => {
+  if (graph && props.slug) void router.replace(servicePath.value)
+})
+
 const allEdges = computed<GraphEdge[]>(() => compiledGraph.value?.services.flatMap((s) => s.edges) ?? [])
 </script>
 
 <template>
   <main class="min-h-svh p-(--page-padding)">
-    <h1 class="font-display text-display text-ink-true">
-      New service
+    <router-link
+      v-if="slug"
+      :to="servicePath"
+      :class="ACTION_LINK_CLASS"
+      data-testid="back-to-service"
+    >
+      ← {{ editing?.name ?? 'Service' }}
+    </router-link>
+    <h1
+      class="font-display text-display text-ink-true"
+      :class="{ 'mt-8': slug }"
+    >
+      {{ slug ? 'Edit service' : 'New service' }}
     </h1>
 
-    <template v-if="!submitted">
+    <p
+      v-if="editNotFound"
+      class="font-body text-body mt-3 text-ink-muted"
+      data-testid="service-not-found"
+    >
+      No service of yours matches "{{ slug }}".
+    </p>
+    <p
+      v-else-if="editLoadFailed"
+      class="font-body text-body mt-3 text-ink-muted"
+      role="alert"
+      data-testid="service-error"
+    >
+      Failed to load this service. Please try again.
+    </p>
+
+    <p
+      v-else-if="!submitted && !ready"
+      class="font-body text-body mt-8 text-ink-muted"
+      data-testid="draft-loading"
+    >
+      {{ slug ? 'Loading service…' : 'Loading…' }}
+    </p>
+
+    <template v-else-if="!submitted">
       <div class="mt-8 grid grid-cols-1 items-start gap-8 lg:grid-cols-[1fr_1fr]">
         <form
           class="flex flex-col gap-6"
@@ -161,6 +233,14 @@ const allEdges = computed<GraphEdge[]>(() => compiledGraph.value?.services.flatM
                 </option>
               </select>
             </label>
+            <p
+              v-if="routeMissing"
+              class="font-body text-caption mt-2 text-coral"
+              role="alert"
+              data-testid="route-missing"
+            >
+              Couldn't recover this service's route. Pick it again to save.
+            </p>
           </section>
 
           <section class="rounded-(--radius-box) border border-border bg-surface p-4">
@@ -481,7 +561,18 @@ const allEdges = computed<GraphEdge[]>(() => compiledGraph.value?.services.flatM
             data-testid="submit"
             :disabled="!canSubmit"
           >
-            {{ submitting ? 'Creating…' : 'Create service' }}
+            {{ submitLabel }}
+          </button>
+
+          <button
+            v-if="slug"
+            type="button"
+            :class="[ACTION_LINK_CLASS, 'self-start']"
+            data-testid="discard-edit"
+            :disabled="submitting"
+            @click="handleDiscard"
+          >
+            Discard changes
           </button>
 
           <p
@@ -519,7 +610,7 @@ const allEdges = computed<GraphEdge[]>(() => compiledGraph.value?.services.flatM
           class="font-body text-caption text-ink-muted italic"
           data-testid="compiling-status"
         >
-          Service created. Compiling…
+          {{ slug ? 'Changes saved. Compiling…' : 'Service created. Compiling…' }}
         </p>
         <p
           v-else-if="compileError"
@@ -530,7 +621,7 @@ const allEdges = computed<GraphEdge[]>(() => compiledGraph.value?.services.flatM
           {{ compileError }}
         </p>
         <div
-          v-else-if="compiledGraph"
+          v-else-if="compiledGraph && !slug"
           data-testid="compile-result"
         >
           <h2 class="font-display text-h3 text-ink-true">
@@ -570,7 +661,16 @@ const allEdges = computed<GraphEdge[]>(() => compiledGraph.value?.services.flatM
           </table>
         </div>
 
+        <router-link
+          v-if="slug"
+          :to="servicePath"
+          class="font-display text-btn mt-4 inline-block rounded-(--radius-field) border border-border px-3 py-1.5 uppercase hover:bg-white"
+          data-testid="view-service"
+        >
+          View service
+        </router-link>
         <button
+          v-else
           type="button"
           class="font-display text-btn mt-4 cursor-pointer rounded-(--radius-field) border border-border px-3 py-1.5 uppercase hover:bg-white"
           data-testid="start-another"

@@ -37,12 +37,18 @@ function renumber(stops: Stop[]): Stop[] {
   return stops.map((stop, index) => ({ ...stop, seq: index }))
 }
 
+export interface SetAsideServiceDraft {
+  draft: ServiceInput
+  stopCounter: number
+}
+
 export interface PersistedDrafts {
   serviceDraft: ServiceInput | null
   scenarioDraft: ScenarioInput | null
   editingServiceId: string | null
   editingScenarioId: string | null
   serviceStopCounter: number
+  setAsideServiceDraft: SetAsideServiceDraft | null
 }
 
 function emptyPersistedDrafts(): PersistedDrafts {
@@ -52,6 +58,7 @@ function emptyPersistedDrafts(): PersistedDrafts {
     editingServiceId: null,
     editingScenarioId: null,
     serviceStopCounter: 0,
+    setAsideServiceDraft: null,
   }
 }
 
@@ -116,6 +123,18 @@ function isScenarioInput(value: unknown): value is ScenarioInput {
   )
 }
 
+// Falls back to zero rather than discarding the draft: a lost counter costs a
+// repeated stop number, which takeStopNumber's floor then fixes.
+function readStopCounter(value: unknown): number {
+  return typeof value === 'number' ? value : 0
+}
+
+function readSetAsideServiceDraft(value: unknown): SetAsideServiceDraft | null {
+  const setAside = value as Partial<SetAsideServiceDraft> | null
+  if (!isServiceInput(setAside?.draft)) return null
+  return { draft: setAside.draft, stopCounter: readStopCounter(setAside.stopCounter) }
+}
+
 function readPersistedDrafts(userId: string): PersistedDrafts {
   const parsed = readJson<PersistedDrafts>(draftsStorageKey(userId))
   if (!parsed) return emptyPersistedDrafts()
@@ -124,18 +143,32 @@ function readPersistedDrafts(userId: string): PersistedDrafts {
   // to throw away a sound scenario sitting beside it.
   const serviceDraft = isServiceInput(parsed.serviceDraft) ? parsed.serviceDraft : null
   const scenarioDraft = isScenarioInput(parsed.scenarioDraft) ? parsed.scenarioDraft : null
-  return {
-    serviceDraft,
+  const setAsideServiceDraft = readSetAsideServiceDraft(parsed.setAsideServiceDraft)
+  const scenario = {
     scenarioDraft,
+    editingScenarioId:
+      scenarioDraft && typeof parsed.editingScenarioId === 'string' ? parsed.editingScenarioId : null,
+  }
+
+  // An edit that did not survive hands the slot back to the draft it set
+  // aside, rather than stranding that draft beneath an edit that is gone.
+  if (!serviceDraft && setAsideServiceDraft) {
+    return {
+      ...scenario,
+      serviceDraft: setAsideServiceDraft.draft,
+      editingServiceId: null,
+      serviceStopCounter: setAsideServiceDraft.stopCounter,
+      setAsideServiceDraft: null,
+    }
+  }
+  return {
+    ...scenario,
+    serviceDraft,
     // An editing target without its draft edits nothing, so it goes too.
     editingServiceId:
       serviceDraft && typeof parsed.editingServiceId === 'string' ? parsed.editingServiceId : null,
-    editingScenarioId:
-      scenarioDraft && typeof parsed.editingScenarioId === 'string' ? parsed.editingScenarioId : null,
-    // Falls back to zero rather than discarding the draft: a lost counter
-    // costs a repeated stop number, which takeStopNumber's floor then fixes.
-    serviceStopCounter:
-      serviceDraft && typeof parsed.serviceStopCounter === 'number' ? parsed.serviceStopCounter : 0,
+    serviceStopCounter: serviceDraft ? readStopCounter(parsed.serviceStopCounter) : 0,
+    setAsideServiceDraft,
   }
 }
 
@@ -147,6 +180,7 @@ export const useDraftsStore = defineStore('drafts', () => {
   const editingServiceId = ref<string | null>(null)
   const editingScenarioId = ref<string | null>(null)
   const serviceStopCounter = ref(0)
+  const setAsideServiceDraft = ref<SetAsideServiceDraft | null>(null)
 
   // Writes go under this id rather than reading auth again, so drafts can never
   // land under the key of an account that signed in after they were typed.
@@ -160,7 +194,7 @@ export const useDraftsStore = defineStore('drafts', () => {
     const owner = ownerId
     if (!owner) return
 
-    if (!serviceDraft.value && !scenarioDraft.value) {
+    if (!serviceDraft.value && !scenarioDraft.value && !setAsideServiceDraft.value) {
       removeKey(draftsStorageKey(owner))
       return
     }
@@ -170,6 +204,7 @@ export const useDraftsStore = defineStore('drafts', () => {
       editingServiceId: editingServiceId.value,
       editingScenarioId: editingScenarioId.value,
       serviceStopCounter: serviceStopCounter.value,
+      setAsideServiceDraft: setAsideServiceDraft.value,
     }
     writeJson(draftsStorageKey(owner), snapshot)
   }
@@ -178,7 +213,7 @@ export const useDraftsStore = defineStore('drafts', () => {
   // through the actions below, so persistence hangs off a deep watcher rather
   // than each mutator — a v-model must not be able to slip past it.
   watch(
-    [serviceDraft, scenarioDraft, editingServiceId, editingScenarioId, serviceStopCounter],
+    [serviceDraft, scenarioDraft, editingServiceId, editingScenarioId, serviceStopCounter, setAsideServiceDraft],
     persist,
     { deep: true },
   )
@@ -200,11 +235,19 @@ export const useDraftsStore = defineStore('drafts', () => {
       editingServiceId.value = adopted.editingServiceId
       editingScenarioId.value = adopted.editingScenarioId
       serviceStopCounter.value = adopted.serviceStopCounter
+      setAsideServiceDraft.value = adopted.setAsideServiceDraft
     },
     { immediate: true },
   )
 
   function startServiceDraft(seed?: ServiceInput, serviceId: string | null = null): void {
+    // There is one slot, so opening an edit over a create draft sets the create
+    // draft aside rather than overwriting it: it is work no API can hand back.
+    // An edit displaced by another edit is simply dropped — what it would have
+    // saved over is still on the server.
+    if (serviceId !== null && serviceDraft.value && editingServiceId.value === null) {
+      setAsideServiceDraft.value = { draft: serviceDraft.value, stopCounter: serviceStopCounter.value }
+    }
     // Cloned so editing the draft never mutates the caller's service.
     serviceDraft.value = seed ? structuredClone(seed) : emptyServiceDraft()
     editingServiceId.value = serviceId
@@ -282,10 +325,14 @@ export const useDraftsStore = defineStore('drafts', () => {
     )
   }
 
+  // Ending a draft, whether it was saved or given up, hands the slot back to
+  // whatever an edit set aside.
   function clearServiceDraft(): void {
-    serviceDraft.value = null
+    const setAside = setAsideServiceDraft.value
+    serviceDraft.value = setAside?.draft ?? null
     editingServiceId.value = null
-    serviceStopCounter.value = 0
+    serviceStopCounter.value = setAside?.stopCounter ?? 0
+    setAsideServiceDraft.value = null
   }
 
   function startScenarioDraft(seed?: ScenarioInput, scenarioId: string | null = null): void {
@@ -317,6 +364,7 @@ export const useDraftsStore = defineStore('drafts', () => {
     scenarioDraft,
     editingServiceId,
     editingScenarioId,
+    setAsideServiceDraft,
     hasServiceDraft,
     hasScenarioDraft,
     startServiceDraft,
