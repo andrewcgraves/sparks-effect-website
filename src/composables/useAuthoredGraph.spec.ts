@@ -557,4 +557,77 @@ describe('useAuthoredGraph', () => {
       expect(isochroneLoading.value).toBe(false)
     })
   })
+
+  // A publication's graph is pinned, and the reader has no session to compile
+  // with, so nothing that would compile runs for a target that cannot (SPA-359).
+  describe('a pinned target', () => {
+    function pinned(getSlug: () => string | null = () => 'ca-hsr') {
+      return useAuthoredGraph(getSlug, { fetchGraph, isochrone })
+    }
+
+    it('reads the pinned graph', async () => {
+      fetchGraph.mockResolvedValue(graphWithMerge)
+      const { loadGraph, graph, loadedGraph } = pinned()
+
+      await loadGraph('ca-hsr')
+
+      expect(graph.value).toEqual(graphWithMerge)
+      expect(loadedGraph.value).toEqual(graphWithMerge)
+    })
+
+    it('reports a 404 as not found instead of compiling', async () => {
+      fetchGraph.mockRejectedValue(new ApiError('not found', 404))
+      const fetchSpy = vi.fn()
+      vi.stubGlobal('fetch', fetchSpy)
+      const { loadGraph, graphNotFound, graphFailed, compiling, compileError } = pinned()
+
+      await loadGraph('ca-hsr')
+      await flushPromises()
+
+      expect(graphNotFound.value).toBe(true)
+      expect(graphFailed.value).toBe(false)
+      expect(compiling.value).toBe(false)
+      expect(compileError.value).toBe('')
+      expect(fetchSpy).not.toHaveBeenCalled()
+    })
+
+    it('reports any other failed read as a failure, not as not found', async () => {
+      fetchGraph.mockRejectedValue(new ApiError('boom', 500))
+      const { loadGraph, graphNotFound, graphFailed } = pinned()
+
+      await loadGraph('ca-hsr')
+
+      expect(graphFailed.value).toBe(true)
+      expect(graphNotFound.value).toBe(false)
+    })
+
+    it('reports a stale_graph as a fault without recompiling or retrying', async () => {
+      fetchGraph.mockResolvedValue({ services: [] } as unknown as TransitGraph)
+      isochrone.mockRejectedValue(stale())
+      const fetchSpy = vi.fn()
+      vi.stubGlobal('fetch', fetchSpy)
+      const { loadGraph, handleIsochroneSubmit, isochroneError, compiling } = pinned()
+
+      await loadGraph('ca-hsr')
+      await handleIsochroneSubmit(payload)
+      await flushPromises()
+
+      expect(isochrone).toHaveBeenCalledTimes(1)
+      expect(fetchSpy).not.toHaveBeenCalled()
+      expect(compiling.value).toBe(false)
+      expect(isochroneError.value).toBeTruthy()
+    })
+
+    it('does nothing when asked to compile', async () => {
+      const fetchSpy = vi.fn()
+      vi.stubGlobal('fetch', fetchSpy)
+      const { triggerCompile, compiling, compileError } = pinned()
+
+      await triggerCompile('ca-hsr')
+
+      expect(compiling.value).toBe(false)
+      expect(compileError.value).toBe('')
+      expect(fetchSpy).not.toHaveBeenCalled()
+    })
+  })
 })

@@ -19,6 +19,31 @@ function mountPanel(stubs: Record<string, boolean> = { MapView: true, IsochroneF
   return mount(ScenarioPreviewPanel, { props: defaultProps, global: { stubs } })
 }
 
+const stations: Station[] = [
+  {
+    id: 'st1',
+    scenario_id: 's1',
+    slug: 'sf',
+    name: 'San Francisco',
+    location: { type: 'Point', coordinates: [-122.4, 37.7] },
+    platform_height: '0',
+  },
+]
+const isochroneData: ChainResponse = {
+  type: 'FeatureCollection',
+  features: [],
+  metadata: {
+    reachable_stations: [
+      { station_slug: 'sf', access_mins: 5, access_secs: 300, remaining_mins: 115, remaining_secs: 6900 },
+    ],
+    origin_budget_mins: 120,
+    compile_job_id: 'compile-1',
+    mode: 'walk',
+    wait_model: 'headway_over_2_peak',
+    origin_iso_available: true,
+  },
+}
+
 describe('ScenarioPreviewPanel', () => {
   describe('picking the origin on the map', () => {
     it('arms MapView with an origin cue when IsochroneForm emits pick-armed', async () => {
@@ -62,30 +87,6 @@ describe('ScenarioPreviewPanel', () => {
   })
 
   it('hands MapView the same remaining lookup a plot would give the card', () => {
-    const stations: Station[] = [
-      {
-        id: 'st1',
-        scenario_id: 's1',
-        slug: 'sf',
-        name: 'San Francisco',
-        location: { type: 'Point', coordinates: [-122.4, 37.7] },
-        platform_height: '0',
-      },
-    ]
-    const isochroneData: ChainResponse = {
-      type: 'FeatureCollection',
-      features: [],
-      metadata: {
-        reachable_stations: [
-          { station_slug: 'sf', access_mins: 5, access_secs: 300, remaining_mins: 115, remaining_secs: 6900 },
-        ],
-        origin_budget_mins: 120,
-        compile_job_id: 'compile-1',
-        mode: 'walk',
-        wait_model: 'headway_over_2_peak',
-        origin_iso_available: true,
-      },
-    }
     const wrapper = mount(ScenarioPreviewPanel, {
       props: { ...defaultProps, isochroneData, mapStations: stations },
       global: { stubs: { MapView: true, IsochroneForm: true } },
@@ -101,5 +102,41 @@ describe('ScenarioPreviewPanel', () => {
     expect(remainingSecs('sf')).toBe(expected('sf'))
     expect(formatTimeRemaining(remainingSecs('sf')!)).toBe('1h 55m')
     expect(remainingSecs('nowhere')).toBeNull()
+  })
+
+  describe('the time-remaining graph', () => {
+    function mountWithPlot(plot: ChainResponse | null) {
+      return mount(ScenarioPreviewPanel, {
+        props: { ...defaultProps, isochroneData: plot, mapStations: stations },
+        global: { stubs: { MapView: true, IsochroneForm: true } },
+      })
+    }
+
+    it('draws the graph for a plot that reached a station', () => {
+      const wrapper = mountWithPlot(isochroneData)
+      const graph = wrapper.findComponent({ name: 'TimeRemaining' })
+      expect(graph.exists()).toBe(true)
+      expect(graph.text()).toContain('San Francisco')
+    })
+
+    it('draws nothing before there is a plot', () => {
+      expect(mountWithPlot(null).findComponent({ name: 'TimeRemaining' }).exists()).toBe(false)
+    })
+
+    it('opens the row for a station hovered on the map', async () => {
+      const wrapper = mountWithPlot(isochroneData)
+      await wrapper.findComponent({ name: 'MapView' }).vm.$emit('station-hover', 'sf')
+
+      const graph = wrapper.findComponent({ name: 'TimeRemaining' })
+      expect(graph.props('activeSlug')).toBe('sf')
+      expect(graph.props('activeFromMap')).toBe(true)
+    })
+
+    it('marks on the map the station activated in the graph', async () => {
+      const wrapper = mountWithPlot(isochroneData)
+      await wrapper.findComponent({ name: 'TimeRemaining' }).vm.$emit('activate', 'sf')
+
+      expect(wrapper.findComponent({ name: 'MapView' }).props('activeStation')).toBe('sf')
+    })
   })
 })

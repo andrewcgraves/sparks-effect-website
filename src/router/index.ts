@@ -8,6 +8,7 @@ import ScenarioBuilderView from '../views/ScenarioBuilderView.vue'
 import AuthoredServiceView from '../views/AuthoredServiceView.vue'
 import AuthoredScenarioView from '../views/AuthoredScenarioView.vue'
 import RouteView from '../views/RouteView.vue'
+import PublishedServiceView from '../views/PublishedServiceView.vue'
 import NotFoundView from '../views/NotFoundView.vue'
 import { trackPageView } from '../analytics/index'
 import { useAuthStore } from '../stores/auth'
@@ -69,6 +70,14 @@ export const router = createRouter({
       component: AuthoredScenarioView,
       props: true,
       meta: { requiresAuth: true },
+    },
+    // A publication, which anyone may read. The owner's draft stays behind
+    // sign-in at /authoring/services/:slug (ADR-0005 in sparks-effect-api).
+    {
+      path: '/services/:slug',
+      name: 'published-service',
+      component: PublishedServiceView,
+      props: true,
     },
     {
       path: '/routes/:slug',

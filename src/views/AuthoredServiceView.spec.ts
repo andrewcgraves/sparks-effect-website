@@ -271,7 +271,7 @@ describe('AuthoredServiceView', () => {
 
   it('plots an isochrone against the service', async () => {
     vi.mocked(fetchService).mockResolvedValue(stubService)
-    vi.mocked(fetchServiceIsochrone).mockResolvedValue({ features: [] } as never)
+    vi.mocked(fetchServiceIsochrone).mockResolvedValue({ features: [], metadata: { reachable_stations: [], mode: 'walk' } } as never)
     const wrapper = mountView()
     await flushPromises()
 
@@ -287,7 +287,7 @@ describe('AuthoredServiceView', () => {
 
   it('forwards transit mode when plotting an isochrone', async () => {
     vi.mocked(fetchService).mockResolvedValue(stubService)
-    vi.mocked(fetchServiceIsochrone).mockResolvedValue({ features: [] } as never)
+    vi.mocked(fetchServiceIsochrone).mockResolvedValue({ features: [], metadata: { reachable_stations: [], mode: 'walk' } } as never)
     const wrapper = mountView()
     await flushPromises()
 
@@ -308,7 +308,7 @@ describe('AuthoredServiceView', () => {
     vi.mocked(compileService).mockResolvedValue({ id: 'job1', kind: 'compile_user_service', status: 'queued' })
     vi.mocked(fetchServiceIsochrone)
       .mockRejectedValueOnce(new ApiError('stale', 409, 'stale_graph'))
-      .mockResolvedValueOnce({ features: [] } as never)
+      .mockResolvedValueOnce({ features: [], metadata: { reachable_stations: [], mode: 'walk' } } as never)
     const wrapper = mountView()
     await flushPromises()
 
