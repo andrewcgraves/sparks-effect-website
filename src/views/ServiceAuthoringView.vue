@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useServiceDraft } from '../composables/useServiceDraft'
 import { MAX_DESCRIPTION_CHARS, MAX_SUBTEXT_CHARS, type GraphEdge, type SnapCoord as LatLng } from '../api/authoring'
 import MapView from '../components/MapView.vue'
+import { PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS, TOGGLE_BUTTON_CLASS } from '../components/buttonStyles'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
 import { ACTION_LINK_CLASS } from '../components/linkStyles'
 import { formatRunTime } from '../components/stationTimes'
@@ -250,7 +251,7 @@ const allEdges = computed<GraphEdge[]>(() => compiledGraph.value?.services.flatM
               </h2>
               <button
                 type="button"
-                class="font-display text-btn cursor-pointer rounded-(--radius-field) border border-border px-3 py-1.5 uppercase hover:bg-white aria-pressed:border-coral aria-pressed:bg-coral aria-pressed:text-white"
+                :class="TOGGLE_BUTTON_CLASS"
                 data-testid="toggle-place-stops"
                 :aria-pressed="placingStops"
                 @click="placingStops = !placingStops"
@@ -397,7 +398,7 @@ const allEdges = computed<GraphEdge[]>(() => compiledGraph.value?.services.flatM
               </label>
               <button
                 type="button"
-                class="font-display text-btn col-span-2 mt-2 cursor-pointer rounded-(--radius-field) border border-border px-3 py-1.5 uppercase hover:bg-white sm:col-span-1 sm:mt-auto"
+                :class="[SECONDARY_BUTTON_CLASS, 'col-span-2 mt-2 sm:col-span-1 sm:mt-auto']"
                 data-testid="add-stop"
                 @click="handleAddStop"
               >
@@ -513,7 +514,7 @@ const allEdges = computed<GraphEdge[]>(() => compiledGraph.value?.services.flatM
               </label>
               <button
                 type="button"
-                class="font-display text-btn mt-2 cursor-pointer rounded-(--radius-field) border border-border px-3 py-1.5 uppercase hover:bg-white sm:mt-auto"
+                :class="[SECONDARY_BUTTON_CLASS, 'mt-2 sm:mt-auto']"
                 data-testid="add-frequency"
                 @click="handleAddFrequencyWindow"
               >
@@ -557,7 +558,7 @@ const allEdges = computed<GraphEdge[]>(() => compiledGraph.value?.services.flatM
 
           <button
             type="submit"
-            class="font-display text-btn cursor-pointer rounded-(--radius-field) bg-coral px-4 py-2.5 text-white uppercase transition-colors duration-200 ease-(--ease-smooth) hover:bg-ink disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-coral"
+            :class="PRIMARY_BUTTON_CLASS"
             data-testid="submit"
             :disabled="!canSubmit"
           >
@@ -664,7 +665,7 @@ const allEdges = computed<GraphEdge[]>(() => compiledGraph.value?.services.flatM
         <router-link
           v-if="slug"
           :to="servicePath"
-          class="font-display text-btn mt-4 inline-block rounded-(--radius-field) border border-border px-3 py-1.5 uppercase hover:bg-white"
+          :class="[SECONDARY_BUTTON_CLASS, 'mt-4 inline-block']"
           data-testid="view-service"
         >
           View service
@@ -672,7 +673,7 @@ const allEdges = computed<GraphEdge[]>(() => compiledGraph.value?.services.flatM
         <button
           v-else
           type="button"
-          class="font-display text-btn mt-4 cursor-pointer rounded-(--radius-field) border border-border px-3 py-1.5 uppercase hover:bg-white"
+          :class="[SECONDARY_BUTTON_CLASS, 'mt-4']"
           data-testid="start-another"
           @click="startAnother"
         >

@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { instant, usePublication } from '../composables/usePublication'
+import { PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS } from './buttonStyles'
 
 const props = defineProps<{
   slug: string
@@ -62,11 +63,6 @@ async function confirmUnpublish(): Promise<void> {
   await unpublish()
   confirmingUnpublish.value = false
 }
-
-const PRIMARY_BUTTON_CLASS =
-  'font-display text-btn cursor-pointer rounded-(--radius-field) bg-coral px-4 py-2 text-white uppercase transition-colors duration-200 ease-(--ease-smooth) hover:bg-ink disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-coral'
-const SECONDARY_BUTTON_CLASS =
-  'font-display text-btn cursor-pointer rounded-(--radius-field) border border-border px-3 py-1.5 uppercase hover:bg-white disabled:cursor-not-allowed disabled:opacity-50'
 </script>
 
 <template>

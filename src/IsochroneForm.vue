@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AddressAutocomplete from './components/AddressAutocomplete.vue'
 import SegmentedControl from './components/SegmentedControl.vue'
+import { PRIMARY_BUTTON_CLASS } from './components/buttonStyles'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from './components/fieldStyles'
 import type { GeocodingSuggestion } from './api/geocoding'
 import { reverseGeocode } from './api/geocoding'
@@ -271,7 +272,7 @@ function handleSubmit() {
 
     <button
       type="submit"
-      class="font-display text-btn mt-1 cursor-pointer rounded-(--radius-field) bg-coral px-4 py-2.5 text-white uppercase transition-colors duration-200 ease-(--ease-smooth) hover:bg-ink disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-coral"
+      :class="[PRIMARY_BUTTON_CLASS, 'mt-1']"
       :disabled="!isValid || loading"
     >
       {{ loading ? 'Generating…' : 'Generate isochrone' }}
