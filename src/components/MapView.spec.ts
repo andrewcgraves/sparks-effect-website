@@ -893,9 +893,12 @@ describe('MapView', () => {
     const legend = wrapper.get('[aria-label="Isochrone color key"]')
     expect(legend.text()).toContain('Budget ran out here')
 
+    // Ink dashes stopping on a bare ink dot, as the stub is drawn on the map.
     const unfinished = wrapper.get('[data-testid="legend-swatch-unfinished"]')
-    expect(unfinished.html()).toContain('border-dashed')
-    expect(unfinished.html()).toContain(THEME_TOKEN_FALLBACKS['--color-ink'])
+    expect(unfinished.get('line').attributes('stroke')).toBe(THEME_TOKEN_FALLBACKS['--color-ink'])
+    expect(unfinished.get('line').attributes('stroke-dasharray')).toBeDefined()
+    expect(unfinished.get('circle').attributes('fill')).toBe(THEME_TOKEN_FALLBACKS['--color-ink'])
+    expect(unfinished.get('circle').attributes('stroke')).toBeUndefined()
     expect(unfinished.html()).not.toContain(THEME_TOKEN_FALLBACKS['--color-data-egress'])
   })
 
@@ -906,9 +909,13 @@ describe('MapView', () => {
     const legend = wrapper.get('[aria-label="Isochrone color key"]')
     expect(legend.text()).toContain('First leg — nearest station')
 
+    // Origin-blue dashes from the origin pin's coral to a ringed station dot, so
+    // it cannot be mistaken for the unfinished stub's ink dashes and bare cap.
     const starter = wrapper.get('[data-testid="legend-swatch-starter"]')
-    expect(starter.html()).toContain('border-dashed')
-    expect(starter.html()).toContain(THEME_TOKEN_FALLBACKS['--color-data-origin'])
+    expect(starter.get('line').attributes('stroke')).toBe(THEME_TOKEN_FALLBACKS['--color-data-origin'])
+    const [from, to] = starter.findAll('circle')
+    expect(from.attributes('fill')).toBe(THEME_TOKEN_FALLBACKS['--color-coral'])
+    expect(to.attributes('stroke')).toBe(THEME_TOKEN_FALLBACKS['--color-ink'])
   })
 
   it('leaves the starter walk out of the key when there is no walk to draw', () => {

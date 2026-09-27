@@ -196,7 +196,7 @@ describe('useIsochroneLayer', () => {
       source: 'unfinished',
       label: 'Budget ran out here',
       color: THEME_TOKEN_FALLBACKS['--color-ink'],
-      swatch: 'dashed',
+      swatch: 'stub',
     })
     expect(unfinished?.color).not.toBe('#f28f29')
   })
@@ -210,7 +210,7 @@ describe('useIsochroneLayer', () => {
       source: 'starter',
       label: 'First leg — nearest station',
       color: '#111111',
-      swatch: 'dashed',
+      swatch: 'walk',
     })
   })
 

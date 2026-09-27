@@ -41,7 +41,7 @@ export function isochroneLegend(
     source: 'origin' | 'egress' | 'starter' | 'unfinished'
     label: string
     color: string
-    swatch: 'fill' | 'dashed'
+    swatch: 'fill' | 'walk' | 'stub'
   }[] = [
     { source: 'origin', label: 'Origin reach', color: colors.origin, swatch: 'fill' },
     { source: 'egress', label: 'From station', color: colors.egress, swatch: 'fill' },
@@ -56,7 +56,7 @@ export function isochroneLegend(
       source: 'starter',
       label: 'First leg — nearest station',
       color: colors.origin,
-      swatch: 'dashed',
+      swatch: 'walk',
     })
   }
   // Ink is also the network and the ridden path, so naming it "budget ran out"
@@ -66,7 +66,7 @@ export function isochroneLegend(
       source: 'unfinished',
       label: 'Budget ran out here',
       color: readThemeToken('--color-ink'),
-      swatch: 'dashed',
+      swatch: 'stub',
     })
   }
   return entries
