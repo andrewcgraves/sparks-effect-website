@@ -112,7 +112,7 @@ describe('AuthoredScenarioView', () => {
   })
 
   it('plots an isochrone against the scenario', async () => {
-    vi.mocked(fetchScenarioIsochrone).mockResolvedValue({ features: [] } as never)
+    vi.mocked(fetchScenarioIsochrone).mockResolvedValue({ features: [], metadata: { reachable_stations: [], mode: 'walk' } } as never)
     const wrapper = mountView()
     await flushPromises()
 
@@ -127,7 +127,7 @@ describe('AuthoredScenarioView', () => {
   })
 
   it('forwards transit mode when plotting an isochrone', async () => {
-    vi.mocked(fetchScenarioIsochrone).mockResolvedValue({ features: [] } as never)
+    vi.mocked(fetchScenarioIsochrone).mockResolvedValue({ features: [], metadata: { reachable_stations: [], mode: 'walk' } } as never)
     const wrapper = mountView()
     await flushPromises()
 

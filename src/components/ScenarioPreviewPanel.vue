@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import IsochroneForm from '../IsochroneForm.vue'
 import MapView from './MapView.vue'
+import TimeRemaining from './TimeRemaining.vue'
 import { ORIGIN_PICK_CUE } from './placementCues'
 import { buildTimeRemainingGraph, remainingSecsBySlug } from './timeRemaining'
 import { useOriginPick } from '../composables/useOriginPick'
@@ -17,7 +18,7 @@ const props = defineProps<{
   error: string | null
   nearMisses: NearMiss[]
   realisedClusters: StopCluster[]
-  services: Service[]
+  services: Pick<Service, 'id' | 'name'>[]
   mapStations?: Station[]
   mapRoutes?: Route[]
   statusNote?: string | null
@@ -30,15 +31,21 @@ defineEmits<{
 
 const { pickArmed, onMapClick } = useOriginPick()
 
-const remainingBySlug = computed(() =>
-  remainingSecsBySlug(
-    buildTimeRemainingGraph(props.isochroneData?.metadata ?? null, {
-      stationName: (slug) => props.mapStations?.find((station) => station.slug === slug)?.name ?? slug,
-      serviceName: (id) => props.services.find((service) => service.id === id)?.name ?? id,
-      mode: props.isochroneData?.metadata.mode ?? 'walk',
-    }),
-  ),
+const timeRemaining = computed(() =>
+  buildTimeRemainingGraph(props.isochroneData?.metadata ?? null, {
+    stationName: (slug) => props.mapStations?.find((station) => station.slug === slug)?.name ?? slug,
+    serviceName: (id) => props.services.find((service) => service.id === id)?.name ?? id,
+    mode: props.isochroneData?.metadata.mode ?? 'walk',
+  }),
 )
+
+const remainingBySlug = computed(() => remainingSecsBySlug(timeRemaining.value))
+
+const activeStation = ref<{ slug: string; fromMap: boolean } | null>(null)
+
+function highlight(slug: string | null, fromMap: boolean): void {
+  activeStation.value = slug ? { slug, fromMap } : null
+}
 
 function remainingSecs(slug: string): number | null {
   return remainingBySlug.value(slug)
@@ -64,8 +71,10 @@ function formatMeters(total: number): string {
         :stations="props.mapStations ?? []"
         :placement-armed="pickArmed"
         :placement-cue="ORIGIN_PICK_CUE"
+        :active-station="activeStation?.slug ?? null"
         :remaining-secs="remainingSecs"
         @map-click="onMapClick"
+        @station-hover="highlight($event, true)"
       />
     </div>
 
@@ -86,6 +95,14 @@ function formatMeters(total: number): string {
       >
         {{ props.statusNote }}
       </p>
+
+      <TimeRemaining
+        v-if="timeRemaining.views.length"
+        :views="timeRemaining.views"
+        :active-slug="activeStation?.slug ?? null"
+        :active-from-map="activeStation?.fromMap ?? false"
+        @activate="highlight($event, false)"
+      />
 
       <section
         v-if="props.nearMisses.length"

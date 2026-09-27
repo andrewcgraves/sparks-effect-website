@@ -53,7 +53,10 @@ function splitByDirection(edges: GraphEdge[], displayName: (slug: string) => str
   return { outbound, returning }
 }
 
-export function graphStationTimeGroups(graph: TransitGraph | null, services: Service[]): StationTimeGroup[] {
+export function graphStationTimeGroups(
+  graph: TransitGraph | null,
+  services: Pick<Service, 'id' | 'name'>[],
+): StationTimeGroup[] {
   if (!graph) return []
 
   const displayName = nameResolver(

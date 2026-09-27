@@ -1,4 +1,4 @@
-import { computed, ref } from 'vue'
+import { computed, ref, type Ref } from 'vue'
 import { ApiError } from '../api/authoring/client'
 import type { AuthoredIsochroneRequest, Job, TransitGraph, TravelMode } from '../api/authoring'
 import { isochroneFault, isochroneRangeRefusal, isochroneRequested } from '../api/isochroneFault'
@@ -16,29 +16,52 @@ export interface IsochronePayload {
   mode: TravelMode
 }
 
-export interface AuthoredGraphTarget {
-  compile: (slug: string, init?: RequestInit) => Promise<Job>
-  fetchGraph: (slug: string) => Promise<TransitGraph>
+export interface PinnedGraphTarget<G extends TransitGraph = TransitGraph> {
+  fetchGraph: (slug: string) => Promise<G>
   isochrone: (slug: string, request: AuthoredIsochroneRequest) => Promise<ChainResponse>
 }
 
-export function useAuthoredGraph(getSlug: () => string | null, target: AuthoredGraphTarget) {
+export interface AuthoredGraphTarget<G extends TransitGraph = TransitGraph> extends PinnedGraphTarget<G> {
+  compile: (slug: string, init?: RequestInit) => Promise<Job>
+}
+
+function neverCompile(): Promise<Job> {
+  return Promise.reject(new Error('a pinned graph is never compiled'))
+}
+
+export function useAuthoredGraph<G extends TransitGraph = TransitGraph>(
+  getSlug: () => string | null,
+  target: AuthoredGraphTarget<G> | PinnedGraphTarget<G>,
+) {
+  // A pinned target — a publication — has no compile to fall back on, by type
+  // rather than by luck: compiling needs the owner's session, which a public
+  // reader does not have, and a pin cannot go stale anyway. Every recovery
+  // below that would compile is gated on this being non-null, and
+  // `neverCompile` only exists so useCompileJob has something to hold.
+  const compile = 'compile' in target ? target.compile : null
+
   const {
     compiling,
     compileError,
     result: compiledGraph,
-    trigger: triggerCompile,
+    trigger: triggerCompileJob,
     reset: resetCompile,
-  } = useCompileJob(target.compile)
+  } = useCompileJob(compile ?? neverCompile)
+
+  async function triggerCompile(slug: string): Promise<void> {
+    if (compile) await triggerCompileJob(slug)
+  }
 
   // A page that opens an already-compiled record reads its graph rather than
   // recompiling; a fresh compile supersedes it.
-  const loadedGraph = ref<TransitGraph | null>(null)
-  const graph = computed(() => compiledGraph.value ?? loadedGraph.value)
+  const loadedGraph = ref<G | null>(null) as Ref<G | null>
+  const graph = computed<TransitGraph | null>(() => compiledGraph.value ?? loadedGraph.value)
 
-  // A fact, not a sentence: the wording belongs to whichever page is reporting
-  // it, since only the page knows what it was trying to load.
+  // Facts, not sentences: the wording belongs to whichever page is reporting
+  // them, since only the page knows what it was trying to load. `graphNotFound`
+  // is only ever set for a pinned target; an authored one compiles instead.
   const graphFailed = ref(false)
+  const graphNotFound = ref(false)
 
   const origin = ref<{ lat: number; lng: number } | null>(null)
   const isochroneData = ref<ChainResponse | null>(null)
@@ -63,10 +86,12 @@ export function useAuthoredGraph(getSlug: () => string | null, target: AuthoredG
   const plots = latestAttempt()
 
   // A 404 means it has never compiled, which is a reason to compile rather than
-  // an error to show. Anything else is a genuine failure.
+  // an error to show — unless nothing can compile it, when it is the page's
+  // not-found. Anything else is a genuine failure.
   async function loadGraph(slug: string): Promise<void> {
     const attempt = loads.begin()
     graphFailed.value = false
+    graphNotFound.value = false
     // A load can end in a compile, so abandoning a load has to abandon the
     // compile it started too. Without this the older load's compile still
     // resolves into compiledGraph, which `graph` prefers — the newer load's
@@ -79,7 +104,8 @@ export function useAuthoredGraph(getSlug: () => string | null, target: AuthoredG
     } catch (err) {
       if (!loads.isCurrent(attempt)) return
       if (err instanceof ApiError && err.status === 404) {
-        await triggerCompile(slug)
+        if (compile) await triggerCompile(slug)
+        else graphNotFound.value = true
         return
       }
       graphFailed.value = true
@@ -95,6 +121,10 @@ export function useAuthoredGraph(getSlug: () => string | null, target: AuthoredG
   // work out why their scenario or service stopped plotting. `staleRetries`
   // counts across the whole gesture rather than per call, so a target that is
   // stale again the moment it is compiled gives up instead of looping.
+  //
+  // A pinned target does not retry: the API cannot answer stale_graph over a
+  // pin, and if it ever did, a reader without a session could not recompile —
+  // so it is reported like any other fault.
   //
   // The slug is fixed for the duration of an attempt: it is the target the user
   // asked about, and re-reading it mid-retry could answer about another one.
@@ -112,7 +142,7 @@ export function useAuthoredGraph(getSlug: () => string | null, target: AuthoredG
       isochroneData.value = data
     } catch (err) {
       if (!plots.isCurrent(attempt)) return
-      if (err instanceof ApiError && err.code === 'stale_graph' && staleRetries < MAX_STALE_GRAPH_RETRIES) {
+      if (compile && err instanceof ApiError && err.code === 'stale_graph' && staleRetries < MAX_STALE_GRAPH_RETRIES) {
         await triggerCompile(slug)
         if (!plots.isCurrent(attempt)) return
         if (!compileError.value) {
@@ -166,6 +196,7 @@ export function useAuthoredGraph(getSlug: () => string | null, target: AuthoredG
     resetCompile()
     loadedGraph.value = null
     graphFailed.value = false
+    graphNotFound.value = false
     origin.value = null
     isochroneData.value = null
     isochroneLoading.value = false
@@ -176,7 +207,9 @@ export function useAuthoredGraph(getSlug: () => string | null, target: AuthoredG
     compiling,
     compileError,
     graph,
+    loadedGraph,
     graphFailed,
+    graphNotFound,
     loadGraph,
     triggerCompile,
     origin,
