@@ -621,7 +621,7 @@ describe('ScenarioView', () => {
       const remainingSecs = wrapper.findComponent({ name: 'MapView' }).props('remainingSecs') as
         (slug: string) => number | null
       const sf = wrapper.findAll('[data-testid="time-remaining-row"]')
-        .find((row) => row.text().includes('San Francisco'))
+        .find((row) => row.attributes('data-station-slug') === 'sf')
         ?.get('[data-testid="time-remaining-value"]').text()
 
       expect(formatTimeRemaining(remainingSecs('sf')!)).toBe(sf)
@@ -709,7 +709,7 @@ describe('ScenarioView', () => {
     it('branches along a bar level with the node, then drops down each lane', async () => {
       const wrapper = await plot(branchingIsochrone)
       const sf = wrapper.findAll('[data-testid="time-remaining-row"]')
-        .find((row) => row.text().includes('San Francisco'))
+        .find((row) => row.attributes('data-station-slug') === 'sf')
 
       expect(sf).toBeDefined()
       // One bar joining the lanes the branches leave for...
@@ -764,11 +764,57 @@ describe('ScenarioView', () => {
       return plot(twoServiceIsochrone).then(async (wrapper) => {
         await wrapper.find('[data-testid="time-remaining-service-option-1"]').setValue()
 
-        const names = wrapper.findAll('[data-testid="time-remaining-row"]').map((r) => r.text())
-        expect(names.some((text) => text.includes('Gilroy'))).toBe(true)
-        // San Francisco belongs to the trunk's story, not the spur's.
-        expect(names.some((text) => text.includes('San Francisco'))).toBe(false)
+        const slugs = wrapper.findAll('[data-testid="time-remaining-row"]')
+          .map((r) => r.attributes('data-station-slug'))
+        expect(slugs).toContain('gilroy')
+        // San Francisco belongs to the trunk's story, not the spur's: it is
+        // named on the starting location as where the walk went, not as a row.
+        expect(slugs).not.toContain('sf')
       })
+    })
+
+    // SPA-342: San Jose is walked to as well, and the spur is boarded there
+    // rather than by changing off the trunk. The search set off from both.
+    const boardedApartIsochrone: ChainResponse = {
+      ...journeyIsochrone,
+      metadata: {
+        ...journeyIsochrone.metadata,
+        reachable_stations: [
+          journeyIsochrone.metadata.reachable_stations[0],
+          { station_slug: 'sj', access_mins: 20, access_secs: 1200, remaining_mins: 100, remaining_secs: 6000 },
+          {
+            station_slug: 'gilroy',
+            access_mins: 20,
+            access_secs: 1200,
+            remaining_mins: 70,
+            remaining_secs: 4200,
+            predecessor_slug: 'sj',
+            board_slug: 'sj',
+            board_wait_secs: 600,
+            legs: [{ from: 'sj', to: 'gilroy', service_id: 'svc-spur', secs: 1200 }],
+          },
+          {
+            station_slug: 'sf-north',
+            access_mins: 5,
+            access_secs: 300,
+            remaining_mins: 90,
+            remaining_secs: 5400,
+            predecessor_slug: 'sf',
+            board_slug: 'sf',
+            board_wait_secs: 600,
+            legs: [{ from: 'sf', to: 'sf-north', service_id: 'svc-trunk', secs: 900 }],
+          },
+        ],
+      },
+    }
+
+    it('names on the starting location the station the chosen line was boarded at', async () => {
+      const wrapper = await plot(boardedApartIsochrone)
+      const access = () => wrapper.findAll('[data-testid="time-remaining-access"]').map((a) => a.text())
+
+      expect(access()).toEqual(['to San Francisco, 5m'])
+      await wrapper.find('[data-testid="time-remaining-service-option-1"]').setValue()
+      expect(access()).toEqual(['to San Jose, 20m'])
     })
 
     it('cuts to the line a station hovered on the map is on', async () => {

@@ -190,15 +190,28 @@ describe('useIsochroneLayer', () => {
       'egress',
     ])
 
-    const legend = isochroneLegend({ origin: '#111111', egress: '#f28f29' }, true)
+    const legend = isochroneLegend({ origin: '#111111', egress: '#f28f29' }, { unfinished: true })
     const unfinished = legend.find((e) => e.source === 'unfinished')
     expect(unfinished).toEqual({
       source: 'unfinished',
       label: 'Budget ran out here',
       color: THEME_TOKEN_FALLBACKS['--color-ink'],
-      swatch: 'dashed',
+      swatch: 'stub',
     })
     expect(unfinished?.color).not.toBe('#f28f29')
+  })
+
+  it('names the starter walk as one trip\'s first leg, in the origin colour, only when it is drawn', () => {
+    expect(isochroneLegend({ origin: '#111111', egress: '#222222' }).map((e) => e.source))
+      .not.toContain('starter')
+
+    const legend = isochroneLegend({ origin: '#111111', egress: '#222222' }, { starterWalk: true })
+    expect(legend.find((e) => e.source === 'starter')).toEqual({
+      source: 'starter',
+      label: 'First leg — nearest station',
+      color: '#111111',
+      swatch: 'walk',
+    })
   })
 
   it('fixture names the compiled graph it was plotted over', () => {

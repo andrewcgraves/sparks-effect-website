@@ -893,10 +893,43 @@ describe('MapView', () => {
     const legend = wrapper.get('[aria-label="Isochrone color key"]')
     expect(legend.text()).toContain('Budget ran out here')
 
+    // Ink dashes stopping on a bare ink dot, as the stub is drawn on the map.
     const unfinished = wrapper.get('[data-testid="legend-swatch-unfinished"]')
-    expect(unfinished.html()).toContain('border-dashed')
-    expect(unfinished.html()).toContain(THEME_TOKEN_FALLBACKS['--color-ink'])
+    expect(unfinished.get('line').attributes('stroke')).toBe(THEME_TOKEN_FALLBACKS['--color-ink'])
+    expect(unfinished.get('line').attributes('stroke-dasharray')).toBeDefined()
+    expect(unfinished.get('circle').attributes('fill')).toBe(THEME_TOKEN_FALLBACKS['--color-ink'])
+    expect(unfinished.get('circle').attributes('stroke')).toBeUndefined()
     expect(unfinished.html()).not.toContain(THEME_TOKEN_FALLBACKS['--color-data-egress'])
+  })
+
+  // SPA-342: an unlabelled line from the origin to one station read as the
+  // route the rider was being sent down.
+  it('names the starter walk in the key as the first leg, in the origin colour', () => {
+    const wrapper = mount(MapView, { props: { ...defaultProps, isochroneData: walkedToStub } })
+    const legend = wrapper.get('[aria-label="Isochrone color key"]')
+    expect(legend.text()).toContain('First leg — nearest station')
+
+    // Origin-blue dashes from the origin pin's coral to a ringed station dot, so
+    // it cannot be mistaken for the unfinished stub's ink dashes and bare cap.
+    const starter = wrapper.get('[data-testid="legend-swatch-starter"]')
+    expect(starter.get('line').attributes('stroke')).toBe(THEME_TOKEN_FALLBACKS['--color-data-origin'])
+    const [from, to] = starter.findAll('circle')
+    expect(from.attributes('fill')).toBe(THEME_TOKEN_FALLBACKS['--color-coral'])
+    expect(to.attributes('stroke')).toBe(THEME_TOKEN_FALLBACKS['--color-ink'])
+  })
+
+  it('leaves the starter walk out of the key when there is no walk to draw', () => {
+    const noWalk = mount(MapView, { props: { ...defaultProps, isochroneData: chainWith(walkedToStub.metadata.reachable_stations) } })
+    expect(noWalk.get('[aria-label="Isochrone color key"]').text()).not.toContain('First leg')
+
+    // A walk naming a station the plot does not list is not drawn either.
+    const contradicted = mount(MapView, {
+      props: {
+        ...defaultProps,
+        isochroneData: chainWith(walkedToStub.metadata.reachable_stations, { ...routedToStub, station_slug: 'nowhere' }),
+      },
+    })
+    expect(contradicted.get('[aria-label="Isochrone color key"]').text()).not.toContain('First leg')
   })
 
   it('hides the isochrone legend when hideIsochroneLegend is set', () => {

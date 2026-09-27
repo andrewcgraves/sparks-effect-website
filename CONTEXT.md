@@ -39,13 +39,19 @@ where. Four words carry the whole layout.
 | **Through** | The lanes that pass a row without terminating at it — branches still pending further down. Drawn as vertical strokes beside the row |
 | **Fork** | A lane leaving a row toward one of its children. The first child keeps the parent's lane (drawn straight on) and every other child takes a fresh one; child lists are sorted by time remaining, so the branch drawn straight on is the one with the most budget left after it |
 
-Two related row facts, both per-view:
+Three related row facts, all per-view:
 
 - **Flag** — the service a rider departs a row on. If they stay aboard what they
   arrived on, that; otherwise the first onward branch.
 - **Transfer from** — set only when they do *not* stay aboard, naming the
   service they arrived on. This is the frontend's own presentation of a change of
   train; there is no transfer edge in the graph it is reading.
+- **Access** — on the starting location only: the station or stations the
+  view's own line was reached from, each with its access time. Several when the
+  search boarded that line at more than one station; in the access view, the
+  starter station alone. Never one name for the whole trip — a single station on
+  the starting location of every tab read as the place the rider was being sent
+  (SPA-342).
 
 ## The three states of a line
 

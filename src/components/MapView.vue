@@ -6,7 +6,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { egressStationSlugs, isochroneLayerModule, isochroneLegend, resolveIsochroneColors } from '../composables/useIsochroneLayer'
 import { centerFromCorners, routeBoundsCorners, routeLayerModule } from '../composables/useRouteLayer'
 import { originMarkerModule } from '../composables/useOriginMarker'
-import { originWalkModule } from '../composables/useOriginWalkLayer'
+import { originWalkLine, originWalkModule } from '../composables/useOriginWalkLayer'
 import { RAW_STOP_LAYER_ID, stopPreviewModule } from '../composables/useStopPreviewLayer'
 import type { StopPreviewPair } from '../composables/useStopPreviewLayer'
 import { stopDragModule } from '../composables/useStopDrag'
@@ -15,6 +15,7 @@ import { mapModules } from '../composables/mapLifecycle'
 import { ISOCHRONE_BOUNDS_CORNERS, ISOCHRONE_CENTER, isochroneBoundsCorners } from '../fixtures/isochrone'
 import type { ChainResponse } from '../fixtures/isochrone'
 import { resolveMapStyleUrl } from '../mapStyle'
+import { readThemeToken } from '../themeTokens'
 import type { Route, Station } from '../api/scenarios'
 import type { SnapCoord as LatLng } from '../api/authoring/types'
 
@@ -42,11 +43,20 @@ const emit = defineEmits<{
 const ORIGIN_SNAP_ZOOM = 9
 
 const isochroneColors = resolveIsochroneColors()
+// The line swatches are drawn with the same ends the map draws them with: the
+// starter walk runs from the origin pin to a reached station's ringed dot, and
+// an unfinished leg stops on a bare ink dot. Two thin dashed lines in navy and
+// near-black were otherwise indistinguishable at swatch size.
+const legendMarks = {
+  origin: readThemeToken('--color-coral'),
+  station: isochroneColors.egress,
+  ink: readThemeToken('--color-ink'),
+}
 const legend = computed(() =>
-  isochroneLegend(
-    isochroneColors,
-    (props.isochroneData?.metadata.trip_progress?.length ?? 0) > 0,
-  ),
+  isochroneLegend(isochroneColors, {
+    unfinished: (props.isochroneData?.metadata.trip_progress?.length ?? 0) > 0,
+    starterWalk: originWalkLine(props.isochroneData) !== null,
+  }),
 )
 
 const mapContainer = ref<HTMLElement | null>(null)
@@ -306,19 +316,69 @@ onUnmounted(() => {
           :key="entry.source"
           class="font-body text-caption flex items-center gap-2 text-ink"
         >
-          <span
-            v-if="entry.swatch === 'dashed'"
-            class="inline-flex size-3.5 shrink-0 items-center"
-            data-testid="legend-swatch-unfinished"
+          <svg
+            v-if="entry.swatch === 'walk'"
+            class="shrink-0"
+            width="28"
+            height="14"
+            viewBox="0 0 28 14"
+            aria-hidden="true"
+            :data-testid="`legend-swatch-${entry.source}`"
           >
-            <span
-              class="w-full border-t-2 border-dashed"
-              :style="{ borderColor: entry.color }"
+            <line
+              x1="7"
+              y1="7"
+              x2="19"
+              y2="7"
+              :stroke="entry.color"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-dasharray="2 4"
             />
-          </span>
+            <circle
+              cx="3.5"
+              cy="7"
+              r="2.5"
+              :fill="legendMarks.origin"
+            />
+            <circle
+              cx="23.5"
+              cy="7"
+              r="3.25"
+              :fill="legendMarks.station"
+              :stroke="legendMarks.ink"
+              stroke-width="1.5"
+            />
+          </svg>
+          <svg
+            v-else-if="entry.swatch === 'stub'"
+            class="shrink-0"
+            width="28"
+            height="14"
+            viewBox="0 0 28 14"
+            aria-hidden="true"
+            :data-testid="`legend-swatch-${entry.source}`"
+          >
+            <line
+              x1="2"
+              y1="7"
+              x2="19"
+              y2="7"
+              :stroke="entry.color"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-dasharray="2.5 7"
+            />
+            <circle
+              cx="23.5"
+              cy="7"
+              r="3.5"
+              :fill="entry.color"
+            />
+          </svg>
           <span
             v-else
-            class="inline-block size-3.5 shrink-0 rounded-[3px] opacity-85"
+            class="inline-block h-3.5 w-7 shrink-0 rounded-[3px] opacity-85"
             :style="{ backgroundColor: entry.color }"
           />
           <span>{{ entry.label }}</span>
