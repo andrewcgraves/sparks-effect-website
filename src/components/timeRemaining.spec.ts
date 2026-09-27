@@ -503,7 +503,7 @@ describe('buildTimeRemainingGraph', () => {
 
   describe('the expanded detail', () => {
     it('describes the access leg on the starting location', () => {
-      expect(build(INTERCHANGE).views[0].rows[0].detail).toEqual({ accessSecs: 300, accessTo: 'Alpha' })
+      expect(build(INTERCHANGE).views[0].rows[0].detail).toEqual({ access: [{ to: 'Alpha', secs: 300 }] })
     })
 
     it('reports when the rider arrived, whenever that differs from when they leave', () => {
@@ -558,6 +558,76 @@ describe('buildTimeRemainingGraph', () => {
 
       expect(rowFor(viewFor(noDwell, 'trunk'), 'beta').detail).toEqual({ rideSecs: 900 })
     })
+  })
+})
+
+// SPA-342: two access stations, each boarding a line of its own. The search
+// set off from both at once; the starting location used to name one of them in
+// every tab, so the tab for the line boarded at the other said the wrong place.
+const TWO_ACCESS_STATIONS: ReachableStation[] = [
+  { station_slug: 'north', access_mins: 27, access_secs: 1620, remaining_mins: 93, remaining_secs: 5580 },
+  { station_slug: 'south', access_mins: 31, access_secs: 1860, remaining_mins: 89, remaining_secs: 5340 },
+  {
+    station_slug: 'airport',
+    access_mins: 27,
+    access_secs: 1620,
+    remaining_mins: 80,
+    remaining_secs: 4800,
+    predecessor_slug: 'north',
+    legs: [{ from: 'north', to: 'airport', service_id: 'trunk', secs: 780 }],
+  },
+  {
+    station_slug: 'hills',
+    access_mins: 31,
+    access_secs: 1860,
+    remaining_mins: 70,
+    remaining_secs: 4200,
+    predecessor_slug: 'south',
+    legs: [{ from: 'south', to: 'hills', service_id: 'spur', secs: 1140 }],
+  },
+]
+
+describe('buildTimeRemainingGraph access legs', () => {
+  const originOf = (view: TimeRemainingView) => view.rows[0]
+
+  it('names, in each view, the station that view\'s line was reached from', () => {
+    expect(originOf(viewFor(TWO_ACCESS_STATIONS, 'trunk')).detail.access).toEqual([{ to: 'north', secs: 1620 }])
+    expect(originOf(viewFor(TWO_ACCESS_STATIONS, 'spur')).detail.access).toEqual([{ to: 'south', secs: 1860 }])
+  })
+
+  it('names every station a line was reached from when it was boarded at more than one, quickest first', () => {
+    const bothOnTrunk = TWO_ACCESS_STATIONS.map((station) =>
+      station.station_slug === 'hills'
+        ? { ...station, legs: [{ from: 'south', to: 'hills', service_id: 'trunk', secs: 1140 }] }
+        : station,
+    )
+
+    expect(originOf(viewFor(bothOnTrunk, 'trunk')).detail.access).toEqual([
+      { to: 'north', secs: 1620 },
+      { to: 'south', secs: 1860 },
+    ])
+  })
+
+  it('names the station the trip set off for, not the change, in the view of a line boarded by changing', () => {
+    // The spur is boarded at Beta, but Beta was ridden to: the only access leg
+    // anywhere in this trip is the walk to Alpha, and that is what the time on
+    // the starting location measures.
+    expect(originOf(viewFor(INTERCHANGE, 'spur')).detail.access).toEqual([{ to: 'Alpha', secs: 300 }])
+  })
+
+  it('names the starter walk\'s station when the trip boards nothing', () => {
+    const nothingRidden = TWO_ACCESS_STATIONS.slice(0, 2)
+    const graph = (starter?: string) =>
+      buildTimeRemainingGraph(
+        {
+          ...metadata(nothingRidden),
+          ...(starter ? { starter_walk: { station_slug: starter, geometry: { type: 'LineString', coordinates: [] } } } : {}),
+        },
+        { stationName: (slug) => slug, serviceName: (id) => id, mode: 'drive' },
+      )
+
+    expect(originOf(graph().views[0]).detail.access).toEqual([{ to: 'north', secs: 1620 }])
+    expect(originOf(graph('south').views[0]).detail.access).toEqual([{ to: 'south', secs: 1860 }])
   })
 })
 

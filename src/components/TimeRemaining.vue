@@ -181,6 +181,14 @@ watch(
           >
             {{ row.flag }}
           </p>
+          <p
+            v-for="leg in row.detail.access ?? []"
+            :key="leg.to"
+            class="font-body text-micro text-ink-muted"
+            data-testid="time-remaining-access"
+          >
+            to {{ leg.to }}, {{ formatDuration(leg.secs) }}
+          </p>
         </div>
 
         <p
@@ -200,14 +208,6 @@ watch(
             class="font-body text-micro flex flex-col gap-0.5 text-ink-muted"
             data-testid="time-remaining-detail"
           >
-            <div v-if="row.detail.accessTo">
-              <dt class="inline">
-                {{ row.flag }} to {{ row.detail.accessTo }}
-              </dt>
-              <dd class="ml-1 inline">
-                {{ formatDuration(row.detail.accessSecs ?? 0) }}
-              </dd>
-            </div>
             <div v-if="row.detail.rideSecs !== undefined">
               <dt class="inline">
                 {{ rideTerm(row) }}

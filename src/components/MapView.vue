@@ -6,7 +6,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { egressStationSlugs, isochroneLayerModule, isochroneLegend, resolveIsochroneColors } from '../composables/useIsochroneLayer'
 import { centerFromCorners, routeBoundsCorners, routeLayerModule } from '../composables/useRouteLayer'
 import { originMarkerModule } from '../composables/useOriginMarker'
-import { originWalkModule } from '../composables/useOriginWalkLayer'
+import { originWalkLine, originWalkModule } from '../composables/useOriginWalkLayer'
 import { RAW_STOP_LAYER_ID, stopPreviewModule } from '../composables/useStopPreviewLayer'
 import type { StopPreviewPair } from '../composables/useStopPreviewLayer'
 import { stopDragModule } from '../composables/useStopDrag'
@@ -43,10 +43,10 @@ const ORIGIN_SNAP_ZOOM = 9
 
 const isochroneColors = resolveIsochroneColors()
 const legend = computed(() =>
-  isochroneLegend(
-    isochroneColors,
-    (props.isochroneData?.metadata.trip_progress?.length ?? 0) > 0,
-  ),
+  isochroneLegend(isochroneColors, {
+    unfinished: (props.isochroneData?.metadata.trip_progress?.length ?? 0) > 0,
+    starterWalk: originWalkLine(props.isochroneData) !== null,
+  }),
 )
 
 const mapContainer = ref<HTMLElement | null>(null)
@@ -309,7 +309,7 @@ onUnmounted(() => {
           <span
             v-if="entry.swatch === 'dashed'"
             class="inline-flex size-3.5 shrink-0 items-center"
-            data-testid="legend-swatch-unfinished"
+            :data-testid="`legend-swatch-${entry.source}`"
           >
             <span
               class="w-full border-t-2 border-dashed"

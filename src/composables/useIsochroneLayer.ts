@@ -35,10 +35,10 @@ export function resolveIsochroneColors(): IsochroneColors {
 
 export function isochroneLegend(
   colors: IsochroneColors = resolveIsochroneColors(),
-  unfinished = false,
+  drawn: { unfinished?: boolean; starterWalk?: boolean } = {},
 ) {
   const entries: {
-    source: 'origin' | 'egress' | 'unfinished'
+    source: 'origin' | 'egress' | 'starter' | 'unfinished'
     label: string
     color: string
     swatch: 'fill' | 'dashed'
@@ -46,9 +46,22 @@ export function isochroneLegend(
     { source: 'origin', label: 'Origin reach', color: colors.origin, swatch: 'fill' },
     { source: 'egress', label: 'From station', color: colors.egress, swatch: 'fill' },
   ]
+  // Unlabelled, the starter walk was the one line on the map anchored at the
+  // origin and ending on a single station, painted above everything else — and
+  // it read as the way to go (SPA-342). It is the first leg of one trip to the
+  // quickest station; every other station was searched from too, and their
+  // reach is already in the fills.
+  if (drawn.starterWalk) {
+    entries.push({
+      source: 'starter',
+      label: 'First leg — nearest station',
+      color: colors.origin,
+      swatch: 'dashed',
+    })
+  }
   // Ink is also the network and the ridden path, so naming it "budget ran out"
   // on a map with no stub invites the same misread this row is meant to close.
-  if (unfinished) {
+  if (drawn.unfinished) {
     entries.push({
       source: 'unfinished',
       label: 'Budget ran out here',

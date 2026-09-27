@@ -11,10 +11,14 @@ export interface RowDetail {
   dwellSecs?: number
   rideSecs?: number
   transferFrom?: string
-  accessSecs?: number
-  accessTo?: string
+  access?: AccessLeg[]
   progressTo?: string
   progressFraction?: number
+}
+
+export interface AccessLeg {
+  to: string
+  secs: number
 }
 
 export interface TimeRemainingRow {
@@ -161,13 +165,15 @@ export function buildTimeRemainingGraph(
       buildStationRow(station, childrenOf.get(station.station_slug) ?? [], context),
     ]),
   )
-  const originRow = buildOriginRow(metadata, childrenOf.get(ORIGIN_KEY) ?? [], context)
+  const originRow = buildOriginRow(metadata, context)
 
   const memberships = viewMemberships(ordered, bySlug, parentKeyOf, context)
 
   const trip: Trip = {
     originRow,
     content,
+    bySlug,
+    starterSlug: metadata.starter_walk?.station_slug,
     arrivedOn: new Map(ordered.map((station) => [station.station_slug, lastLeg(station)?.service_id])),
     byRemaining: (a, b) => byRemaining(bySlug.get(a)!, bySlug.get(b)!),
     context,
@@ -207,6 +213,8 @@ function lineKeyOf(leg: TripProgress, context: TimeRemainingContext): string | u
 interface Trip {
   originRow: TimeRemainingRow
   content: Map<string, TimeRemainingRow>
+  bySlug: Map<string, ReachableStation>
+  starterSlug?: string
   arrivedOn: Map<string, string | undefined>
   byRemaining: (a: string, b: string) => number
   context: TimeRemainingContext
@@ -268,8 +276,15 @@ function viewMemberships(
 
 function buildView({ key, label, members }: ViewMembership, trip: Trip): TimeRemainingView {
   const held = new Set(members)
-  const rows = [
-    { ...trip.originRow, lane: 0, through: [], forks: [] },
+  const access = accessLegsOf(key, members, trip)
+  const rows: TimeRemainingRow[] = [
+    {
+      ...trip.originRow,
+      detail: access.length ? { access } : {},
+      lane: 0,
+      through: [],
+      forks: [],
+    },
     ...[...members].sort(trip.byRemaining).map((slug) => {
       const row = trip.content.get(slug)!
       return {
@@ -304,12 +319,7 @@ function buildView({ key, label, members }: ViewMembership, trip: Trip): TimeRem
   return { key, label, rows, laneCount: assignLanes(rows, childrenOf) }
 }
 
-function buildOriginRow(
-  metadata: ChainMetadata,
-  children: ReachableStation[],
-  context: TimeRemainingContext,
-): TimeRemainingRow {
-  const first = children[0]
+function buildOriginRow(metadata: ChainMetadata, context: TimeRemainingContext): TimeRemainingRow {
   return {
     key: ORIGIN_KEY,
     slug: null,
@@ -317,14 +327,42 @@ function buildOriginRow(
     remainingSecs: metadata.origin_budget_mins * 60,
     flag: MODE_LABELS[context.mode] ?? context.mode,
     parentKey: null,
-    detail: first
-      ? { accessSecs: accessSecsOf(first), accessTo: context.stationName(first.station_slug) }
-      : {},
+    // Settled per view: the access leg a tab opens with is the one its own line
+    // was reached by, not whichever station happened to sort first overall.
+    detail: {},
     lane: 0,
     through: [],
     forks: [],
     incoming: false,
   }
+}
+
+// A station reached by riding carries the access time of the station its
+// journey started from, and that station is where its first leg leaves. So a
+// view's access legs are the distinct first-leg origins of its own members —
+// several when the search boarded one line at more than one station, which is
+// exactly what a single name on the starting location used to hide (SPA-342).
+// The access view is every station reached without riding, one row each, so
+// the starting location names only one of them: the station the map's starter
+// walk is drawn to, or failing that the quickest, which is how the worker picks
+// it.
+function accessLegsOf(viewKey: string, members: string[], trip: Trip): AccessLeg[] {
+  const bySource = new Map<string, number>()
+  for (const slug of members) {
+    const station = trip.bySlug.get(slug)!
+    const source = station.legs?.[0]?.from ?? slug
+    if (!bySource.has(source)) bySource.set(source, accessSecsOf(station))
+  }
+  const sources = [...bySource]
+    .sort(([a, aSecs], [b, bSecs]) => aSecs - bSecs || a.localeCompare(b))
+    .map(([source]) => source)
+  const named =
+    viewKey !== ACCESS_VIEW_KEY
+      ? sources
+      : [trip.starterSlug && bySource.has(trip.starterSlug) ? trip.starterSlug : sources[0]]
+  return named
+    .filter((source) => source !== undefined)
+    .map((source) => ({ to: trip.context.stationName(source), secs: bySource.get(source)! }))
 }
 
 function buildStationRow(
