@@ -354,66 +354,92 @@ describe('ServiceAuthoringView', () => {
     expect(wrapper.find('[data-testid="submit"]').attributes('disabled')).toBeUndefined()
   })
 
-  it('creates the service, triggers a compile, polls the job, and shows the compiled result', async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({
-        id: 'job1',
-        kind: 'compile_user_service',
-        status: 'succeeded',
-        result: {
-          services: [{ service_id: 'svc1', edges: [{ from_slug: 'sf', to_slug: 'sj', seconds: 90 }], wait_secs: 30 }],
-        },
-      }),
-    } as Response)
+  describe('creating a service', () => {
+    const Stub = { template: '<div>stub</div>' }
 
-    const wrapper = mountView()
-    await flushPromises()
-    await wrapper.find('[data-testid="route-select"]').setValue('main-line')
-    await flushPromises()
-    await addStop(wrapper, 'A', 37.77, -122.41)
-    await addStop(wrapper, 'B', 37.33, -121.88)
-    await vi.advanceTimersByTimeAsync(400)
-    await flushPromises()
-    await wrapper.find('[data-testid="service-name"]').setValue('Northbound Express')
-    await wrapper.find('[data-testid="frequency-headway"]').setValue(15)
-    await wrapper.find('[data-testid="add-frequency"]').trigger('click')
+    async function mountNew() {
+      const router = createRouter({
+        history: createMemoryHistory(),
+        routes: [
+          { path: '/authoring/services/new', name: 'new-service', component: ServiceAuthoringView },
+          { path: '/authoring/services/:slug', name: 'service-detail', component: Stub, props: true },
+        ],
+      })
+      await router.push('/authoring/services/new')
+      const wrapper = mount(ServiceAuthoringView, {
+        global: { plugins: [router], stubs: { MapView: true } },
+      })
+      await flushPromises()
+      await wrapper.find('[data-testid="route-select"]').setValue('main-line')
+      await flushPromises()
+      await addStop(wrapper, 'A', 37.77, -122.41)
+      await addStop(wrapper, 'B', 37.33, -121.88)
+      await vi.advanceTimersByTimeAsync(400)
+      await flushPromises()
+      await wrapper.find('[data-testid="service-name"]').setValue('Northbound Express')
+      await wrapper.find('[data-testid="frequency-headway"]').setValue(15)
+      await wrapper.find('[data-testid="add-frequency"]').trigger('click')
+      return { wrapper, router }
+    }
 
-    await wrapper.find('form').trigger('submit')
-    await flushPromises()
+    it('lands on the new service\'s page, which compiles it, rather than compiling here', async () => {
+      const { wrapper, router } = await mountNew()
 
-    expect(createService).toHaveBeenCalledWith(expect.objectContaining({ route_slug: 'main-line', name: 'Northbound Express' }))
-    expect(compileService).toHaveBeenCalledWith('northbound-express', expect.any(Object))
-    expect(wrapper.find('[data-testid="compile-result"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="compile-result"]').text()).toContain('1 service')
-    const edgeRows = wrapper.findAll('[data-testid="compile-edge-row"]')
-    expect(edgeRows[0].text()).toContain('sf')
-    expect(edgeRows[0].text()).toContain('sj')
-  })
+      await wrapper.find('form').trigger('submit')
+      await flushPromises()
 
-  it('sends the subtext and description typed into the form', async () => {
-    const wrapper = mountView()
-    await flushPromises()
-    await wrapper.find('[data-testid="route-select"]').setValue('main-line')
-    await flushPromises()
-    await addStop(wrapper, 'A', 37.77, -122.41)
-    await addStop(wrapper, 'B', 37.33, -121.88)
-    await vi.advanceTimersByTimeAsync(400)
-    await flushPromises()
-    await wrapper.find('[data-testid="service-name"]').setValue('Northbound Express')
-    await wrapper.find('[data-testid="service-subtext"]').setValue('Electrified · High-speed rail')
-    await wrapper.find('textarea[data-testid="service-description"]').setValue('Runs the spine.\n\nStops at every town.')
-    await wrapper.find('[data-testid="frequency-headway"]').setValue(15)
-    await wrapper.find('[data-testid="add-frequency"]').trigger('click')
+      expect(createService).toHaveBeenCalledWith(expect.objectContaining({ route_slug: 'main-line', name: 'Northbound Express' }))
+      expect(compileService).not.toHaveBeenCalled()
+      expect(router.currentRoute.value.path).toBe('/authoring/services/northbound-express')
+    })
 
-    await wrapper.find('form').trigger('submit')
-    await flushPromises()
+    it('replaces the form in history, so going back does not reopen it', async () => {
+      const { wrapper, router } = await mountNew()
+      const replace = vi.spyOn(router, 'replace')
+      const push = vi.spyOn(router, 'push')
 
-    expect(createService).toHaveBeenCalledWith(expect.objectContaining({
-      subtext: 'Electrified · High-speed rail',
-      description: 'Runs the spine.\n\nStops at every town.',
-    }))
+      await wrapper.find('form').trigger('submit')
+      await flushPromises()
+
+      expect(replace).toHaveBeenCalledWith('/authoring/services/northbound-express')
+      expect(push).not.toHaveBeenCalled()
+    })
+
+    it('sends the subtext and description typed into the form', async () => {
+      const { wrapper } = await mountNew()
+      await wrapper.find('[data-testid="service-subtext"]').setValue('Electrified · High-speed rail')
+      await wrapper.find('textarea[data-testid="service-description"]').setValue('Runs the spine.\n\nStops at every town.')
+
+      await wrapper.find('form').trigger('submit')
+      await flushPromises()
+
+      expect(createService).toHaveBeenCalledWith(expect.objectContaining({
+        subtext: 'Electrified · High-speed rail',
+        description: 'Runs the spine.\n\nStops at every town.',
+      }))
+    })
+
+    it('stays on the form with the draft and the stop faults when the create is refused', async () => {
+      vi.mocked(createService).mockRejectedValue(
+        new ApiError('POST /api/services failed: 422: rejected', 422, 'stop_placement', {
+          fault: 'off_route',
+          route_slug: 'main-line',
+          threshold_m: 500,
+          stops: [{ seq: 1, name: 'B', slug: 'b', chainage_m: 12000, offset_m: 620 }],
+        }),
+      )
+      const { wrapper, router } = await mountNew()
+
+      await wrapper.find('form').trigger('submit')
+      await flushPromises()
+
+      expect(router.currentRoute.value.path).toBe('/authoring/services/new')
+      expect(wrapper.find('[data-testid="submit-error"]').text()).toContain('rejected')
+      expect(wrapper.findAll('[data-testid="stop-row"]').map(stopRowName)).toEqual(['A', 'B'])
+      expect(wrapper.find('[data-testid="service-name"]').element).toHaveProperty('value', 'Northbound Express')
+      const flagged = wrapper.findAll('[data-testid="stop-row"]').map((row) => row.find('[data-testid="stop-submit-error"]').exists())
+      expect(flagged).toEqual([false, true])
+    })
   })
 
   it('bounds the subtext and description at the lengths the API accepts', async () => {
@@ -798,7 +824,6 @@ describe('ServiceAuthoringView', () => {
 
       expect(wrapper.find('[data-testid="compile-error"]').text()).toContain('compile exploded')
       expect(wrapper.find('[data-testid="view-service"]').attributes('href')).toBe('/authoring/services/northbound-express')
-      expect(wrapper.find('[data-testid="start-another"]').exists()).toBe(false)
       expect(router.currentRoute.value.name).toBe('edit-service')
     })
 

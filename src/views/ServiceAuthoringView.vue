@@ -2,11 +2,10 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useServiceDraft } from '../composables/useServiceDraft'
-import { MAX_DESCRIPTION_CHARS, MAX_SUBTEXT_CHARS, type GraphEdge, type SnapCoord as LatLng } from '../api/authoring'
+import { MAX_DESCRIPTION_CHARS, MAX_SUBTEXT_CHARS, type SnapCoord as LatLng } from '../api/authoring'
 import MapView from '../components/MapView.vue'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
 import { ACTION_LINK_CLASS } from '../components/linkStyles'
-import { formatRunTime } from '../components/stationTimes'
 import { STOP_PLACEMENT_CUE } from '../components/placementCues'
 
 // One view for both writes. The form, the map, the snap preview and fault
@@ -54,12 +53,12 @@ const {
   canSubmit,
   submitting,
   submitted,
+  createdSlug,
   submitError,
   faultedStops,
   stopFaultMessage,
   submit,
   discardEdit,
-  startAnother,
   compiling,
   compileError,
   compiledGraph,
@@ -139,7 +138,12 @@ watch(compiledGraph, (graph) => {
   if (graph && props.slug) void router.replace(servicePath.value)
 })
 
-const allEdges = computed<GraphEdge[]>(() => compiledGraph.value?.services.flatMap((s) => s.edges) ?? [])
+// A create ends on the new service's page straight away, which compiles it on
+// arrival. Replaced for the same reason as an edit: going back should not
+// reopen a form whose draft has already become a service.
+watch(createdSlug, (created) => {
+  if (created) void router.replace(`/authoring/services/${created}`)
+})
 </script>
 
 <template>
@@ -610,7 +614,7 @@ const allEdges = computed<GraphEdge[]>(() => compiledGraph.value?.services.flatM
           class="font-body text-caption text-ink-muted italic"
           data-testid="compiling-status"
         >
-          {{ slug ? 'Changes saved. Compiling…' : 'Service created. Compiling…' }}
+          Changes saved. Compiling…
         </p>
         <p
           v-else-if="compileError"
@@ -620,64 +624,14 @@ const allEdges = computed<GraphEdge[]>(() => compiledGraph.value?.services.flatM
         >
           {{ compileError }}
         </p>
-        <div
-          v-else-if="compiledGraph && !slug"
-          data-testid="compile-result"
-        >
-          <h2 class="font-display text-h3 text-ink-true">
-            Compiled
-          </h2>
-          <p class="font-body text-caption mt-2 text-ink-muted">
-            {{ compiledGraph.services.length }} service(s), {{ allEdges.length }} edges
-          </p>
-          <table
-            v-if="allEdges.length"
-            class="font-body text-caption mt-3 w-full text-ink"
-          >
-            <thead>
-              <tr class="text-ink-muted">
-                <th class="text-left font-normal">
-                  From
-                </th>
-                <th class="text-left font-normal">
-                  To
-                </th>
-                <th class="text-left font-normal">
-                  Run time
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="(edge, index) in allEdges"
-                :key="index"
-                data-testid="compile-edge-row"
-              >
-                <td>{{ edge.from_slug }}</td>
-                <td>{{ edge.to_slug }}</td>
-                <td>{{ formatRunTime(edge.seconds) }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
 
         <router-link
-          v-if="slug"
           :to="servicePath"
           class="font-display text-btn mt-4 inline-block rounded-(--radius-field) border border-border px-3 py-1.5 uppercase hover:bg-white"
           data-testid="view-service"
         >
           View service
         </router-link>
-        <button
-          v-else
-          type="button"
-          class="font-display text-btn mt-4 cursor-pointer rounded-(--radius-field) border border-border px-3 py-1.5 uppercase hover:bg-white"
-          data-testid="start-another"
-          @click="startAnother"
-        >
-          Author another service
-        </button>
       </div>
     </template>
   </main>

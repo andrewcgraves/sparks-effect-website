@@ -77,7 +77,6 @@ export function useServiceDraft(serviceSlug?: string) {
     compileError,
     result: compiledGraph,
     trigger: triggerCompile,
-    reset: resetCompile,
   } = useCompileJob(compileService)
 
   const routes = ref<RouteSummary[]>([])
@@ -95,6 +94,7 @@ export function useServiceDraft(serviceSlug?: string) {
   const editLoadFailed = ref(false)
 
   const submitted = ref(false)
+  const createdSlug = ref<string | null>(null)
   const submitting = ref(false)
   const submitError = ref('')
   const submitFault = ref<StopPlacementFault | null>(null)
@@ -402,10 +402,19 @@ export function useServiceDraft(serviceSlug?: string) {
       // from an existing service goes back as a PUT, and can never go out as a
       // POST that mints a second service. The gate on `draft` is what keeps
       // `editing` set whenever the slot names an edit.
-      const saved = drafts.editingServiceId
+      const isEdit = drafts.editingServiceId !== null
+      const saved = isEdit
         ? await updateService(editing.value!.slug, current)
         : await createService(current)
       drafts.clearServiceDraft()
+      // A new service has never compiled, and its own page compiles it when
+      // the graph read 404s, so a create is finished the moment it is stored.
+      // An edit is not: that page reads the last compile that succeeded, which
+      // predates the edit, so the recompile has to happen here.
+      if (!isEdit) {
+        createdSlug.value = saved.slug
+        return
+      }
       submitted.value = true
       await triggerCompile(saved.slug)
     } catch (err) {
@@ -422,16 +431,6 @@ export function useServiceDraft(serviceSlug?: string) {
   // that happens to be in the slot.
   function discardEdit(): void {
     if (editing.value && ready.value) drafts.clearServiceDraft()
-  }
-
-  function startAnother(): void {
-    submitted.value = false
-    submitError.value = ''
-    submitFault.value = null
-    resetCompile()
-    preview.value = null
-    selectedRoute.value = null
-    drafts.startServiceDraft()
   }
 
   return {
@@ -474,12 +473,12 @@ export function useServiceDraft(serviceSlug?: string) {
     canSubmit,
     submitting,
     submitted,
+    createdSlug,
     submitError,
     faultedStops,
     stopFaultMessage,
     submit,
     discardEdit,
-    startAnother,
     compiling,
     compileError,
     compiledGraph,
