@@ -1,5 +1,4 @@
 import { apiRequest } from './authoring/client'
-import { listRoutes } from './authoring/routes'
 
 export type Provenance = 'computed' | 'calibrated' | 'frozen'
 
@@ -87,14 +86,9 @@ export interface ScenarioSummary {
   description: string
 }
 
-export const FEATURED_SCENARIO_SLUGS = ['ca-hsr']
-
-export async function fetchFeaturedScenarios(): Promise<ScenarioSummary[]> {
-  const routeSlugs = await listRoutes().then((routes) => routes.map((route) => route.slug)).catch(() => [])
-  const slugs = Array.from(new Set([...FEATURED_SCENARIO_SLUGS, ...routeSlugs]))
-
-  const results = await Promise.allSettled(slugs.map((slug) => fetchScenario(slug)))
-  return results
-    .filter((result): result is PromiseFulfilledResult<ScenarioDetail> => result.status === 'fulfilled')
-    .map(({ value }) => ({ slug: value.slug, name: value.name, description: value.description }))
+// The curated list only: GET /api/scenarios never serves an owned scenario, and
+// a published service is a different model with its own index
+// (listPublishedServices).
+export function listCuratedScenarios(): Promise<ScenarioSummary[]> {
+  return apiRequest<ScenarioSummary[]>('/api/scenarios')
 }
