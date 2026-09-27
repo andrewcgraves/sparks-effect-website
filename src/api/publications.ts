@@ -28,6 +28,19 @@ export async function fetchServicePublication(slug: string): Promise<ServicePubl
   return apiRequest<ServicePublication>(`/api/services/${slug}/publication`)
 }
 
+export interface PublishedServiceSummary {
+  slug: string
+  name: string
+  subtext?: string
+  description?: string
+}
+
+// Most recently published first. Unpublished services never appear, for any
+// caller, owner included.
+export function listPublishedServices(): Promise<PublishedServiceSummary[]> {
+  return apiRequest<PublishedServiceSummary[]>('/api/published-services')
+}
+
 export function fetchPublicationIsochrone(
   slug: string,
   request: AuthoredIsochroneRequest,
