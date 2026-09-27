@@ -242,6 +242,56 @@ describe('useDraftsStore', () => {
     })
   })
 
+  // One slot holds the service draft on screen. An edit opened over a create
+  // draft must not cost the author that create draft, which no API can hand back.
+  describe('an edit opened over a create draft', () => {
+    function createThenEdit() {
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft(service('Half-authored'))
+      drafts.takeStopNumber()
+      drafts.takeStopNumber()
+      drafts.startServiceDraft(service('Blue Line'), 'svc-1')
+      return drafts
+    }
+
+    it('sets the create draft aside rather than overwriting it', () => {
+      const drafts = createThenEdit()
+
+      expect(drafts.serviceDraft?.name).toBe('Blue Line')
+      expect(drafts.editingServiceId).toBe('svc-1')
+      expect(drafts.setAsideServiceDraft?.draft.name).toBe('Half-authored')
+    })
+
+    it('hands the slot back to the create draft, counter and all, once the edit is cleared', () => {
+      const drafts = createThenEdit()
+
+      drafts.clearServiceDraft()
+
+      expect(drafts.serviceDraft?.name).toBe('Half-authored')
+      expect(drafts.editingServiceId).toBeNull()
+      expect(drafts.setAsideServiceDraft).toBeNull()
+      expect(drafts.takeStopNumber()).toBe(3)
+    })
+
+    it('keeps the create draft aside when another edit displaces the first', () => {
+      const drafts = createThenEdit()
+
+      drafts.startServiceDraft(service('Red Line'), 'svc-2')
+      drafts.clearServiceDraft()
+
+      expect(drafts.serviceDraft?.name).toBe('Half-authored')
+    })
+
+    it('sets nothing aside when there was no create draft to protect', () => {
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft(service('Blue Line'), 'svc-1')
+
+      drafts.clearServiceDraft()
+
+      expect(drafts.hasServiceDraft).toBe(false)
+    })
+  })
+
   describe('scenario drafts', () => {
     it('startScenarioDraft seeds an empty draft', () => {
       const drafts = useDraftsStore()
@@ -575,6 +625,61 @@ describe('useDraftsStore', () => {
         JSON.stringify({ serviceDraft: null, editingServiceId: 'svc-1' }),
       )
       expect(reloadAs('u1').editingServiceId).toBeNull()
+    })
+
+    it('restores a create draft set aside beneath an edit after a reload', async () => {
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft(service('Half-authored'))
+      drafts.startServiceDraft(service('Blue Line'), 'svc-1')
+      await nextTick()
+
+      const restored = reloadAs('u1')
+      expect(restored.serviceDraft?.name).toBe('Blue Line')
+      restored.clearServiceDraft()
+      expect(restored.serviceDraft?.name).toBe('Half-authored')
+    })
+
+    it('persists the create draft a cleared edit handed back', async () => {
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft(service('Half-authored'))
+      drafts.startServiceDraft(service('Blue Line'), 'svc-1')
+      drafts.clearServiceDraft()
+      await nextTick()
+
+      expect(persisted('u1')?.serviceDraft?.name).toBe('Half-authored')
+      expect(persisted('u1')?.setAsideServiceDraft).toBeNull()
+    })
+
+    it('hands the slot back to the set-aside draft when the edit above it did not survive', () => {
+      window.localStorage.setItem(
+        draftsStorageKey('u1'),
+        JSON.stringify({
+          serviceDraft: { name: 'corrupt' },
+          editingServiceId: 'svc-1',
+          setAsideServiceDraft: { draft: service('Half-authored'), stopCounter: 4 },
+        }),
+      )
+
+      const restored = reloadAs('u1')
+      expect(restored.serviceDraft?.name).toBe('Half-authored')
+      expect(restored.editingServiceId).toBeNull()
+      expect(restored.setAsideServiceDraft).toBeNull()
+      expect(restored.takeStopNumber()).toBe(5)
+    })
+
+    it('discards a malformed set-aside draft but keeps the edit above it', () => {
+      window.localStorage.setItem(
+        draftsStorageKey('u1'),
+        JSON.stringify({
+          serviceDraft: service('Blue Line'),
+          editingServiceId: 'svc-1',
+          setAsideServiceDraft: { draft: { name: 'corrupt' }, stopCounter: 4 },
+        }),
+      )
+
+      const restored = reloadAs('u1')
+      expect(restored.serviceDraft?.name).toBe('Blue Line')
+      expect(restored.setAsideServiceDraft).toBeNull()
     })
 
     it('keeps the draft in memory when storage rejects the write', async () => {

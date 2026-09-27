@@ -91,21 +91,30 @@ watch(service, (loaded) => {
     </template>
 
     <template v-else-if="service">
-      <hgroup class="mt-8 flex flex-col gap-2">
-        <h1 class="font-display text-display text-ink-true">
-          {{ service.name }}
-        </h1>
-        <p
-          v-if="service.subtext"
-          class="font-body text-micro text-ink-muted italic uppercase"
-          data-testid="service-subtext"
+      <div class="mt-8 flex items-start justify-between gap-4">
+        <hgroup class="flex flex-col gap-2">
+          <h1 class="font-display text-display text-ink-true">
+            {{ service.name }}
+          </h1>
+          <p
+            v-if="service.subtext"
+            class="font-body text-micro text-ink-muted italic uppercase"
+            data-testid="service-subtext"
+          >
+            {{ service.subtext }}
+          </p>
+          <p class="font-body text-micro text-ink-muted uppercase">
+            {{ service.slug }}
+          </p>
+        </hgroup>
+        <router-link
+          :to="`/authoring/services/${service.slug}/edit`"
+          :class="ACTION_LINK_CLASS"
+          data-testid="edit-service"
         >
-          {{ service.subtext }}
-        </p>
-        <p class="font-body text-micro text-ink-muted uppercase">
-          {{ service.slug }}
-        </p>
-      </hgroup>
+          Edit
+        </router-link>
+      </div>
       <p
         v-if="service.description"
         class="font-body text-body mt-3 max-w-[720px] whitespace-pre-line text-ink"

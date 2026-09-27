@@ -74,6 +74,11 @@ describe('router', () => {
       expect(router.currentRoute.value.path).toBe('/login')
     })
 
+    it('gates editing an authored service behind sign-in', async () => {
+      await router.push('/authoring/services/northbound-express/edit')
+      expect(router.currentRoute.value.path).toBe('/login')
+    })
+
     it('gates the authored-scenario detail page behind sign-in', async () => {
       await router.push('/authoring/scenarios/ca-hsr')
       expect(router.currentRoute.value.path).toBe('/login')
@@ -95,6 +100,12 @@ describe('router', () => {
       await router.push('/authoring/scenarios/ca-hsr')
       expect(router.currentRoute.value.name).toBe('scenario-detail')
       expect(router.currentRoute.value.params.slug).toBe('ca-hsr')
+    })
+
+    it('passes the slug to the service editor', async () => {
+      await router.push('/authoring/services/northbound-express/edit')
+      expect(router.currentRoute.value.name).toBe('edit-service')
+      expect(router.currentRoute.value.params.slug).toBe('northbound-express')
     })
 
     it('keeps the new-service form ahead of the slug route', async () => {

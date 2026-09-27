@@ -171,6 +171,14 @@ describe('AuthoredServiceView', () => {
     expect(wrapper.find('[data-testid="back-to-authoring"]').attributes('href')).toBe('/authoring')
   })
 
+  it('links to editing the service', async () => {
+    vi.mocked(fetchService).mockResolvedValue(stubService)
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="edit-service"]').attributes('href'))
+      .toBe('/authoring/services/northbound-express/edit')
+  })
+
   it('shows a not-found state on a 404', async () => {
     vi.mocked(fetchService).mockRejectedValue(new ApiError('not found', 404))
     const wrapper = mountView('no-such-service')

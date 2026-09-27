@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount, flushPromises, type DOMWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import type { Job, Route, RouteSummary, SnapStopsResponse, Service } from '../api/authoring/types'
+import { createMemoryHistory, createRouter } from 'vue-router'
+import type { Job, Route, RouteSummary, SnapStopsResponse, Service, TransitGraph } from '../api/authoring/types'
 
 vi.mock('../api/authoring/routes', () => ({
   listRoutes: vi.fn(),
@@ -10,12 +11,21 @@ vi.mock('../api/authoring/routes', () => ({
 }))
 vi.mock('../api/authoring/services', () => ({
   createService: vi.fn(),
+  updateService: vi.fn(),
+  fetchService: vi.fn(),
+  fetchServiceGraph: vi.fn(),
   compileService: vi.fn(),
 }))
 
 import ServiceAuthoringView from './ServiceAuthoringView.vue'
 import { listRoutes, fetchRoute, snapStops } from '../api/authoring/routes'
-import { createService, compileService } from '../api/authoring/services'
+import {
+  createService,
+  compileService,
+  fetchService,
+  fetchServiceGraph,
+  updateService,
+} from '../api/authoring/services'
 import { ApiError } from '../api/authoring/client'
 import { useDraftsStore } from '../stores/drafts'
 
@@ -685,6 +695,166 @@ describe('ServiceAuthoringView', () => {
       await flushPromises()
 
       expect(wrapper.findAll('[data-testid="stop-row"]').map(stopRowName)).toEqual(['Stop 1', 'Stop 2'])
+    })
+  })
+
+  describe('editing an existing service', () => {
+    const savedService: Service = {
+      id: 'svc1',
+      slug: 'northbound-express',
+      route_id: 'rt1',
+      name: 'Northbound Express',
+      subtext: 'Electrified · High-speed rail',
+      description: 'Runs the spine.',
+      stops: [
+        { name: 'SF', lat: 37.77, lng: -122.41, seq: 0 },
+        { name: 'SJ', lat: 37.33, lng: -121.88, seq: 1 },
+      ],
+      vehicle: { max_speed_kmh: 320, acceleration_ms2: 1.1, deceleration_ms2: 1.2, dwell_s: 45 },
+      frequency_windows: [{ start_time: '06:00', end_time: '22:00', headway_s: 900 }],
+    }
+
+    const Stub = { template: '<div>stub</div>' }
+
+    async function mountEdit(slug = 'northbound-express') {
+      const router = createRouter({
+        history: createMemoryHistory(),
+        routes: [
+          { path: '/authoring/services/:slug', name: 'service-detail', component: Stub, props: true },
+          { path: '/authoring/services/:slug/edit', name: 'edit-service', component: ServiceAuthoringView, props: true },
+        ],
+      })
+      await router.push(`/authoring/services/${slug}/edit`)
+      const wrapper = mount(ServiceAuthoringView, {
+        props: { slug },
+        global: { plugins: [router], stubs: { MapView: true } },
+      })
+      await flushPromises()
+      await vi.advanceTimersByTimeAsync(400)
+      await flushPromises()
+      return { wrapper, router }
+    }
+
+    function fieldValue(wrapper: Awaited<ReturnType<typeof mountEdit>>['wrapper'], testId: string): string {
+      return (wrapper.find(`[data-testid="${testId}"]`).element as HTMLInputElement).value
+    }
+
+    beforeEach(() => {
+      vi.mocked(fetchService).mockResolvedValue(savedService)
+      vi.mocked(fetchServiceGraph).mockResolvedValue({ services: [], routes: [stubRoute] } as unknown as TransitGraph)
+      vi.mocked(updateService).mockResolvedValue(savedService)
+    })
+
+    it('arrives with the service\'s stops, vehicle, windows and prose filled in', async () => {
+      const { wrapper } = await mountEdit()
+
+      expect(wrapper.find('h1').text()).toBe('Edit service')
+      expect(fieldValue(wrapper, 'route-select')).toBe('main-line')
+      expect(fieldValue(wrapper, 'service-name')).toBe('Northbound Express')
+      expect(fieldValue(wrapper, 'service-subtext')).toBe('Electrified · High-speed rail')
+      expect(fieldValue(wrapper, 'service-description')).toBe('Runs the spine.')
+      expect(wrapper.findAll('[data-testid="stop-row"]').map(stopRowName)).toEqual(['SF', 'SJ'])
+      expect(fieldValue(wrapper, 'vehicle-max-speed')).toBe('320')
+      expect(fieldValue(wrapper, 'vehicle-dwell')).toBe('45')
+      expect(wrapper.find('[data-testid="frequency-list"]').text()).toContain('06:00–22:00, every 15 min')
+      expect(wrapper.find('[data-testid="submit"]').text()).toBe('Save changes')
+    })
+
+    it('links back to the service it is editing', async () => {
+      const { wrapper } = await mountEdit()
+
+      const back = wrapper.find('[data-testid="back-to-service"]')
+      expect(back.attributes('href')).toBe('/authoring/services/northbound-express')
+      expect(back.text()).toContain('Northbound Express')
+    })
+
+    it('saves with a PUT, then lands on the service once it has recompiled', async () => {
+      vi.mocked(fetch).mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ id: 'job1', kind: 'compile_user_service', status: 'succeeded', result: { services: [] } }),
+      } as Response)
+      const { wrapper, router } = await mountEdit()
+      await wrapper.find('[data-testid="service-description"]').setValue('Runs the whole spine.')
+
+      await wrapper.find('form').trigger('submit')
+      await flushPromises()
+
+      expect(updateService).toHaveBeenCalledWith('northbound-express', expect.objectContaining({
+        name: 'Northbound Express',
+        description: 'Runs the whole spine.',
+      }))
+      expect(createService).not.toHaveBeenCalled()
+      expect(compileService).toHaveBeenCalledWith('northbound-express', expect.any(Object))
+      expect(router.currentRoute.value.path).toBe('/authoring/services/northbound-express')
+    })
+
+    it('stays put and offers the way back when the recompile fails', async () => {
+      vi.mocked(compileService).mockRejectedValue(new Error('compile exploded'))
+      const { wrapper, router } = await mountEdit()
+
+      await wrapper.find('form').trigger('submit')
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="compile-error"]').text()).toContain('compile exploded')
+      expect(wrapper.find('[data-testid="view-service"]').attributes('href')).toBe('/authoring/services/northbound-express')
+      expect(wrapper.find('[data-testid="start-another"]').exists()).toBe(false)
+      expect(router.currentRoute.value.name).toBe('edit-service')
+    })
+
+    it('asks for the route again when it cannot be recovered', async () => {
+      vi.mocked(fetchServiceGraph).mockRejectedValue(new ApiError('no compiled graph', 404))
+      const { wrapper } = await mountEdit()
+
+      expect(wrapper.find('[data-testid="route-missing"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="submit"]').attributes('disabled')).toBeDefined()
+
+      await wrapper.find('[data-testid="route-select"]').setValue('main-line')
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="route-missing"]').exists()).toBe(false)
+    })
+
+    it('discarding returns to the service and hands back the create draft the edit set aside', async () => {
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft()
+      drafts.addStop({ name: 'Half-authored', lat: 1, lng: 2, seq: 0 })
+      const { wrapper, router } = await mountEdit()
+
+      await wrapper.find('[data-testid="discard-edit"]').trigger('click')
+      await flushPromises()
+
+      expect(router.currentRoute.value.path).toBe('/authoring/services/northbound-express')
+      expect(drafts.editingServiceId).toBeNull()
+      expect(drafts.serviceDraft?.stops.map((s) => s.name)).toEqual(['Half-authored'])
+    })
+
+    it('never shows a create draft in the slot while the service is loading', async () => {
+      vi.mocked(fetchService).mockReturnValue(new Promise(() => {}))
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft()
+      drafts.addStop({ name: 'Half-authored', lat: 1, lng: 2, seq: 0 })
+
+      const { wrapper } = await mountEdit()
+
+      expect(wrapper.find('[data-testid="draft-loading"]').text()).toBe('Loading service…')
+      expect(wrapper.find('form').exists()).toBe(false)
+    })
+
+    it('shows a not-found state for a service that is not the caller\'s', async () => {
+      vi.mocked(fetchService).mockRejectedValue(new ApiError('service not found', 404))
+      const { wrapper } = await mountEdit('someone-elses')
+
+      expect(wrapper.find('[data-testid="service-not-found"]').text()).toContain('someone-elses')
+      expect(wrapper.find('form').exists()).toBe(false)
+    })
+
+    it('shows an error state when the service fails to load', async () => {
+      vi.mocked(fetchService).mockRejectedValue(new Error('boom'))
+      const { wrapper } = await mountEdit()
+
+      expect(wrapper.find('[data-testid="service-error"]').exists()).toBe(true)
+      expect(wrapper.find('form').exists()).toBe(false)
     })
   })
 })

@@ -50,6 +50,13 @@ export const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/authoring/services/:slug/edit',
+      name: 'edit-service',
+      component: ServiceAuthoringView,
+      props: true,
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/authoring/services/:slug',
       name: 'service-detail',
       component: AuthoredServiceView,
