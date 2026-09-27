@@ -1,9 +1,25 @@
 <script setup lang="ts">
-import { useOwnedList } from '../composables/useOwnedList'
-import { fetchFeaturedScenarios } from '../api/scenarios'
+import { ref } from 'vue'
+import { fetchCoverIndex, type CoverCard, type CoverSource } from '../api/coverIndex'
 import { LIST_CARD_LINK_CLASS } from '../components/linkStyles'
 
-const { items: scenarios, loading, error } = useOwnedList(fetchFeaturedScenarios)
+const UNAVAILABLE_COPY: Record<CoverSource, string> = {
+  scenario: "Couldn't load the curated scenarios.",
+  service: "Couldn't load the published services.",
+}
+
+const cards = ref<CoverCard[]>([])
+const unavailable = ref<CoverSource[]>([])
+const loading = ref(true)
+const error = ref(false)
+
+fetchCoverIndex()
+  .then((index) => {
+    cards.value = index.cards
+    unavailable.value = index.unavailable
+  })
+  .catch(() => { error.value = true })
+  .finally(() => { loading.value = false })
 </script>
 
 <template>
@@ -38,31 +54,47 @@ const { items: scenarios, loading, error } = useOwnedList(fetchFeaturedScenarios
         >
           Couldn't load the published routes.
         </p>
-        <p
-          v-else-if="scenarios.length === 0"
-          class="font-body text-caption mt-3 text-ink-muted italic"
-          data-testid="scenarios-empty"
-        >
-          No published routes yet.
-        </p>
-        <ul
-          v-else
-          class="mt-3 flex max-w-[420px] flex-col gap-2"
-        >
-          <li
-            v-for="scenario in scenarios"
-            :key="scenario.slug"
+        <template v-else>
+          <p
+            v-for="source in unavailable"
+            :key="source"
+            class="font-body text-caption mt-3 text-coral"
+            role="alert"
+            data-testid="scenarios-partial"
           >
-            <router-link
-              :to="`/scenario/${scenario.slug}`"
-              :class="LIST_CARD_LINK_CLASS"
-              data-testid="scenario-link"
+            {{ UNAVAILABLE_COPY[source] }}
+          </p>
+          <!-- Empty only when both reads answered: with half missing, an
+               empty list is not evidence that nothing is published. -->
+          <p
+            v-if="cards.length === 0 && unavailable.length === 0"
+            class="font-body text-caption mt-3 text-ink-muted italic"
+            data-testid="scenarios-empty"
+          >
+            No published routes yet.
+          </p>
+          <ul
+            v-if="cards.length > 0"
+            class="mt-3 flex max-w-[420px] flex-col gap-2"
+          >
+            <li
+              v-for="card in cards"
+              :key="`${card.kind}:${card.slug}`"
             >
-              {{ scenario.name }}
-              <span class="text-micro text-ink-muted">{{ scenario.description }}</span>
-            </router-link>
-          </li>
-        </ul>
+              <router-link
+                :to="card.to"
+                :class="LIST_CARD_LINK_CLASS"
+                :data-testid="`${card.kind}-link`"
+              >
+                {{ card.name }}
+                <span
+                  v-if="card.caption"
+                  class="text-micro text-ink-muted"
+                >{{ card.caption }}</span>
+              </router-link>
+            </li>
+          </ul>
+        </template>
       </section>
     </div>
 
