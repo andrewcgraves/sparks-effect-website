@@ -85,3 +85,20 @@ of the way along a corridor and stops. The worker reports these as
 `trip_progress`, with a `fraction` of the ride covered; a row shows it as
 "x% of the way to <station>". A progress entry is drawn in the view that owns
 its service, so the same unfinished leg is not repeated across tabs.
+
+## The three states of a publication
+
+*Publish*, *publication* and *draft* are the API's words (ADR-0005 in
+sparks-effect-api). The authoring page for a service reports one of three
+states, never two:
+
+| State | When | What it means |
+| --- | --- | --- |
+| **Unpublished** | No publication exists | Only the owner can see the service |
+| **Published** | A publication exists, and the draft's `updated_at` is no later than its `published_at` | Visitors see the draft as it is now |
+| **Unpublished changes** | A publication exists, and the draft has been edited since | Visitors still see the publication. A publication is a snapshot, so no edit — prose included — reaches the public page until the owner republishes |
+
+Publishing never compiles; it pins the latest compile if that compile is still
+current, and answers `stale_graph` if not. The page's answer to that is the one
+it already gives the isochrone: compile through its own compile, then try
+again, once.
