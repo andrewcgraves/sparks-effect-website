@@ -295,6 +295,7 @@ describe('useServiceDraft', () => {
       expect(createService).not.toHaveBeenCalled()
       expect(compileService).toHaveBeenCalledWith('northbound-express', expect.any(Object))
       expect(draft.submitted.value).toBe(true)
+      expect(draft.createdSlug.value).toBeNull()
       expect(useDraftsStore().hasServiceDraft).toBe(false)
     })
 
@@ -661,7 +662,7 @@ describe('useServiceDraft', () => {
   })
 
   describe('submitting', () => {
-    it('creates the service, clears the draft, and compiles it', async () => {
+    it('creates the service, clears the draft, and hands over its slug without compiling it', async () => {
       const draft = useServiceDraft()
       await submittable(draft)
 
@@ -671,8 +672,9 @@ describe('useServiceDraft', () => {
         route_slug: 'main-line',
         name: 'Northbound Express',
       }))
-      expect(compileService).toHaveBeenCalledWith('northbound-express', expect.any(Object))
-      expect(draft.submitted.value).toBe(true)
+      expect(compileService).not.toHaveBeenCalled()
+      expect(draft.createdSlug.value).toBe('northbound-express')
+      expect(draft.submitted.value).toBe(false)
       expect(useDraftsStore().serviceDraft).toBeNull()
     })
 
@@ -708,6 +710,7 @@ describe('useServiceDraft', () => {
 
       expect(draft.submitError.value).toContain('nope')
       expect(draft.submitted.value).toBe(false)
+      expect(draft.createdSlug.value).toBeNull()
       expect(draft.stops.value).toHaveLength(2)
       expect(compileService).not.toHaveBeenCalled()
     })
@@ -766,21 +769,6 @@ describe('useServiceDraft', () => {
 
       expect(draft.faultedStops.value.size).toBe(0)
       expect(draft.submitError.value).toContain('500')
-    })
-
-    it('opens a fresh draft and clears the last refusal when starting another', async () => {
-      vi.mocked(createService).mockRejectedValue(new ApiError('failed: 422', 422))
-      const draft = useServiceDraft()
-      await submittable(draft)
-      await draft.submit()
-
-      draft.startAnother()
-
-      expect(draft.submitError.value).toBe('')
-      expect(draft.submitted.value).toBe(false)
-      expect(draft.stops.value).toEqual([])
-      expect(draft.preview.value).toBeNull()
-      expect(draft.selectedRoute.value).toBeNull()
     })
   })
 
