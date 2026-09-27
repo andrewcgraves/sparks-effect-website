@@ -5,6 +5,7 @@ import type { Service } from '../api/authoring/types'
 import { useOwnedDetail } from '../composables/useOwnedDetail'
 import { useAuthoredGraph } from '../composables/useAuthoredGraph'
 import ScenarioPreviewPanel from '../components/ScenarioPreviewPanel.vue'
+import PublicationControl from '../components/PublicationControl.vue'
 import TimeBetweenStations from '../components/TimeBetweenStations.vue'
 import { graphStationTimeGroups } from '../components/stationTimes'
 import { ACTION_LINK_CLASS } from '../components/linkStyles'
@@ -21,6 +22,7 @@ const {
   graph,
   graphFailed,
   loadGraph,
+  triggerCompile,
   origin,
   isochroneData,
   isochroneError,
@@ -42,6 +44,14 @@ const services = computed(() => (service.value ? [service.value] : []))
 const stationTimeGroups = computed(() => graphStationTimeGroups(graph.value, services.value))
 
 const stationTimesFailed = computed(() => Boolean(graphFailed.value || (compileError.value && !graph.value)))
+
+// Publishing compiles through the page's own compile, so the graph it pins is
+// the one this page then draws, and a compile fault is reported where every
+// other one here is.
+async function recompile(slug: string): Promise<boolean> {
+  await triggerCompile(slug)
+  return !compileError.value
+}
 
 watch(service, (loaded) => {
   if (loaded) void loadGraph(loaded.slug)
@@ -122,6 +132,13 @@ watch(service, (loaded) => {
       >
         {{ service.description }}
       </p>
+
+      <PublicationControl
+        :slug="service.slug"
+        :updated-at="service.updated_at"
+        :compiling="compiling"
+        :recompile="recompile"
+      />
 
       
       <p

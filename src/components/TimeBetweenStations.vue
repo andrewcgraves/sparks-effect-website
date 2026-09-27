@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { TOGGLE_BUTTON_CLASS } from './buttonStyles'
 import { formatRunTime } from './stationTimes'
 import type { StationTimeGroup } from './stationTimes'
 
@@ -68,7 +69,7 @@ function choose(group: StationTimeGroup, index: number): void {
             v-for="(direction, index) in group.directions"
             :key="direction.terminus"
             type="button"
-            class="font-display text-btn cursor-pointer rounded-(--radius-field) border border-border px-3 py-1.5 uppercase hover:bg-white aria-pressed:border-coral aria-pressed:bg-coral aria-pressed:text-white"
+            :class="TOGGLE_BUTTON_CLASS"
             :aria-pressed="chosenIndex(group) === index"
             data-testid="direction-toggle"
             @click="choose(group, index)"

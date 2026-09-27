@@ -6,6 +6,7 @@ import { ApiError } from '../api/authoring/client'
 import { fetchMyServices } from '../api/authoring/services'
 import { createScenario } from '../api/authoring/scenarios'
 import type { Service } from '../api/authoring/types'
+import { PRIMARY_BUTTON_CLASS } from '../components/buttonStyles'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
 
 const router = useRouter()
@@ -144,7 +145,7 @@ async function handleSave(): Promise<void> {
 
       <button
         type="submit"
-        class="font-display text-btn cursor-pointer rounded-(--radius-field) bg-coral px-4 py-2.5 text-white uppercase transition-colors duration-200 ease-(--ease-smooth) hover:bg-ink disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-coral"
+        :class="PRIMARY_BUTTON_CLASS"
         data-testid="save-scenario"
         :disabled="!canSubmit"
       >

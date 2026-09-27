@@ -11,6 +11,11 @@ vi.mock('../api/authoring/services', () => ({
   compileService: vi.fn(),
   fetchServiceIsochrone: vi.fn(),
 }))
+vi.mock('../api/publications', () => ({
+  fetchServicePublication: vi.fn(),
+  publishService: vi.fn(),
+  unpublishService: vi.fn(),
+}))
 vi.mock('../components/MapView.vue', () => ({
   default: {
     props: ['origin', 'isochroneData', 'loading', 'routes', 'stations'],
@@ -20,6 +25,7 @@ vi.mock('../components/MapView.vue', () => ({
 
 import AuthoredServiceView from './AuthoredServiceView.vue'
 import { compileService, fetchService, fetchServiceGraph, fetchServiceIsochrone } from '../api/authoring/services'
+import { fetchServicePublication, publishService } from '../api/publications'
 
 const Stub = { template: '<div>stub</div>' }
 
@@ -62,6 +68,7 @@ function mountView(slug = 'northbound-express') {
     routes: [
       { path: '/authoring', name: 'authoring', component: Stub },
       { path: '/authoring/services/:slug', name: 'service-detail', component: AuthoredServiceView, props: true },
+      { path: '/services/:slug', name: 'published-service', component: Stub },
     ],
   })
   return mount(AuthoredServiceView, { props: { slug }, global: { plugins: [router] } })
@@ -74,6 +81,8 @@ describe('AuthoredServiceView', () => {
     vi.mocked(fetchServiceGraph).mockReset().mockResolvedValue(graph)
     vi.mocked(compileService).mockReset()
     vi.mocked(fetchServiceIsochrone).mockReset()
+    vi.mocked(fetchServicePublication).mockReset().mockRejectedValue(new ApiError('not found', 404))
+    vi.mocked(publishService).mockReset()
     // useCompileJob polls the job endpoint through the jobs store.
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
@@ -362,4 +371,58 @@ describe('AuthoredServiceView', () => {
     const ordered = wrapper.findAll('[data-testid="map"], [data-testid="service-stop-row"]')
     expect(ordered[0].attributes('data-testid')).toBe('map')
   })
+
+  // --- publishing (SPA-360) ---
+
+  it('shows whether the service is published', async () => {
+    vi.mocked(fetchService).mockResolvedValue(stubService)
+    const wrapper = mountView()
+    await flushPromises()
+    expect(fetchServicePublication).toHaveBeenCalledWith('northbound-express')
+    expect(wrapper.get('[data-testid="publication"]').attributes('data-state')).toBe('unpublished')
+  })
+
+  it('compares the publication against the draft\'s own updated_at', async () => {
+    vi.mocked(fetchService).mockResolvedValue({ ...stubService, updated_at: '2026-09-21T08:00:00Z' })
+    vi.mocked(fetchServicePublication).mockResolvedValue({ published_at: '2026-09-20T12:00:00Z' } as never)
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.get('[data-testid="publication"]').attributes('data-state')).toBe('changed')
+  })
+
+  it('publishes a stale service by compiling it through the page\'s own compile', async () => {
+    vi.mocked(fetchService).mockResolvedValue(stubService)
+    vi.mocked(compileService).mockResolvedValue({ id: 'job1', kind: 'compile_user_service', status: 'queued' })
+    vi.mocked(publishService)
+      .mockRejectedValueOnce(new ApiError('stale', 409, 'stale_graph'))
+      .mockResolvedValueOnce({ published_at: '2026-09-21T09:00:00Z' } as never)
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.get('[data-testid="publish-button"]').trigger('click')
+    await flushPromises()
+
+    expect(compileService).toHaveBeenCalledWith('northbound-express', expect.any(Object))
+    expect(publishService).toHaveBeenCalledTimes(2)
+    expect(wrapper.get('[data-testid="publication"]').attributes('data-state')).toBe('current')
+  })
+
+  it('reports a compile fault met while publishing where every compile fault goes', async () => {
+    vi.mocked(fetchService).mockResolvedValue(stubService)
+    vi.mocked(compileService).mockRejectedValue(new Error('compile boom'))
+    vi.mocked(publishService).mockRejectedValue(new ApiError('stale', 409, 'stale_graph'))
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.get('[data-testid="publish-button"]').trigger('click')
+    await flushPromises()
+
+    expect(publishService).toHaveBeenCalledTimes(1)
+    expect(wrapper.get('[data-testid="publication"]').attributes('data-state')).toBe('unpublished')
+    // The control points at the fault; the reason itself is on the preview's
+    // existing error surface, not repeated in a second one.
+    expect(wrapper.get('[data-testid="publication-error"]').text()).not.toContain('compile boom')
+    expect(wrapper.get('[data-testid="fetch-error"]').text()).toContain('compile boom')
+  })
+
 })
