@@ -187,7 +187,7 @@ watch(
             class="font-body text-micro text-ink-muted"
             data-testid="time-remaining-access"
           >
-            to {{ leg.to }}, {{ formatDuration(leg.secs) }}
+            {{ leg.mode ? `${leg.mode} to` : 'to' }} {{ leg.to }}, {{ formatDuration(leg.secs) }}
           </p>
         </div>
 

@@ -817,6 +817,40 @@ describe('ScenarioView', () => {
       expect(access()).toEqual(['to San Jose, 20m'])
     })
 
+    // SPA-336: a transit plot whose access leg Valhalla walked end to end.
+    function transitAccess(rodeFrom: Record<string, boolean>): ChainResponse {
+      return {
+        ...boardedApartIsochrone,
+        metadata: {
+          ...boardedApartIsochrone.metadata,
+          mode: 'transit',
+          reachable_stations: boardedApartIsochrone.metadata.reachable_stations.map((station) => ({
+            ...station,
+            access_rode_transit: rodeFrom[station.legs?.[0]?.from ?? station.station_slug],
+          })),
+        },
+      }
+    }
+    const originFlag = (wrapper: Awaited<ReturnType<typeof plot>>) =>
+      wrapper.findAll('[data-testid="time-remaining-row"]')[0].find('[data-testid="time-remaining-flag"]')
+
+    it('does not call a walked transit access leg Transit', async () => {
+      const wrapper = await plot(transitAccess({ sf: false, sj: true }))
+
+      expect(originFlag(wrapper).text()).toBe('Walk')
+      await wrapper.find('[data-testid="time-remaining-service-option-1"]').setValue()
+      expect(originFlag(wrapper).text()).toBe('Transit')
+    })
+
+    it('names each access leg\'s mode when one line was reached both ways', async () => {
+      servicesShareOneLine()
+      const wrapper = await plot(transitAccess({ sf: false, sj: true }))
+
+      expect(originFlag(wrapper).exists()).toBe(false)
+      expect(wrapper.findAll('[data-testid="time-remaining-access"]').map((a) => a.text()))
+        .toEqual(['Walk to San Francisco, 5m', 'Transit to San Jose, 20m'])
+    })
+
     it('cuts to the line a station hovered on the map is on', async () => {
       const wrapper = await plot(twoServiceIsochrone)
       expect(wrapper.findAll('[data-testid="time-remaining-row"]').map((r) => r.text())

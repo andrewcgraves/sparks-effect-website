@@ -52,6 +52,11 @@ Three related row facts, all per-view:
   starter station alone. Never one name for the whole trip — a single station on
   the starting location of every tab read as the place the rider was being sent
   (SPA-342).
+- **Access mode** — the flag on the starting location: how its access legs were
+  actually covered, not merely the mode asked for. A transit access leg that
+  boarded nothing (`access_rode_transit: false`) reads *Walk*. When one view's
+  access legs disagree, the starting location carries no flag and each leg names
+  its own mode, since any single word there would mislabel the rest (SPA-336).
 
 ## The three states of a line
 

@@ -19,6 +19,7 @@ export interface RowDetail {
 export interface AccessLeg {
   to: string
   secs: number
+  mode?: string
 }
 
 export interface TimeRemainingRow {
@@ -110,6 +111,19 @@ function remainingSecsOf(station: ReachableStation): number {
 
 function accessSecsOf(station: ReachableStation): number {
   return station.access_secs ?? station.access_mins * 60
+}
+
+function modeLabel(mode: string): string {
+  return MODE_LABELS[mode] ?? mode
+}
+
+// A transit access leg Valhalla found no service for is walked end to end and
+// still comes back as an answer, so the requested mode is not what the rider
+// did (SPA-336). Only an explicit false says so: absent is a result written
+// before the worker reported it, and there is nothing to go on but the mode.
+function accessModeOf(station: ReachableStation, context: TimeRemainingContext): string {
+  const walked = context.mode === 'transit' && station.access_rode_transit === false
+  return modeLabel(walked ? 'walk' : context.mode)
 }
 
 function departWaitSecs(slug: string, children: ReachableStation[]): number {
@@ -265,7 +279,7 @@ function viewMemberships(
   }
 
   if (byLine.size === 0) {
-    return [{ key: ACCESS_VIEW_KEY, label: MODE_LABELS[context.mode] ?? context.mode, members: access }]
+    return [{ key: ACCESS_VIEW_KEY, label: modeLabel(context.mode), members: access }]
   }
   return [...byLine].map(([key, { label, members }]) => ({
     key,
@@ -277,10 +291,18 @@ function viewMemberships(
 function buildView({ key, label, members }: ViewMembership, trip: Trip): TimeRemainingView {
   const held = new Set(members)
   const access = accessLegsOf(key, members, trip)
+  // One mode between them flags the starting location with it. Legs that
+  // disagree each name their own, and the row carries no flag: any one word
+  // there would mislabel the other legs.
+  const modes = new Set(access.map((leg) => leg.mode))
+  const mixed = modes.size > 1
   const rows: TimeRemainingRow[] = [
     {
       ...trip.originRow,
-      detail: access.length ? { access } : {},
+      flag: mixed ? null : (access[0]?.mode ?? trip.originRow.flag),
+      detail: access.length
+        ? { access: mixed ? access : access.map(({ to, secs }) => ({ to, secs })) }
+        : {},
       lane: 0,
       through: [],
       forks: [],
@@ -325,7 +347,7 @@ function buildOriginRow(metadata: ChainMetadata, context: TimeRemainingContext):
     slug: null,
     label: 'Starting location',
     remainingSecs: metadata.origin_budget_mins * 60,
-    flag: MODE_LABELS[context.mode] ?? context.mode,
+    flag: modeLabel(context.mode),
     parentKey: null,
     // Settled per view: the access leg a tab opens with is the one its own line
     // was reached by, not whichever station happened to sort first overall.
@@ -346,14 +368,15 @@ function buildOriginRow(metadata: ChainMetadata, context: TimeRemainingContext):
 // the starting location names only one of them: the station the map's starter
 // walk is drawn to, or failing that the quickest, which is how the worker picks
 // it.
-function accessLegsOf(viewKey: string, members: string[], trip: Trip): AccessLeg[] {
-  const bySource = new Map<string, number>()
+function accessLegsOf(viewKey: string, members: string[], trip: Trip): Required<AccessLeg>[] {
+  const bySource = new Map<string, ReachableStation>()
   for (const slug of members) {
     const station = trip.bySlug.get(slug)!
     const source = station.legs?.[0]?.from ?? slug
-    if (!bySource.has(source)) bySource.set(source, accessSecsOf(station))
+    if (!bySource.has(source)) bySource.set(source, station)
   }
   const sources = [...bySource]
+    .map(([source, station]) => [source, accessSecsOf(station)] as const)
     .sort(([a, aSecs], [b, bSecs]) => aSecs - bSecs || a.localeCompare(b))
     .map(([source]) => source)
   const named =
@@ -362,7 +385,14 @@ function accessLegsOf(viewKey: string, members: string[], trip: Trip): AccessLeg
       : [trip.starterSlug && bySource.has(trip.starterSlug) ? trip.starterSlug : sources[0]]
   return named
     .filter((source) => source !== undefined)
-    .map((source) => ({ to: trip.context.stationName(source), secs: bySource.get(source)! }))
+    .map((source) => {
+      const station = bySource.get(source)!
+      return {
+        to: trip.context.stationName(source),
+        secs: accessSecsOf(station),
+        mode: accessModeOf(station, trip.context),
+      }
+    })
 }
 
 function buildStationRow(

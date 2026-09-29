@@ -15,6 +15,7 @@ export interface ReachableStation {
   remaining_mins: number
   via_service?: string
   access_secs?: number
+  access_rode_transit?: boolean
   remaining_secs?: number
   predecessor_slug?: string
   board_slug?: string
