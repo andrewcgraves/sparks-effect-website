@@ -18,7 +18,8 @@ vi.mock('vue-router', () => ({
 import ScenarioBuilderView from './ScenarioBuilderView.vue'
 import { fetchMyServices } from '../api/authoring/services'
 import { createScenario } from '../api/authoring/scenarios'
-import { ApiError } from '../api/authoring/client'
+import { ApiError, SessionExpiredError } from '../api/authoring/client'
+import { SESSION_EXPIRED_FAULT } from '../api/authoringFault'
 import { useDraftsStore } from '../stores/drafts'
 
 const stubServiceA: Service = {
@@ -86,6 +87,14 @@ describe('ScenarioBuilderView', () => {
     expect(wrapper.find('[data-testid="services-error"]').exists()).toBe(true)
   })
 
+  it('stays loading, not failed, when the services are refused for an expired session', async () => {
+    vi.mocked(fetchMyServices).mockRejectedValue(new SessionExpiredError('GET /api/services failed: 401'))
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="services-error"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('Loading')
+  })
+
   it('disables save until a name and at least one service are chosen', async () => {
     const wrapper = mountView()
     await flushPromises()
@@ -141,5 +150,18 @@ describe('ScenarioBuilderView', () => {
       "Some of this scenario's details weren't accepted. Check them and try again.",
     )
     expect(push).not.toHaveBeenCalled()
+  })
+
+  it('words a mid-save session expiry plainly, with no raw 401, and keeps the draft', async () => {
+    vi.mocked(createScenario).mockRejectedValue(new SessionExpiredError('POST /api/user-scenarios failed: 401: unauthorized'))
+    const wrapper = mountView()
+    await flushPromises()
+    await fillAndSelect(wrapper)
+
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="submit-error"]').text()).toBe(SESSION_EXPIRED_FAULT)
+    expect(useDraftsStore().scenarioDraft).not.toBeNull()
   })
 })

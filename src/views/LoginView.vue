@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onBeforeUnmount, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { ApiError } from '../api/authoring'
+import { SESSION_EXPIRED_FAULT } from '../api/authoringFault'
 import { PRIMARY_BUTTON_CLASS } from '../components/buttonStyles'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
 
@@ -15,14 +16,32 @@ const auth = useAuthStore()
 const router = useRouter()
 const route = useRoute()
 
+// The expiry notice explains this one visit; a later, unrelated visit to sign
+// in should not still be told its session expired.
+onBeforeUnmount(() => { auth.sessionExpired = false })
+
+// The ?redirect= destination, if it is a path on this site. Anything else — an
+// absolute or protocol-relative URL, or a path a browser would read as one
+// (`/\\host`) — is dropped, so a crafted sign-in link cannot send the user
+// off-site once they have authenticated.
+function safeRedirect(value: unknown): string | null {
+  if (typeof value !== 'string' || !value.startsWith('/')) return null
+  if (value.startsWith('//') || value.startsWith('/\\')) return null
+  try {
+    const resolved = new URL(value, window.location.origin)
+    return resolved.origin === window.location.origin ? value : null
+  } catch {
+    return null
+  }
+}
+
 async function handleSubmit() {
   if (!email.value || !password.value || loading.value) return
   loading.value = true
   error.value = ''
   try {
     await auth.login(email.value, password.value)
-    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/authoring'
-    await router.push(redirect)
+    await router.push(safeRedirect(route.query.redirect) ?? '/authoring')
   } catch (err: unknown) {
     // The API returns a generic 401 for any bad credential (unknown email,
     // wrong password, no password set) to avoid account enumeration.
@@ -43,6 +62,15 @@ async function handleSubmit() {
       </h1>
       <p class="font-body text-micro text-ink-muted italic uppercase">
         Invite-only · accounts are provisioned by an admin
+      </p>
+
+      <p
+        v-if="auth.sessionExpired"
+        class="font-body text-caption text-coral mt-4"
+        role="status"
+        data-testid="session-expired"
+      >
+        {{ SESSION_EXPIRED_FAULT }}
       </p>
 
       <form

@@ -30,6 +30,20 @@ function retryAfterSeconds(res: Response): number | undefined {
   return Number(raw)
 }
 
+// A 401 on a request sent with the session token: the session itself is gone,
+// unlike a 401 without one (a wrong password at login). Still an ApiError(401),
+// so authoringFault words it like any other expiry.
+export class SessionExpiredError extends ApiError {
+  constructor(message: string, code?: string, detail?: unknown) {
+    super(message, 401, code, detail)
+    this.name = 'SessionExpiredError'
+  }
+}
+
+export function isSessionExpiry(err: unknown): boolean {
+  return err instanceof SessionExpiredError
+}
+
 export const STOP_PLACEMENT_ERROR_CODE = 'stop_placement'
 
 function isFaultedStop(value: unknown): value is FaultedStop {
@@ -72,6 +86,16 @@ export function setAuthTokenProvider(provider: AuthTokenProvider | null): void {
   authTokenProvider = provider
 }
 
+export type UnauthorizedHandler = (sentToken: string) => void
+
+// Registered by the app, like the token provider, so the client reports a dead
+// session without importing the store or the router.
+let unauthorizedHandler: UnauthorizedHandler | null = null
+
+export function setUnauthorizedHandler(handler: UnauthorizedHandler | null): void {
+  unauthorizedHandler = handler
+}
+
 export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers)
   // Only advertise a JSON body when we actually send one; don't clobber caller headers.
@@ -80,9 +104,12 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
   }
 
   // An explicit caller header wins, so callers can override the ambient session.
+  // Only the ambient session's token is remembered: a 401 on anything else says
+  // nothing about whether the session is still alive.
+  let sessionToken: string | null = null
   if (!headers.has('Authorization')) {
-    const token = authTokenProvider?.()
-    if (token) headers.set('Authorization', `Bearer ${token}`)
+    sessionToken = authTokenProvider?.() || null
+    if (sessionToken) headers.set('Authorization', `Bearer ${sessionToken}`)
   }
 
   // A fresh id per request unless the caller already set one — an
@@ -106,13 +133,14 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
     } catch {
       // Error responses are not always JSON.
     }
-    throw new ApiError(
-      `${method} ${path} failed: ${res.status}${message}`,
-      res.status,
-      code,
-      detail,
-      retryAfterSeconds(res),
-    )
+    const text = `${method} ${path} failed: ${res.status}${message}`
+    if (res.status === 401 && sessionToken) {
+      // Reported before the throw, so auth state is already cleared by the time
+      // the caller's catch decides what to show.
+      unauthorizedHandler?.(sessionToken)
+      throw new SessionExpiredError(text, code, detail)
+    }
+    throw new ApiError(text, res.status, code, detail, retryAfterSeconds(res))
   }
 
   if (res.status === 204) return undefined as T

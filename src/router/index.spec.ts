@@ -15,7 +15,7 @@ vi.mock('../views/AuthoredScenarioView.vue', () => ({ default: { props: ['slug']
 vi.mock('../views/PublishedServiceView.vue', () => ({ default: { props: ['slug'], template: '<div />' } }))
 vi.mock('../views/NotFoundView.vue', () => ({ default: { template: '<div />' } }))
 
-import { router } from './index'
+import { router, redirectAfterSessionExpiry } from './index'
 import { trackPageView } from '../analytics/index'
 import { useAuthStore } from '../stores/auth'
 
@@ -123,6 +123,31 @@ describe('router', () => {
     it('keeps the new-scenario builder ahead of the slug route', async () => {
       await router.push('/authoring/scenarios/new')
       expect(router.currentRoute.value.name).toBe('new-scenario')
+    })
+  })
+
+  describe('after the session expires', () => {
+    it('sends the user from an authoring page to sign in, remembering where they were', async () => {
+      const auth = useAuthStore()
+      auth.signIn('tok-1', { id: 'u1' })
+      await router.push('/authoring/services/northbound-express?tab=stops')
+
+      auth.expireSession()
+      await redirectAfterSessionExpiry(router)
+
+      expect(router.currentRoute.value.path).toBe('/login')
+      expect(router.currentRoute.value.query.redirect).toBe('/authoring/services/northbound-express?tab=stops')
+    })
+
+    it('leaves a visitor on a public page where they are', async () => {
+      const auth = useAuthStore()
+      auth.signIn('tok-1', { id: 'u1' })
+      await router.push('/scenario/ca-hsr')
+
+      auth.expireSession()
+      await redirectAfterSessionExpiry(router)
+
+      expect(router.currentRoute.value.path).toBe('/scenario/ca-hsr')
     })
   })
 })

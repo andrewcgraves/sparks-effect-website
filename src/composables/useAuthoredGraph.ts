@@ -1,5 +1,5 @@
 import { computed, ref, type Ref } from 'vue'
-import { ApiError } from '../api/authoring/client'
+import { ApiError, isSessionExpiry } from '../api/authoring/client'
 import type { AuthoredIsochroneRequest, Job, TransitGraph, TravelMode } from '../api/authoring'
 import type { AuthoringNoun } from '../api/authoringFault'
 import { isochroneFault, isochroneRangeRefusal, isochroneRequested } from '../api/isochroneFault'
@@ -105,6 +105,8 @@ export function useAuthoredGraph<G extends TransitGraph = TransitGraph>(
       loadedGraph.value = loaded
     } catch (err) {
       if (!loads.isCurrent(attempt)) return
+      // The user is already being sent to sign in; don't flash a failure first.
+      if (isSessionExpiry(err)) return
       if (err instanceof ApiError && err.status === 404) {
         if (compile) await triggerCompile(slug)
         else graphNotFound.value = true

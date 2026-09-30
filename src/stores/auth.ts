@@ -31,6 +31,10 @@ export const useAuthStore = defineStore('auth', () => {
   const userId = ref<string | null>(restored?.userId ?? null)
   const user = ref<AuthUser | null>(null)
 
+  // Set when the session died under the user rather than being ended by them,
+  // so the sign-in page can say why they are there. Cleared by the next sign-in.
+  const sessionExpired = ref(false)
+
   const isAuthenticated = computed(() => Boolean(token.value))
 
   // Persistence is best-effort: a full or disabled store must not break sign-in.
@@ -48,6 +52,7 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = newToken
     userId.value = newUser?.id ?? null
     user.value = newUser
+    sessionExpired.value = false
     persist()
   }
 
@@ -58,6 +63,13 @@ export const useAuthStore = defineStore('auth', () => {
     persist()
   }
 
+  // Local only: the token is already dead, so there is nothing to revoke. Drafts
+  // are untouched — their stored copy waits for the same user to sign back in.
+  function expireSession(): void {
+    signOut()
+    sessionExpired.value = true
+  }
+
   // There is no signup UI — accounts are provisioned by an admin. Leaves the
   // store untouched on failure so the caller's error (e.g. invalid credentials)
   // is the only visible effect.
@@ -66,16 +78,17 @@ export const useAuthStore = defineStore('auth', () => {
     signIn(session.token, session.user)
   }
 
-  // Signs out locally regardless of whether revocation succeeded — an
-  // already-expired token can't be revoked, but the user still expects to
-  // end up signed out.
+  // Signs out locally first, then revokes; an already-expired token can't be
+  // revoked, but the user still expects to end up signed out.
   async function logout(): Promise<void> {
-    try {
-      await logoutRequest()
-    } catch {
-      // Token already invalid/expired server-side; sign out locally anyway.
-    }
+    const endingToken = token.value
     signOut()
+    if (!endingToken) return
+    try {
+      await logoutRequest(endingToken)
+    } catch {
+      // Token already invalid/expired server-side; nothing left to revoke.
+    }
   }
 
   // A 401 means the session was revoked or expired, so the stored token is
@@ -97,5 +110,17 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { token, userId, user, isAuthenticated, signIn, signOut, login, logout, restoreSession }
+  return {
+    token,
+    userId,
+    user,
+    isAuthenticated,
+    sessionExpired,
+    signIn,
+    signOut,
+    expireSession,
+    login,
+    logout,
+    restoreSession,
+  }
 })

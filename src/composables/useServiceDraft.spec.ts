@@ -26,7 +26,8 @@ import {
   fetchServiceGraph,
   updateService,
 } from '../api/authoring/services'
-import { ApiError } from '../api/authoring/client'
+import { ApiError, SessionExpiredError } from '../api/authoring/client'
+import { SESSION_EXPIRED_FAULT } from '../api/authoringFault'
 import { useDraftsStore } from '../stores/drafts'
 
 const stubRouteSummary: RouteSummary = { slug: 'main-line', name: 'Main Line', mode: 'rail' }
@@ -145,6 +146,16 @@ describe('useServiceDraft', () => {
 
       expect(draft.routesError.value).toBe(true)
       expect(draft.routesLoading.value).toBe(false)
+    })
+
+    it('stays loading, not failed, when the route list is refused for an expired session', async () => {
+      vi.mocked(listRoutes).mockRejectedValue(new SessionExpiredError('GET /api/routes failed: 401'))
+      const draft = useServiceDraft()
+
+      await draft.start()
+
+      expect(draft.routesError.value).toBe(false)
+      expect(draft.routesLoading.value).toBe(true)
     })
 
     it('opens an empty draft when there is nothing to resume', async () => {
@@ -391,6 +402,15 @@ describe('useServiceDraft', () => {
       await draft.start()
 
       expect(draft.editLoadFailed.value).toBe(true)
+      expect(draft.editNotFound.value).toBe(false)
+    })
+
+    it('reports no load failure when the service is refused for an expired session', async () => {
+      vi.mocked(fetchService).mockRejectedValue(new SessionExpiredError('GET /api/services/northbound-express failed: 401'))
+      const draft = useServiceDraft('northbound-express')
+      await draft.start()
+
+      expect(draft.editLoadFailed.value).toBe(false)
       expect(draft.editNotFound.value).toBe(false)
     })
 
@@ -713,6 +733,18 @@ describe('useServiceDraft', () => {
       expect(draft.createdSlug.value).toBeNull()
       expect(draft.stops.value).toHaveLength(2)
       expect(compileService).not.toHaveBeenCalled()
+    })
+
+    it('words a mid-save session expiry plainly, with no raw 401, and keeps the draft', async () => {
+      vi.mocked(createService).mockRejectedValue(new SessionExpiredError('POST /api/services failed: 401: unauthorized'))
+      const draft = useServiceDraft()
+      await submittable(draft)
+
+      await draft.submit()
+
+      expect(draft.submitError.value).toBe(SESSION_EXPIRED_FAULT)
+      expect(draft.submitted.value).toBe(false)
+      expect(draft.stops.value).toHaveLength(2)
     })
 
     it('attributes a stop-placement refusal to the rows it names', async () => {

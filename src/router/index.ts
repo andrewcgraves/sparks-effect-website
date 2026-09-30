@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHistory, type Router } from 'vue-router'
 import CoverPage from '../views/CoverPage.vue'
 import ScenarioView from '../views/ScenarioView.vue'
 import LoginView from '../views/LoginView.vue'
@@ -104,6 +104,16 @@ router.beforeEach((to) => {
     return { path: '/authoring' }
   }
 })
+
+// Sends the user to sign in after their session expired under them, bringing
+// them back to the page they were on once they have. Only a page that needs a
+// session is left: a public page still works signed out, so a visitor there
+// just sees the header switch to "Sign in".
+export async function redirectAfterSessionExpiry(target: Router): Promise<void> {
+  const current = target.currentRoute.value
+  if (!current.meta.requiresAuth) return
+  await target.push({ path: '/login', query: { redirect: current.fullPath } })
+}
 
 router.afterEach((to) => {
   trackPageView(to.path)
