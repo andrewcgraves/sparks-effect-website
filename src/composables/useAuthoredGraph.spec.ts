@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { flushPromises } from '@vue/test-utils'
-import { ApiError } from '../api/authoring/client'
+import { ApiError, SessionExpiredError } from '../api/authoring/client'
 import type { AuthoredIsochroneRequest, Job, TransitGraph } from '../api/authoring'
 import type { ChainResponse } from '../fixtures/isochrone'
 import { JobFailedError } from '../api/polling'
@@ -114,6 +114,16 @@ describe('useAuthoredGraph', () => {
 
       expect(compile).not.toHaveBeenCalled()
       expect(graphFailed.value).toBe(true)
+    })
+
+    it('reports no failure when the session expired, since the user is being sent to sign in', async () => {
+      fetchGraph.mockRejectedValue(new SessionExpiredError('GET /api/services/ca-hsr/graph failed: 401'))
+      const { loadGraph, graphFailed } = subject()
+
+      await loadGraph('ca-hsr')
+
+      expect(compile).not.toHaveBeenCalled()
+      expect(graphFailed.value).toBe(false)
     })
 
     it('reads near misses and clusters off the graph it loaded', async () => {
