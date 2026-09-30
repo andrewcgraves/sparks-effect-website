@@ -117,14 +117,44 @@ describe('ScenarioView', () => {
     })
   })
 
-  it('titles the page with the scenario name', () => {
+  it('titles the page with the scenario name alone', () => {
     const wrapper = mountScenarioView()
-    expect(wrapper.get('h1').text()).toBe('Route: CA HSR')
+    expect(wrapper.get('h1').text()).toBe('CA HSR')
+  })
+
+  it('carries no hard-coded tagline under the name', () => {
+    const wrapper = mountScenarioView()
+    expect(wrapper.text()).not.toContain('Electrified')
+    expect(wrapper.text()).not.toContain('Greenfield')
+  })
+
+  it('has no Technology assumptions placeholder section', () => {
+    const wrapper = mountScenarioView()
+    const headings = wrapper.findAll('h2').map((h) => h.text())
+    expect(headings).not.toContain('Technology assumptions')
+    expect(wrapper.text()).not.toContain('Placeholder')
   })
 
   it('renders the scenario description', () => {
     const wrapper = mountScenarioView()
+    expect(wrapper.findAll('h2').map((h) => h.text())).toContain('Description')
     expect(wrapper.text()).toContain('California High-Speed Rail')
+  })
+
+  it.each([
+    ['empty', ''],
+    ['whitespace-only', '   \n\t'],
+  ])('hides the Description section when the description is %s', (_, description) => {
+    mockUseScenario.mockReturnValue({
+      name: ref('CA HSR'),
+      description: ref(description),
+      routes: ref([]),
+      stations: ref(stubStations),
+      services: ref([]),
+    })
+    const wrapper = mountScenarioView()
+    expect(wrapper.findAll('h2').map((h) => h.text())).not.toContain('Description')
+    expect(wrapper.text()).not.toContain('—')
   })
 
   it('calls useScenario with the slug prop', () => {
