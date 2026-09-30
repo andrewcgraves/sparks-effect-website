@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onBeforeUnmount, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { ApiError } from '../api/authoring'
+import { SESSION_EXPIRED_FAULT } from '../api/authoringFault'
 import { PRIMARY_BUTTON_CLASS } from '../components/buttonStyles'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
 
@@ -14,6 +15,10 @@ const loading = ref(false)
 const auth = useAuthStore()
 const router = useRouter()
 const route = useRoute()
+
+// The expiry notice explains this one visit; a later, unrelated visit to sign
+// in should not still be told its session expired.
+onBeforeUnmount(() => { auth.sessionExpired = false })
 
 // The ?redirect= destination, if it is a path on this site. Anything else — an
 // absolute or protocol-relative URL, or a path a browser would read as one
@@ -65,7 +70,7 @@ async function handleSubmit() {
         role="status"
         data-testid="session-expired"
       >
-        Your session expired. Sign in to continue.
+        {{ SESSION_EXPIRED_FAULT }}
       </p>
 
       <form

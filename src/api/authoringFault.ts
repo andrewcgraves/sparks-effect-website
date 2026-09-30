@@ -5,7 +5,7 @@ import { JobFailedError } from './polling'
 export type AuthoringNoun = 'service' | 'scenario'
 
 export const GENERIC_AUTHORING_FAULT = 'Something went wrong. Please try again.'
-export const SESSION_EXPIRED_FAULT = 'Your session has expired. Sign in again to carry on.'
+export const SESSION_EXPIRED_FAULT = 'Your session expired. Sign in to continue.'
 export const UNREACHABLE_FAULT = "Couldn't reach the server. Your draft is saved; try again."
 
 const COMPILE_ADVICE: Record<AuthoringNoun, string> = {

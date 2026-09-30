@@ -135,6 +135,19 @@ describe('LoginView', () => {
       expect(wrapper.find('[data-testid="session-expired"]').text()).toBe('Your session expired. Sign in to continue.')
     })
 
+    it('does not repeat the notice on a later visit', async () => {
+      const auth = useAuthStore()
+      auth.signIn('tok-1', { id: 'u1' })
+      auth.expireSession()
+      const router = makeRouter()
+      await router.push('/login?redirect=/authoring')
+      mount(LoginView, { global: { plugins: [router] } }).unmount()
+
+      const wrapper = mount(LoginView, { global: { plugins: [router] } })
+
+      expect(wrapper.find('[data-testid="session-expired"]').exists()).toBe(false)
+    })
+
     it('says nothing about expiry on an ordinary visit', async () => {
       const router = makeRouter()
       await router.push('/login')
