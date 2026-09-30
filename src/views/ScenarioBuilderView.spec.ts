@@ -87,6 +87,14 @@ describe('ScenarioBuilderView', () => {
     expect(wrapper.find('[data-testid="services-error"]').exists()).toBe(true)
   })
 
+  it('stays loading, not failed, when the services are refused for an expired session', async () => {
+    vi.mocked(fetchMyServices).mockRejectedValue(new SessionExpiredError('GET /api/services failed: 401'))
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="services-error"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('Loading')
+  })
+
   it('disables save until a name and at least one service are chosen', async () => {
     const wrapper = mountView()
     await flushPromises()

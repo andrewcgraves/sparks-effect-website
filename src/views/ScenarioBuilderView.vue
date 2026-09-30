@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDraftsStore } from '../stores/drafts'
 import { authoringFault } from '../api/authoringFault'
+import { isSessionExpiry } from '../api/authoring/client'
 import { fetchMyServices } from '../api/authoring/services'
 import { createScenario } from '../api/authoring/scenarios'
 import type { Service } from '../api/authoring/types'
@@ -23,11 +24,13 @@ onMounted(async () => {
   if (!drafts.hasScenarioDraft) drafts.startScenarioDraft()
   try {
     services.value = await fetchMyServices()
-  } catch {
+  } catch (err) {
+    // The user is already being sent to sign in: stay loading rather than
+    // flash a failure first.
+    if (isSessionExpiry(err)) return
     servicesError.value = true
-  } finally {
-    servicesLoading.value = false
   }
+  servicesLoading.value = false
 })
 
 const name = computed({

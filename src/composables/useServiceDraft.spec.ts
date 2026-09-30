@@ -148,6 +148,16 @@ describe('useServiceDraft', () => {
       expect(draft.routesLoading.value).toBe(false)
     })
 
+    it('stays loading, not failed, when the route list is refused for an expired session', async () => {
+      vi.mocked(listRoutes).mockRejectedValue(new SessionExpiredError('GET /api/routes failed: 401'))
+      const draft = useServiceDraft()
+
+      await draft.start()
+
+      expect(draft.routesError.value).toBe(false)
+      expect(draft.routesLoading.value).toBe(true)
+    })
+
     it('opens an empty draft when there is nothing to resume', async () => {
       const draft = useServiceDraft()
       await draft.start()
@@ -392,6 +402,15 @@ describe('useServiceDraft', () => {
       await draft.start()
 
       expect(draft.editLoadFailed.value).toBe(true)
+      expect(draft.editNotFound.value).toBe(false)
+    })
+
+    it('reports no load failure when the service is refused for an expired session', async () => {
+      vi.mocked(fetchService).mockRejectedValue(new SessionExpiredError('GET /api/services/northbound-express failed: 401'))
+      const draft = useServiceDraft('northbound-express')
+      await draft.start()
+
+      expect(draft.editLoadFailed.value).toBe(false)
       expect(draft.editNotFound.value).toBe(false)
     })
 

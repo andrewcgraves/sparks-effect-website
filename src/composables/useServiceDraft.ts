@@ -2,7 +2,7 @@ import { computed, ref, watch, type WatchStopHandle } from 'vue'
 import { useDraftsStore } from '../stores/drafts'
 import { useCompileJob } from './useCompileJob'
 import { latestAttempt } from './latestAttempt'
-import { ApiError, stopPlacementFault } from '../api/authoring/client'
+import { ApiError, isSessionExpiry, stopPlacementFault } from '../api/authoring/client'
 import { authoringFault } from '../api/authoringFault'
 import { fetchRoute, listRoutes, snapStops } from '../api/authoring/routes'
 import {
@@ -291,6 +291,8 @@ export function useServiceDraft(serviceSlug?: string) {
     try {
       service = await fetchService(slug)
     } catch (err) {
+      // An expired session is already on its way to sign-in; don't flash a failure.
+      if (isSessionExpiry(err)) return false
       if (err instanceof ApiError && err.status === 404) editNotFound.value = true
       else editLoadFailed.value = true
       return false
@@ -327,11 +329,11 @@ export function useServiceDraft(serviceSlug?: string) {
   async function loadRoutes(): Promise<void> {
     try {
       routes.value = await listRoutes()
-    } catch {
+    } catch (err) {
+      if (isSessionExpiry(err)) return
       routesError.value = true
-    } finally {
-      routesLoading.value = false
     }
+    routesLoading.value = false
   }
 
   // The draft itself is persisted, so it survives.
