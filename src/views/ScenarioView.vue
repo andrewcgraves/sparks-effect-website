@@ -102,15 +102,9 @@ async function handleFormSubmit(payload: { lat: number; lng: number; duration: n
 
 <template>
   <main class="min-h-svh p-(--page-padding)">
-    <hgroup class="flex max-w-[720px] flex-col gap-2">
-      <h1 class="font-display text-display text-ink-true">
-        Route: {{ name || 'Sparks Effect' }}
-      </h1>
-      <!-- Static copy: the scenario API exposes no field for this kicker yet. -->
-      <p class="font-body text-micro text-ink-muted italic uppercase">
-        Electrified · High-speed rail · Greenfield
-      </p>
-    </hgroup>
+    <h1 class="max-w-[720px] font-display text-display text-ink-true">
+      {{ name || 'Sparks Effect' }}
+    </h1>
 
     <div class="mt-8 grid grid-cols-1 items-start gap-4 lg:grid-cols-[2fr_1fr]">
       <div class="h-[70vh]">
@@ -167,22 +161,15 @@ async function handleFormSubmit(payload: { lat: number; lng: number; duration: n
       </div>
     </div>
 
-    <section class="mt-16 max-w-[720px]">
+    <section
+      v-if="description.trim()"
+      class="mt-16 max-w-[720px]"
+    >
       <h2 class="font-display text-h2 text-ink-true">
         Description
       </h2>
       <p class="font-body text-body mt-3 text-ink-muted">
-        {{ description || '—' }}
-      </p>
-    </section>
-
-    <section class="mt-12 max-w-[720px]">
-      <h2 class="font-display text-h2 text-ink-true">
-        Technology assumptions
-      </h2>
-      <!-- Awaiting a `technology_assumptions` field on the scenario API. -->
-      <p class="font-body text-caption mt-3 text-ink-muted italic">
-        Placeholder — awaiting a field on the scenario API.
+        {{ description }}
       </p>
     </section>
   </main>
