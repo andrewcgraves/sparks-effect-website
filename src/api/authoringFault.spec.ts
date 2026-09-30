@@ -83,6 +83,29 @@ describe('authoringFault', () => {
       )
     })
 
+    it('says a subtext or description is too long', () => {
+      expect(
+        authoringFault(
+          validation([
+            { field: 'subtext', rule: 'max_length', message: 'subtext must be at most 140 characters' },
+            { field: 'description', rule: 'max_length', message: 'description must be at most 4000 characters' },
+          ]),
+        ),
+      ).toBe('Subtext is too long. Description is too long.')
+    })
+
+    it('says a service needs at least two stops', () => {
+      expect(
+        authoringFault(validation([{ field: 'stops', rule: 'min_count', message: 'a service needs at least two stops' }])),
+      ).toBe('A service needs at least two stops.')
+    })
+
+    it('agrees the verb with a whole list', () => {
+      expect(
+        authoringFault(validation([{ field: 'segments', rule: 'count', message: 'segments count mismatch' }])),
+      ).toBe('Segments have the wrong number of entries.')
+    })
+
     it('still reads as words for a field this build has no name for', () => {
       expect(
         authoringFault(validation([{ field: 'platform_length_m', rule: 'mystery', message: 'x' }])),

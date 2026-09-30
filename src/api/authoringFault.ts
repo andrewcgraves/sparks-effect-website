@@ -33,6 +33,8 @@ const ENTRY_NOUNS: Record<string, string> = {
 
 const WHOLE_FIELDS: Record<string, string> = {
   name: 'Name',
+  subtext: 'Subtext',
+  description: 'Description',
   slug: 'Slug',
   route_id: 'Route',
   mode: 'Mode',
@@ -65,6 +67,7 @@ const MEMBER_WORDS: Record<string, string> = {
 
 const RULE_PHRASES: Record<string, string> = {
   required: 'is required',
+  max_length: 'is too long',
   positive: 'must be more than zero',
   non_negative: "can't be negative",
   range: 'is out of range',
@@ -77,6 +80,27 @@ const RULE_PHRASES: Record<string, string> = {
   zero_length: 'has no length',
   same_service: 'joins a service to itself',
   not_member: "isn't part of this scenario",
+}
+
+const PLURAL_FIELDS = new Set([
+  'segments',
+  'stops',
+  'frequency_windows',
+  'service_ids',
+  'interchange_pairs',
+])
+
+const WHOLE_SENTENCES: Record<string, string> = {
+  'stops:min_count': 'A service needs at least two stops.',
+  'coordinates:min_count': 'The alignment needs at least two points.',
+}
+
+const PLURAL_VERBS: Record<string, string> = {
+  is: 'are',
+  has: 'have',
+  "isn't": "aren't",
+  appears: 'appear',
+  joins: 'join',
 }
 
 function capitalise(text: string): string {
@@ -102,6 +126,20 @@ function fieldLabel({ field, index }: ValidationFault): string {
   return WHOLE_FIELDS[field] ?? capitalise(memberWord || plainWords(head))
 }
 
+function faultSentence(fault: ValidationFault): string {
+  const whole = fault.index === undefined ? WHOLE_SENTENCES[`${fault.field}:${fault.rule}`] : undefined
+  if (whole) return whole
+
+  let phrase = RULE_PHRASES[fault.rule] ?? "isn't valid"
+  // "Segments has too few entries" reads as a slip; a whole list takes a
+  // plural verb, while one numbered entry of it does not.
+  if (fault.index === undefined && PLURAL_FIELDS.has(fault.field)) {
+    const [verb, ...rest] = phrase.split(' ')
+    phrase = [PLURAL_VERBS[verb] ?? verb, ...rest].join(' ')
+  }
+  return `${fieldLabel(fault)} ${phrase}.`
+}
+
 function isValidationFault(value: unknown): value is ValidationFault {
   const fault = value as Partial<ValidationFault> | null
   return (
@@ -122,7 +160,7 @@ function validationSentence(detail: unknown): string | null {
   for (const fault of faults.filter(isValidationFault)) {
     if (seen.has(fault.field)) continue
     seen.add(fault.field)
-    sentences.push(`${fieldLabel(fault)} ${RULE_PHRASES[fault.rule] ?? "isn't valid"}.`)
+    sentences.push(faultSentence(fault))
   }
   return sentences.length ? sentences.join(' ') : null
 }
