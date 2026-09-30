@@ -243,11 +243,11 @@ describe('useServiceDraft', () => {
         subtext: 'Electrified · High-speed rail',
         description: 'Runs the spine.',
         stops: [
-          { name: 'A', lat: 37.77, lng: -122.41, seq: 0 },
-          { name: 'B', lat: 37.33, lng: -121.88, seq: 1 },
+          { id: expect.any(String), name: 'A', lat: 37.77, lng: -122.41, seq: 0 },
+          { id: expect.any(String), name: 'B', lat: 37.33, lng: -121.88, seq: 1 },
         ],
         vehicle: { max_speed_kmh: 320, acceleration_ms2: 1.1, deceleration_ms2: 1.2, dwell_s: 45 },
-        frequency_windows: [{ start_time: '06:00', end_time: '22:00', headway_s: 900 }],
+        frequency_windows: [{ id: expect.any(String), start_time: '06:00', end_time: '22:00', headway_s: 900 }],
       })
       expect(useDraftsStore().editingServiceId).toBe('svc1')
     })
@@ -302,6 +302,11 @@ describe('useServiceDraft', () => {
       expect(updateService).toHaveBeenCalledWith('northbound-express', expect.objectContaining({
         route_slug: 'main-line',
         description: 'Runs the whole spine.',
+        stops: [
+          { name: 'A', lat: 37.77, lng: -122.41, seq: 0 },
+          { name: 'B', lat: 37.33, lng: -121.88, seq: 1 },
+        ],
+        frequency_windows: [{ start_time: '06:00', end_time: '22:00', headway_s: 900 }],
       }))
       expect(createService).not.toHaveBeenCalled()
       expect(compileService).toHaveBeenCalledWith('northbound-express', expect.any(Object))
@@ -691,6 +696,11 @@ describe('useServiceDraft', () => {
       expect(createService).toHaveBeenCalledWith(expect.objectContaining({
         route_slug: 'main-line',
         name: 'Northbound Express',
+        stops: [
+          { name: 'A', lat: 37.77, lng: -122.41, seq: 0 },
+          { name: 'B', lat: 37.33, lng: -121.88, seq: 1 },
+        ],
+        frequency_windows: [{ start_time: '06:00', end_time: '22:00', headway_s: 900 }],
       }))
       expect(compileService).not.toHaveBeenCalled()
       expect(draft.createdSlug.value).toBe('northbound-express')
