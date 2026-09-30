@@ -693,15 +693,18 @@ describe('useServiceDraft', () => {
 
       await draft.submit()
 
-      expect(createService).toHaveBeenCalledWith(expect.objectContaining({
+      expect(vi.mocked(createService).mock.calls[0][0]).toStrictEqual({
         route_slug: 'main-line',
         name: 'Northbound Express',
+        subtext: undefined,
+        description: undefined,
+        vehicle: { max_speed_kmh: 80, acceleration_ms2: 1, deceleration_ms2: 1.2, dwell_s: 30 },
         stops: [
           { name: 'A', lat: 37.77, lng: -122.41, seq: 0 },
           { name: 'B', lat: 37.33, lng: -121.88, seq: 1 },
         ],
         frequency_windows: [{ start_time: '06:00', end_time: '22:00', headway_s: 900 }],
-      }))
+      })
       expect(compileService).not.toHaveBeenCalled()
       expect(draft.createdSlug.value).toBe('northbound-express')
       expect(draft.submitted.value).toBe(false)

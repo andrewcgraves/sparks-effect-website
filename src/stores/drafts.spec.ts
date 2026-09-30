@@ -668,6 +668,7 @@ describe('useDraftsStore', () => {
           ...(draft?.frequency_windows ?? []).map((row) => row.id),
         ]
         expect(ids).toHaveLength(4)
+        expect(new Set(ids).size).toBe(ids.length)
         for (const id of ids) {
           expect(id).toEqual(expect.any(String))
           expect(id).not.toBe('')

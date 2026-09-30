@@ -65,9 +65,13 @@ function serviceInputFrom(service: Service, routeSlug: string): ServiceDraft {
 }
 
 function serviceInputFromDraft(draft: ServiceDraft): ServiceInput {
-  const { stops, frequency_windows, ...rest } = draft
+  const { route_slug, name, subtext, description, vehicle, stops, frequency_windows } = draft
   return {
-    ...rest,
+    route_slug,
+    name,
+    subtext,
+    description,
+    vehicle,
     stops: stops.map(({ name, lat, lng, seq }) => ({ name, lat, lng, seq })),
     frequency_windows: frequency_windows.map(({ start_time, end_time, headway_s }) => ({
       start_time,
