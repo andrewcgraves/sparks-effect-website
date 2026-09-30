@@ -1,6 +1,7 @@
 import { Popup, type Map, type MapLayerMouseEvent } from 'maplibre-gl'
 import type { MapModule } from './mapLifecycle'
-import { STATION_DOTS_LAYER_ID } from './useRouteLayer'
+import { PROGRESS_CAP_HIT_LAYER_ID, STATION_DOTS_LAYER_ID } from './useRouteLayer'
+import { TOOLTIP_MAP_POPUP_CLASS, progressTooltipContent, stationTooltipContent } from '../components/tooltip'
 import {
   ISOCHRONE_LAYER_ID,
   ISOCHRONE_ORIGIN_LAYER_ID,
@@ -18,22 +19,19 @@ interface HighlightedStation {
 }
 
 export interface StationHighlightCallbacks {
-  // What the canvas cursor should return to once the pointer leaves a
-  // station dot. Mirrors useStopDrag's idleCursor: the caller owns it because
-  // click-to-place mode paints its own crosshair, which a bare '' would clobber.
   idleCursor: () => string
-  // Which stations the current plot drew an egress polygon for. A getter
-  // rather than a value, because the plot is regenerated under a map that
-  // keeps its listeners — see `egressStationSlugs`.
   egressSlugs: () => Set<string>
-  // The station the page has highlighted, which this map may not be the source
-  // of: the Time remaining card raises one too. A getter for the same reason as
-  // above, and re-read on every sync so a highlight raised elsewhere lands here.
   activeSlug: () => string | null
-  // Reports a station hovered on this map, and null when the pointer leaves
-  // one. The page decides what to do with it; nothing is highlighted until it
-  // comes back through activeSlug.
+  remainingSecs: (slug: string) => number | null
+  stationName: (slug: string) => string
   onHover: (slug: string | null) => void
+}
+
+interface UnfinishedCap {
+  to: string
+  fraction: number
+  rideSecs: number
+  lngLat: [number, number]
 }
 
 function stationOf(event: MapLayerMouseEvent): HighlightedStation | null {
@@ -44,24 +42,28 @@ function stationOf(event: MapLayerMouseEvent): HighlightedStation | null {
   return { slug, name, lngLat: feature.geometry.coordinates as [number, number] }
 }
 
-/**
- * Highlights the page's active station on the map: its egress isochrone above
- * every other one it might overlap, and its name in a popup while the pointer
- * is on its dot.
- *
- * Hover is the only way a station is highlighted. SPA-211 shipped
- * click-to-persist, and this deliberately takes it back: with the journey's
- * detail now living in the Time remaining card, a second highlight mechanism
- * only leaves a stale selection on the map with nothing to show for it.
- *
- * Which station is active is not decided here. The page owns that single
- * reference and both surfaces feed it, so a row hovered in the card lights the
- * same polygon a dot hovered here does.
- */
+function unfinishedCapOf(event: MapLayerMouseEvent): UnfinishedCap | null {
+  const feature = event.features?.[0]
+  if (!feature || feature.geometry.type !== 'Point') return null
+  const { to, fraction, ride_secs: rideSecs } = (feature.properties ?? {}) as Record<string, unknown>
+  if (typeof to !== 'string' || to.length === 0) return null
+  const frac = Number(fraction)
+  const ride = Number(rideSecs)
+  if (!Number.isFinite(frac) || !Number.isFinite(ride)) return null
+  return { to, fraction: frac, rideSecs: ride, lngLat: feature.geometry.coordinates as [number, number] }
+}
+
 export function useStationHighlight(map: Map, callbacks: StationHighlightCallbacks): { release: () => void; sync: () => void } {
   const canvas = map.getCanvas()
-  const popup = new Popup({ closeButton: false, closeOnClick: false, offset: 12 })
+  const popup = new Popup({
+    closeButton: false,
+    closeOnClick: false,
+    offset: 12,
+    className: TOOLTIP_MAP_POPUP_CLASS,
+    maxWidth: 'none',
+  })
   let hovered: HighlightedStation | null = null
+  let cap: UnfinishedCap | null = null
 
   function applyHighlight(): void {
     // Dimming is only worth doing when there is something to promote in its
@@ -91,8 +93,21 @@ export function useStationHighlight(map: Map, callbacks: StationHighlightCallbac
     // The popup belongs to this map's own pointer. A station made active from
     // the card has no dot under the cursor to hang one off, and putting one up
     // anyway would leave the map annotating something nobody is pointing at.
-    if (hovered) popup.setLngLat(hovered.lngLat).setText(hovered.name).addTo(map)
-    else popup.remove()
+    // The unfinished-leg cap is the other thing that can sit under the pointer:
+    // it is not a station, so it takes the popup without promoting a polygon.
+    if (cap) {
+      popup
+        .setLngLat(cap.lngLat)
+        .setDOMContent(progressTooltipContent(cap.fraction, callbacks.stationName(cap.to), cap.rideSecs))
+        .addTo(map)
+    } else if (hovered) {
+      popup
+        .setLngLat(hovered.lngLat)
+        .setDOMContent(stationTooltipContent(hovered.name, callbacks.remainingSecs(hovered.slug)))
+        .addTo(map)
+    } else {
+      popup.remove()
+    }
   }
 
   function handleEnter(event: MapLayerMouseEvent): void {
@@ -100,19 +115,47 @@ export function useStationHighlight(map: Map, callbacks: StationHighlightCallbac
     if (!station) return
     hovered = station
     canvas.style.cursor = 'pointer'
-    callbacks.onHover(station.slug)
+    if (!cap) callbacks.onHover(station.slug)
     applyHighlight()
   }
 
   function handleLeave(): void {
     hovered = null
-    canvas.style.cursor = callbacks.idleCursor()
-    callbacks.onHover(null)
+    if (!cap) {
+      canvas.style.cursor = callbacks.idleCursor()
+      callbacks.onHover(null)
+    }
+    applyHighlight()
+  }
+
+  function handleCapEnter(event: MapLayerMouseEvent): void {
+    const next = unfinishedCapOf(event)
+    if (!next) return
+    cap = next
+    canvas.style.cursor = 'pointer'
+    // The cap is not a station: drop any leftover polygon promote while the
+    // pointer is explaining the unfinished hop.
+    if (hovered) callbacks.onHover(null)
+    applyHighlight()
+  }
+
+  function handleCapLeave(): void {
+    cap = null
+    if (hovered) {
+      canvas.style.cursor = 'pointer'
+      callbacks.onHover(hovered.slug)
+    } else {
+      canvas.style.cursor = callbacks.idleCursor()
+    }
     applyHighlight()
   }
 
   map.on('mouseenter', STATION_DOTS_LAYER_ID, handleEnter)
   map.on('mouseleave', STATION_DOTS_LAYER_ID, handleLeave)
+  // Bound to the unpainted hit circle, not the 3.5px disc: MapLibre hit-tests
+  // painted radius, and the visible cap is too small to find at state zoom.
+  map.on('mouseenter', PROGRESS_CAP_HIT_LAYER_ID, handleCapEnter)
+  map.on('mouseleave', PROGRESS_CAP_HIT_LAYER_ID, handleCapLeave)
 
   return {
     // The popup is a DOM element over the canvas, same as a Marker — the
@@ -122,14 +165,6 @@ export function useStationHighlight(map: Map, callbacks: StationHighlightCallbac
   }
 }
 
-/**
- * Station highlighting as a map module.
- *
- * Binds to the layer the route module creates, so it must be listed after
- * routeLayerModule. It watches the page's active station, because that is the
- * one input it has that this map is not itself the source of — a row hovered in
- * the Time remaining card has to reach the polygons somehow.
- */
 export function stationHighlightModule(callbacks: StationHighlightCallbacks): MapModule {
   let highlight: { release: () => void; sync: () => void } | null = null
 

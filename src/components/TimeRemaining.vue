@@ -1,38 +1,20 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch, nextTick } from 'vue'
+import { computed, ref, watch, nextTick } from 'vue'
 import SegmentedControl from './SegmentedControl.vue'
-import { formatDuration, formatTimeRemaining, laneWidthFor } from './timeRemaining'
+import TooltipPanel from './TooltipPanel.vue'
+import { formatDuration, formatProgressPercent, formatTimeRemaining, laneWidthFor } from './timeRemaining'
 import type { TimeRemainingRow, TimeRemainingView } from './timeRemaining'
 
-// The trip a plotted isochrone describes, drawn one line at a time as a
-// branching graph in the manner of a commit graph. Purely presentational: the
-// caller turns a chain response into views, rows and lanes with the module
-// beside this one, so nothing here knows about slugs, waits, or the wire.
 const props = defineProps<{
   views: TimeRemainingView[]
-  // The station highlighted anywhere on the page. The row for it is expanded,
-  // wherever the highlight came from, so the map and this card always agree.
   activeSlug: string | null
-  // Whether that highlight came from the map. A map hover scrolls its row into
-  // view; one the rider made in here never does, because the list moving out
-  // from under their own cursor is the one thing worse than not seeing it.
   activeFromMap?: boolean
 }>()
 
 const emit = defineEmits<{ activate: [slug: string | null] }>()
 
-// Where a row's node sits, and where its connectors start and stop. The node
-// band is a fixed height so the dot stays put and stays round while an expanded
-// row grows beneath it — the connectors below stretch instead of re-routing.
 const NODE_BAND_PX = 26
 
-// Which line is being read. Held here rather than raised, the way the
-// neighbouring card holds which direction each of its groups is read in.
-//
-// The first view is the line that gets the rider furthest, which is the one to
-// open on. It used to be the access leg that came first and had to be skipped
-// past here; that view is now built only for a trip with no line to offer
-// instead, and then it is the only one there is.
 const chosen = ref(0)
 const view = computed(() => props.views[chosen.value] ?? props.views[0])
 const rows = computed(() => view.value?.rows ?? [])
@@ -43,12 +25,8 @@ const laneX = (lane: number): number => lane * laneWidth.value + laneWidth.value
 
 const listEl = ref<HTMLElement | null>(null)
 
-// A fresh plot has its own lines, and the one being read may not be among them.
 watch(() => props.views, () => { chosen.value = 0 }, { immediate: true })
 
-// The bar the branches leave along, spanning the lanes they leave for. A lane
-// freed by a branch that ended above can be reused to the left of this row's
-// own, so the span is taken from both ends rather than measured outward.
 function forkBarStyle(row: TimeRemainingRow): Record<string, string> {
   const xs = row.forks.map(laneX)
   const left = Math.min(...xs)
@@ -59,28 +37,14 @@ function forkBarStyle(row: TimeRemainingRow): Record<string, string> {
   }
 }
 
-// The tooltip's own box, and the room it needs to be worth opening downwards.
-const TIP_WIDTH_PX = 240
-const TIP_GAP_PX = 8
-const TIP_ROOM_PX = 140
-
 function isExpanded(row: TimeRemainingRow): boolean {
   return row.slug !== null && row.slug === props.activeSlug
 }
 
-// A row with nothing to add opens nothing, rather than an empty box.
 function hasDetail(row: TimeRemainingRow): boolean {
   return Object.values(row.detail).some((value) => value !== undefined)
 }
 
-// The leg that brought the rider here, named by where it started. The time is
-// the ride alone — the stop served on arrival is reported separately — and the
-// station it started from is this row's parent, which the view already holds
-// as a row of its own, so no resolver is needed to name it.
-//
-// It used to read "Ride in 15m", which said the opposite of what it meant:
-// that the rider would arrive in fifteen minutes, rather than that fifteen
-// minutes is what the leg they already rode had cost them.
 const labels = computed(() => new Map(rows.value.map((row) => [row.key, row.label])))
 
 function rideTerm(row: TimeRemainingRow): string {
@@ -88,71 +52,17 @@ function rideTerm(row: TimeRemainingRow): string {
   return from ? `Rode in from ${from}` : 'Rode in'
 }
 
-// The tooltip is one fixed-position box measured off the row under the
-// pointer. Fixed rather than laid out in the row, because the detail used to
-// grow the row it belonged to: the list reflowed under the pointer, every row
-// below it moved, and the row the rider was reading could shuffle out from
-// under them. Out of flow, nothing in the list changes size when it opens.
-// Fixed also escapes the list's own scroller, which would otherwise clip the
-// box on the last few rows.
 const anchor = ref<Element | null>(null)
-const tipStyle = ref<Record<string, string>>({})
 
-function placeTip(el?: Element | null): void {
+function setAnchor(el?: Element | null): void {
   if (el) anchor.value = el
-  const target = anchor.value
-  if (!target) return
-
-  const rect = target.getBoundingClientRect()
-  const below = window.innerHeight - rect.bottom
-  // Kept clear of both viewport edges, so a card near one doesn't push the box
-  // off the page.
-  const left = Math.max(
-    TIP_GAP_PX,
-    Math.min(rect.left, window.innerWidth - TIP_WIDTH_PX - TIP_GAP_PX),
-  )
-  const style: Record<string, string> = { left: `${left}px`, width: `${TIP_WIDTH_PX}px` }
-  // Below the row by preference, above it when the foot of the window is
-  // closer than the box is tall.
-  if (below < TIP_ROOM_PX && rect.top > below) {
-    style.bottom = `${window.innerHeight - rect.top + TIP_GAP_PX}px`
-  } else {
-    style.top = `${rect.bottom + TIP_GAP_PX}px`
-  }
-  tipStyle.value = style
 }
 
 function activate(row: TimeRemainingRow, event: Event): void {
-  placeTip(event.currentTarget as Element | null)
+  setAnchor(event.currentTarget as Element | null)
   emit('activate', row.slug)
 }
 
-// A fixed box is measured against the window, so anything that moves the row
-// under it — the list scrolling, the page scrolling, the window resizing —
-// has to be answered by measuring again. Scroll is captured, because the list
-// scrolls in its own box rather than on the window.
-function reposition(): void {
-  if (props.activeSlug) placeTip()
-}
-
-onMounted(() => {
-  window.addEventListener('scroll', reposition, true)
-  window.addEventListener('resize', reposition)
-})
-
-onBeforeUnmount(() => {
-  window.removeEventListener('scroll', reposition, true)
-  window.removeEventListener('resize', reposition)
-})
-
-// Brings a row into view inside the list, and nowhere else.
-//
-// scrollIntoView, which this used to call, scrolls every scrollable ancestor
-// the element has — including the page. Pointing at a station on the map
-// therefore yanked the whole window down to wherever this card happened to
-// sit, which is the one thing a rider reading the map is not asking for. The
-// list's own scrollTop is the only thing that should move, so it is the only
-// thing moved here.
 function reveal(row: Element): void {
   const list = listEl.value
   if (!list) return
@@ -162,9 +72,6 @@ function reveal(row: Element): void {
   else if (rowRect.bottom > listRect.bottom) list.scrollTop += rowRect.bottom - listRect.bottom
 }
 
-// A map hover has to answer somewhere visible: the station it names may be on
-// a line this card is not showing, and on a large scenario its row is often
-// below the fold of the card's own scroller.
 watch(
   () => [props.activeSlug, props.activeFromMap] as const,
   async ([slug, fromMap]) => {
@@ -183,7 +90,7 @@ watch(
         reveal(row)
         // Measured after the scroll, so the box lands beside where the row
         // ended up rather than where it started.
-        placeTip(row)
+        setAnchor(row)
         return
       }
     }
@@ -200,7 +107,7 @@ watch(
       Time remaining
     </h2>
 
-    <!-- A trip over one line has nothing to switch between. -->
+    
     <SegmentedControl
       v-if="props.views.length > 1"
       v-model="chosen"
@@ -228,42 +135,28 @@ watch(
         @focus="activate(row, $event)"
         @blur="emit('activate', null)"
       >
-        <!-- The connector column, drawn entirely in absolutely positioned
-             boxes anchored to the row's own edges. Nothing here scrolls and
-             nothing is measured: every line either spans the row top to bottom
-             or hangs off one edge, so a row that grows under the pointer
-             lengthens its lines instead of re-routing them. -->
         <div
           class="relative shrink-0"
           :style="{ width: `${graphWidth}px` }"
         >
-          <!-- Lanes reserved for a row further down, passing this one by. -->
           <span
             v-for="lane in row.through"
             :key="`through-${lane}`"
             class="absolute w-px bg-border"
             :style="{ left: `${laneX(lane)}px`, top: '0', bottom: '0' }"
           />
-          <!-- The connector arriving from above, stopping at the node. -->
           <span
             v-if="row.incoming"
             class="absolute w-px bg-border"
             :style="{ left: `${laneX(row.lane)}px`, top: '0', height: `${NODE_BAND_PX / 2}px` }"
           />
-          <!-- Where a row branches, the branches leave along one horizontal bar
-               level with the node and then drop straight down their own lanes.
-               An elbow rather than a fan of diagonals: a diagonal's angle
-               depends on how tall the row is, so it had to be redrawn every
-               time a row expanded, and it needed an SVG stretched across the
-               whole column to live in. These are two plain boxes, and the
-               bar is the only part that knows anything about lane positions. -->
+          
           <span
             v-if="row.forks.length > 1"
             class="absolute h-px bg-border"
             :style="forkBarStyle(row)"
           />
-          <!-- The drop down each branch's lane, including this row's own —
-               anchored to the bottom edge, which is what makes it stretch. -->
+          
           <span
             v-for="lane in row.forks"
             :key="`fork-${lane}`"
@@ -288,6 +181,14 @@ watch(
           >
             {{ row.flag }}
           </p>
+          <p
+            v-for="leg in row.detail.access ?? []"
+            :key="leg.to"
+            class="font-body text-micro text-ink-muted"
+            data-testid="time-remaining-access"
+          >
+            to {{ leg.to }}, {{ formatDuration(leg.secs) }}
+          </p>
         </div>
 
         <p
@@ -297,33 +198,16 @@ watch(
           {{ formatTimeRemaining(row.remainingSecs) }}
         </p>
 
-        <!-- What the row's single number hides, shown beside the row rather
-             than inside it. Out of the list's flow and out of its scroller, so
-             nothing moves or resizes while a pointer travels down the rows.
-             It follows the pointer's row and is never pointed at itself, so it
-             takes no hover of its own to keep it open. -->
-        <div
+        
+        <TooltipPanel
           v-if="isExpanded(row) && hasDetail(row)"
-          class="pointer-events-none fixed z-20 rounded-(--radius-field) border border-border bg-white p-2 shadow-(--shadow-panel)"
-          :style="tipStyle"
-          role="tooltip"
+          :open="true"
+          :anchor="anchor"
         >
           <dl
             class="font-body text-micro flex flex-col gap-0.5 text-ink-muted"
             data-testid="time-remaining-detail"
           >
-            <!-- Read in the order the rider lives them: the leg in, what that
-                 left them with, the stop served here, and the change made
-                 before they leave again. The row's own number is the moment
-                 they leave, so everything here happened before it. -->
-            <div v-if="row.detail.accessTo">
-              <dt class="inline">
-                {{ row.flag }} to {{ row.detail.accessTo }}
-              </dt>
-              <dd class="ml-1 inline">
-                {{ formatDuration(row.detail.accessSecs ?? 0) }}
-              </dd>
-            </div>
             <div v-if="row.detail.rideSecs !== undefined">
               <dt class="inline">
                 {{ rideTerm(row) }}
@@ -356,8 +240,17 @@ watch(
                 {{ row.detail.transferFrom }}
               </dd>
             </div>
+            
+            <div v-if="row.detail.progressTo && row.detail.progressFraction !== undefined">
+              <dt class="inline">
+                Got {{ formatProgressPercent(row.detail.progressFraction) }} of the way toward
+              </dt>
+              <dd class="ml-1 inline">
+                {{ row.detail.progressTo }}
+              </dd>
+            </div>
           </dl>
-        </div>
+        </TooltipPanel>
       </li>
     </ul>
   </section>

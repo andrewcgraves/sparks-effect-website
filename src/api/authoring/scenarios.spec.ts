@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   listScenarios,
@@ -28,9 +30,6 @@ const stubScenario: Scenario = {
 
 const stubChain = { type: 'FeatureCollection', features: [], metadata: {} } as unknown as ChainResponse
 
-// The endpoint answers 202 with a routing job now (SPA-182), so a result takes
-// two responses: the enqueue, then a poll. Succeeding on the first poll keeps
-// these timer-free — the cadence and deadline are routingJobs.spec's subject.
 function enqueueThenSucceed(): void {
   vi.mocked(fetch)
     .mockResolvedValueOnce({ ok: true, status: 202, json: async () => ({ id: 'rj1' }) } as Response)
@@ -116,6 +115,14 @@ describe('scenarios CRUD', () => {
     expect(url).toContain('/api/user-scenarios/ca-hsr/compile')
     expect((init as RequestInit).method).toBe('POST')
     expect(result).toEqual(job)
+  })
+
+  it('forwards a caller-supplied X-Trace-Id on the compile POST', async () => {
+    const job: Job = { id: 'job1', kind: 'compile_user_scenario', status: 'queued' }
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 202, json: async () => job } as Response)
+    await compileScenario('ca-hsr', { headers: { 'X-Trace-Id': 'compile-trace' } })
+    const headers = new Headers(vi.mocked(fetch).mock.calls[0][1]?.headers)
+    expect(headers.get('X-Trace-Id')).toBe('compile-trace')
   })
 
   it('fetchScenarioGraph GETs /api/user-scenarios/{slug}/graph', async () => {

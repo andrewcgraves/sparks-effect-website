@@ -1,13 +1,14 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { mount } from '@vue/test-utils'
-import { ref } from 'vue'
-import RouteView from './RouteView.vue'
+import { mount, flushPromises } from '@vue/test-utils'
 import type { Route } from '../api/authoring'
 
-const mockUseRouteDetail = vi.fn()
-vi.mock('../composables/useRouteDetail', () => ({
-  useRouteDetail: (slug: string) => mockUseRouteDetail(slug),
+vi.mock('../api/authoring/routes', () => ({
+  fetchRoute: vi.fn(),
 }))
+import { fetchRoute } from '../api/authoring/routes'
+import { ApiError } from '../api/authoring/client'
+
+import RouteView from './RouteView.vue'
 
 const stubRoute: Route = {
   id: 'rt1',
@@ -31,45 +32,57 @@ function mountRouteView(slug = 'main-line') {
 
 describe('RouteView', () => {
   beforeEach(() => {
-    mockUseRouteDetail.mockReset()
+    vi.mocked(fetchRoute).mockReset()
   })
 
-  it('calls useRouteDetail with the given slug', () => {
-    mockUseRouteDetail.mockReturnValue({ route: ref(null), loading: ref(true), notFound: ref(false), error: ref(false) })
+  it('calls fetchRoute with the given slug', () => {
+    vi.mocked(fetchRoute).mockResolvedValueOnce(stubRoute)
     mountRouteView('main-line')
-    expect(mockUseRouteDetail).toHaveBeenCalledWith('main-line')
+    expect(fetchRoute).toHaveBeenCalledWith('main-line')
   })
 
   it('shows a loading state while the route is loading', () => {
-    mockUseRouteDetail.mockReturnValue({ route: ref(null), loading: ref(true), notFound: ref(false), error: ref(false) })
+    vi.mocked(fetchRoute).mockReturnValueOnce(new Promise(() => {}))
     const wrapper = mountRouteView()
     expect(wrapper.text()).toContain('Loading')
     expect(wrapper.findComponent({ name: 'MapView' }).exists()).toBe(false)
   })
 
-  it('shows a not-found state for an unknown slug', () => {
-    mockUseRouteDetail.mockReturnValue({ route: ref(null), loading: ref(false), notFound: ref(true), error: ref(false) })
+  it('shows a not-found state for an unknown slug', async () => {
+    vi.mocked(fetchRoute).mockRejectedValueOnce(new ApiError('not found', 404))
     const wrapper = mountRouteView('no-such-route')
+    await flushPromises()
     expect(wrapper.text()).toContain('not found')
     expect(wrapper.findComponent({ name: 'MapView' }).exists()).toBe(false)
   })
 
-  it('shows a generic error state when the fetch fails for a reason other than 404', () => {
-    mockUseRouteDetail.mockReturnValue({ route: ref(null), loading: ref(false), notFound: ref(false), error: ref(true) })
+  it('shows a generic error state when the fetch fails for a reason other than 404', async () => {
+    vi.mocked(fetchRoute).mockRejectedValueOnce(new ApiError('server error', 500))
     const wrapper = mountRouteView()
+    await flushPromises()
     expect(wrapper.text()).toContain('Something went wrong')
     expect(wrapper.findComponent({ name: 'MapView' }).exists()).toBe(false)
   })
 
-  it('titles the page with the route name once loaded', () => {
-    mockUseRouteDetail.mockReturnValue({ route: ref(stubRoute), loading: ref(false), notFound: ref(false), error: ref(false) })
+  it('shows a generic error state on a network failure', async () => {
+    vi.mocked(fetchRoute).mockRejectedValueOnce(new TypeError('Failed to fetch'))
     const wrapper = mountRouteView()
+    await flushPromises()
+    expect(wrapper.text()).toContain('Something went wrong')
+    expect(wrapper.findComponent({ name: 'MapView' }).exists()).toBe(false)
+  })
+
+  it('titles the page with the route name once loaded', async () => {
+    vi.mocked(fetchRoute).mockResolvedValueOnce(stubRoute)
+    const wrapper = mountRouteView()
+    await flushPromises()
     expect(wrapper.get('h1').text()).toBe('Main Line')
   })
 
-  it('renders the route geometry via MapView once loaded', () => {
-    mockUseRouteDetail.mockReturnValue({ route: ref(stubRoute), loading: ref(false), notFound: ref(false), error: ref(false) })
+  it('renders the route geometry via MapView once loaded', async () => {
+    vi.mocked(fetchRoute).mockResolvedValueOnce(stubRoute)
     const wrapper = mountRouteView()
+    await flushPromises()
     const mapView = wrapper.findComponent({ name: 'MapView' })
     expect(mapView.exists()).toBe(true)
     const routes = mapView.props('routes') as Array<{ id: string; geometry: unknown }>
@@ -79,9 +92,10 @@ describe('RouteView', () => {
     expect(mapView.props('hideIsochroneLegend')).toBe(true)
   })
 
-  it('renders a physics summary row per segment', () => {
-    mockUseRouteDetail.mockReturnValue({ route: ref(stubRoute), loading: ref(false), notFound: ref(false), error: ref(false) })
+  it('renders a physics summary row per segment', async () => {
+    vi.mocked(fetchRoute).mockResolvedValueOnce(stubRoute)
     const wrapper = mountRouteView()
+    await flushPromises()
     const rows = wrapper.findAll('[data-testid="route-segment-row"]')
     expect(rows).toHaveLength(2)
     expect(rows[0].text()).toContain('150')
@@ -89,9 +103,10 @@ describe('RouteView', () => {
     expect(rows[0].text()).toContain('1.2')
   })
 
-  it('shows tangent track for a zero curve radius', () => {
-    mockUseRouteDetail.mockReturnValue({ route: ref(stubRoute), loading: ref(false), notFound: ref(false), error: ref(false) })
+  it('shows tangent track for a zero curve radius', async () => {
+    vi.mocked(fetchRoute).mockResolvedValueOnce(stubRoute)
     const wrapper = mountRouteView()
+    await flushPromises()
     const rows = wrapper.findAll('[data-testid="route-segment-row"]')
     expect(rows[1].text()).toContain('Tangent')
   })

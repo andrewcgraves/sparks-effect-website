@@ -1,69 +1,69 @@
-import { computed, ref } from 'vue'
+import { computed, ref, type Ref } from 'vue'
 import { ApiError } from '../api/authoring/client'
-import type { AuthoredIsochroneRequest, Job, TransitGraph } from '../api/authoring'
+import type { AuthoredIsochroneRequest, Job, TransitGraph, TravelMode } from '../api/authoring'
+import type { AuthoringNoun } from '../api/authoringFault'
+import { isochroneFault, isochroneRangeRefusal, isochroneRequested } from '../api/isochroneFault'
 import type { ChainResponse } from '../fixtures/isochrone'
 import { useCompileJob } from './useCompileJob'
 import { latestAttempt } from './latestAttempt'
 import { graphRoutes, graphStations } from './scenarioGraphMap'
-import { checkOriginReach, outOfRangeError, outOfRangeMessage } from '../originRange'
-import { backlogFullError } from '../api/routingJobs'
 
-// A stale-graph retry should settle in one or two hops in practice; this just
-// bounds it so a persistently stale signal can't spin the UI forever. It is the
-// one copy — nothing else recovers from stale_graph.
 export const MAX_STALE_GRAPH_RETRIES = 3
 
 export interface IsochronePayload {
   lat: number
   lng: number
   duration: number
-  mode: 'walk' | 'bike' | 'drive'
+  mode: TravelMode
 }
 
-/**
- * The endpoints an authored target answers on, injected rather than imported so
- * one implementation serves both Services and Scenarios. A Service compiled
- * alone is the degenerate one-member Scenario, so the two differ in nothing but
- * which trio of endpoints they are plotted against.
- */
-export interface AuthoredGraphTarget {
-  compile: (slug: string) => Promise<Job>
-  fetchGraph: (slug: string) => Promise<TransitGraph>
+export interface PinnedGraphTarget<G extends TransitGraph = TransitGraph> {
+  fetchGraph: (slug: string) => Promise<G>
   isochrone: (slug: string, request: AuthoredIsochroneRequest) => Promise<ChainResponse>
 }
 
-/**
- * The whole graph lifecycle of an authored Service or Scenario: read the graph
- * it already has, compile one if it has none, plot isochrones against it, and
- * recompile when the server says the graph has fallen behind an edit.
- *
- * Those four were split across a compile composable, an isochrone composable,
- * and each detail view's own copy of "fetch the graph, or compile on a 404".
- * The sequencing between them is what is worth owning in one place: a stale
- * isochrone recompiles and retries, so a single user gesture can have two
- * requests and a job poll in flight, and the retry bound has to be counted
- * across all of it rather than per call.
- *
- * The slug arrives as a getter because callers resolve it late, from their route
- * props rather than at setup time.
- */
-export function useAuthoredGraph(getSlug: () => string | null, target: AuthoredGraphTarget) {
+export interface AuthoredGraphTarget<G extends TransitGraph = TransitGraph> extends PinnedGraphTarget<G> {
+  compile: (slug: string, init?: RequestInit) => Promise<Job>
+  noun?: AuthoringNoun
+}
+
+function neverCompile(): Promise<Job> {
+  return Promise.reject(new Error('a pinned graph is never compiled'))
+}
+
+export function useAuthoredGraph<G extends TransitGraph = TransitGraph>(
+  getSlug: () => string | null,
+  target: AuthoredGraphTarget<G> | PinnedGraphTarget<G>,
+) {
+  // A pinned target — a publication — has no compile to fall back on, by type
+  // rather than by luck: compiling needs the owner's session, which a public
+  // reader does not have, and a pin cannot go stale anyway. Every recovery
+  // below that would compile is gated on this being non-null, and
+  // `neverCompile` only exists so useCompileJob has something to hold.
+  const compile = 'compile' in target ? target.compile : null
+
   const {
     compiling,
     compileError,
     result: compiledGraph,
-    trigger: triggerCompile,
+    trigger: triggerCompileJob,
     reset: resetCompile,
-  } = useCompileJob(target.compile)
+  } = useCompileJob(compile ?? neverCompile, 'noun' in target ? target.noun : undefined)
+
+  async function triggerCompile(slug: string): Promise<void> {
+    if (compile) await triggerCompileJob(slug)
+  }
 
   // A page that opens an already-compiled record reads its graph rather than
   // recompiling; a fresh compile supersedes it.
-  const loadedGraph = ref<TransitGraph | null>(null)
-  const graph = computed(() => compiledGraph.value ?? loadedGraph.value)
+  const loadedGraph = ref<G | null>(null) as Ref<G | null>
+  const graph = computed<TransitGraph | null>(() => compiledGraph.value ?? loadedGraph.value)
 
-  // A fact, not a sentence: the wording belongs to whichever page is reporting
-  // it, since only the page knows what it was trying to load.
+  // Facts, not sentences: the wording belongs to whichever page is reporting
+  // them, since only the page knows what it was trying to load. `graphNotFound`
+  // is only ever set for a pinned target; an authored one compiles instead.
   const graphFailed = ref(false)
+  const graphNotFound = ref(false)
 
   const origin = ref<{ lat: number; lng: number } | null>(null)
   const isochroneData = ref<ChainResponse | null>(null)
@@ -74,7 +74,6 @@ export function useAuthoredGraph(getSlug: () => string | null, target: AuthoredG
   const nearMisses = computed(() => merge.value?.near_misses ?? [])
   const realisedClusters = computed(() => merge.value?.clusters ?? [])
 
-  // The compiled graph, projected onto the point/line shapes MapView draws.
   const mapStations = computed(() => graphStations(graph.value))
   const mapRoutes = computed(() => graphRoutes(graph.value))
 
@@ -88,16 +87,13 @@ export function useAuthoredGraph(getSlug: () => string | null, target: AuthoredG
   const loads = latestAttempt()
   const plots = latestAttempt()
 
-  /**
-   * Reads the graph this target already compiled, compiling it for the first
-   * time if it has none.
-   *
-   * A 404 means it has never compiled, which is a reason to compile rather than
-   * an error to show. Anything else is a genuine failure.
-   */
+  // A 404 means it has never compiled, which is a reason to compile rather than
+  // an error to show — unless nothing can compile it, when it is the page's
+  // not-found. Anything else is a genuine failure.
   async function loadGraph(slug: string): Promise<void> {
     const attempt = loads.begin()
     graphFailed.value = false
+    graphNotFound.value = false
     // A load can end in a compile, so abandoning a load has to abandon the
     // compile it started too. Without this the older load's compile still
     // resolves into compiledGraph, which `graph` prefers — the newer load's
@@ -110,7 +106,8 @@ export function useAuthoredGraph(getSlug: () => string | null, target: AuthoredG
     } catch (err) {
       if (!loads.isCurrent(attempt)) return
       if (err instanceof ApiError && err.status === 404) {
-        await triggerCompile(slug)
+        if (compile) await triggerCompile(slug)
+        else graphNotFound.value = true
         return
       }
       graphFailed.value = true
@@ -121,18 +118,18 @@ export function useAuthoredGraph(getSlug: () => string | null, target: AuthoredG
     origin.value = coords
   }
 
-  /**
-   * Plots one isochrone, recovering from a graph that has gone stale.
-   *
-   * An edit made elsewhere answers 409 (stale_graph) on the isochrone call
-   * itself, not on compile — recompile and retry rather than making the user
-   * work out why their scenario or service stopped plotting. `staleRetries`
-   * counts across the whole gesture rather than per call, so a target that is
-   * stale again the moment it is compiled gives up instead of looping.
-   *
-   * The slug is fixed for the duration of an attempt: it is the target the user
-   * asked about, and re-reading it mid-retry could answer about another one.
-   */
+  // An edit made elsewhere answers 409 (stale_graph) on the isochrone call
+  // itself, not on compile — recompile and retry rather than making the user
+  // work out why their scenario or service stopped plotting. `staleRetries`
+  // counts across the whole gesture rather than per call, so a target that is
+  // stale again the moment it is compiled gives up instead of looping.
+  //
+  // A pinned target does not retry: the API cannot answer stale_graph over a
+  // pin, and if it ever did, a reader without a session could not recompile —
+  // so it is reported like any other fault.
+  //
+  // The slug is fixed for the duration of an attempt: it is the target the user
+  // asked about, and re-reading it mid-retry could answer about another one.
   async function plot(slug: string, payload: IsochronePayload, attempt: number, staleRetries: number): Promise<void> {
     isochroneLoading.value = true
     isochroneError.value = null
@@ -147,7 +144,7 @@ export function useAuthoredGraph(getSlug: () => string | null, target: AuthoredG
       isochroneData.value = data
     } catch (err) {
       if (!plots.isCurrent(attempt)) return
-      if (err instanceof ApiError && err.code === 'stale_graph' && staleRetries < MAX_STALE_GRAPH_RETRIES) {
+      if (compile && err instanceof ApiError && err.code === 'stale_graph' && staleRetries < MAX_STALE_GRAPH_RETRIES) {
         await triggerCompile(slug)
         if (!plots.isCurrent(attempt)) return
         if (!compileError.value) {
@@ -155,18 +152,11 @@ export function useAuthoredGraph(getSlug: () => string | null, target: AuthoredG
           return
         }
       }
-      // An origin the API refused as out of range is reported in its own terms.
-      // handleIsochroneSubmit catches most of these before the request is made;
-      // this is the arm for the ones it could not, notably a recompile that has
-      // just moved or dropped the station the local check measured against.
-      //
-      // A refused enqueue (SPA-219) is reported in its own terms too: the
-      // request was fine and the routing backlog is simply full, so the
-      // isochrone is worth asking for again in a moment.
-      isochroneError.value =
-        outOfRangeError(err, payload.mode, payload.duration) ??
-        backlogFullError(err) ??
-        'Failed to generate isochrone. Please try again.'
+      // Local range refusals are handled before the request; this is the arm
+      // for the ones it could not see — notably a recompile that has just
+      // moved or dropped the station the local check measured against — and
+      // for every other routing fault (SPA-230, SPA-219).
+      isochroneError.value = isochroneFault(err, payload.mode, payload.duration)
     } finally {
       // Left alone when superseded: the attempt that replaced this one set it,
       // and owns clearing it.
@@ -187,20 +177,20 @@ export function useAuthoredGraph(getSlug: () => string | null, target: AuthoredG
     // the API measures against — so unlike the seeded page, the two agree
     // exactly. Numbered like the plot it stands in for, so it supersedes an
     // in-flight plot the same way a real one would.
-    const reach = checkOriginReach(mapStations.value, payload, payload.mode, payload.duration)
-    if (reach && !reach.inRange) {
+    const refusal = isochroneRangeRefusal(mapStations.value, payload, payload.mode, payload.duration)
+    if (refusal) {
       plots.begin()
       isochroneData.value = null
       isochroneLoading.value = false
-      isochroneError.value = outOfRangeMessage(reach, payload.mode, payload.duration)
+      isochroneError.value = refusal
       return
     }
 
+    isochroneRequested(payload.mode, payload.duration)
     await plot(slug, payload, plots.begin(), 1)
   }
 
-  // Abandons everything in flight and returns to the state of a page that has
-  // just opened. Bumping both counters is what makes the abandonment stick:
+  // Bumping both counters is what makes the abandonment stick:
   // requests already issued cannot be recalled, only ignored when they land.
   function reset(): void {
     loads.supersede()
@@ -208,6 +198,7 @@ export function useAuthoredGraph(getSlug: () => string | null, target: AuthoredG
     resetCompile()
     loadedGraph.value = null
     graphFailed.value = false
+    graphNotFound.value = false
     origin.value = null
     isochroneData.value = null
     isochroneLoading.value = false
@@ -218,7 +209,9 @@ export function useAuthoredGraph(getSlug: () => string | null, target: AuthoredG
     compiling,
     compileError,
     graph,
+    loadedGraph,
     graphFailed,
+    graphNotFound,
     loadGraph,
     triggerCompile,
     origin,

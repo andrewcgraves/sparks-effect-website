@@ -13,6 +13,7 @@ import {
   isochroneHighlightFilter,
 } from '../composables/useIsochroneLayer'
 import {
+  PROGRESS_CAP_HIT_LAYER_ID,
   ROUTE_LINE_LAYER_ID,
   ROUTE_SOURCE_ID,
   STATION_DOTS_LAYER_ID,
@@ -39,7 +40,7 @@ import {
   ISOCHRONE_CENTER,
 } from '../fixtures/isochrone'
 import type { ChainResponse, StarterWalk } from '../fixtures/isochrone'
-import type { Route, Station, Service } from '../api/scenarios'
+import type { Route, Station } from '../api/scenarios'
 
 const mockSetData = vi.fn()
 
@@ -67,7 +68,7 @@ const {
   mockSetPaintProperty,
   mockSetFilter,
   mockPopupSetLngLat,
-  mockPopupSetText,
+  mockPopupSetDOMContent,
   mockPopupAddTo,
   mockPopupRemove,
 } = vi.hoisted(() => {
@@ -96,7 +97,7 @@ const {
     mockSetPaintProperty: vi.fn(),
     mockSetFilter: vi.fn(),
     mockPopupSetLngLat: vi.fn(),
-    mockPopupSetText: vi.fn(),
+    mockPopupSetDOMContent: vi.fn(),
     mockPopupAddTo: vi.fn(),
     mockPopupRemove: vi.fn(),
   }
@@ -111,6 +112,7 @@ class ResizeObserverStub {
 vi.stubGlobal('ResizeObserver', ResizeObserverStub)
 
 vi.mock('maplibre-gl', () => ({
+  setWorkerUrl: vi.fn(),
   Map: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
     this['addSource'] = mockAddSource
     this['addLayer'] = mockAddLayer
@@ -140,7 +142,7 @@ vi.mock('maplibre-gl', () => ({
   }),
   Popup: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
     this['setLngLat'] = mockPopupSetLngLat
-    this['setText'] = mockPopupSetText
+    this['setDOMContent'] = mockPopupSetDOMContent
     this['addTo'] = mockPopupAddTo
     this['remove'] = mockPopupRemove
   }),
@@ -165,24 +167,6 @@ const stubStation: Station = {
   platform_height: '0',
 }
 
-const stubService: Service = {
-  id: 'svc1',
-  name: 'Northbound Express',
-  vehicle_type: {
-    id: 'vt1',
-    name: 'High-Speed Rail',
-    propulsion: 'electric',
-    max_speed_kmh: 320,
-  },
-  direction: 'northbound',
-  provenance: 'calibrated',
-  stop_count: 2,
-  frequency_windows: [],
-}
-
-// The walk the worker routed to stubStation. It bends, and neither end is the
-// origin the request was made from or the station row's own coordinates —
-// which is exactly what makes it Valhalla's shape rather than a rebuilt one.
 const routedToStub: StarterWalk = {
   station_slug: 'sf',
   geometry: {
@@ -195,11 +179,10 @@ const routedToStub: StarterWalk = {
   },
 }
 
-// A plot that walked to stubStation and rode on from there. Features are
-// irrelevant to the walking line, which reads only the metadata.
 function chainWith(
   stations: ChainResponse['metadata']['reachable_stations'],
   starterWalk?: StarterWalk,
+  mode = 'walk',
 ): ChainResponse {
   return {
     type: 'FeatureCollection',
@@ -208,7 +191,7 @@ function chainWith(
       reachable_stations: stations,
       origin_budget_mins: 90,
       compile_job_id: 'compile-1',
-      mode: 'walk',
+      mode,
       wait_model: 'none',
       origin_iso_available: true,
       ...(starterWalk ? { starter_walk: starterWalk } : {}),
@@ -224,7 +207,7 @@ const walkedToStub = chainWith(
   routedToStub,
 )
 
-const defaultProps = { isochroneData: null, loading: false, routes: [], stations: [], services: [] }
+const defaultProps = { isochroneData: null, loading: false, routes: [], stations: [] }
 
 const stubRouteCorners = routeBoundsCorners([stubRoute]) as [[number, number], [number, number]]
 
@@ -234,7 +217,6 @@ async function triggerMapLoad() {
   if (typeof cb === 'function') await cb()
 }
 
-// Fires a map-level (unscoped) MapLibre event registered through map.on().
 function fireMapEvent(type: string, event: unknown) {
   const call = mockOn.mock.calls.find(
     (args: unknown[]) => args[0] === type && typeof args[1] === 'function',
@@ -243,8 +225,6 @@ function fireMapEvent(type: string, event: unknown) {
   cb?.(event)
 }
 
-// Fires a layer-scoped MapLibre event, i.e. one registered as
-// map.on(type, layerId, handler).
 function fireLayerEvent(type: string, layer: string, event: unknown) {
   const call = mockOn.mock.calls.find((args: unknown[]) => args[0] === type && args[1] === layer)
   const cb = call?.[2] as ((e: unknown) => void) | undefined
@@ -264,8 +244,8 @@ describe('MapView', () => {
     mockCanvas.style.cursor = ''
     mockGetLayer.mockReturnValue(undefined)
     mockQueryRenderedFeatures.mockReturnValue([])
-    mockPopupSetLngLat.mockReturnValue({ setText: mockPopupSetText })
-    mockPopupSetText.mockReturnValue({ addTo: mockPopupAddTo })
+    mockPopupSetLngLat.mockReturnValue({ setDOMContent: mockPopupSetDOMContent })
+    mockPopupSetDOMContent.mockReturnValue({ addTo: mockPopupAddTo })
   })
 
   it('does not add isochrone source or layer on load when no isochroneData prop is provided', async () => {
@@ -330,6 +310,59 @@ describe('MapView', () => {
         padding: expect.objectContaining({ top: 56, bottom: 112, left: 56, right: 56 }),
       }),
     )
+  })
+
+  // SPA-320. A contour denoising split into pieces comes back as a MultiPolygon,
+  // and the bounds walk used to read it a ring at a time and produce NaN corners
+  // — which fitBounds rejects by throwing, out through this watcher, leaving the
+  // camera wherever the rider had left it while the split contour drew fine.
+  it('fits the map to a plot whose contour came back in several pieces', async () => {
+    const wrapper = mount(MapView, { props: defaultProps })
+    await triggerMapLoad()
+    mockFitBounds.mockClear()
+
+    const split = {
+      ...staticIsochroneResponse,
+      features: [
+        {
+          type: 'Feature',
+          properties: { source: 'origin' },
+          geometry: {
+            type: 'MultiPolygon',
+            coordinates: [
+              [[[-118.2, 34.6], [-118.1, 34.6], [-118.1, 34.7], [-118.2, 34.6]]],
+              [[[-118.5, 34.4], [-118.4, 34.4], [-118.4, 34.45], [-118.5, 34.4]]],
+            ],
+          },
+        },
+      ],
+    } as unknown as ChainResponse
+
+    await wrapper.setProps({ isochroneData: split })
+
+    expect(mockFitBounds).toHaveBeenCalledTimes(1)
+    const corners = mockFitBounds.mock.calls[0][0] as [[number, number], [number, number]]
+    expect(corners.flat().every(Number.isFinite)).toBe(true)
+  })
+
+  it('leaves the camera alone rather than throwing when a plot carries no readable corner', async () => {
+    const wrapper = mount(MapView, { props: defaultProps })
+    await triggerMapLoad()
+    mockFitBounds.mockClear()
+
+    const unreadable = {
+      ...staticIsochroneResponse,
+      features: [
+        {
+          type: 'Feature',
+          properties: { source: 'origin' },
+          geometry: { type: 'Polygon', coordinates: [[]] },
+        },
+      ],
+    } as unknown as ChainResponse
+
+    await expect(wrapper.setProps({ isochroneData: unreadable })).resolves.not.toThrow()
+    expect(mockFitBounds).not.toHaveBeenCalled()
   })
 
   it('fits the map to the isochrone frame after an origin snap when isochrone is generated', async () => {
@@ -563,6 +596,29 @@ describe('MapView', () => {
     ) as [string, { data: { features: { geometry: { coordinates: number[][] } }[] } }]
     // The routed shape, not a segment from the origin prop to the station row.
     expect(source.data.features[0].geometry.coordinates).toEqual(routedToStub.geometry.coordinates)
+  })
+
+  it('draws the access line for a transit-mode plot the same way as a walking one', async () => {
+    mount(MapView, {
+      props: {
+        ...defaultProps,
+        origin: { lat: 37.4, lng: -121.9 },
+        isochroneData: chainWith(
+          [
+            { station_slug: 'sf', access_mins: 22, remaining_mins: 60 },
+            { station_slug: 'gilroy', access_mins: 40, remaining_mins: 20, via_service: 'svc1' },
+          ],
+          routedToStub,
+          'transit',
+        ),
+        stations: [stubStation],
+      },
+    })
+    await triggerMapLoad()
+    expect(mockAddSource).toHaveBeenCalledWith(
+      ORIGIN_WALK_SOURCE_ID,
+      expect.objectContaining({ type: 'geojson' }),
+    )
   })
 
   it('draws no walking line when the plot carries no walking leg', async () => {
@@ -808,6 +864,73 @@ describe('MapView', () => {
     const legend = wrapper.get('[aria-label="Isochrone color key"]')
     expect(legend.text()).toContain('Origin reach')
     expect(legend.text()).toContain('From station')
+    expect(legend.text()).not.toContain('Budget ran out here')
+  })
+
+  it('names the unfinished stub in the key only when the plot drew one', () => {
+    const wrapper = mount(MapView, {
+      props: {
+        ...defaultProps,
+        isochroneData: {
+          ...staticIsochroneResponse,
+          metadata: {
+            ...staticIsochroneResponse.metadata,
+            trip_progress: [
+              {
+                from: 'gilroy',
+                to: 'merced',
+                route_id: 'r1',
+                from_chainage_m: 0,
+                to_chainage_m: 1000,
+                fraction: 0.38,
+                remaining_secs: 699,
+                ride_secs: 1839,
+              },
+            ],
+          },
+        },
+      },
+    })
+    const legend = wrapper.get('[aria-label="Isochrone color key"]')
+    expect(legend.text()).toContain('Budget ran out here')
+
+    // Ink dashes stopping on a bare ink dot, as the stub is drawn on the map.
+    const unfinished = wrapper.get('[data-testid="legend-swatch-unfinished"]')
+    expect(unfinished.get('line').attributes('stroke')).toBe(THEME_TOKEN_FALLBACKS['--color-ink'])
+    expect(unfinished.get('line').attributes('stroke-dasharray')).toBeDefined()
+    expect(unfinished.get('circle').attributes('fill')).toBe(THEME_TOKEN_FALLBACKS['--color-ink'])
+    expect(unfinished.get('circle').attributes('stroke')).toBeUndefined()
+    expect(unfinished.html()).not.toContain(THEME_TOKEN_FALLBACKS['--color-data-egress'])
+  })
+
+  // SPA-342: an unlabelled line from the origin to one station read as the
+  // route the rider was being sent down.
+  it('names the starter walk in the key as the first leg, in the origin colour', () => {
+    const wrapper = mount(MapView, { props: { ...defaultProps, isochroneData: walkedToStub } })
+    const legend = wrapper.get('[aria-label="Isochrone color key"]')
+    expect(legend.text()).toContain('First leg — nearest station')
+
+    // Origin-blue dashes from the origin pin's coral to a ringed station dot, so
+    // it cannot be mistaken for the unfinished stub's ink dashes and bare cap.
+    const starter = wrapper.get('[data-testid="legend-swatch-starter"]')
+    expect(starter.get('line').attributes('stroke')).toBe(THEME_TOKEN_FALLBACKS['--color-data-origin'])
+    const [from, to] = starter.findAll('circle')
+    expect(from.attributes('fill')).toBe(THEME_TOKEN_FALLBACKS['--color-coral'])
+    expect(to.attributes('stroke')).toBe(THEME_TOKEN_FALLBACKS['--color-ink'])
+  })
+
+  it('leaves the starter walk out of the key when there is no walk to draw', () => {
+    const noWalk = mount(MapView, { props: { ...defaultProps, isochroneData: chainWith(walkedToStub.metadata.reachable_stations) } })
+    expect(noWalk.get('[aria-label="Isochrone color key"]').text()).not.toContain('First leg')
+
+    // A walk naming a station the plot does not list is not drawn either.
+    const contradicted = mount(MapView, {
+      props: {
+        ...defaultProps,
+        isochroneData: chainWith(walkedToStub.metadata.reachable_stations, { ...routedToStub, station_slug: 'nowhere' }),
+      },
+    })
+    expect(contradicted.get('[aria-label="Isochrone color key"]').text()).not.toContain('First leg')
   })
 
   it('hides the isochrone legend when hideIsochroneLegend is set', () => {
@@ -911,11 +1034,6 @@ describe('MapView', () => {
   it('does not fly to origin before the map load event', () => {
     mount(MapView, { props: { ...defaultProps, origin: { lat: 34.05, lng: -118.25 } } })
     expect(mockFlyTo).not.toHaveBeenCalled()
-  })
-
-  it('accepts a services prop', () => {
-    const wrapper = mount(MapView, { props: { ...defaultProps, services: [stubService] } })
-    expect(wrapper.props('services')).toEqual([stubService])
   })
 
   describe('stopPreviewPairs', () => {
@@ -1182,8 +1300,83 @@ describe('MapView', () => {
 
       fireLayerEvent('mouseenter', STATION_DOTS_LAYER_ID, stationEvent(stubStation))
 
-      expect(mockPopupSetText).toHaveBeenCalledWith('San Francisco')
+      expect((mockPopupSetDOMContent.mock.calls[0]?.[0] as HTMLElement).textContent).toBe('San Francisco')
       expect(mockPopupAddTo).toHaveBeenCalled()
+    })
+
+    it('explains the unfinished-leg cap on hover from the stations list', async () => {
+      const merced: Station = {
+        ...stubStation,
+        id: 'st-merced',
+        slug: 'merced',
+        name: 'Merced',
+        location: { type: 'Point', coordinates: [-120.5, 37.3] },
+      }
+      mount(MapView, {
+        props: { ...defaultProps, routes: [stubRoute], stations: [stubStation, merced] },
+      })
+      await triggerMapLoad()
+
+      fireLayerEvent('mouseenter', PROGRESS_CAP_HIT_LAYER_ID, {
+        features: [
+          {
+            geometry: { type: 'Point', coordinates: [-120.5, 37.3] },
+            properties: { from: 'gilroy', to: 'merced', fraction: 0.38, remaining_secs: 699, ride_secs: 1839 },
+          },
+        ],
+      })
+
+      const node = mockPopupSetDOMContent.mock.calls[0]?.[0] as HTMLElement
+      expect(node.textContent).toBe('38% of the way to Merced — 19m short')
+      expect(mockPopupAddTo).toHaveBeenCalled()
+    })
+
+    it('does not raise a station hover when the pointer is on the unfinished-leg cap', async () => {
+      const wrapper = mount(MapView, {
+        props: { ...defaultProps, routes: [stubRoute], stations: [stubStation] },
+      })
+      await triggerMapLoad()
+
+      fireLayerEvent('mouseenter', PROGRESS_CAP_HIT_LAYER_ID, {
+        features: [
+          {
+            geometry: { type: 'Point', coordinates: [-120.5, 37.3] },
+            properties: { to: 'merced', fraction: 0.38, ride_secs: 1839 },
+          },
+        ],
+      })
+
+      expect(wrapper.emitted('station-hover')).toBeUndefined()
+    })
+
+    it('does not bind station hover until the route layer has attached', async () => {
+      const wrapper = mount(MapView, { props: defaultProps })
+      await triggerMapLoad()
+
+      expect(mockOn.mock.calls.some((args: unknown[]) => args[0] === 'mouseenter' && args[1] === STATION_DOTS_LAYER_ID)).toBe(false)
+
+      await wrapper.setProps({ routes: [stubRoute], stations: [stubStation] })
+
+      expect(mockOn).toHaveBeenCalledWith('mouseenter', STATION_DOTS_LAYER_ID, expect.any(Function))
+      expect(mockOn).toHaveBeenCalledWith('mouseenter', PROGRESS_CAP_HIT_LAYER_ID, expect.any(Function))
+    })
+
+    it('adds remaining time to the popup when the page provides a lookup', async () => {
+      mount(MapView, {
+        props: {
+          ...defaultProps,
+          routes: [stubRoute],
+          stations: [stubStation],
+          remainingSecs: (slug: string) => slug === stubStation.slug ? 2700 : null,
+        },
+      })
+      await triggerMapLoad()
+
+      fireLayerEvent('mouseenter', STATION_DOTS_LAYER_ID, stationEvent(stubStation))
+
+      const node = mockPopupSetDOMContent.mock.calls[0]?.[0] as HTMLElement
+      expect(node.textContent).toContain('San Francisco')
+      expect(node.textContent).toContain('45m left')
     })
 
     it('promotes the active station\'s polygon above the rest via the dedicated highlight layer', async () => {
@@ -1240,7 +1433,7 @@ describe('MapView', () => {
       expect(mockSetPaintProperty).toHaveBeenCalledWith(ISOCHRONE_ORIGIN_LAYER_ID, 'fill-opacity', isochroneOriginOpacity(false))
       expect(mockSetFilter).toHaveBeenCalledWith(ISOCHRONE_HIGHLIGHT_LAYER_ID, isochroneHighlightFilter(null))
       // The dot was still hovered, so the rider still gets its name.
-      expect(mockPopupSetText).toHaveBeenCalledWith('Fresno')
+      expect((mockPopupSetDOMContent.mock.calls[0]?.[0] as HTMLElement).textContent).toBe('Fresno')
     })
 
     // The map is one of two surfaces that can highlight a station, so it

@@ -3,12 +3,12 @@ import type { Map } from 'maplibre-gl'
 
 const {
   mockPopupSetLngLat,
-  mockPopupSetText,
+  mockPopupSetDOMContent,
   mockPopupAddTo,
   mockPopupRemove,
 } = vi.hoisted(() => ({
   mockPopupSetLngLat: vi.fn(),
-  mockPopupSetText: vi.fn(),
+  mockPopupSetDOMContent: vi.fn(),
   mockPopupAddTo: vi.fn(),
   mockPopupRemove: vi.fn(),
 }))
@@ -16,15 +16,16 @@ const {
 vi.mock('maplibre-gl', () => ({
   Popup: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
     this['setLngLat'] = mockPopupSetLngLat
-    this['setText'] = mockPopupSetText
+    this['setDOMContent'] = mockPopupSetDOMContent
     this['addTo'] = mockPopupAddTo
     this['remove'] = mockPopupRemove
   }),
 }))
 
 import { Popup } from 'maplibre-gl'
+import { TOOLTIP_MAP_POPUP_CLASS, TOOLTIP_PANEL_CLASS } from '../components/tooltip'
 import { useStationHighlight } from './useStationHighlight'
-import { STATION_DOTS_LAYER_ID } from './useRouteLayer'
+import { PROGRESS_CAP_HIT_LAYER_ID, STATION_DOTS_LAYER_ID } from './useRouteLayer'
 import {
   ISOCHRONE_LAYER_ID,
   ISOCHRONE_ORIGIN_LAYER_ID,
@@ -37,8 +38,6 @@ import {
 
 type Handler = (event: unknown) => void
 
-// Records the handlers useStationHighlight registers so tests can fire
-// MapLibre events at it, the same shape useStopDrag.spec.ts uses.
 function makeMockMap() {
   const handlers: { type: string; layer: string | null; handler: Handler }[] = []
   const canvas = { style: { cursor: '' } }
@@ -79,13 +78,29 @@ function stationEvent(slug: string, name: string, lng: number, lat: number) {
   }
 }
 
-// Both stations the tests hover have a polygon in the plot unless a test says
-// otherwise — the no-polygon case is its own describe block below.
-//
-// The active station stands in for the page's own single reference, which both
-// this map and the Time remaining card feed. Hovering a dot here only reports
-// the hover; nothing lights up until the page hands the station back.
-function setup(idleCursor = () => '', egressSlugs = () => new Set(['sf', 'gilroy'])) {
+function capEvent(
+  to: string,
+  fraction: number,
+  rideSecs: number,
+  lng = -120.5,
+  lat = 37.3,
+) {
+  return {
+    features: [
+      {
+        geometry: { type: 'Point', coordinates: [lng, lat] },
+        properties: { from: 'gilroy', to, fraction, remaining_secs: rideSecs * fraction, ride_secs: rideSecs },
+      },
+    ],
+  }
+}
+
+function setup(
+  idleCursor = () => '',
+  egressSlugs = () => new Set(['sf', 'gilroy']),
+  remainingSecs: (slug: string) => number | null = () => null,
+  stationName: (slug: string) => string = (slug) => slug,
+) {
   const mock = makeMockMap()
   let active: string | null = null
   const onHover = vi.fn((slug: string | null) => { active = slug })
@@ -93,21 +108,36 @@ function setup(idleCursor = () => '', egressSlugs = () => new Set(['sf', 'gilroy
     idleCursor,
     egressSlugs,
     activeSlug: () => active,
+    remainingSecs,
+    stationName,
     onHover,
   })
   return { ...mock, highlight, onHover, setActive: (slug: string | null) => { active = slug } }
 }
 
+function popupNode(): HTMLElement | undefined {
+  return mockPopupSetDOMContent.mock.calls[0]?.[0] as HTMLElement | undefined
+}
+
+function popupNamed(name: string): boolean {
+  const node = popupNode()
+  return node?.textContent === name && node.className.includes(TOOLTIP_PANEL_CLASS.split(' ')[0])
+}
+
 describe('useStationHighlight', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockPopupSetLngLat.mockReturnValue({ setText: mockPopupSetText })
-    mockPopupSetText.mockReturnValue({ addTo: mockPopupAddTo })
+    mockPopupSetLngLat.mockReturnValue({ setDOMContent: mockPopupSetDOMContent })
+    mockPopupSetDOMContent.mockReturnValue({ addTo: mockPopupAddTo })
   })
 
-  it('creates a popup with no close button or close-on-click, so hover does not fight the pointer', () => {
+  it('creates a popup wearing the tooltip chrome, with no close button that would fight the pointer', () => {
     setup()
-    expect(Popup).toHaveBeenCalledWith(expect.objectContaining({ closeButton: false, closeOnClick: false }))
+    expect(Popup).toHaveBeenCalledWith(expect.objectContaining({
+      closeButton: false,
+      closeOnClick: false,
+      className: TOOLTIP_MAP_POPUP_CLASS,
+    }))
   })
 
   it('shows a pointer cursor and the station name in the popup on hover', () => {
@@ -117,7 +147,7 @@ describe('useStationHighlight', () => {
 
     expect(canvas.style.cursor).toBe('pointer')
     expect(mockPopupSetLngLat).toHaveBeenCalledWith([-122.41, 37.77])
-    expect(mockPopupSetText).toHaveBeenCalledWith('San Francisco')
+    expect(popupNamed('San Francisco')).toBe(true)
     expect(mockPopupAddTo).toHaveBeenCalled()
   })
 
@@ -162,7 +192,8 @@ describe('useStationHighlight', () => {
 
       fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))
 
-      expect(mockPopupSetText).toHaveBeenCalledWith('San Francisco')
+      expect(popupNamed('San Francisco')).toBe(true)
+      expect(popupNode()?.textContent).not.toContain('left')
       expect(mockPopupAddTo).toHaveBeenCalled()
     })
 
@@ -277,6 +308,159 @@ describe('useStationHighlight', () => {
       highlight.sync()
 
       expect(mockPopupAddTo).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('remaining time in the popup', () => {
+    it('names a reachable station and how much budget is left on leaving it', () => {
+      const { fire } = setup(undefined, undefined, (slug) => slug === 'sf' ? 2700 : null)
+
+      fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))
+
+      const node = popupNode()
+      expect(node?.textContent).toContain('San Francisco')
+      expect(node?.textContent).toContain('45m left')
+      expect(node?.className).toContain(TOOLTIP_PANEL_CLASS.split(' ')[0])
+      expect(Popup).toHaveBeenCalledWith(expect.objectContaining({
+        className: TOOLTIP_MAP_POPUP_CLASS,
+      }))
+    })
+
+    it('renders hours the way the card does', () => {
+      const { fire } = setup(undefined, undefined, () => 5400)
+
+      fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('sj', 'San Jose', -121.9, 37.3))
+
+      expect(popupNode()?.textContent).toContain('1h 30m left')
+      expect(popupNode()?.textContent).not.toContain('90m left')
+    })
+
+    it('stays name-only when the lookup has nothing for that slug', () => {
+      const { fire } = setup(undefined, undefined, () => null)
+
+      fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))
+
+      expect(popupNamed('San Francisco')).toBe(true)
+      expect(popupNode()?.textContent).not.toContain('left')
+      expect(popupNode()?.textContent).not.toContain('0m')
+    })
+
+    it('prints 0m left when the rider leaves with nothing, so a finished trip is not an unreachable one', () => {
+      const { fire } = setup(undefined, undefined, () => 0)
+
+      fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('gilroy', 'Gilroy', -121.57, 37.0))
+
+      expect(popupNode()?.textContent).toContain('Gilroy')
+      expect(popupNode()?.textContent).toContain('0m left')
+    })
+  })
+
+  describe('the unfinished-leg cap', () => {
+    it('explains how far the hop got, naming the station the rider was heading for', () => {
+      const { fire } = setup(undefined, undefined, undefined, (slug) =>
+        slug === 'merced' ? 'Merced' : slug,
+      )
+
+      fire('mouseenter', PROGRESS_CAP_HIT_LAYER_ID, capEvent('merced', 0.38, 1839))
+
+      expect(popupNode()?.textContent).toBe('38% of the way to Merced — 19m short')
+      expect(mockPopupSetLngLat).toHaveBeenCalledWith([-120.5, 37.3])
+      expect(mockPopupAddTo).toHaveBeenCalled()
+    })
+
+    it('shows a pointer cursor without promoting a station, because the cap is not one', () => {
+      const { fire, canvas, onHover, setPaintProperty, setFilter } = setup()
+
+      fire('mouseenter', PROGRESS_CAP_HIT_LAYER_ID, capEvent('merced', 0.38, 1839))
+
+      expect(canvas.style.cursor).toBe('pointer')
+      expect(onHover).not.toHaveBeenCalled()
+      expect(setPaintProperty).toHaveBeenCalledWith(ISOCHRONE_LAYER_ID, 'fill-opacity', isochroneEgressOpacity(false))
+      expect(setFilter).toHaveBeenCalledWith(ISOCHRONE_HIGHLIGHT_LAYER_ID, isochroneHighlightFilter(null))
+    })
+
+    it('falls back to the slug when the stations list has no name for that hop', () => {
+      const { fire } = setup()
+
+      fire('mouseenter', PROGRESS_CAP_HIT_LAYER_ID, capEvent('merced', 0.38, 1839))
+
+      expect(popupNode()?.textContent).toBe('38% of the way to merced — 19m short')
+    })
+
+    it('reads numeric properties even when MapLibre has stringified them', () => {
+      const { fire } = setup(undefined, undefined, undefined, () => 'Merced')
+
+      fire('mouseenter', PROGRESS_CAP_HIT_LAYER_ID, {
+        features: [
+          {
+            geometry: { type: 'Point', coordinates: [-120.5, 37.3] },
+            properties: { to: 'merced', fraction: '0.38', ride_secs: '1839' },
+          },
+        ],
+      })
+
+      expect(popupNode()?.textContent).toBe('38% of the way to Merced — 19m short')
+    })
+
+    it('ignores a hover that carries no unfinished hop', () => {
+      const { fire, canvas } = setup()
+
+      fire('mouseenter', PROGRESS_CAP_HIT_LAYER_ID, { features: [] })
+
+      expect(canvas.style.cursor).toBe('')
+      expect(mockPopupAddTo).not.toHaveBeenCalled()
+    })
+
+    it('removes the popup and restores the idle cursor when the pointer leaves', () => {
+      const { fire, canvas } = setup(() => 'crosshair')
+      fire('mouseenter', PROGRESS_CAP_HIT_LAYER_ID, capEvent('merced', 0.38, 1839))
+      mockPopupRemove.mockClear()
+
+      fire('mouseleave', PROGRESS_CAP_HIT_LAYER_ID)
+
+      expect(mockPopupRemove).toHaveBeenCalled()
+      expect(canvas.style.cursor).toBe('crosshair')
+    })
+
+    it('drops a leftover station promote when the pointer moves onto the cap', () => {
+      const { fire, onHover, setFilter } = setup()
+      fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))
+      onHover.mockClear()
+      setFilter.mockClear()
+      mockPopupSetDOMContent.mockClear()
+
+      fire('mouseenter', PROGRESS_CAP_HIT_LAYER_ID, capEvent('merced', 0.38, 1839))
+
+      expect(onHover).toHaveBeenCalledWith(null)
+      expect(setFilter).toHaveBeenCalledWith(ISOCHRONE_HIGHLIGHT_LAYER_ID, isochroneHighlightFilter(null))
+      expect(popupNode()?.textContent).toBe('38% of the way to merced — 19m short')
+    })
+
+    it('keeps the cap popup if the pointer leaves a station while still on the cap', () => {
+      const { fire, canvas } = setup()
+      fire('mouseenter', PROGRESS_CAP_HIT_LAYER_ID, capEvent('merced', 0.38, 1839))
+      fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))
+      mockPopupRemove.mockClear()
+      mockPopupSetDOMContent.mockClear()
+
+      fire('mouseleave', STATION_DOTS_LAYER_ID)
+
+      expect(canvas.style.cursor).toBe('pointer')
+      expect(mockPopupRemove).not.toHaveBeenCalled()
+      expect(popupNode()?.textContent).toBe('38% of the way to merced — 19m short')
+    })
+
+    it('restores the station popup when the pointer leaves the cap onto a station still under it', () => {
+      const { fire, onHover } = setup()
+      fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))
+      fire('mouseenter', PROGRESS_CAP_HIT_LAYER_ID, capEvent('merced', 0.38, 1839))
+      mockPopupSetDOMContent.mockClear()
+      onHover.mockClear()
+
+      fire('mouseleave', PROGRESS_CAP_HIT_LAYER_ID)
+
+      expect(onHover).toHaveBeenCalledWith('sf')
+      expect(popupNode()?.textContent).toBe('San Francisco')
     })
   })
 

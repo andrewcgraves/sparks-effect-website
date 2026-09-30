@@ -9,15 +9,6 @@ import {
 } from '../api/prerenderedIsochrones'
 import type { ChainResponse } from '../fixtures/isochrone'
 
-/**
- * The isochrones a seeded scenario already ships plotted, offered alongside the
- * generate form rather than in place of it: picking one draws immediately
- * instead of spending a routing job and the wait that comes with it.
- *
- * It owns its own fetch, so a scenario with none of these — or a list request
- * that fails — costs the page nothing: the card is simply not there, and the
- * form beside it is unaffected either way.
- */
 const props = defineProps<{ slug: string; selectedId: string | null }>()
 
 const emit = defineEmits<{
@@ -25,19 +16,11 @@ const emit = defineEmits<{
   'update:selectedId': [id: string | null]
 }>()
 
-// useOwnedList over a closure rather than a slug-taking fetcher: the slug is a
-// prop, so there is nothing for the composable to pass that this cannot close
-// over. items stays empty while loading and after a failure, which is exactly
-// the three cases where this card renders nothing at all.
 const { items } = useOwnedList(() => listPrerenderedIsochrones(props.slug))
 
-// Which entry's chain is being fetched, so only that row reports itself busy.
 const pendingId = ref<string | null>(null)
 const detailError = ref<string | null>(null)
 
-// A rider can click a second entry before the first answers, and the payloads
-// here are large enough for that to be the common case rather than a race to
-// dismiss: whichever chain was asked for last is the one that gets drawn.
 const attempt = latestAttempt()
 
 const OUTDATED_HINT =
@@ -81,11 +64,6 @@ function summarise(entry: PrerenderedIsochroneSummary): string {
         v-for="entry in items"
         :key="entry.id"
       >
-        <!-- The pick that is currently drawn takes the coral fill this app
-             already uses for a pressed choice (TimeBetweenStations,
-             ServiceAuthoringView), so a selected entry reads the same here as
-             everywhere else. The group is what lets the second line and the
-             outdated chip re-colour themselves against that ground. -->
         <button
           type="button"
           class="group font-body text-body flex w-full cursor-pointer flex-col gap-1 rounded-(--radius-field) border border-border bg-white px-3 py-2 text-left text-ink transition-colors duration-200 ease-(--ease-smooth) hover:border-coral disabled:cursor-progress disabled:opacity-60 aria-pressed:border-coral aria-pressed:bg-coral aria-pressed:text-white"

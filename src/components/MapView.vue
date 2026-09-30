@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, watch } from 'vue'
-import { Map, FullscreenControl } from 'maplibre-gl'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { Map, FullscreenControl, setWorkerUrl } from 'maplibre-gl'
 import type { MapMouseEvent } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import { egressStationSlugs, isochroneLayerModule, isochroneLegend, resolveIsochroneColors } from '../composables/useIsochroneLayer'
 import { centerFromCorners, routeBoundsCorners, routeLayerModule } from '../composables/useRouteLayer'
 import { originMarkerModule } from '../composables/useOriginMarker'
-import { originWalkModule } from '../composables/useOriginWalkLayer'
+import { originWalkLine, originWalkModule } from '../composables/useOriginWalkLayer'
 import { RAW_STOP_LAYER_ID, stopPreviewModule } from '../composables/useStopPreviewLayer'
 import type { StopPreviewPair } from '../composables/useStopPreviewLayer'
 import { stopDragModule } from '../composables/useStopDrag'
@@ -15,8 +16,15 @@ import { mapModules } from '../composables/mapLifecycle'
 import { ISOCHRONE_BOUNDS_CORNERS, ISOCHRONE_CENTER, isochroneBoundsCorners } from '../fixtures/isochrone'
 import type { ChainResponse } from '../fixtures/isochrone'
 import { resolveMapStyleUrl } from '../mapStyle'
-import type { Route, Station, Service } from '../api/scenarios'
+import { readThemeToken } from '../themeTokens'
+import type { Route, Station } from '../api/scenarios'
 import type { SnapCoord as LatLng } from '../api/authoring/types'
+
+// maplibre-gl 6 finds its worker beside its own module via import.meta.url,
+// which a Vite bundle breaks: the worker is never emitted and no tiles load.
+// `?worker&url` emits it as a self-contained chunk; plain `?url` would drop
+// the shared module the worker imports.
+setWorkerUrl(maplibreWorkerUrl)
 
 const props = defineProps<{
   isochroneData: ChainResponse | null
@@ -24,22 +32,12 @@ const props = defineProps<{
   origin?: { lat: number; lng: number } | null
   routes: Route[]
   stations: Station[]
-  services: Service[]
   hideIsochroneLegend?: boolean
-  // Raw/snapped stop pairs for the service-authoring preview (draw the raw
-  // pin, the snapped pin, and a leader line between them). Absent by default
-  // — every other caller of this component leaves it unset.
   stopPreviewPairs?: StopPreviewPair[]
-  // Arms click-to-place: while set, a click on the map reports its coordinates
-  // through map-click instead of being ignored. The caller owns when it turns
-  // off — stop authoring keeps it on for a run of clicks, origin picking drops
-  // it after one — and says what the map is armed for through placementCue.
   placementArmed?: boolean
   placementCue?: string
-  // The station the page has highlighted, which this map is only one source of
-  // — the Time remaining card raises one too. Passed in rather than kept here
-  // so both surfaces read the same single reference.
   activeStation?: string | null
+  remainingSecs?: (slug: string) => number | null
 }>()
 
 const emit = defineEmits<{
@@ -51,24 +49,29 @@ const emit = defineEmits<{
 
 const ORIGIN_SNAP_ZOOM = 9
 
-/* Resolved once, from the CSS tokens, because MapLibre paints to WebGL and
-   cannot read CSS variables. The legend reads the same values so the key and
-   the fills can never drift apart. */
 const isochroneColors = resolveIsochroneColors()
-const legend = isochroneLegend(isochroneColors)
+// The line swatches are drawn with the same ends the map draws them with: the
+// starter walk runs from the origin pin to a reached station's ringed dot, and
+// an unfinished leg stops on a bare ink dot. Two thin dashed lines in navy and
+// near-black were otherwise indistinguishable at swatch size.
+const legendMarks = {
+  origin: readThemeToken('--color-coral'),
+  station: isochroneColors.egress,
+  ink: readThemeToken('--color-ink'),
+}
+const legend = computed(() =>
+  isochroneLegend(isochroneColors, {
+    unfinished: (props.isochroneData?.metadata.trip_progress?.length ?? 0) > 0,
+    starterWalk: originWalkLine(props.isochroneData) !== null,
+  }),
+)
 
 const mapContainer = ref<HTMLElement | null>(null)
 let map: Map | null = null
 let resizeObserver: ResizeObserver | null = null
 let hasFittedToSegments = false
 let hasFittedToRoutes = false
-// Map state, not module state: whether the style is up. Every module asks for
-// it, and none of them keeps its own copy.
 let isMapLoaded = false
-// The point last reported through map-click. A caller that turns a click into
-// the origin hands that same point straight back as a prop, and flying to
-// somewhere the user just clicked would only yank the view off what they were
-// aiming at — so that one origin is left to arrive without a camera move.
 let lastClickedPoint: LatLng | null = null
 
 const MAP_FIT_PADDING = { top: 56, bottom: 112, left: 56, right: 56 }
@@ -89,8 +92,6 @@ function fitMapToStaticFallback(): void {
   applyBoundsFit(ISOCHRONE_BOUNDS_CORNERS)
 }
 
-/* Routes load asynchronously from the scenario fetch, so this fit needs to
-   run both on the initial map load and again whenever routes arrive later. */
 function fitMapToRoutes(): boolean {
   const corners = routeBoundsCorners(props.routes)
   if (!corners) return false
@@ -115,59 +116,62 @@ function snapMapToOrigin(coords: { lat: number; lng: number }): void {
 
 function fitMapToIsochrone(data: ChainResponse): void {
   if (!map || data.features.length === 0) return
-  map.fitBounds(isochroneBoundsCorners(data.features), {
+  const corners = isochroneBoundsCorners(data.features)
+  // fitBounds throws on a corner it cannot read, and the throw escapes the
+  // watcher that called this — which is how one unreadable contour used to
+  // leave the camera wherever the rider had left it (SPA-320). A frame that
+  // cannot be computed is a frame not applied, not a dead watcher.
+  if (!corners.flat().every(Number.isFinite)) return
+  map.fitBounds(corners, {
     padding: MAP_FIT_PADDING,
     duration: 800,
   })
   hasFittedToSegments = true
 }
 
-// Everything drawn on this map, in dependency order: stop dragging binds its
-// listeners to the layer the stop preview creates, so the preview comes first.
-// Each entry decides for itself when it is ready and what it owns; this
-// component no longer keeps a flag per module or a guard per call site.
 const stopPreviewPairs = () => props.stopPreviewPairs ?? null
 
 const idleCursor = () => (props.placementArmed ? 'crosshair' : '')
 
+const routeLayer = routeLayerModule(
+  () => ({ routes: props.routes, stations: props.stations }),
+  () => props.isochroneData,
+  isochroneColors.egress,
+)
+
+const stationHighlight = stationHighlightModule({
+  idleCursor,
+  egressSlugs: () => egressStationSlugs(props.isochroneData),
+  activeSlug: () => props.activeStation ?? null,
+  remainingSecs: (slug) => props.remainingSecs?.(slug) ?? null,
+  stationName: (slug) => props.stations.find((s) => s.slug === slug)?.name ?? slug,
+  onHover: (slug) => emit('station-hover', slug),
+})
+stationHighlight.requires = [routeLayer]
+
+const stopPreview = stopPreviewModule(stopPreviewPairs)
+
+const stopDrag = stopDragModule(stopPreviewPairs, {
+  onDrag: (id, coord) => emit('stop-drag', id, coord),
+  onDragEnd: (id, coord) => emit('stop-drag-end', id, coord),
+  idleCursor,
+})
+stopDrag.requires = [stopPreview]
+
 const modules = mapModules([
-  routeLayerModule(
-    () => ({ routes: props.routes, stations: props.stations }),
-    () => props.isochroneData,
-    isochroneColors.egress,
-  ),
+  routeLayer,
   isochroneLayerModule(() => props.isochroneData, isochroneColors),
-  // After the isochrone, so the walk is drawn over the fill it crosses rather
-  // than under it, and in the same blue: it is the rider's own walk, which is
-  // what the origin fill is already about.
   originWalkModule({ data: () => props.isochroneData }, isochroneColors.origin),
   originMarkerModule(() => props.origin),
-  // After the isochrone: it dims and un-dims those layers' fill-opacity, which
-  // only exist once isochroneLayerModule has attached them. Also after
-  // routeLayerModule, whose station dots it binds its listeners to. It reads
-  // the plot too, to tell a station with a polygon to promote from one without.
-  stationHighlightModule({
-    idleCursor,
-    egressSlugs: () => egressStationSlugs(props.isochroneData),
-    activeSlug: () => props.activeStation ?? null,
-    onHover: (slug) => emit('station-hover', slug),
-  }),
-  stopPreviewModule(stopPreviewPairs),
-  stopDragModule(stopPreviewPairs, {
-    onDrag: (id, coord) => emit('stop-drag', id, coord),
-    onDragEnd: (id, coord) => emit('stop-drag-end', id, coord),
-    idleCursor,
-  }),
+  stationHighlight,
+  stopPreview,
+  stopDrag,
 ])
 
 function syncModules(): void {
   if (map) modules.sync(map, isMapLoaded)
 }
 
-// MapLibre suppresses its own click event when the pointer travelled further
-// than its click tolerance between press and release, so a drag-pan can never
-// reach here — panning an armed map does not drop a stop. Placing one only
-// mutates the caller's stop list; nothing here re-fits or re-centres the view.
 function handleMapClick(event: MapMouseEvent): void {
   if (!props.placementArmed) return
   // A press on a pin is a reposition, not a placement — a drag shorter than
@@ -180,9 +184,6 @@ function handleMapClick(event: MapMouseEvent): void {
   emit('map-click', lastClickedPoint)
 }
 
-// A crosshair marks the armed map, and double-click zoom steps aside so a
-// double-click cannot both place a stop and zoom. The cursor is set on the
-// canvas because MapLibre writes it inline, where a stylesheet can't reach.
 function applyPlacementMode(): void {
   if (!map) return
   map.getCanvas().style.cursor = props.placementArmed ? 'crosshair' : ''
@@ -192,8 +193,6 @@ function applyPlacementMode(): void {
 
 watch(() => props.placementArmed, applyPlacementMode)
 
-// The camera is this component's own: it owns the viewport, and no module has
-// any business moving it. What follows is only about where to look.
 watch(
   () => props.isochroneData,
   (data) => {
@@ -300,10 +299,7 @@ onUnmounted(() => {
       <span class="size-5 shrink-0 animate-spin rounded-full border-3 border-border border-t-coral" />
       <span>Generating isochrone…</span>
     </div>
-    <!-- Persistent while armed, because arming outlives the click that
-         triggered it: without a standing cue there is nothing on screen to
-         explain why the map is in a different mode. Takes the free top-left
-         corner from the isochrone key, which yields to it while armed. -->
+    
     <p
       v-if="placementArmed && placementCue"
       class="font-body text-caption pointer-events-none absolute top-3 left-3 z-1 rounded-(--radius-field) bg-white/92 px-3 py-2 text-ink shadow-(--shadow-panel)"
@@ -312,9 +308,7 @@ onUnmounted(() => {
     >
       {{ placementCue }}
     </p>
-    <!-- Top-left is the only corner MapLibre leaves free: attribution takes the
-         bottom (wrapping to two lines when narrow) and the fullscreen control
-         the top-right. Anywhere else the key's second row gets covered. -->
+    
     <aside
       v-if="!hideIsochroneLegend && !placementArmed"
       class="absolute top-3 left-3 z-1 rounded-(--radius-field) bg-white/92 px-3 py-2.5 shadow-(--shadow-panel)"
@@ -329,8 +323,69 @@ onUnmounted(() => {
           :key="entry.source"
           class="font-body text-caption flex items-center gap-2 text-ink"
         >
+          <svg
+            v-if="entry.swatch === 'walk'"
+            class="shrink-0"
+            width="28"
+            height="14"
+            viewBox="0 0 28 14"
+            aria-hidden="true"
+            :data-testid="`legend-swatch-${entry.source}`"
+          >
+            <line
+              x1="7"
+              y1="7"
+              x2="19"
+              y2="7"
+              :stroke="entry.color"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-dasharray="2 4"
+            />
+            <circle
+              cx="3.5"
+              cy="7"
+              r="2.5"
+              :fill="legendMarks.origin"
+            />
+            <circle
+              cx="23.5"
+              cy="7"
+              r="3.25"
+              :fill="legendMarks.station"
+              :stroke="legendMarks.ink"
+              stroke-width="1.5"
+            />
+          </svg>
+          <svg
+            v-else-if="entry.swatch === 'stub'"
+            class="shrink-0"
+            width="28"
+            height="14"
+            viewBox="0 0 28 14"
+            aria-hidden="true"
+            :data-testid="`legend-swatch-${entry.source}`"
+          >
+            <line
+              x1="2"
+              y1="7"
+              x2="19"
+              y2="7"
+              :stroke="entry.color"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-dasharray="2.5 7"
+            />
+            <circle
+              cx="23.5"
+              cy="7"
+              r="3.5"
+              :fill="entry.color"
+            />
+          </svg>
           <span
-            class="inline-block size-3.5 shrink-0 rounded-[3px] opacity-85"
+            v-else
+            class="inline-block h-3.5 w-7 shrink-0 rounded-[3px] opacity-85"
             :style="{ backgroundColor: entry.color }"
           />
           <span>{{ entry.label }}</span>

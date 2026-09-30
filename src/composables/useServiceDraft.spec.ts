@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
-import type { Job, Route, RouteSummary, SnapStopsResponse, Service } from '../api/authoring/types'
+import type { Job, Route, RouteSummary, SnapStopsResponse, Service, TransitGraph } from '../api/authoring/types'
 
 vi.mock('../api/authoring/routes', () => ({
   listRoutes: vi.fn(),
@@ -11,12 +11,21 @@ vi.mock('../api/authoring/routes', () => ({
 }))
 vi.mock('../api/authoring/services', () => ({
   createService: vi.fn(),
+  updateService: vi.fn(),
+  fetchService: vi.fn(),
+  fetchServiceGraph: vi.fn(),
   compileService: vi.fn(),
 }))
 
 import { PREVIEW_DEBOUNCE_MS, useServiceDraft } from './useServiceDraft'
 import { fetchRoute, listRoutes, snapStops } from '../api/authoring/routes'
-import { compileService, createService } from '../api/authoring/services'
+import {
+  compileService,
+  createService,
+  fetchService,
+  fetchServiceGraph,
+  updateService,
+} from '../api/authoring/services'
 import { ApiError } from '../api/authoring/client'
 import { useDraftsStore } from '../stores/drafts'
 
@@ -42,6 +51,31 @@ const stubService: Service = {
   frequency_windows: [],
 }
 
+// What the API reads back: stops out of order and carrying the fields it
+// derives, prose present, and the route named by id alone.
+const savedService: Service = {
+  id: 'svc1',
+  slug: 'northbound-express',
+  route_id: 'rt1',
+  name: 'Northbound Express',
+  subtext: 'Electrified · High-speed rail',
+  description: 'Runs the spine.',
+  stops: [
+    { name: 'B', lat: 37.33, lng: -121.88, seq: 1, slug: 'northbound-express-b', chainage_m: 1000, offset_m: 3 },
+    { name: 'A', lat: 37.77, lng: -122.41, seq: 0, slug: 'northbound-express-a', chainage_m: 0, offset_m: 2 },
+  ],
+  vehicle: { max_speed_kmh: 320, acceleration_ms2: 1.1, deceleration_ms2: 1.2, dwell_s: 45 },
+  frequency_windows: [{ start_time: '06:00', end_time: '22:00', headway_s: 900 }],
+}
+
+const savedGraph = { services: [], routes: [stubRoute] } as unknown as TransitGraph
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((r) => { resolve = r })
+  return { promise, resolve }
+}
+
 function snapResponse(overrides: Partial<SnapStopsResponse> = {}): SnapStopsResponse {
   return {
     route_slug: 'main-line',
@@ -58,8 +92,6 @@ function snapResponse(overrides: Partial<SnapStopsResponse> = {}): SnapStopsResp
 
 type Draft = ReturnType<typeof useServiceDraft>
 
-// Drives a draft to the point where canSubmit is true, which every submission
-// case below starts from.
 async function submittable(draft: Draft): Promise<void> {
   await draft.start()
   await draft.selectRoute('main-line')
@@ -80,6 +112,9 @@ describe('useServiceDraft', () => {
     vi.mocked(fetchRoute).mockResolvedValue(stubRoute)
     vi.mocked(snapStops).mockResolvedValue(snapResponse())
     vi.mocked(createService).mockResolvedValue(stubService)
+    vi.mocked(updateService).mockResolvedValue(savedService)
+    vi.mocked(fetchService).mockResolvedValue(savedService)
+    vi.mocked(fetchServiceGraph).mockResolvedValue(savedGraph)
     vi.mocked(compileService).mockResolvedValue({ id: 'job1', kind: 'compile_user_service', status: 'queued' } as Job)
     vi.stubGlobal('fetch', vi.fn())
   })
@@ -130,6 +165,282 @@ describe('useServiceDraft', () => {
       await draft.start()
 
       expect(draft.stops.value.map((s) => s.name)).toEqual(['Already here'])
+    })
+
+    it('draws the route a resumed draft already names, and previews its stops', async () => {
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft({
+        route_slug: 'main-line',
+        name: '',
+        stops: [{ name: 'A', lat: 37.77, lng: -122.41, seq: 0 }],
+        vehicle: stubService.vehicle,
+        frequency_windows: [],
+      })
+
+      const draft = useServiceDraft()
+      await draft.start()
+      await vi.advanceTimersByTimeAsync(PREVIEW_DEBOUNCE_MS)
+
+      expect(draft.selectedRoute.value).toEqual(stubRoute)
+      expect(snapStops).toHaveBeenCalledWith('main-line', [{ lat: 37.77, lng: -122.41 }])
+    })
+
+    it('keeps a route picked while the opening fetch was still in flight', async () => {
+      const opening = deferred<Route>()
+      const otherRoute: Route = { ...stubRoute, id: 'rt2', slug: 'other-line', name: 'Other Line' }
+      vi.mocked(fetchRoute).mockReturnValueOnce(opening.promise).mockResolvedValueOnce(otherRoute)
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft({ route_slug: 'main-line', name: '', stops: [], vehicle: stubService.vehicle, frequency_windows: [] })
+
+      const draft = useServiceDraft()
+      const started = draft.start()
+      await flushPromises()
+      await draft.selectRoute('other-line')
+      opening.resolve(stubRoute)
+      await started
+
+      expect(draft.selectedRoute.value).toEqual(otherRoute)
+    })
+
+    // Abandoning an edit leaves it in the one slot. Adopting it here would
+    // send it as a POST: a copy of a service that already exists.
+    it('does not adopt an edit left open, and hands back the create draft it set aside', async () => {
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft()
+      drafts.addStop({ name: 'Mine', lat: 1, lng: 2, seq: 0 })
+      drafts.startServiceDraft({ ...stubService, route_slug: 'main-line', stops: [] }, 'svc1')
+
+      const draft = useServiceDraft()
+      await draft.start()
+
+      expect(draft.stops.value.map((s) => s.name)).toEqual(['Mine'])
+      expect(drafts.editingServiceId).toBeNull()
+    })
+  })
+
+  describe('editing an existing service', () => {
+    it('opens with the service\'s stops, vehicle, windows and prose', async () => {
+      const draft = useServiceDraft('northbound-express')
+      await draft.start()
+
+      expect(fetchService).toHaveBeenCalledWith('northbound-express')
+      expect(draft.ready.value).toBe(true)
+      expect(draft.editing.value).toEqual(savedService)
+      expect(draft.draft.value).toEqual({
+        route_slug: 'main-line',
+        name: 'Northbound Express',
+        subtext: 'Electrified · High-speed rail',
+        description: 'Runs the spine.',
+        stops: [
+          { name: 'A', lat: 37.77, lng: -122.41, seq: 0 },
+          { name: 'B', lat: 37.33, lng: -121.88, seq: 1 },
+        ],
+        vehicle: { max_speed_kmh: 320, acceleration_ms2: 1.1, deceleration_ms2: 1.2, dwell_s: 45 },
+        frequency_windows: [{ start_time: '06:00', end_time: '22:00', headway_s: 900 }],
+      })
+      expect(useDraftsStore().editingServiceId).toBe('svc1')
+    })
+
+    it('recovers the route the service runs on and draws it', async () => {
+      const draft = useServiceDraft('northbound-express')
+      await draft.start()
+
+      expect(fetchServiceGraph).toHaveBeenCalledWith('northbound-express')
+      expect(draft.routeSlug.value).toBe('main-line')
+      expect(draft.routeMissing.value).toBe(false)
+      expect(draft.selectedRoute.value).toEqual(stubRoute)
+    })
+
+    it('previews where the stops it opened with snap to', async () => {
+      const draft = useServiceDraft('northbound-express')
+      await draft.start()
+      await vi.advanceTimersByTimeAsync(PREVIEW_DEBOUNCE_MS)
+      await flushPromises()
+
+      expect(snapStops).toHaveBeenCalledWith('main-line', [
+        { lat: 37.77, lng: -122.41 },
+        { lat: 37.33, lng: -121.88 },
+      ])
+      expect(draft.canSubmit.value).toBe(true)
+    })
+
+    it('opens without a route when the graph cannot say which, and waits for one to be picked', async () => {
+      vi.mocked(fetchServiceGraph).mockRejectedValue(new ApiError('no compiled graph', 404))
+      const draft = useServiceDraft('northbound-express')
+      await draft.start()
+
+      expect(draft.routeSlug.value).toBe('')
+      expect(draft.routeMissing.value).toBe(true)
+      expect(draft.canSubmit.value).toBe(false)
+      expect(draft.stops.value).toHaveLength(2)
+
+      await draft.selectRoute('main-line')
+
+      expect(draft.routeMissing.value).toBe(false)
+    })
+
+    it('saves with a PUT to the service, never a POST, and recompiles it', async () => {
+      const draft = useServiceDraft('northbound-express')
+      await draft.start()
+      await vi.advanceTimersByTimeAsync(PREVIEW_DEBOUNCE_MS)
+      await flushPromises()
+      draft.description.value = 'Runs the whole spine.'
+
+      await draft.submit()
+
+      expect(updateService).toHaveBeenCalledWith('northbound-express', expect.objectContaining({
+        route_slug: 'main-line',
+        description: 'Runs the whole spine.',
+      }))
+      expect(createService).not.toHaveBeenCalled()
+      expect(compileService).toHaveBeenCalledWith('northbound-express', expect.any(Object))
+      expect(draft.submitted.value).toBe(true)
+      expect(draft.createdSlug.value).toBeNull()
+      expect(useDraftsStore().hasServiceDraft).toBe(false)
+    })
+
+    it('keeps the edit and says why when the save is refused', async () => {
+      vi.mocked(updateService).mockRejectedValue(new ApiError('PUT /api/services/northbound-express failed: 422: nope', 422))
+      const draft = useServiceDraft('northbound-express')
+      await draft.start()
+
+      await draft.submit()
+
+      expect(draft.submitError.value).toBe("Some of this service's details weren't accepted. Check them and try again.")
+      expect(draft.submitted.value).toBe(false)
+      expect(useDraftsStore().editingServiceId).toBe('svc1')
+    })
+
+    it('sets aside a create draft in progress and hands it back once the edit is saved', async () => {
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft()
+      drafts.addStop({ name: 'Half-authored', lat: 1, lng: 2, seq: 0 })
+
+      const draft = useServiceDraft('northbound-express')
+      await draft.start()
+      expect(draft.stops.value.map((s) => s.name)).toEqual(['A', 'B'])
+
+      await draft.submit()
+
+      expect(drafts.editingServiceId).toBeNull()
+      expect(drafts.serviceDraft?.stops.map((s) => s.name)).toEqual(['Half-authored'])
+    })
+
+    it('shows no draft at all while the service is still loading, not the create draft in the slot', async () => {
+      const loading = deferred<Service>()
+      vi.mocked(fetchService).mockReturnValue(loading.promise)
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft()
+      drafts.addStop({ name: 'Half-authored', lat: 1, lng: 2, seq: 0 })
+
+      const draft = useServiceDraft('northbound-express')
+      const started = draft.start()
+      await flushPromises()
+
+      expect(draft.ready.value).toBe(false)
+      expect(draft.draft.value).toBeNull()
+      expect(draft.stops.value).toEqual([])
+
+      loading.resolve(savedService)
+      await started
+
+      expect(draft.stops.value.map((s) => s.name)).toEqual(['A', 'B'])
+    })
+
+    // The edit is persisted, so a reload must bring the author's unsaved
+    // changes back rather than reseeding over them from the server.
+    it('resumes an edit of the same service rather than reseeding it', async () => {
+      const first = useServiceDraft('northbound-express')
+      await first.start()
+      first.name.value = 'Renamed'
+      first.dispose()
+
+      const second = useServiceDraft('northbound-express')
+      await second.start()
+
+      expect(second.name.value).toBe('Renamed')
+      expect(fetchServiceGraph).toHaveBeenCalledTimes(1)
+    })
+
+    it('replaces an edit of another service that was left open', async () => {
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft({ ...stubService, route_slug: 'main-line', name: 'Other', stops: [] }, 'svc-other')
+
+      const draft = useServiceDraft('northbound-express')
+      await draft.start()
+
+      expect(draft.name.value).toBe('Northbound Express')
+      expect(drafts.editingServiceId).toBe('svc1')
+    })
+
+    it('reports a service that is not the caller\'s, and opens nothing', async () => {
+      vi.mocked(fetchService).mockRejectedValue(new ApiError('service not found', 404))
+      const draft = useServiceDraft('someone-elses')
+      await draft.start()
+
+      expect(draft.editNotFound.value).toBe(true)
+      expect(draft.editLoadFailed.value).toBe(false)
+      expect(draft.ready.value).toBe(false)
+      expect(listRoutes).not.toHaveBeenCalled()
+      expect(useDraftsStore().hasServiceDraft).toBe(false)
+    })
+
+    it('reports a service that fails to load for another reason', async () => {
+      vi.mocked(fetchService).mockRejectedValue(new Error('boom'))
+      const draft = useServiceDraft('northbound-express')
+      await draft.start()
+
+      expect(draft.editLoadFailed.value).toBe(true)
+      expect(draft.editNotFound.value).toBe(false)
+    })
+
+    it('discarding the edit hands the slot back to the create draft it set aside', async () => {
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft()
+      drafts.addStop({ name: 'Half-authored', lat: 1, lng: 2, seq: 0 })
+      const draft = useServiceDraft('northbound-express')
+      await draft.start()
+
+      draft.discardEdit()
+
+      expect(drafts.editingServiceId).toBeNull()
+      expect(drafts.serviceDraft?.stops.map((s) => s.name)).toEqual(['Half-authored'])
+    })
+
+    it('discarding before the edit ever opened leaves a create draft in the slot alone', async () => {
+      vi.mocked(fetchService).mockRejectedValue(new Error('boom'))
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft()
+      drafts.addStop({ name: 'Half-authored', lat: 1, lng: 2, seq: 0 })
+      const draft = useServiceDraft('northbound-express')
+      await draft.start()
+
+      draft.discardEdit()
+
+      expect(drafts.serviceDraft?.stops.map((s) => s.name)).toEqual(['Half-authored'])
+    })
+  })
+
+  describe('prose', () => {
+    it('writes the subtext and description through to the stored draft', async () => {
+      const draft = useServiceDraft()
+      await draft.start()
+
+      draft.subtext.value = 'Electrified · Light rail'
+      draft.description.value = 'Crosstown.'
+
+      expect(useDraftsStore().serviceDraft).toEqual(expect.objectContaining({
+        subtext: 'Electrified · Light rail',
+        description: 'Crosstown.',
+      }))
+    })
+
+    it('reads a draft without prose as empty prose', async () => {
+      const draft = useServiceDraft()
+      await draft.start()
+
+      expect(draft.subtext.value).toBe('')
+      expect(draft.description.value).toBe('')
     })
   })
 
@@ -309,6 +620,17 @@ describe('useServiceDraft', () => {
       expect(draft.canSubmit.value).toBe(false)
     })
 
+    // A service with no prose is a legitimate service, and the server agrees.
+    it('is ready with neither a subtext nor a description', async () => {
+      const draft = useServiceDraft()
+      await submittable(draft)
+
+      draft.subtext.value = ''
+      draft.description.value = ''
+
+      expect(draft.canSubmit.value).toBe(true)
+    })
+
     it('is not ready with no frequency window', async () => {
       const draft = useServiceDraft()
       await submittable(draft)
@@ -340,7 +662,7 @@ describe('useServiceDraft', () => {
   })
 
   describe('submitting', () => {
-    it('creates the service, clears the draft, and compiles it', async () => {
+    it('creates the service, clears the draft, and hands over its slug without compiling it', async () => {
       const draft = useServiceDraft()
       await submittable(draft)
 
@@ -350,9 +672,24 @@ describe('useServiceDraft', () => {
         route_slug: 'main-line',
         name: 'Northbound Express',
       }))
-      expect(compileService).toHaveBeenCalledWith('northbound-express')
-      expect(draft.submitted.value).toBe(true)
+      expect(compileService).not.toHaveBeenCalled()
+      expect(draft.createdSlug.value).toBe('northbound-express')
+      expect(draft.submitted.value).toBe(false)
       expect(useDraftsStore().serviceDraft).toBeNull()
+    })
+
+    it('sends the subtext and description with the service', async () => {
+      const draft = useServiceDraft()
+      await submittable(draft)
+      draft.subtext.value = 'Electrified · High-speed rail'
+      draft.description.value = 'Runs the spine.\n\nStops at every town.'
+
+      await draft.submit()
+
+      expect(createService).toHaveBeenCalledWith(expect.objectContaining({
+        subtext: 'Electrified · High-speed rail',
+        description: 'Runs the spine.\n\nStops at every town.',
+      }))
     })
 
     it('does nothing when the draft is not ready', async () => {
@@ -364,15 +701,16 @@ describe('useServiceDraft', () => {
       expect(createService).not.toHaveBeenCalled()
     })
 
-    it('keeps the draft and reports the message when the write is refused', async () => {
+    it('keeps the draft and says why when the write is refused', async () => {
       vi.mocked(createService).mockRejectedValue(new ApiError('POST /api/services failed: 422: nope', 422))
       const draft = useServiceDraft()
       await submittable(draft)
 
       await draft.submit()
 
-      expect(draft.submitError.value).toContain('nope')
+      expect(draft.submitError.value).toBe("Some of this service's details weren't accepted. Check them and try again.")
       expect(draft.submitted.value).toBe(false)
+      expect(draft.createdSlug.value).toBeNull()
       expect(draft.stops.value).toHaveLength(2)
       expect(compileService).not.toHaveBeenCalled()
     })
@@ -419,7 +757,7 @@ describe('useServiceDraft', () => {
 
       expect(draft.faultedStops.value.size).toBe(0)
       // The banner is the record of what happened, so it stays.
-      expect(draft.submitError.value).toContain('rejected')
+      expect(draft.submitError.value).toBe('Stop "B" is too far from the route. Move it onto the line and save again.')
     })
 
     it('leaves no stop flagged when the refusal is not one it recognizes', async () => {
@@ -430,22 +768,7 @@ describe('useServiceDraft', () => {
       await draft.submit()
 
       expect(draft.faultedStops.value.size).toBe(0)
-      expect(draft.submitError.value).toContain('500')
-    })
-
-    it('opens a fresh draft and clears the last refusal when starting another', async () => {
-      vi.mocked(createService).mockRejectedValue(new ApiError('failed: 422', 422))
-      const draft = useServiceDraft()
-      await submittable(draft)
-      await draft.submit()
-
-      draft.startAnother()
-
-      expect(draft.submitError.value).toBe('')
-      expect(draft.submitted.value).toBe(false)
-      expect(draft.stops.value).toEqual([])
-      expect(draft.preview.value).toBeNull()
-      expect(draft.selectedRoute.value).toBeNull()
+      expect(draft.submitError.value).toBe("Couldn't reach the server. Your draft is saved; try again.")
     })
   })
 

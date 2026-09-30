@@ -4,7 +4,15 @@ import { flushPromises } from '@vue/test-utils'
 import { ApiError } from '../api/authoring/client'
 import type { AuthoredIsochroneRequest, Job, TransitGraph } from '../api/authoring'
 import type { ChainResponse } from '../fixtures/isochrone'
+import { JobFailedError } from '../api/polling'
 import { useAuthoredGraph } from './useAuthoredGraph'
+
+vi.mock('../analytics/index', () => ({
+  trackIsochroneRequest: vi.fn(),
+  trackIsochroneError: vi.fn(),
+}))
+
+import { trackIsochroneError, trackIsochroneRequest } from '../analytics/index'
 
 const payload = { lat: 37.7, lng: -122.4, duration: 30, mode: 'walk' as const }
 const chain = { features: [] } as unknown as ChainResponse
@@ -26,10 +34,7 @@ const queuedJob = { id: 'job1', kind: 'compile_user_scenario', status: 'queued' 
 
 const stale = () => new ApiError('stale', 409, 'stale_graph')
 
-// The module takes its three endpoints as arguments, so the tests inject bare
-// spies rather than mocking an api module — which is also what lets one suite
-// cover the behaviour both the scenario and service pages rely on.
-let compile: Mock<(slug: string) => Promise<Job>>
+let compile: Mock<(slug: string, init?: RequestInit) => Promise<Job>>
 let fetchGraph: Mock<(slug: string) => Promise<TransitGraph>>
 let isochrone: Mock<(slug: string, request: AuthoredIsochroneRequest) => Promise<ChainResponse>>
 
@@ -37,8 +42,6 @@ function subject(getSlug: () => string | null = () => 'ca-hsr') {
   return useAuthoredGraph(getSlug, { compile, fetchGraph, isochrone })
 }
 
-// Compiling polls the job endpoint through the jobs store; a succeeding job
-// fetch is all this needs from the network.
 function succeedingJobFetch(result: unknown) {
   return vi.fn().mockResolvedValue({
     ok: true,
@@ -47,9 +50,6 @@ function succeedingJobFetch(result: unknown) {
   } as Response)
 }
 
-// A job that polls to 'failed': the compile call was accepted and the work blew
-// up afterwards, which reaches the caller by a different path from a compile
-// call that is refused outright.
 function failingJobFetch(error: string) {
   return vi.fn().mockResolvedValue({
     ok: true,
@@ -58,8 +58,6 @@ function failingJobFetch(error: string) {
   } as Response)
 }
 
-// Resolves only when the returned `release` is called, so a test can hold one
-// attempt open while a second overtakes it.
 function deferred<T>() {
   let release!: (value: T) => void
   const promise = new Promise<T>((resolve) => { release = resolve })
@@ -72,6 +70,8 @@ describe('useAuthoredGraph', () => {
     compile = vi.fn()
     fetchGraph = vi.fn()
     isochrone = vi.fn()
+    vi.mocked(trackIsochroneRequest).mockClear()
+    vi.mocked(trackIsochroneError).mockClear()
     vi.stubGlobal('fetch', succeedingJobFetch({ services: [] }))
   })
 
@@ -102,7 +102,7 @@ describe('useAuthoredGraph', () => {
 
       await loadGraph('ca-hsr')
 
-      expect(compile).toHaveBeenCalledWith('ca-hsr')
+      expect(compile).toHaveBeenCalledWith('ca-hsr', expect.any(Object))
       expect(graphFailed.value).toBe(false)
     })
 
@@ -147,7 +147,7 @@ describe('useAuthoredGraph', () => {
 
       await triggerCompile('ca-hsr')
 
-      expect(compile).toHaveBeenCalledWith('ca-hsr')
+      expect(compile).toHaveBeenCalledWith('ca-hsr', expect.any(Object))
       expect(graph.value).toEqual({ services: [{ service_id: 's1', edges: [], wait_secs: 0 }] })
       expect(compileError.value).toBe('')
       expect(compiling.value).toBe(false)
@@ -159,7 +159,7 @@ describe('useAuthoredGraph', () => {
 
       await triggerCompile('ca-hsr')
 
-      expect(compileError.value).toContain('compile blew up')
+      expect(compileError.value).toBe("Couldn't reach the server. Your draft is saved; try again.")
       expect(compiling.value).toBe(false)
     })
 
@@ -170,8 +170,25 @@ describe('useAuthoredGraph', () => {
 
       await triggerCompile('ca-hsr')
 
-      expect(compileError.value).toContain('disconnected stop')
+      expect(compileError.value).toBe("This service couldn't be compiled. Check its stops and timetable, then try again.")
       expect(graph.value).toBeNull()
+    })
+
+    it('words a failed compile in terms of the scenario it is compiling', async () => {
+      vi.stubGlobal('fetch', failingJobFetch('graph has a disconnected stop'))
+      compile.mockResolvedValue(queuedJob)
+      const { triggerCompile, compileError } = useAuthoredGraph(() => 'ca-hsr', {
+        compile,
+        fetchGraph,
+        isochrone,
+        noun: 'scenario',
+      })
+
+      await triggerCompile('ca-hsr')
+
+      expect(compileError.value).toBe(
+        "This scenario couldn't be compiled. Check its services and interchanges, then try again.",
+      )
     })
 
     // Only the isochrone endpoint answers 409 stale_graph; compile never has.
@@ -183,7 +200,7 @@ describe('useAuthoredGraph', () => {
       await triggerCompile('ca-hsr')
 
       expect(compile).toHaveBeenCalledTimes(1)
-      expect(compileError.value).toContain('stale')
+      expect(compileError.value).toBe('This service changed since it was last compiled. Compile it again, then retry.')
     })
 
     it('reports the form as loading while a compile is in flight', async () => {
@@ -211,6 +228,15 @@ describe('useAuthoredGraph', () => {
       expect(origin.value).toEqual({ lat: 37.7, lng: -122.4 })
     })
 
+    it('forwards transit mode on the isochrone request', async () => {
+      isochrone.mockResolvedValue(chain)
+      const { handleIsochroneSubmit } = subject()
+
+      await handleIsochroneSubmit({ ...payload, mode: 'transit' })
+
+      expect(isochrone).toHaveBeenCalledWith('ca-hsr', expect.objectContaining({ mode: 'transit' }))
+    })
+
     it('plots against whichever endpoints it was handed', async () => {
       isochrone.mockResolvedValue(chain)
       const { handleIsochroneSubmit } = subject(() => 'northbound-express')
@@ -233,7 +259,7 @@ describe('useAuthoredGraph', () => {
 
       await handleIsochroneSubmit(payload)
 
-      expect(compile).toHaveBeenCalledWith('ca-hsr')
+      expect(compile).toHaveBeenCalledWith('ca-hsr', expect.any(Object))
       expect(compile).toHaveBeenCalledTimes(1)
       expect(isochroneData.value).toEqual(chain)
       expect(isochroneError.value).toBeNull()
@@ -271,6 +297,56 @@ describe('useAuthoredGraph', () => {
       expect(compile).not.toHaveBeenCalled()
       expect(isochroneError.value).toBe('Failed to generate isochrone. Please try again.')
     })
+
+    it('fires trackIsochroneRequest on attempt with mode and budget', async () => {
+      isochrone.mockResolvedValue(chain)
+      const { handleIsochroneSubmit } = subject()
+
+      await handleIsochroneSubmit(payload)
+
+      expect(trackIsochroneRequest).toHaveBeenCalledWith('walk', 30)
+    })
+
+    it('fires trackIsochroneError with the HTTP status on an API error', async () => {
+      isochrone.mockRejectedValue(new ApiError('boom', 500))
+      const { handleIsochroneSubmit } = subject()
+
+      await handleIsochroneSubmit(payload)
+
+      expect(trackIsochroneError).toHaveBeenCalledWith('walk', 30, 500)
+    })
+  })
+
+  // SPA-230: a routing job the API gave up on — the isochrone service being
+  // down, chief among the reasons — carries its own reason, and that reason is
+  // what the user should see, on the authored pages the same as on the seeded
+  // one.
+  describe('a routing job the API failed', () => {
+    it('shows the API error text rather than the generic fallback', async () => {
+      isochrone.mockRejectedValue(
+        new JobFailedError(
+          'rj1',
+          "The isochrone service isn't responding right now. Please try again in a few minutes.",
+        ),
+      )
+      const { handleIsochroneSubmit, isochroneError } = subject()
+
+      await handleIsochroneSubmit(payload)
+
+      expect(compile).not.toHaveBeenCalled()
+      expect(isochroneError.value).toBe(
+        "The isochrone service isn't responding right now. Please try again in a few minutes.",
+      )
+    })
+
+    it('falls back to the generic message when the API gave no reason', async () => {
+      isochrone.mockRejectedValue(new JobFailedError('rj1', ''))
+      const { handleIsochroneSubmit, isochroneError } = subject()
+
+      await handleIsochroneSubmit(payload)
+
+      expect(isochroneError.value).toBe('Failed to generate isochrone. Please try again.')
+    })
   })
 
   // SPA-200. Unlike the seeded page, this measures against the compiled graph's
@@ -300,6 +376,15 @@ describe('useAuthoredGraph', () => {
 
       expect(isochrone).not.toHaveBeenCalled()
       expect(isochroneError.value).toContain('nearest station')
+    })
+
+    it('counts a refusal as an error, not as a request', async () => {
+      const { handleIsochroneSubmit } = await loadedOver(graphWithStationAt(100))
+
+      await handleIsochroneSubmit(payload)
+
+      expect(trackIsochroneRequest).not.toHaveBeenCalled()
+      expect(trackIsochroneError).toHaveBeenCalledWith('walk', 30, null)
     })
 
     it('leaves nothing spinning and no stale plot behind', async () => {
@@ -487,6 +572,79 @@ describe('useAuthoredGraph', () => {
 
       expect(isochroneData.value).toBeNull()
       expect(isochroneLoading.value).toBe(false)
+    })
+  })
+
+  // A publication's graph is pinned, and the reader has no session to compile
+  // with, so nothing that would compile runs for a target that cannot (SPA-359).
+  describe('a pinned target', () => {
+    function pinned(getSlug: () => string | null = () => 'ca-hsr') {
+      return useAuthoredGraph(getSlug, { fetchGraph, isochrone })
+    }
+
+    it('reads the pinned graph', async () => {
+      fetchGraph.mockResolvedValue(graphWithMerge)
+      const { loadGraph, graph, loadedGraph } = pinned()
+
+      await loadGraph('ca-hsr')
+
+      expect(graph.value).toEqual(graphWithMerge)
+      expect(loadedGraph.value).toEqual(graphWithMerge)
+    })
+
+    it('reports a 404 as not found instead of compiling', async () => {
+      fetchGraph.mockRejectedValue(new ApiError('not found', 404))
+      const fetchSpy = vi.fn()
+      vi.stubGlobal('fetch', fetchSpy)
+      const { loadGraph, graphNotFound, graphFailed, compiling, compileError } = pinned()
+
+      await loadGraph('ca-hsr')
+      await flushPromises()
+
+      expect(graphNotFound.value).toBe(true)
+      expect(graphFailed.value).toBe(false)
+      expect(compiling.value).toBe(false)
+      expect(compileError.value).toBe('')
+      expect(fetchSpy).not.toHaveBeenCalled()
+    })
+
+    it('reports any other failed read as a failure, not as not found', async () => {
+      fetchGraph.mockRejectedValue(new ApiError('boom', 500))
+      const { loadGraph, graphNotFound, graphFailed } = pinned()
+
+      await loadGraph('ca-hsr')
+
+      expect(graphFailed.value).toBe(true)
+      expect(graphNotFound.value).toBe(false)
+    })
+
+    it('reports a stale_graph as a fault without recompiling or retrying', async () => {
+      fetchGraph.mockResolvedValue({ services: [] } as unknown as TransitGraph)
+      isochrone.mockRejectedValue(stale())
+      const fetchSpy = vi.fn()
+      vi.stubGlobal('fetch', fetchSpy)
+      const { loadGraph, handleIsochroneSubmit, isochroneError, compiling } = pinned()
+
+      await loadGraph('ca-hsr')
+      await handleIsochroneSubmit(payload)
+      await flushPromises()
+
+      expect(isochrone).toHaveBeenCalledTimes(1)
+      expect(fetchSpy).not.toHaveBeenCalled()
+      expect(compiling.value).toBe(false)
+      expect(isochroneError.value).toBeTruthy()
+    })
+
+    it('does nothing when asked to compile', async () => {
+      const fetchSpy = vi.fn()
+      vi.stubGlobal('fetch', fetchSpy)
+      const { triggerCompile, compiling, compileError } = pinned()
+
+      await triggerCompile('ca-hsr')
+
+      expect(compiling.value).toBe(false)
+      expect(compileError.value).toBe('')
+      expect(fetchSpy).not.toHaveBeenCalled()
     })
   })
 })

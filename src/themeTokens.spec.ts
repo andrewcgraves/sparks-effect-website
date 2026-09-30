@@ -1,8 +1,4 @@
 /// <reference types="node" />
-/* Reads theme.css from disk so the fallbacks below cannot silently drift from it.
-   Vite's `?raw` is not an option: @tailwindcss/vite claims .css imports and returns
-   an empty string. Node types are referenced here rather than added to
-   tsconfig.app.json, which is deliberately DOM-only. */
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -28,7 +24,8 @@ describe('theme token fallbacks', () => {
   })
 
   it('falls back to the theme.css value when no stylesheet is loaded', () => {
-    // jsdom loads no stylesheet, so getComputedStyle resolves the custom property to ''.
+    // The DOM environment loads no stylesheet, so getComputedStyle resolves the
+    // custom property to '' and the fallback is what comes back.
     expect(readThemeToken('--color-data-origin')).toBe('#1034b1')
     expect(readThemeToken('--color-coral')).toBe('#e1665b')
   })

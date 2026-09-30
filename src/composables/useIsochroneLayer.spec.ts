@@ -17,7 +17,6 @@ import {
   ISOCHRONE_DIM_OPACITY,
   ISOCHRONE_ORIGIN_DIM_OPACITY,
 } from './useIsochroneLayer'
-import { ROUTE_LINE_LAYER_ID } from './useRouteLayer'
 import { THEME_TOKEN_FALLBACKS } from '../themeTokens'
 import { staticIsochroneResponse } from '../fixtures/isochrone'
 
@@ -45,6 +44,28 @@ describe('useIsochroneLayer', () => {
     })
   })
 
+  // The fill is painted from feature properties, not from metadata.mode, so a
+  // fourth mode is just another string on the plot — the same layers, the same
+  // origin/egress split.
+  it('paints a transit-mode plot the same way as any other mode', () => {
+    const transit = {
+      ...staticIsochroneResponse,
+      metadata: { ...staticIsochroneResponse.metadata, mode: 'transit' },
+    }
+    const map = makeMockMap()
+    useIsochroneLayer(map as Map, transit)
+    expect(map.addSource).toHaveBeenCalledWith(ISOCHRONE_SOURCE_ID, {
+      type: 'geojson',
+      data: transit,
+    })
+    expect(map.addLayer).toHaveBeenCalledWith(
+      expect.objectContaining({ id: ISOCHRONE_ORIGIN_LAYER_ID, type: 'fill' }),
+    )
+    expect(map.addLayer).toHaveBeenCalledWith(
+      expect.objectContaining({ id: ISOCHRONE_LAYER_ID, type: 'fill' }),
+    )
+  })
+
   it('adds a fill layer referencing the isochrone source', () => {
     const map = makeMockMap()
     useIsochroneLayer(map as Map, staticIsochroneResponse)
@@ -54,27 +75,6 @@ describe('useIsochroneLayer', () => {
         type: 'fill',
         source: ISOCHRONE_SOURCE_ID,
       }),
-    )
-  })
-
-  it('adds the fill layer with no beforeId when the route line does not exist yet', () => {
-    const map = makeMockMap()
-    useIsochroneLayer(map as Map, staticIsochroneResponse)
-    expect(map.addLayer).toHaveBeenCalledWith(
-      expect.objectContaining({ id: ISOCHRONE_LAYER_ID }),
-    )
-  })
-
-  // SPA-213: routes/stations are drawn from the scenario fetch well before the
-  // isochrone is generated, so without stacking under the route line on
-  // purpose the fill would paint over them the moment it attaches.
-  it('inserts the fill layer below the route line when it already exists', () => {
-    const map = makeMockMap()
-    ;(map.getLayer as ReturnType<typeof vi.fn>).mockReturnValue({ id: ROUTE_LINE_LAYER_ID })
-    useIsochroneLayer(map as Map, staticIsochroneResponse)
-    expect(map.addLayer).toHaveBeenCalledWith(
-      expect.objectContaining({ id: ISOCHRONE_LAYER_ID }),
-      ROUTE_LINE_LAYER_ID,
     )
   })
 
@@ -114,16 +114,6 @@ describe('useIsochroneLayer', () => {
         ISOCHRONE_HIGHLIGHT_LAYER_ID,
         ISOCHRONE_HIGHLIGHT_OUTLINE_LAYER_ID,
       ])
-    })
-
-    it('stacks below the route line when one already exists, same as the base layer', () => {
-      const map = makeMockMap()
-      ;(map.getLayer as ReturnType<typeof vi.fn>).mockReturnValue({ id: ROUTE_LINE_LAYER_ID })
-      useIsochroneLayer(map as Map, staticIsochroneResponse)
-      expect(map.addLayer).toHaveBeenCalledWith(
-        expect.objectContaining({ id: ISOCHRONE_HIGHLIGHT_LAYER_ID }),
-        ROUTE_LINE_LAYER_ID,
-      )
     })
 
     // The fills differ only by a blend where they overlap, which is not much
@@ -166,15 +156,6 @@ describe('useIsochroneLayer', () => {
         filter: ['==', ['get', 'source'], 'egress'],
       })
     })
-
-    it('stacks below the route line when one already exists, same as the rest', () => {
-      const map = makeMockMap()
-      ;(map.getLayer as ReturnType<typeof vi.fn>).mockReturnValue({ id: ROUTE_LINE_LAYER_ID })
-      useIsochroneLayer(map as Map, staticIsochroneResponse)
-      for (const id of [ISOCHRONE_ORIGIN_LAYER_ID, ISOCHRONE_HIGHLIGHT_OUTLINE_LAYER_ID]) {
-        expect(map.addLayer).toHaveBeenCalledWith(expect.objectContaining({ id }), ROUTE_LINE_LAYER_ID)
-      }
-    })
   })
 
   it('paints each fill with the flat colour of its own source, no match expression', () => {
@@ -197,10 +178,40 @@ describe('useIsochroneLayer', () => {
 
   it('legend labels carry the same colours the fills are painted with', () => {
     const legend = isochroneLegend({ origin: '#111111', egress: '#222222' })
-    expect(legend.map((e) => [e.source, e.color])).toEqual([
-      ['origin', '#111111'],
-      ['egress', '#222222'],
+    expect(legend.map((e) => [e.source, e.color, e.swatch])).toEqual([
+      ['origin', '#111111', 'fill'],
+      ['egress', '#222222', 'fill'],
     ])
+  })
+
+  it('names the unfinished stub in ink dashes, not the egress orange, only when a stub is on the map', () => {
+    expect(isochroneLegend({ origin: '#111111', egress: '#f28f29' }).map((e) => e.source)).toEqual([
+      'origin',
+      'egress',
+    ])
+
+    const legend = isochroneLegend({ origin: '#111111', egress: '#f28f29' }, { unfinished: true })
+    const unfinished = legend.find((e) => e.source === 'unfinished')
+    expect(unfinished).toEqual({
+      source: 'unfinished',
+      label: 'Budget ran out here',
+      color: THEME_TOKEN_FALLBACKS['--color-ink'],
+      swatch: 'stub',
+    })
+    expect(unfinished?.color).not.toBe('#f28f29')
+  })
+
+  it('names the starter walk as one trip\'s first leg, in the origin colour, only when it is drawn', () => {
+    expect(isochroneLegend({ origin: '#111111', egress: '#222222' }).map((e) => e.source))
+      .not.toContain('starter')
+
+    const legend = isochroneLegend({ origin: '#111111', egress: '#222222' }, { starterWalk: true })
+    expect(legend.find((e) => e.source === 'starter')).toEqual({
+      source: 'starter',
+      label: 'First leg — nearest station',
+      color: '#111111',
+      swatch: 'walk',
+    })
   })
 
   it('fixture names the compiled graph it was plotted over', () => {

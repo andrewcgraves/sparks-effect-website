@@ -9,7 +9,6 @@ import { ACTION_LINK_CLASS, LIST_CARD_LINK_CLASS } from '../components/linkStyle
 const auth = useAuthStore()
 const router = useRouter()
 
-// Independent failures: one list failing to load shouldn't hide the other.
 const { items: services, loading: servicesLoading, error: servicesError } = useOwnedList(fetchMyServices)
 const { items: scenarios, loading: scenariosLoading, error: scenariosError } = useOwnedList(fetchMyScenarios)
 

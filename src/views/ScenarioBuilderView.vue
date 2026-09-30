@@ -2,10 +2,11 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDraftsStore } from '../stores/drafts'
-import { ApiError } from '../api/authoring/client'
+import { authoringFault } from '../api/authoringFault'
 import { fetchMyServices } from '../api/authoring/services'
 import { createScenario } from '../api/authoring/scenarios'
 import type { Service } from '../api/authoring/types'
+import { PRIMARY_BUTTON_CLASS } from '../components/buttonStyles'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
 
 const router = useRouter()
@@ -49,11 +50,6 @@ const canSubmit = computed(() => {
   return draft.name.trim() !== '' && draft.service_ids.length > 0
 })
 
-// After saving, hand off to the scenario's own preview page rather than
-// plotting the isochrone inline here: /authoring/scenarios/:slug loads the
-// saved scenario, compiles it if needed, and plots against it — the same
-// experience, but reachable again later instead of only in this one post-save
-// session (and it opens on the drawn map rather than an empty one).
 async function handleSave(): Promise<void> {
   const draft = drafts.scenarioDraft
   if (!draft || !canSubmit.value) return
@@ -64,11 +60,10 @@ async function handleSave(): Promise<void> {
     drafts.clearScenarioDraft()
     await router.push({ name: 'scenario-detail', params: { slug: created.slug } })
   } catch (err) {
-    submitError.value = err instanceof ApiError ? err.message : 'Something went wrong saving the scenario.'
+    submitError.value = authoringFault(err, 'scenario')
     submitting.value = false
   }
 }
-
 </script>
 
 <template>
@@ -150,7 +145,7 @@ async function handleSave(): Promise<void> {
 
       <button
         type="submit"
-        class="font-display text-btn cursor-pointer rounded-(--radius-field) bg-coral px-4 py-2.5 text-white uppercase transition-colors duration-200 ease-(--ease-smooth) hover:bg-ink disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-coral"
+        :class="PRIMARY_BUTTON_CLASS"
         data-testid="save-scenario"
         :disabled="!canSubmit"
       >

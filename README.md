@@ -5,7 +5,7 @@ walking, biking, transit, and driving from an imaginary transit route, talking t
 
 ## Branching and releases
 
-One trunk: `main`. Branch from it, PR into it. Production is promoted in Vercel
+One trunk: `trunk`. Branch from it, PR into it. Production is promoted in Vercel
 from an existing build — see [`docs/releases.md`](docs/releases.md).
 
 ## Prerequisites
@@ -44,6 +44,22 @@ make dev
 Each target installs dependencies automatically if needed, so `make test`, `make lint`, `make build`,
 and `make run` all work from a clean checkout. `make dev-workflow` is the target to run for an
 end-to-end check (e.g. from an agent or pre-push hook) since it doesn't start a long-running server.
+
+## Analytics
+
+Page views come from `<Analytics />` (`@vercel/analytics/vue`, mounted in
+`src/App.vue`), which reports one per route change on its own. Our own events go
+through `src/analytics/`: the `track*()` helpers hand an `AnalyticsEvent` to
+whichever sink is configured — the console in dev, `vercelSink` in production
+builds (see `src/main.ts`). `vercelSink` deliberately drops `page_view` so
+navigations are not counted twice.
+
+Collection needs Web Analytics enabled for the project in the Vercel dashboard
+(Analytics → Enable), which is what serves `/_vercel/insights/*`.
+
+Custom events (`track()`) are a Pro/Enterprise feature. On a Hobby project, set
+`VITE_VERCEL_CUSTOM_EVENTS=off` so `vercelSink` stops them locally instead of
+posting to an endpoint that will not keep them; page views are unaffected.
 
 ## Project structure
 

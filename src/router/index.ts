@@ -8,6 +8,7 @@ import ScenarioBuilderView from '../views/ScenarioBuilderView.vue'
 import AuthoredServiceView from '../views/AuthoredServiceView.vue'
 import AuthoredScenarioView from '../views/AuthoredScenarioView.vue'
 import RouteView from '../views/RouteView.vue'
+import PublishedServiceView from '../views/PublishedServiceView.vue'
 import NotFoundView from '../views/NotFoundView.vue'
 import { trackPageView } from '../analytics/index'
 import { useAuthStore } from '../stores/auth'
@@ -49,9 +50,13 @@ export const router = createRouter({
       component: ScenarioBuilderView,
       meta: { requiresAuth: true },
     },
-    // Read-only detail pages for the signed-in user's own records. The /new
-    // forms above still win their paths: vue-router ranks a static segment
-    // above a param regardless of declaration order.
+    {
+      path: '/authoring/services/:slug/edit',
+      name: 'edit-service',
+      component: ServiceAuthoringView,
+      props: true,
+      meta: { requiresAuth: true },
+    },
     {
       path: '/authoring/services/:slug',
       name: 'service-detail',
@@ -65,6 +70,14 @@ export const router = createRouter({
       component: AuthoredScenarioView,
       props: true,
       meta: { requiresAuth: true },
+    },
+    // A publication, which anyone may read. The owner's draft stays behind
+    // sign-in at /authoring/services/:slug (ADR-0005 in sparks-effect-api).
+    {
+      path: '/services/:slug',
+      name: 'published-service',
+      component: PublishedServiceView,
+      props: true,
     },
     {
       path: '/routes/:slug',
@@ -80,8 +93,6 @@ export const router = createRouter({
   ],
 })
 
-// Invite-only auth: gate authoring routes behind sign-in, and keep a
-// signed-in user off the login page rather than showing it pointlessly.
 router.beforeEach((to) => {
   const auth = useAuthStore()
 

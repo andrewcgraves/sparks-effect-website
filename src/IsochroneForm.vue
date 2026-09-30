@@ -2,19 +2,25 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AddressAutocomplete from './components/AddressAutocomplete.vue'
 import SegmentedControl from './components/SegmentedControl.vue'
+import { PRIMARY_BUTTON_CLASS } from './components/buttonStyles'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from './components/fieldStyles'
 import type { GeocodingSuggestion } from './api/geocoding'
 import { reverseGeocode } from './api/geocoding'
 import { getCurrentPosition } from './api/geolocation'
 import { trackModeToggle } from './analytics/index'
+import { TRAVEL_MODES, type TravelMode } from './api/authoring/types'
 
-type Mode = 'walk' | 'bike' | 'drive'
+const MODE_LABELS: Record<TravelMode, string> = {
+  walk: 'Walk',
+  bike: 'Bike',
+  drive: 'Drive',
+  transit: 'Transit',
+}
 
-const MODE_OPTIONS: { value: Mode; label: string }[] = [
-  { value: 'walk', label: 'Walk' },
-  { value: 'bike', label: 'Bike' },
-  { value: 'drive', label: 'Drive' },
-]
+const MODE_OPTIONS: { value: TravelMode; label: string }[] = TRAVEL_MODES.map((value) => ({
+  value,
+  label: MODE_LABELS[value],
+}))
 
 const DURATION_OPTIONS = [45, 60, 75, 120, 180, 240]
 
@@ -31,10 +37,8 @@ const props = withDefaults(
 )
 
 const emit = defineEmits<{
-  submit: [payload: { lat: number; lng: number; duration: number; mode: Mode }]
+  submit: [payload: { lat: number; lng: number; duration: number; mode: TravelMode }]
   'origin-change': [origin: { lat: number; lng: number } | null]
-  // Reported rather than owned: the map that has to go into crosshair mode is
-  // the form's sibling, not its child, so the parent mirrors this onto MapView.
   'pick-armed': [armed: boolean]
 }>()
 
@@ -44,25 +48,19 @@ const duration = ref(60)
 const selectedLabel = ref('')
 const locationError = ref('')
 const locating = ref(false)
-const mode = ref<Mode>('walk')
+const mode = ref<TravelMode>('walk')
 const pickArmed = ref(false)
 const addressAutocompleteRef = ref<InstanceType<typeof AddressAutocomplete> | null>(null)
 let locationRequestId = 0
 
-// Shared origin parse used by both the submit gate and the origin-change watcher.
 function parseOrigin(latText: string, lngText: string): { lat: number; lng: number } | null {
   const parsedLat = parseFloat(latText)
   const parsedLng = parseFloat(lngText)
   return isFinite(parsedLat) && isFinite(parsedLng) ? { lat: parsedLat, lng: parsedLng } : null
 }
 
-// Duration is always one of DURATION_OPTIONS, so a parseable origin is the only
-// remaining gate.
 const isValid = computed(() => parseOrigin(lat.value, lng.value) !== null)
 
-// The fetch error is owned by the parent, but a stale error shouldn't linger once
-// the user starts fixing their input. Locally suppress it after any field edit; a
-// fresh error prop (including the null→message flip on the next submit) un-suppresses.
 const errorDismissed = ref(false)
 watch(() => props.error, () => {
   errorDismissed.value = false
@@ -82,16 +80,10 @@ watch(pickArmed, (armed) => {
   emit('pick-armed', armed)
 })
 
-// Typing an origin ends the pick, because the map is no longer waiting on the
-// user. The other ways in disarm at their own call sites rather than here, so
-// that re-picking or re-selecting the same coordinates still counts as setting
-// the origin even though the values never changed.
 watch([lat, lng], () => {
   pickArmed.value = false
 })
 
-// Global rather than scoped to the form: the click being cancelled is aimed at
-// the map, so that is where the user's attention (and often the focus) is.
 function handleKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape') pickArmed.value = false
 }
@@ -104,10 +96,6 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleKeydown)
 })
 
-// Called by the parent when a click lands on the armed map. One click is the
-// whole pick, so this disarms. Coordinates only — no reverse geocode — so the
-// address field is cleared rather than left naming somewhere the origin no
-// longer is, and it deliberately does not submit: generating stays explicit.
 function setOriginFromMap(coord: { lat: number; lng: number }) {
   if (!pickArmed.value) return
   pickArmed.value = false
@@ -159,7 +147,7 @@ async function onUseCurrentLocation() {
   }
 }
 
-function onModeChange(newMode: Mode) {
+function onModeChange(newMode: TravelMode) {
   mode.value = newMode
   trackModeToggle(newMode)
 }
@@ -262,7 +250,7 @@ function handleSubmit() {
       <legend class="font-body text-micro text-ink-muted italic uppercase">
         Mode
       </legend>
-      <div class="flex gap-4">
+      <div class="flex flex-wrap gap-x-4 gap-y-1.5">
         <label
           v-for="option in MODE_OPTIONS"
           :key="option.value"
@@ -284,7 +272,7 @@ function handleSubmit() {
 
     <button
       type="submit"
-      class="font-display text-btn mt-1 cursor-pointer rounded-(--radius-field) bg-coral px-4 py-2.5 text-white uppercase transition-colors duration-200 ease-(--ease-smooth) hover:bg-ink disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-coral"
+      :class="[PRIMARY_BUTTON_CLASS, 'mt-1']"
       :disabled="!isValid || loading"
     >
       {{ loading ? 'Generating…' : 'Generate isochrone' }}

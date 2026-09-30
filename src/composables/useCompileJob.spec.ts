@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useCompileJob } from './useCompileJob'
@@ -37,7 +39,7 @@ describe('useCompileJob', () => {
 
     await trigger('ca-hsr')
 
-    expect(compile).toHaveBeenCalledWith('ca-hsr')
+    expect(compile).toHaveBeenCalledWith('ca-hsr', expect.objectContaining({ headers: expect.any(Object) }))
     expect(compiling.value).toBe(false)
     expect(compileError.value).toBe('')
     expect(result.value).toEqual({ services: [{ service_id: 's1', edges: [], wait_secs: 0 }] })
@@ -61,7 +63,7 @@ describe('useCompileJob', () => {
     await trigger('ca-hsr')
 
     expect(compile).toHaveBeenCalledTimes(1)
-    expect(compileError.value).toBe('compile blew up')
+    expect(compileError.value).toBe('Something went wrong. Please try again.')
   })
 
   // Compile has never answered 409 stale_graph — only the isochrone endpoint
@@ -74,7 +76,7 @@ describe('useCompileJob', () => {
     await trigger('ca-hsr')
 
     expect(compile).toHaveBeenCalledTimes(1)
-    expect(compileError.value).toContain('still stale')
+    expect(compileError.value).toBe('This service changed since it was last compiled. Compile it again, then retry.')
   })
 
   it('ignores an attempt that a later trigger has superseded', async () => {
@@ -105,5 +107,32 @@ describe('useCompileJob', () => {
     expect(compiling.value).toBe(false)
     expect(compileError.value).toBe('')
     expect(result.value).toBeNull()
+  })
+
+  // SPA-205: the compile POST and every poll GET share one X-Trace-Id.
+  it('reuses one X-Trace-Id across the compile call and every poll', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          id: 'job1',
+          kind: 'compile_user_scenario',
+          status: 'succeeded',
+          result: { services: [] },
+        }),
+      } as Response),
+    )
+    const compile = vi.fn().mockResolvedValue({ id: 'job1', kind: 'compile_user_scenario', status: 'queued' } as Job)
+    const { trigger } = useCompileJob(compile)
+
+    await trigger('ca-hsr')
+
+    const compileInit = compile.mock.calls[0][1] as RequestInit
+    const compileTrace = new Headers(compileInit.headers).get('X-Trace-Id')
+    const pollTrace = new Headers(vi.mocked(fetch).mock.calls[0][1]?.headers).get('X-Trace-Id')
+    expect(compileTrace).toMatch(/^[0-9a-f-]{36}$/)
+    expect(pollTrace).toBe(compileTrace)
   })
 })

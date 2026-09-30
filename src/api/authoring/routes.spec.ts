@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fetchRoute, listRoutes, snapStops } from './routes'
 import type { Route, RouteSummary, SnapStopsResponse } from './types'

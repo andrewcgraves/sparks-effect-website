@@ -23,7 +23,6 @@ function scenario(name: string): ScenarioInput {
   return { name, description: 'Rush hour', service_ids: ['svc-1'] }
 }
 
-// A fresh Pinia with the same signed-in user stands in for a page reload.
 function reloadAs(userId: string) {
   setActivePinia(createPinia())
   useAuthStore().signIn(`tok-${userId}`, { id: userId })
@@ -207,7 +206,6 @@ describe('useDraftsStore', () => {
         vehicle: { max_speed_kmh: 90, acceleration_ms2: 1, deceleration_ms2: 1, dwell_s: 20 },
         frequency_windows: [],
       })
-      // A different view calling useDraftsStore() sees the same shared state.
       expect(useDraftsStore().serviceDraft?.name).toBe('Persisted')
     })
 
@@ -241,6 +239,56 @@ describe('useDraftsStore', () => {
         end_time: '22:00',
         headway_s: 1800,
       })
+    })
+  })
+
+  // One slot holds the service draft on screen. An edit opened over a create
+  // draft must not cost the author that create draft, which no API can hand back.
+  describe('an edit opened over a create draft', () => {
+    function createThenEdit() {
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft(service('Half-authored'))
+      drafts.takeStopNumber()
+      drafts.takeStopNumber()
+      drafts.startServiceDraft(service('Blue Line'), 'svc-1')
+      return drafts
+    }
+
+    it('sets the create draft aside rather than overwriting it', () => {
+      const drafts = createThenEdit()
+
+      expect(drafts.serviceDraft?.name).toBe('Blue Line')
+      expect(drafts.editingServiceId).toBe('svc-1')
+      expect(drafts.setAsideServiceDraft?.draft.name).toBe('Half-authored')
+    })
+
+    it('hands the slot back to the create draft, counter and all, once the edit is cleared', () => {
+      const drafts = createThenEdit()
+
+      drafts.clearServiceDraft()
+
+      expect(drafts.serviceDraft?.name).toBe('Half-authored')
+      expect(drafts.editingServiceId).toBeNull()
+      expect(drafts.setAsideServiceDraft).toBeNull()
+      expect(drafts.takeStopNumber()).toBe(3)
+    })
+
+    it('keeps the create draft aside when another edit displaces the first', () => {
+      const drafts = createThenEdit()
+
+      drafts.startServiceDraft(service('Red Line'), 'svc-2')
+      drafts.clearServiceDraft()
+
+      expect(drafts.serviceDraft?.name).toBe('Half-authored')
+    })
+
+    it('sets nothing aside when there was no create draft to protect', () => {
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft(service('Blue Line'), 'svc-1')
+
+      drafts.clearServiceDraft()
+
+      expect(drafts.hasServiceDraft).toBe(false)
     })
   })
 
@@ -471,7 +519,6 @@ describe('useDraftsStore', () => {
       expect(drafts.serviceDraft).toBeNull()
       expect(drafts.editingServiceId).toBeNull()
 
-      // Signing back in returns the work rather than silently discarding it.
       expect(reloadAs('u1').serviceDraft?.name).toBe('Blue Line')
     })
 
@@ -526,6 +573,46 @@ describe('useDraftsStore', () => {
       expect(restored.scenarioDraft?.name).toBe('Peak service')
     })
 
+    it('restores a service draft stored before services had prose', () => {
+      // Exactly what an older build wrote: no subtext or description key at all.
+      const legacy = {
+        route_slug: 'main-line',
+        name: 'Blue Line',
+        stops: [stop('Stop 3', 0)],
+        vehicle: { max_speed_kmh: 90, acceleration_ms2: 1, deceleration_ms2: 1, dwell_s: 20 },
+        frequency_windows: [{ start_time: '06:00', end_time: '09:00', headway_s: 600 }],
+      }
+      window.localStorage.setItem(
+        draftsStorageKey('u1'),
+        JSON.stringify({ serviceDraft: legacy, editingServiceId: 'svc-1', serviceStopCounter: 7 }),
+      )
+
+      const restored = reloadAs('u1')
+      expect(restored.serviceDraft).toEqual(legacy)
+      expect(restored.editingServiceId).toBe('svc-1')
+      expect(restored.takeStopNumber()).toBe(8)
+    })
+
+    it('restores a service draft\'s subtext and description after a reload', async () => {
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft(service('Blue Line'))
+      drafts.patchServiceDraft({ subtext: 'Electrified · Light rail', description: 'First line.\n\nSecond.' })
+      await nextTick()
+
+      const restored = reloadAs('u1')
+      expect(restored.serviceDraft?.subtext).toBe('Electrified · Light rail')
+      expect(restored.serviceDraft?.description).toBe('First line.\n\nSecond.')
+    })
+
+    it.each([
+      ['subtext', 42],
+      ['description', null],
+    ])('discards a draft whose %s is not text', (field, value) => {
+      const corrupt = { ...service('Blue Line'), [field]: value }
+      window.localStorage.setItem(draftsStorageKey('u1'), JSON.stringify({ serviceDraft: corrupt }))
+      expect(reloadAs('u1').serviceDraft).toBeNull()
+    })
+
     it('discards a draft whose stops are malformed', () => {
       const corrupt = { ...service('Blue Line'), stops: [{ lat: 34.05, name: 'A' }] }
       window.localStorage.setItem(draftsStorageKey('u1'), JSON.stringify({ serviceDraft: corrupt }))
@@ -538,6 +625,61 @@ describe('useDraftsStore', () => {
         JSON.stringify({ serviceDraft: null, editingServiceId: 'svc-1' }),
       )
       expect(reloadAs('u1').editingServiceId).toBeNull()
+    })
+
+    it('restores a create draft set aside beneath an edit after a reload', async () => {
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft(service('Half-authored'))
+      drafts.startServiceDraft(service('Blue Line'), 'svc-1')
+      await nextTick()
+
+      const restored = reloadAs('u1')
+      expect(restored.serviceDraft?.name).toBe('Blue Line')
+      restored.clearServiceDraft()
+      expect(restored.serviceDraft?.name).toBe('Half-authored')
+    })
+
+    it('persists the create draft a cleared edit handed back', async () => {
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft(service('Half-authored'))
+      drafts.startServiceDraft(service('Blue Line'), 'svc-1')
+      drafts.clearServiceDraft()
+      await nextTick()
+
+      expect(persisted('u1')?.serviceDraft?.name).toBe('Half-authored')
+      expect(persisted('u1')?.setAsideServiceDraft).toBeNull()
+    })
+
+    it('hands the slot back to the set-aside draft when the edit above it did not survive', () => {
+      window.localStorage.setItem(
+        draftsStorageKey('u1'),
+        JSON.stringify({
+          serviceDraft: { name: 'corrupt' },
+          editingServiceId: 'svc-1',
+          setAsideServiceDraft: { draft: service('Half-authored'), stopCounter: 4 },
+        }),
+      )
+
+      const restored = reloadAs('u1')
+      expect(restored.serviceDraft?.name).toBe('Half-authored')
+      expect(restored.editingServiceId).toBeNull()
+      expect(restored.setAsideServiceDraft).toBeNull()
+      expect(restored.takeStopNumber()).toBe(5)
+    })
+
+    it('discards a malformed set-aside draft but keeps the edit above it', () => {
+      window.localStorage.setItem(
+        draftsStorageKey('u1'),
+        JSON.stringify({
+          serviceDraft: service('Blue Line'),
+          editingServiceId: 'svc-1',
+          setAsideServiceDraft: { draft: { name: 'corrupt' }, stopCounter: 4 },
+        }),
+      )
+
+      const restored = reloadAs('u1')
+      expect(restored.serviceDraft?.name).toBe('Blue Line')
+      expect(restored.setAsideServiceDraft).toBeNull()
     })
 
     it('keeps the draft in memory when storage rejects the write', async () => {

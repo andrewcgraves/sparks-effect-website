@@ -1,19 +1,14 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { TOGGLE_BUTTON_CLASS } from './buttonStyles'
 import { formatRunTime } from './stationTimes'
 import type { StationTimeGroup } from './stationTimes'
 
-// The compile table's adjacent-segment run times, on the isochrone screens.
-// Purely presentational: callers turn their own data — a compiled graph on the
-// authored pages, seeded travel times on the scenario page — into groups, so
-// this knows only about hops and the directions they can be read in.
 const props = defineProps<{
   groups: StationTimeGroup[]
   loading?: boolean
 }>()
 
-// Which direction each group is being read in, by group key. Absent means the
-// first, so a group arrives in stop order without seeding this.
 const chosen = ref<Record<string, number>>({})
 
 function chosenIndex(group: StationTimeGroup): number {
@@ -65,7 +60,7 @@ function choose(group: StationTimeGroup, index: number): void {
           {{ group.label }}
         </h3>
 
-        <!-- A service compiled one way has nothing to toggle between. -->
+        
         <div
           v-if="group.directions.length > 1"
           class="mt-2 flex flex-wrap gap-2"
@@ -74,7 +69,7 @@ function choose(group: StationTimeGroup, index: number): void {
             v-for="(direction, index) in group.directions"
             :key="direction.terminus"
             type="button"
-            class="font-display text-btn cursor-pointer rounded-(--radius-field) border border-border px-3 py-1.5 uppercase hover:bg-white aria-pressed:border-coral aria-pressed:bg-coral aria-pressed:text-white"
+            :class="TOGGLE_BUTTON_CLASS"
             :aria-pressed="chosenIndex(group) === index"
             data-testid="direction-toggle"
             @click="choose(group, index)"

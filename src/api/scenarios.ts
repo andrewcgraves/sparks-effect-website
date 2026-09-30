@@ -1,5 +1,4 @@
-import { listRoutes } from './authoring/routes'
-import { newTraceId } from './traceId'
+import { apiRequest } from './authoring/client'
 
 export type Provenance = 'computed' | 'calibrated' | 'frozen'
 
@@ -38,11 +37,6 @@ export interface FrequencyWindow {
 
 export interface Service {
   id: string
-  // The line this service runs over. Several services can share one — an
-  // express and a local pattern are two services and one route — so this is
-  // what to group by when presenting the network as lines. Optional: an API
-  // older than SPA-223 does not report it, and a caller that needs it has to
-  // cope with not being told.
   route_id?: string
   name: string
   vehicle_type: VehicleTypeSummary
@@ -52,24 +46,14 @@ export interface Service {
   frequency_windows: FrequencyWindow[]
 }
 
-// Run-time-only seconds for one adjacent station pair, stored in the service's
-// own direction. Absent reverse_run_seconds means the reverse hop reuses the
-// forward duration; a present value is the reverse-direction run time.
 export interface SegmentTime {
   from: string
   to: string
   run_seconds: number
   reverse_run_seconds?: number
-  // The line this hop belongs to. A scenario's segments are several corridors
-  // laid end to end, not one path, so this is what to group by before reading
-  // them in stop order. Optional for the same reason as Service.route_id: an
-  // older API does not report it, and the caller has to cope with not being
-  // told.
   route_id?: string
 }
 
-// A seeded scenario's adjacent-segment run times. The full origin–destination
-// matrix is deliberately not served; callers sum consecutive segments.
 export interface TravelTimes {
   scenario_slug: string
   provenance: Provenance
@@ -88,24 +72,12 @@ export interface ScenarioDetail {
   services: Service[]
 }
 
-function apiBase(): string {
-  return import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
+export function fetchScenario(scenarioSlug: string): Promise<ScenarioDetail> {
+  return apiRequest<ScenarioDetail>(`/api/scenarios/${scenarioSlug}`)
 }
 
-export async function fetchScenario(scenarioSlug: string): Promise<ScenarioDetail> {
-  const res = await fetch(`${apiBase()}/api/scenarios/${scenarioSlug}`, {
-    headers: { 'X-Trace-Id': newTraceId() },
-  })
-  if (!res.ok) throw new Error(`Failed to fetch scenario ${scenarioSlug}: ${res.status}`)
-  return res.json() as Promise<ScenarioDetail>
-}
-
-export async function fetchScenarioTravelTimes(scenarioSlug: string): Promise<TravelTimes> {
-  const res = await fetch(`${apiBase()}/api/scenarios/${scenarioSlug}/travel-times`, {
-    headers: { 'X-Trace-Id': newTraceId() },
-  })
-  if (!res.ok) throw new Error(`Failed to fetch travel times for ${scenarioSlug}: ${res.status}`)
-  return res.json() as Promise<TravelTimes>
+export function fetchScenarioTravelTimes(scenarioSlug: string): Promise<TravelTimes> {
+  return apiRequest<TravelTimes>(`/api/scenarios/${scenarioSlug}/travel-times`)
 }
 
 export interface ScenarioSummary {
@@ -114,20 +86,9 @@ export interface ScenarioSummary {
   description: string
 }
 
-// The seeded /api/scenarios read has no "list all"; always try this one even
-// if listRoutes (below) comes back empty or fails.
-export const FEATURED_SCENARIO_SLUGS = ['ca-hsr']
-
-// Fetches every scenario worth featuring on the home page: the known slug(s)
-// above, plus one per published route (/api/routes is public and unscoped,
-// unlike the owner-scoped /api/user-scenarios). A route without a same-slug
-// scenario just 404s and is dropped, same as any other unresolved slug.
-export async function fetchFeaturedScenarios(): Promise<ScenarioSummary[]> {
-  const routeSlugs = await listRoutes().then((routes) => routes.map((route) => route.slug)).catch(() => [])
-  const slugs = Array.from(new Set([...FEATURED_SCENARIO_SLUGS, ...routeSlugs]))
-
-  const results = await Promise.allSettled(slugs.map((slug) => fetchScenario(slug)))
-  return results
-    .filter((result): result is PromiseFulfilledResult<ScenarioDetail> => result.status === 'fulfilled')
-    .map(({ value }) => ({ slug: value.slug, name: value.name, description: value.description }))
+// The curated list only: GET /api/scenarios never serves an owned scenario, and
+// a published service is a different model with its own index
+// (listPublishedServices).
+export function listCuratedScenarios(): Promise<ScenarioSummary[]> {
+  return apiRequest<ScenarioSummary[]>('/api/scenarios')
 }

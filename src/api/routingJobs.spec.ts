@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   BACKLOG_FULL_CODE,
@@ -30,7 +32,6 @@ function routingJob(overrides: Partial<RoutingJob> = {}): RoutingJob {
   }
 }
 
-// The 202 the isochrone endpoints answer with, and the 200s the poll reads.
 function enqueued(): Response {
   return { ok: true, status: 202, json: async () => routingJob() } as Response
 }
@@ -57,6 +58,15 @@ describe('fetchRoutingJob', () => {
     const url = vi.mocked(fetch).mock.calls[0][0] as string
     expect(url).toContain('/api/routing-jobs/rj1')
     expect(result).toEqual(routingJob({ status: 'running' }))
+  })
+
+  it('sends a caller-supplied X-Trace-Id rather than minting a new one', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(polled({ status: 'running' }))
+
+    await fetchRoutingJob('rj1', { headers: { 'X-Trace-Id': 'job-trace' } })
+
+    const headers = new Headers(vi.mocked(fetch).mock.calls[0][1]?.headers)
+    expect(headers.get('X-Trace-Id')).toBe('job-trace')
   })
 })
 
@@ -188,11 +198,48 @@ describe('enqueueIsochrone', () => {
     // One poll, then out of budget — not a second full deadline's worth.
     expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2)
   })
+
+  // SPA-205: an isochrone is one logical job, not one HTTP call. The enqueue
+  // and every poll share an X-Trace-Id so grepping logs for that id
+  // reconstructs the whole wait — not just the POST whose id reaches the
+  // routing worker.
+  it('reuses one X-Trace-Id across the enqueue and every poll', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(enqueued())
+      .mockResolvedValueOnce(polled({ status: 'queued' }))
+      .mockResolvedValueOnce(polled({ status: 'running' }))
+      .mockResolvedValueOnce(polled({ status: 'succeeded', result: stubChain }))
+
+    const promise = enqueueIsochrone('/api/isochrone', params)
+
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.advanceTimersByTimeAsync(1000)
+    await vi.advanceTimersByTimeAsync(1000)
+
+    await expect(promise).resolves.toEqual(stubChain)
+
+    const ids = vi.mocked(fetch).mock.calls.map(([, init]) => new Headers(init?.headers).get('X-Trace-Id'))
+    expect(ids).toHaveLength(4)
+    expect(ids[0]).toMatch(/^[0-9a-f-]{36}$/)
+    expect(new Set(ids).size).toBe(1)
+  })
+
+  it('mints a different X-Trace-Id for each enqueued job', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(enqueued())
+      .mockResolvedValueOnce(polled({ status: 'succeeded', result: stubChain }))
+      .mockResolvedValueOnce(enqueued())
+      .mockResolvedValueOnce(polled({ status: 'succeeded', result: stubChain }))
+
+    await enqueueIsochrone('/api/isochrone', params)
+    await enqueueIsochrone('/api/isochrone', params)
+
+    const first = new Headers(vi.mocked(fetch).mock.calls[0][1]?.headers).get('X-Trace-Id')
+    const second = new Headers(vi.mocked(fetch).mock.calls[2][1]?.headers).get('X-Trace-Id')
+    expect(first).not.toBe(second)
+  })
 })
 
-// SPA-219: the API caps how much routing work may be in flight and refuses the
-// enqueue with 429 + `backlog_full` once it is full. Nothing about the request
-// is wrong, so the reader gets told to wait rather than that it failed.
 describe('backlogFullError', () => {
   it('reads a refused enqueue and returns a message saying to try again', () => {
     const err = new ApiError('POST /api/isochrone failed: 429', 429, BACKLOG_FULL_CODE)

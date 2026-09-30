@@ -4,7 +4,6 @@
 @import './theme.css';
 
 :root {
-  /* Light only — a real dark mode would need a second basemap. */
   color-scheme: light;
 }
 
@@ -45,4 +44,15 @@ body {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
   }
+}
+
+.maplibregl-popup.tooltip-popup .maplibregl-popup-content {
+  background: none;
+  box-shadow: none;
+  padding: 0;
+  border-radius: 0;
+}
+
+.maplibregl-popup.tooltip-popup .maplibregl-popup-tip {
+  display: none;
 }

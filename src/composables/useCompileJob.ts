@@ -1,21 +1,14 @@
 import { ref } from 'vue'
 import { useJobsStore } from '../stores/jobs'
 import { latestAttempt } from './latestAttempt'
+import { newTraceId, traceHeaders } from '../api/traceId'
 import type { Job, TransitGraph } from '../api/authoring'
+import { authoringFault, type AuthoringNoun } from '../api/authoringFault'
 
-/**
- * Fires a compile endpoint and tracks the resulting job to completion.
- *
- * This is the compile -> poll adapter beneath useAuthoredGraph, and it is also
- * the whole of what the service authoring form needs: that form compiles a
- * service it has just created, so there is no existing graph of its own that
- * could have gone stale underneath it.
- *
- * Stale-graph recovery deliberately does not live here. Only the isochrone
- * endpoint answers 409 stale_graph, so useAuthoredGraph owns that retry and its
- * bound (SPA-148). This used to retry it too, on a branch nothing could reach.
- */
-export function useCompileJob(compile: (slug: string) => Promise<Job>) {
+export function useCompileJob(
+  compile: (slug: string, init?: RequestInit) => Promise<Job>,
+  noun: AuthoringNoun = 'service',
+) {
   const jobs = useJobsStore()
   const compiling = ref(false)
   const compileError = ref('')
@@ -30,13 +23,15 @@ export function useCompileJob(compile: (slug: string) => Promise<Job>) {
     compiling.value = true
     compileError.value = ''
     try {
-      const job = await compile(slug)
-      const finished = await jobs.track(job.id)
+      // One id for the compile POST and every poll of that job (SPA-205).
+      const traceId = newTraceId()
+      const job = await compile(slug, { headers: traceHeaders(traceId) })
+      const finished = await jobs.track(job.id, { traceId })
       if (!attempts.isCurrent(attempt)) return
       result.value = finished.result ?? null
     } catch (err) {
       if (!attempts.isCurrent(attempt)) return
-      compileError.value = err instanceof Error ? err.message : 'Compile failed.'
+      compileError.value = authoringFault(err, noun)
     } finally {
       // Left alone when superseded: the attempt that replaced this one set it,
       // and owns clearing it.

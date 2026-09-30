@@ -1,19 +1,16 @@
 <script setup lang="ts">
+import { computed, ref } from 'vue'
 import IsochroneForm from '../IsochroneForm.vue'
 import MapView from './MapView.vue'
+import TimeRemaining from './TimeRemaining.vue'
 import { ORIGIN_PICK_CUE } from './placementCues'
+import { buildTimeRemainingGraph, remainingSecsBySlug } from './timeRemaining'
 import { useOriginPick } from '../composables/useOriginPick'
 import type { NearMiss, Service, StopCluster } from '../api/authoring/types'
 import type { Route, Station } from '../api/scenarios'
 import type { ChainResponse } from '../fixtures/isochrone'
 import type { IsochronePayload } from '../composables/useAuthoredGraph'
 
-// The preview half of a compiled scenario or service — map, plot form, and what
-// the merge did. Shared by the detail pages at /authoring/scenarios/:slug and
-// /authoring/services/:slug, which show the same thing and differ only in the
-// status note above the reports. Nothing here is scenario-specific: a lone
-// service is the degenerate one-member case, so it passes itself as the single
-// entry in `services`.
 const props = defineProps<{
   origin: { lat: number; lng: number } | null
   isochroneData: ChainResponse | null
@@ -21,8 +18,7 @@ const props = defineProps<{
   error: string | null
   nearMisses: NearMiss[]
   realisedClusters: StopCluster[]
-  services: Service[]
-  // The compiled graph as map layers: stop dots and the lines between them.
+  services: Pick<Service, 'id' | 'name'>[]
   mapStations?: Station[]
   mapRoutes?: Route[]
   statusNote?: string | null
@@ -33,13 +29,28 @@ defineEmits<{
   'origin-change': [coords: { lat: number; lng: number } | null]
 }>()
 
-// A picked origin reaches the page above this panel the usual way, as an
-// origin-change out of the form, so nothing extra is emitted for it.
 const { pickArmed, onMapClick } = useOriginPick()
 
-// Near-misses and clusters name stops by service_id; the compile result does
-// not carry display names, so resolve them against the caller's service list
-// rather than have the result carry names twice.
+const timeRemaining = computed(() =>
+  buildTimeRemainingGraph(props.isochroneData?.metadata ?? null, {
+    stationName: (slug) => props.mapStations?.find((station) => station.slug === slug)?.name ?? slug,
+    serviceName: (id) => props.services.find((service) => service.id === id)?.name ?? id,
+    mode: props.isochroneData?.metadata.mode ?? 'walk',
+  }),
+)
+
+const remainingBySlug = computed(() => remainingSecsBySlug(timeRemaining.value))
+
+const activeStation = ref<{ slug: string; fromMap: boolean } | null>(null)
+
+function highlight(slug: string | null, fromMap: boolean): void {
+  activeStation.value = slug ? { slug, fromMap } : null
+}
+
+function remainingSecs(slug: string): number | null {
+  return remainingBySlug.value(slug)
+}
+
 function serviceName(serviceId: string): string {
   return props.services.find((service) => service.id === serviceId)?.name ?? serviceId
 }
@@ -58,10 +69,12 @@ function formatMeters(total: number): string {
         :loading="props.loading"
         :routes="props.mapRoutes ?? []"
         :stations="props.mapStations ?? []"
-        :services="[]"
         :placement-armed="pickArmed"
         :placement-cue="ORIGIN_PICK_CUE"
+        :active-station="activeStation?.slug ?? null"
+        :remaining-secs="remainingSecs"
         @map-click="onMapClick"
+        @station-hover="highlight($event, true)"
       />
     </div>
 
@@ -82,6 +95,14 @@ function formatMeters(total: number): string {
       >
         {{ props.statusNote }}
       </p>
+
+      <TimeRemaining
+        v-if="timeRemaining.views.length"
+        :views="timeRemaining.views"
+        :active-slug="activeStation?.slug ?? null"
+        :active-from-map="activeStation?.fromMap ?? false"
+        @activate="highlight($event, false)"
+      />
 
       <section
         v-if="props.nearMisses.length"

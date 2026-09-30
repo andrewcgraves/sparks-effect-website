@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import MapView from '../components/MapView.vue'
-import { useRouteDetail } from '../composables/useRouteDetail'
+import { fetchRoute } from '../api/authoring/routes'
+import type { Route } from '../api/authoring'
+import { useOwnedDetail } from '../composables/useOwnedDetail'
 import type { Route as ScenarioRoute } from '../api/scenarios'
 
 const props = defineProps<{ slug: string }>()
 
-const { route, loading, notFound, error } = useRouteDetail(props.slug)
+const { item: route, loading, notFound, error } = useOwnedDetail<Route>(fetchRoute, props.slug)
 
 const mapRoutes = computed<ScenarioRoute[]>(() => {
   if (!route.value) return []
@@ -60,7 +62,6 @@ const mapRoutes = computed<ScenarioRoute[]>(() => {
             :isochrone-data="null"
             :routes="mapRoutes"
             :stations="[]"
-            :services="[]"
             hide-isochrone-legend
           />
         </div>

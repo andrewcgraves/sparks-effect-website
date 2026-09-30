@@ -11,23 +11,26 @@ vi.mock('../api/authoring/services', () => ({
   compileService: vi.fn(),
   fetchServiceIsochrone: vi.fn(),
 }))
+vi.mock('../api/publications', () => ({
+  fetchServicePublication: vi.fn(),
+  publishService: vi.fn(),
+  unpublishService: vi.fn(),
+}))
 vi.mock('../components/MapView.vue', () => ({
   default: {
-    props: ['origin', 'isochroneData', 'loading', 'routes', 'stations', 'services'],
+    props: ['origin', 'isochroneData', 'loading', 'routes', 'stations'],
     template: '<div data-testid="map" :data-stations="stations.length" :data-routes="routes.length" />',
   },
 }))
 
 import AuthoredServiceView from './AuthoredServiceView.vue'
 import { compileService, fetchService, fetchServiceGraph, fetchServiceIsochrone } from '../api/authoring/services'
+import { fetchServicePublication, publishService } from '../api/publications'
+import { PUBLISH_COMPILE_FAILED } from '../composables/usePublication'
 
 const Stub = { template: '<div>stub</div>' }
 
-// A compiled single-service graph: one service, its stops as nodes, and the
-// route the API bundles onto the read so the map can follow the alignment.
 const graph = {
-  // Each hop compiles with its return leg; the two differ by the dwell at the
-  // stop each one arrives at.
   services: [{
     service_id: 'svc1',
     wait_secs: 0,
@@ -66,6 +69,7 @@ function mountView(slug = 'northbound-express') {
     routes: [
       { path: '/authoring', name: 'authoring', component: Stub },
       { path: '/authoring/services/:slug', name: 'service-detail', component: AuthoredServiceView, props: true },
+      { path: '/services/:slug', name: 'published-service', component: Stub },
     ],
   })
   return mount(AuthoredServiceView, { props: { slug }, global: { plugins: [router] } })
@@ -78,6 +82,8 @@ describe('AuthoredServiceView', () => {
     vi.mocked(fetchServiceGraph).mockReset().mockResolvedValue(graph)
     vi.mocked(compileService).mockReset()
     vi.mocked(fetchServiceIsochrone).mockReset()
+    vi.mocked(fetchServicePublication).mockReset().mockRejectedValue(new ApiError('not found', 404))
+    vi.mocked(publishService).mockReset()
     // useCompileJob polls the job endpoint through the jobs store.
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
@@ -104,6 +110,27 @@ describe('AuthoredServiceView', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('Northbound Express')
     expect(wrapper.text()).toContain('northbound-express')
+  })
+
+  it('shows the subtext and description once loaded', async () => {
+    vi.mocked(fetchService).mockResolvedValue({
+      ...stubService,
+      subtext: 'Electrified · High-speed rail',
+      description: 'Runs the spine.\n\nStops at every town.',
+    })
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="service-subtext"]').text()).toBe('Electrified · High-speed rail')
+    expect(wrapper.find('[data-testid="service-description"]').text()).toBe('Runs the spine.\n\nStops at every town.')
+  })
+
+  it('leaves out prose the service does not have', async () => {
+    // The API omits empty prose rather than sending an empty string.
+    vi.mocked(fetchService).mockResolvedValue({ ...stubService, description: undefined })
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="service-subtext"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="service-description"]').exists()).toBe(false)
   })
 
   it('lists the stops in order', async () => {
@@ -152,6 +179,14 @@ describe('AuthoredServiceView', () => {
     const wrapper = mountView()
     await flushPromises()
     expect(wrapper.find('[data-testid="back-to-authoring"]').attributes('href')).toBe('/authoring')
+  })
+
+  it('links to editing the service', async () => {
+    vi.mocked(fetchService).mockResolvedValue(stubService)
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="edit-service"]').attributes('href'))
+      .toBe('/authoring/services/northbound-express/edit')
   })
 
   it('shows a not-found state on a 404', async () => {
@@ -239,14 +274,14 @@ describe('AuthoredServiceView', () => {
     vi.mocked(compileService).mockResolvedValue({ id: 'job1', kind: 'compile_user_service', status: 'queued' })
     const wrapper = mountView()
     await flushPromises()
-    expect(compileService).toHaveBeenCalledWith('northbound-express')
+    expect(compileService).toHaveBeenCalledWith('northbound-express', expect.any(Object))
     expect(wrapper.find('[data-testid="graph-error"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="map"]').exists()).toBe(true)
   })
 
   it('plots an isochrone against the service', async () => {
     vi.mocked(fetchService).mockResolvedValue(stubService)
-    vi.mocked(fetchServiceIsochrone).mockResolvedValue({ features: [] } as never)
+    vi.mocked(fetchServiceIsochrone).mockResolvedValue({ features: [], metadata: { reachable_stations: [], mode: 'walk' } } as never)
     const wrapper = mountView()
     await flushPromises()
 
@@ -260,6 +295,22 @@ describe('AuthoredServiceView', () => {
     })
   })
 
+  it('forwards transit mode when plotting an isochrone', async () => {
+    vi.mocked(fetchService).mockResolvedValue(stubService)
+    vi.mocked(fetchServiceIsochrone).mockResolvedValue({ features: [], metadata: { reachable_stations: [], mode: 'walk' } } as never)
+    const wrapper = mountView()
+    await flushPromises()
+
+    wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('submit', {
+      lat: 37.7, lng: -122.4, duration: 30, mode: 'transit',
+    })
+    await flushPromises()
+
+    expect(fetchServiceIsochrone).toHaveBeenCalledWith('northbound-express', {
+      lat: 37.7, lng: -122.4, budget_mins: 30, mode: 'transit',
+    })
+  })
+
   // Editing the service leaves its graph stale; the shared composable's retry
   // recovers transparently rather than surfacing it to the user.
   it('recovers from a stale_graph 409 by recompiling and retrying', async () => {
@@ -267,7 +318,7 @@ describe('AuthoredServiceView', () => {
     vi.mocked(compileService).mockResolvedValue({ id: 'job1', kind: 'compile_user_service', status: 'queued' })
     vi.mocked(fetchServiceIsochrone)
       .mockRejectedValueOnce(new ApiError('stale', 409, 'stale_graph'))
-      .mockResolvedValueOnce({ features: [] } as never)
+      .mockResolvedValueOnce({ features: [], metadata: { reachable_stations: [], mode: 'walk' } } as never)
     const wrapper = mountView()
     await flushPromises()
 
@@ -276,7 +327,7 @@ describe('AuthoredServiceView', () => {
     })
     await flushPromises()
 
-    expect(compileService).toHaveBeenCalledWith('northbound-express')
+    expect(compileService).toHaveBeenCalledWith('northbound-express', expect.any(Object))
     expect(fetchServiceIsochrone).toHaveBeenCalledTimes(2)
     expect(wrapper.find('[data-testid="graph-error"]').exists()).toBe(false)
   })
@@ -321,4 +372,58 @@ describe('AuthoredServiceView', () => {
     const ordered = wrapper.findAll('[data-testid="map"], [data-testid="service-stop-row"]')
     expect(ordered[0].attributes('data-testid')).toBe('map')
   })
+
+  // --- publishing (SPA-360) ---
+
+  it('shows whether the service is published', async () => {
+    vi.mocked(fetchService).mockResolvedValue(stubService)
+    const wrapper = mountView()
+    await flushPromises()
+    expect(fetchServicePublication).toHaveBeenCalledWith('northbound-express')
+    expect(wrapper.get('[data-testid="publication"]').attributes('data-state')).toBe('unpublished')
+  })
+
+  it('compares the publication against the draft\'s own updated_at', async () => {
+    vi.mocked(fetchService).mockResolvedValue({ ...stubService, updated_at: '2026-09-21T08:00:00Z' })
+    vi.mocked(fetchServicePublication).mockResolvedValue({ published_at: '2026-09-20T12:00:00Z' } as never)
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.get('[data-testid="publication"]').attributes('data-state')).toBe('changed')
+  })
+
+  it('publishes a stale service by compiling it through the page\'s own compile', async () => {
+    vi.mocked(fetchService).mockResolvedValue(stubService)
+    vi.mocked(compileService).mockResolvedValue({ id: 'job1', kind: 'compile_user_service', status: 'queued' })
+    vi.mocked(publishService)
+      .mockRejectedValueOnce(new ApiError('stale', 409, 'stale_graph'))
+      .mockResolvedValueOnce({ published_at: '2026-09-21T09:00:00Z' } as never)
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.get('[data-testid="publish-button"]').trigger('click')
+    await flushPromises()
+
+    expect(compileService).toHaveBeenCalledWith('northbound-express', expect.any(Object))
+    expect(publishService).toHaveBeenCalledTimes(2)
+    expect(wrapper.get('[data-testid="publication"]').attributes('data-state')).toBe('current')
+  })
+
+  it('reports a compile fault met while publishing where every compile fault goes', async () => {
+    vi.mocked(fetchService).mockResolvedValue(stubService)
+    vi.mocked(compileService).mockRejectedValue(new Error('compile boom'))
+    vi.mocked(publishService).mockRejectedValue(new ApiError('stale', 409, 'stale_graph'))
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.get('[data-testid="publish-button"]').trigger('click')
+    await flushPromises()
+
+    expect(publishService).toHaveBeenCalledTimes(1)
+    expect(wrapper.get('[data-testid="publication"]').attributes('data-state')).toBe('unpublished')
+    // The control points at the fault; the reason itself is on the preview's
+    // existing error surface, not repeated in a second one.
+    expect(wrapper.get('[data-testid="publication-error"]').text()).toBe(PUBLISH_COMPILE_FAILED)
+    expect(wrapper.get('[data-testid="fetch-error"]').text()).toBe('Something went wrong. Please try again.')
+  })
+
 })

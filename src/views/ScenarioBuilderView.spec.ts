@@ -128,7 +128,7 @@ describe('ScenarioBuilderView', () => {
     expect(useDraftsStore().scenarioDraft).toBeNull()
   })
 
-  it('shows the save error from the API and does not navigate when creation is rejected', async () => {
+  it('says in plain words why the save failed and does not navigate', async () => {
     vi.mocked(createScenario).mockRejectedValue(new ApiError('POST /api/user-scenarios failed: 422: name required', 422))
     const wrapper = mountView()
     await flushPromises()
@@ -137,7 +137,9 @@ describe('ScenarioBuilderView', () => {
     await wrapper.find('form').trigger('submit')
     await flushPromises()
 
-    expect(wrapper.find('[data-testid="submit-error"]').text()).toContain('name required')
+    expect(wrapper.find('[data-testid="submit-error"]').text()).toBe(
+      "Some of this scenario's details weren't accepted. Check them and try again.",
+    )
     expect(push).not.toHaveBeenCalled()
   })
 })

@@ -1,4 +1,3 @@
-// Public surface of the authoring API client.
 export * from './client'
 export * from './types'
 export * from './routes'

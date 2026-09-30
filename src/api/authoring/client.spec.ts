@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   ApiError,
@@ -184,6 +186,28 @@ describe('apiRequest', () => {
     await expect(apiRequest('/api/things')).rejects.toThrow(/GET \/api\/things failed: 500/)
   })
 
+  it('carries a Retry-After in seconds on the error', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: false,
+      status: 429,
+      headers: new Headers({ 'Retry-After': '30' }),
+      json: async () => ({ error: 'slow down', code: 'rate_limited' }),
+    } as unknown as Response)
+    const caught = await apiRequest('/api/things').catch((err: unknown) => err)
+    expect((caught as ApiError).retryAfterS).toBe(30)
+  })
+
+  it('leaves out a Retry-After it cannot read', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: false,
+      status: 429,
+      headers: new Headers({ 'Retry-After': 'Wed, 21 Oct 2026 07:28:00 GMT' }),
+      json: async () => ({}),
+    } as unknown as Response)
+    const caught = await apiRequest('/api/things').catch((err: unknown) => err)
+    expect((caught as ApiError).retryAfterS).toBeUndefined()
+  })
+
   it('sends a X-Trace-Id header', async () => {
     vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({}) } as Response)
     await apiRequest('/api/things')
@@ -192,6 +216,8 @@ describe('apiRequest', () => {
     expect(headers.get('X-Trace-Id')).toMatch(/^[0-9a-f-]{36}$/)
   })
 
+  // One-shot requests still get a unique id each. A job that wants to reuse
+  // one id across enqueue+poll supplies it explicitly (the test below).
   it('sends a different X-Trace-Id on each request', async () => {
     vi.mocked(fetch).mockResolvedValue({ ok: true, status: 200, json: async () => ({}) } as Response)
     await apiRequest('/api/things')

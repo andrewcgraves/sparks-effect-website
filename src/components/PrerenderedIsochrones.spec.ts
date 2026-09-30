@@ -91,6 +91,13 @@ describe('PrerenderedIsochrones', () => {
     expect(buttons[0].element.tagName).toBe('BUTTON')
   })
 
+  it('names a transit-mode entry in the same budget · mode line as the others', async () => {
+    const wrapper = await mountLoaded([
+      summary({ id: 'pre-3', label: 'Downtown SF, 60 min transit', budget_mins: 60, mode: 'transit' }),
+    ])
+    expect(wrapper.find('[data-testid="prerendered-entry-detail"]').text()).toBe('60 min · transit')
+  })
+
   // The card is an offer, not a status: with nothing to offer there is no
   // heading, no empty-state line, and no gap left in the rail.
   it('renders nothing at all for a scenario with no pre-rendered isochrones', async () => {

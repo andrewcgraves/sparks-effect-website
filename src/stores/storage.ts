@@ -1,12 +1,3 @@
-// localStorage access shared by the stores that survive a reload.
-//
-// Every call here is best-effort. Storage can be disabled (private mode,
-// blocked cookies) or full, and neither may break a session or an edit in
-// flight — so failures leave the caller's in-memory state as the truth.
-
-// Reads a stored JSON object, treating absent, unreadable, and corrupt entries
-// alike: all three yield null. Fields are returned unvalidated, since only the
-// caller knows which of them it can still use.
 export function readJson<T>(key: string): Partial<T> | null {
   let raw: string | null
   try {

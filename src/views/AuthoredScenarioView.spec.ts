@@ -16,7 +16,7 @@ vi.mock('../api/authoring/services', () => ({
 }))
 vi.mock('../components/MapView.vue', () => ({
   default: {
-    props: ['origin', 'isochroneData', 'loading', 'routes', 'stations', 'services'],
+    props: ['origin', 'isochroneData', 'loading', 'routes', 'stations'],
     template: '<div data-testid="map" :data-stations="stations.length" :data-routes="routes.length" />',
   },
 }))
@@ -107,12 +107,12 @@ describe('AuthoredScenarioView', () => {
     vi.mocked(compileScenario).mockResolvedValue({ id: 'job1', kind: 'compile_user_scenario', status: 'queued' })
     const wrapper = mountView()
     await flushPromises()
-    expect(compileScenario).toHaveBeenCalledWith('ca-hsr')
+    expect(compileScenario).toHaveBeenCalledWith('ca-hsr', expect.any(Object))
     expect(wrapper.find('[data-testid="map"]').exists()).toBe(true)
   })
 
   it('plots an isochrone against the scenario', async () => {
-    vi.mocked(fetchScenarioIsochrone).mockResolvedValue({ features: [] } as never)
+    vi.mocked(fetchScenarioIsochrone).mockResolvedValue({ features: [], metadata: { reachable_stations: [], mode: 'walk' } } as never)
     const wrapper = mountView()
     await flushPromises()
 
@@ -123,6 +123,21 @@ describe('AuthoredScenarioView', () => {
 
     expect(fetchScenarioIsochrone).toHaveBeenCalledWith('ca-hsr', {
       lat: 37.7, lng: -122.4, budget_mins: 30, mode: 'walk',
+    })
+  })
+
+  it('forwards transit mode when plotting an isochrone', async () => {
+    vi.mocked(fetchScenarioIsochrone).mockResolvedValue({ features: [], metadata: { reachable_stations: [], mode: 'walk' } } as never)
+    const wrapper = mountView()
+    await flushPromises()
+
+    wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('submit', {
+      lat: 37.7, lng: -122.4, duration: 30, mode: 'transit',
+    })
+    await flushPromises()
+
+    expect(fetchScenarioIsochrone).toHaveBeenCalledWith('ca-hsr', {
+      lat: 37.7, lng: -122.4, budget_mins: 30, mode: 'transit',
     })
   })
 

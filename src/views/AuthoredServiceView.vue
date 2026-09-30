@@ -5,6 +5,7 @@ import type { Service } from '../api/authoring/types'
 import { useOwnedDetail } from '../composables/useOwnedDetail'
 import { useAuthoredGraph } from '../composables/useAuthoredGraph'
 import ScenarioPreviewPanel from '../components/ScenarioPreviewPanel.vue'
+import PublicationControl from '../components/PublicationControl.vue'
 import TimeBetweenStations from '../components/TimeBetweenStations.vue'
 import { graphStationTimeGroups } from '../components/stationTimes'
 import { ACTION_LINK_CLASS } from '../components/linkStyles'
@@ -13,18 +14,15 @@ const props = defineProps<{ slug: string }>()
 
 const { item: service, loading, notFound, error } = useOwnedDetail<Service>(fetchService, props.slug)
 
-// seq is the authored order; don't trust the array to arrive in it.
 const stops = computed(() => [...(service.value?.stops ?? [])].sort((a, b) => a.seq - b.seq))
 
-// Named by the route, so plotting never waits on the detail fetch. Compiling a
-// service alone is the degenerate one-member scenario, so this is the same
-// workflow the scenario page runs, against the service endpoints.
 const {
   compiling,
   compileError,
   graph,
   graphFailed,
   loadGraph,
+  triggerCompile,
   origin,
   isochroneData,
   isochroneError,
@@ -41,16 +39,19 @@ const {
   isochrone: fetchServiceIsochrone,
 })
 
-// The panel resolves service ids to names for its near-miss and cluster rows. A
-// service is its own sole member, so this one record is the whole lookup — no
-// need for the list fetch the scenario page makes.
 const services = computed(() => (service.value ? [service.value] : []))
 
 const stationTimeGroups = computed(() => graphStationTimeGroups(graph.value, services.value))
 
-// Run times are read off the compiled graph, so a graph that never arrives
-// takes the section with it rather than leaving it loading for good.
 const stationTimesFailed = computed(() => Boolean(graphFailed.value || (compileError.value && !graph.value)))
+
+// Publishing compiles through the page's own compile, so the graph it pins is
+// the one this page then draws, and a compile fault is reported where every
+// other one here is.
+async function recompile(slug: string): Promise<boolean> {
+  await triggerCompile(slug)
+  return !compileError.value
+}
 
 watch(service, (loaded) => {
   if (loaded) void loadGraph(loaded.slug)
@@ -100,23 +101,46 @@ watch(service, (loaded) => {
     </template>
 
     <template v-else-if="service">
-      <hgroup class="mt-8 flex flex-col gap-2">
-        <h1 class="font-display text-display text-ink-true">
-          {{ service.name }}
-        </h1>
-        <p class="font-body text-micro text-ink-muted uppercase">
-          {{ service.slug }}
-        </p>
-      </hgroup>
+      <div class="mt-8 flex items-start justify-between gap-4">
+        <hgroup class="flex flex-col gap-2">
+          <h1 class="font-display text-display text-ink-true">
+            {{ service.name }}
+          </h1>
+          <p
+            v-if="service.subtext"
+            class="font-body text-micro text-ink-muted italic uppercase"
+            data-testid="service-subtext"
+          >
+            {{ service.subtext }}
+          </p>
+          <p class="font-body text-micro text-ink-muted uppercase">
+            {{ service.slug }}
+          </p>
+        </hgroup>
+        <router-link
+          :to="`/authoring/services/${service.slug}/edit`"
+          :class="ACTION_LINK_CLASS"
+          data-testid="edit-service"
+        >
+          Edit
+        </router-link>
+      </div>
       <p
         v-if="service.description"
-        class="font-body text-body mt-3 max-w-[720px] text-ink"
+        class="font-body text-body mt-3 max-w-[720px] whitespace-pre-line text-ink"
+        data-testid="service-description"
       >
         {{ service.description }}
       </p>
 
-      <!-- The render is why the page gets opened, so it sits above the text
-           sections — the same ordering as the scenario detail page. -->
+      <PublicationControl
+        :slug="service.slug"
+        :updated-at="service.updated_at"
+        :compiling="compiling"
+        :recompile="recompile"
+      />
+
+      
       <p
         v-if="compiling && !graph"
         class="font-body text-caption mt-8 text-ink-muted italic"
@@ -132,9 +156,7 @@ watch(service, (loaded) => {
       >
         Couldn't load this service's compiled graph.
       </p>
-      <!-- A failed compile only replaces the preview while there is no graph
-           to show; once one has loaded, a failed recompile is reported beside
-           the map rather than taking the plotted isochrone with it. -->
+      
       <p
         v-else-if="compileError && !graph"
         class="font-body text-caption mt-8 text-coral"
@@ -160,10 +182,7 @@ watch(service, (loaded) => {
         @origin-change="onOriginChange"
       />
 
-      <!-- The supporting detail, as equal cards that flow into as many columns
-           as the viewport has room for rather than one stack per column.
-           auto-fill, not auto-fit: a leftover track stays empty so the cards
-           keep a readable width instead of stretching to fill the row. -->
+      
       <div class="mt-8 grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] items-start gap-4">
         <section class="rounded-(--radius-box) border border-border bg-surface p-4">
           <h2 class="font-display text-h3 text-ink-true">

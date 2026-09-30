@@ -2,13 +2,13 @@ name: Release
 
 # Production is reached by tagging a commit, and by nothing else.
 #
-# The tag names a commit that is already on `main` and that Vercel already
+# The tag names a commit that is already on `trunk` and that Vercel already
 # built and served as staging. This workflow never builds: it points Vercel's
 # production domains at that existing deployment. A tag that does not point
-# into `main`'s history is refused, so a feature branch has no path to
+# into `trunk`'s history is refused, so a feature branch has no path to
 # production even if someone tags it.
 #
-# Vercel's own git integration must not treat `main` as the production branch —
+# Vercel's own git integration must not treat `trunk` as the production branch —
 # otherwise a merge ships to production behind this workflow's back. See
 # `docs/releases.md`.
 on:
@@ -20,6 +20,15 @@ on:
         description: "Existing release tag to promote, e.g. v1.4.2. Pass an older tag to roll back."
         required: true
         type: string
+      base_ref:
+        description: "Optional exclusive git ref for Linear's commit scan (e.g. v0.1.0). Leave empty to scan from the previous git tag."
+        required: false
+        type: string
+      linear_only:
+        description: "Skip Vercel promotion; only re-sync Linear for this tag."
+        required: false
+        type: boolean
+        default: false
 
 # Two promotions racing would leave production on whichever alias switch landed
 # last rather than whichever was asked for last.
@@ -72,9 +81,9 @@ jobs:
           # the ref directly would hand the tag object's own SHA to the checks.
           sha="$(git rev-list -n 1 "refs/tags/$tag")"
 
-          git fetch --no-tags origin main
-          if ! git merge-base --is-ancestor "$sha" origin/main; then
-            echo "::error::$tag points at $sha, which is not on main — refusing to promote"
+          git fetch --no-tags origin trunk
+          if ! git merge-base --is-ancestor "$sha" origin/trunk; then
+            echo "::error::$tag points at $sha, which is not on trunk — refusing to promote"
             exit 1
           fi
 
@@ -84,6 +93,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Find the deployment Vercel built from that commit
+        if: github.event.inputs.linear_only != 'true'
         id: deployment
         env:
           SHA: ${{ steps.target.outputs.sha }}
@@ -115,25 +125,218 @@ jobs:
             echo "url=$url"
           } >> "$GITHUB_OUTPUT"
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-
-      - name: Install the Vercel CLI
-        run: npm install --global vercel@latest
-
-      # Promotion re-serves the build staging already ran — it does not rebuild,
-      # so what production serves is byte-for-byte what was verified.
+      # Promoted over HTTP rather than with `vercel promote`: before it will act,
+      # the CLI resolves a scope name, and that resolution reads the
+      # account-level /v2/user. A token scoped to a single project cannot address
+      # that endpoint, so the read 404s and the CLI reports "User not found"
+      # without ever attempting the promotion. The REST calls need only the
+      # project and team ids we already hold, which lets the token stay scoped to
+      # this project alone.
       #
-      # No `vercel pull` first: that command exists to fetch build settings for a
-      # local build, and this job never builds. It was also the step that failed,
-      # because the CLI reads VERCEL_TOKEN / VERCEL_ORG_ID / VERCEL_PROJECT_ID
-      # from the environment on its own — passing --token explicitly trips a
-      # token-validation bug that reports "User not found".
+      # Which call promotes depends on what the deployment was built as, exactly
+      # as the CLI decides it. /promote only accepts a deployment already built
+      # for production and answers 422 for anything else, and `trunk` is the
+      # staging branch here — see docs/releases.md.
       - name: Promote it to production
+        if: github.event.inputs.linear_only != 'true'
         env:
           UID: ${{ steps.deployment.outputs.uid }}
-        run: vercel promote "$UID" --yes
+        run: |
+          set -euo pipefail
+
+          # A personal account's org id is a user id, which these endpoints
+          # reject as a teamId; only a team's belongs on the query.
+          team_q=""
+          if [[ "$VERCEL_ORG_ID" == team_* ]]; then
+            team_q="?teamId=$VERCEL_ORG_ID"
+          fi
+
+          # Vercel explains a 4xx in the response body, which plain --fail throws
+          # away; without this a failure reads only as an exit code.
+          api() {
+            local out
+            if ! out="$(curl -sS --fail-with-body "$@")"; then
+              echo "::error::Vercel API call failed: $out" >&2
+              return 1
+            fi
+            printf '%s' "$out"
+          }
+
+          deployment="$(api -H "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v13/deployments/$UID$team_q")"
+          target="$(jq -r '.target // empty' <<<"$deployment")"
+
+          if [[ "$target" == "production" ]]; then
+            # Already a production build, so promoting only moves the domains.
+            # Nothing rebuilds: production serves the artifact staging verified.
+            api -X POST \
+              -H "Authorization: Bearer $VERCEL_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d '{}' \
+              "https://api.vercel.com/v10/projects/$VERCEL_PROJECT_ID/promote/$UID$team_q" > /dev/null
+
+            # The POST only queues the alias move, so a 2xx on its own would let
+            # a promotion that later failed still pass as a green release. The
+            # outcome lands on the project's lastAliasRequest, which is what
+            # `rollbackInfo=true` surfaces.
+            status=""
+            promoted=""
+            status_url="https://api.vercel.com/v9/projects/$VERCEL_PROJECT_ID?rollbackInfo=true${team_q:+&teamId=$VERCEL_ORG_ID}"
+            for _ in $(seq 60); do
+              request="$(api -H "Authorization: Bearer $VERCEL_TOKEN" "$status_url" \
+                | jq -c '.lastAliasRequest // {}')"
+              status="$(jq -r '.jobStatus // empty' <<<"$request")"
+              promoted="$(jq -r '.toDeploymentId // empty' <<<"$request")"
+
+              if [[ "$promoted" == "$UID" && "$status" != "pending" && "$status" != "in-progress" ]]; then
+                break
+              fi
+              sleep 5
+            done
+
+            if [[ "$promoted" != "$UID" ]]; then
+              echo "::error::production's last alias request targets '${promoted:-none}', not $UID"
+              exit 1
+            fi
+
+            case "$status" in
+              succeeded)
+                ;;
+              skipped)
+                echo "::notice::promotion skipped — production already served $UID"
+                ;;
+              *)
+                echo "::error::promotion of $UID finished as '${status:-unknown}'"
+                exit 1
+                ;;
+            esac
+          else
+            # Built for staging, so Vercel will only move it to production by
+            # creating a production deployment from it — the same request
+            # `vercel promote --yes` makes. Per docs/releases.md this is
+            # byte-for-byte only while `trunk` builds with production's
+            # environment variables; otherwise Vercel rebuilds here.
+            echo "::notice::$UID was built for '${target:-preview}', creating a production deployment from it"
+
+            created="$(api -X POST \
+              -H "Authorization: Bearer $VERCEL_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "$(jq -nc --arg d "$UID" --arg n "$(jq -r '.name' <<<"$deployment")" \
+                    '{deploymentId:$d,name:$n,target:"production",meta:{action:"promote"}}')" \
+              "https://api.vercel.com/v13/deployments$team_q")"
+
+            new_id="$(jq -r '.id' <<<"$created")"
+            echo "production deployment $new_id created from $UID"
+
+            # The CLI returns as soon as the request is accepted. That would let
+            # a release go green while the build it just queued is still running,
+            # so wait for the deployment that production will actually serve.
+            state=""
+            for _ in $(seq 120); do
+              state="$(api -H "Authorization: Bearer $VERCEL_TOKEN" \
+                "https://api.vercel.com/v13/deployments/$new_id$team_q" \
+                | jq -r '.readyState // .status // empty')"
+              case "$state" in
+                READY)
+                  break
+                  ;;
+                ERROR|CANCELED)
+                  echo "::error::production deployment $new_id ended as $state"
+                  exit 1
+                  ;;
+              esac
+              sleep 5
+            done
+
+            if [[ "$state" != "READY" ]]; then
+              echo "::error::production deployment $new_id did not become READY (last state '${state:-unknown}')"
+              exit 1
+            fi
+          fi
+
+      # Linear scans this working tree, so it must be the promoted commit —
+      # not `trunk`. A tag push already checks out that SHA; workflow_dispatch
+      # of an older tag would otherwise scan trunk HEAD and attach issues
+      # that are not in the promoted deployment.
+      - name: Check out the promoted commit
+        env:
+          SHA: ${{ steps.target.outputs.sha }}
+        run: git checkout --detach "$SHA"
+
+      # Production is a different Linear pipeline from staging: the same issue
+      # can sit on staging for a while before a tag promotes it, and staging
+      # can already be several commits ahead. See docs/releases.md.
+      #
+      # Secrets cannot be referenced in `if:` (GitHub treats that as a
+      # workflow-file error), so the empty check lives in a shell step.
+      - name: Check for the production pipeline key
+        id: linear
+        env:
+          LINEAR_ACCESS_KEY_PRODUCTION: ${{ secrets.LINEAR_ACCESS_KEY_PRODUCTION }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${LINEAR_ACCESS_KEY_PRODUCTION:-}" ]]; then
+            echo "::notice::LINEAR_ACCESS_KEY_PRODUCTION is not set — add the Website Build Production access key as a secret on the production environment"
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Operator base_ref wins. Otherwise the exclusive lower bound is the
+      # previous vMAJOR.MINOR.PATCH tag, so a production release records every
+      # issue since the last tag went to production — including when Linear
+      # has no prior release SHA of its own. See docs/releases.md.
+      #
+      # Two Linear steps because `base_ref` has no "unset" value once written
+      # — passing it empty would scan from nothing rather than letting Linear
+      # pick its automatic baseline (the true first tag, with no previous git
+      # tag to bound from).
+      - name: Resolve Linear scan base
+        id: scan
+        env:
+          OVERRIDE: ${{ github.event.inputs.base_ref }}
+          SHA: ${{ steps.target.outputs.sha }}
+        run: |
+          set -euo pipefail
+          git fetch --tags --force origin
+
+          if [[ -n "${OVERRIDE:-}" ]]; then
+            echo "base_ref=${OVERRIDE}" >> "$GITHUB_OUTPUT"
+            echo "Using dispatch base_ref ${OVERRIDE}"
+            exit 0
+          fi
+
+          prev="$(git describe --tags --abbrev=0 --match 'v[0-9]*' "${SHA}^" 2>/dev/null || true)"
+          if [[ -n "$prev" ]]; then
+            echo "base_ref=${prev}" >> "$GITHUB_OUTPUT"
+            echo "Scanning from previous tag ${prev}"
+          else
+            echo "base_ref=" >> "$GITHUB_OUTPUT"
+            echo "No previous tag — Linear will use its automatic baseline"
+          fi
+
+      - name: Sync Linear production release
+        if: steps.linear.outputs.configured == 'true' && steps.scan.outputs.base_ref == ''
+        uses: linear/linear-release-action@v0
+        with:
+          access_key: ${{ secrets.LINEAR_ACCESS_KEY_PRODUCTION }}
+          name: ${{ steps.target.outputs.tag }}
+          version: ${{ steps.target.outputs.tag }}
+          links: |
+            Commit=${{ github.server_url }}/${{ github.repository }}/commit/${{ steps.target.outputs.sha }}
+            CI run=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Sync Linear production release with explicit scan base
+        if: steps.linear.outputs.configured == 'true' && steps.scan.outputs.base_ref != ''
+        uses: linear/linear-release-action@v0
+        with:
+          access_key: ${{ secrets.LINEAR_ACCESS_KEY_PRODUCTION }}
+          name: ${{ steps.target.outputs.tag }}
+          version: ${{ steps.target.outputs.tag }}
+          base_ref: ${{ steps.scan.outputs.base_ref }}
+          links: |
+            Commit=${{ github.server_url }}/${{ github.repository }}/commit/${{ steps.target.outputs.sha }}
+            CI run=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
       - name: Summarise
         env:
@@ -141,10 +344,24 @@ jobs:
           SHA: ${{ steps.target.outputs.sha }}
           URL: ${{ steps.deployment.outputs.url }}
           UID: ${{ steps.deployment.outputs.uid }}
+          LINEAR_ONLY: ${{ github.event.inputs.linear_only }}
+          BASE_REF: ${{ steps.scan.outputs.base_ref }}
         run: |
           {
-            echo "### Promoted \`$TAG\` to production"
-            echo
-            echo "- commit: \`$SHA\`"
-            echo "- deployment: \`$UID\` (https://$URL)"
+            if [[ "${LINEAR_ONLY:-}" == "true" ]]; then
+              echo "### Recorded \`$TAG\` in Linear"
+              echo
+              echo "- commit: \`$SHA\`"
+              echo "- Vercel production left alone"
+            else
+              echo "### Promoted \`$TAG\` to production"
+              echo
+              echo "- commit: \`$SHA\`"
+              echo "- deployment: \`$UID\` (https://$URL)"
+            fi
+            if [[ -n "${BASE_REF:-}" ]]; then
+              echo "- Linear scan: \`${BASE_REF}..HEAD\`"
+            else
+              echo "- Linear scan: automatic baseline (no previous git tag)"
+            fi
           } >> "$GITHUB_STEP_SUMMARY"

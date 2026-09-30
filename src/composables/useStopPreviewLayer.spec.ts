@@ -21,6 +21,7 @@ function makeMockMap() {
     addSource,
     addLayer: vi.fn(),
     getSource,
+    getLayer: vi.fn(),
     sources,
   }
 }

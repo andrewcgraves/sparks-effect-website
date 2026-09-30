@@ -1,13 +1,23 @@
 import { computed, ref, watch, type WatchStopHandle } from 'vue'
 import { useDraftsStore } from '../stores/drafts'
 import { useCompileJob } from './useCompileJob'
+import { latestAttempt } from './latestAttempt'
 import { ApiError, stopPlacementFault } from '../api/authoring/client'
+import { authoringFault } from '../api/authoringFault'
 import { fetchRoute, listRoutes, snapStops } from '../api/authoring/routes'
-import { compileService, createService } from '../api/authoring/services'
+import {
+  compileService,
+  createService,
+  fetchService,
+  fetchServiceGraph,
+  updateService,
+} from '../api/authoring/services'
 import type {
   FaultedStop,
   Route,
   RouteSummary,
+  Service,
+  ServiceInput,
   SnapCoord,
   SnapStopsResponse,
   StopPlacementFault,
@@ -17,38 +27,57 @@ import type {
 import type { Route as ScenarioRoute } from '../api/scenarios'
 import type { StopPreviewPair } from './useStopPreviewLayer'
 
-// Live preview trades a little latency for not hammering the snap endpoint on
-// every keystroke; 400ms is long enough to coalesce a burst of edits and short
-// enough that the preview still feels immediate.
 export const PREVIEW_DEBOUNCE_MS = 400
 
-/**
- * One authored Service, from the first empty draft to the compiled graph.
- *
- * This is the whole edit lifecycle in one place: which route the draft is
- * against, its stops and their numbering, the snap preview that tells the
- * author whether those stops are placeable, whether the draft is complete
- * enough to submit, and the submission itself. Those rules used to be split
- * between the drafts store and the authoring view, which meant a single
- * lifecycle — add a stop, see it snapped, find out it is off-route, move it —
- * was answered by two modules with no single owner of the sequencing.
- *
- * What stays outside: the drafts store remains the persistence layer, so a
- * draft still survives a reload and still cannot be read by a second account
- * on the same browser; the api modules remain the transport; and the view keeps
- * its own form inputs and rendering. This owns the rules between them.
- *
- * start() and dispose() are explicit rather than lifecycle hooks so the module
- * can be driven directly by its tests, which is the point of having it.
- */
-export function useServiceDraft() {
+// A service read back in the shape it is written in. The fields the server
+// derives are left behind — stop slugs, chainage and offset are re-minted from
+// the stops on every write — so the draft holds only what the form edits.
+function serviceInputFrom(service: Service, routeSlug: string): ServiceInput {
+  return {
+    route_slug: routeSlug,
+    name: service.name,
+    subtext: service.subtext ?? '',
+    description: service.description ?? '',
+    stops: [...service.stops]
+      .sort((a, b) => a.seq - b.seq)
+      .map((stop, seq) => ({ name: stop.name, lat: stop.lat, lng: stop.lng, seq })),
+    vehicle: {
+      max_speed_kmh: service.vehicle.max_speed_kmh,
+      acceleration_ms2: service.vehicle.acceleration_ms2,
+      deceleration_ms2: service.vehicle.deceleration_ms2,
+      dwell_s: service.vehicle.dwell_s,
+    },
+    frequency_windows: service.frequency_windows.map((window) => ({
+      start_time: window.start_time,
+      end_time: window.end_time,
+      headway_s: window.headway_s,
+    })),
+  }
+}
+
+// A service reads its route back by id but is written by route slug, and no
+// route listing carries ids. The compiled graph read is the one that carries
+// the service's route whole, loaded by id at read time rather than frozen into
+// the compile, so the slug comes from there. Empty when there is no graph to
+// ask, which leaves the author to pick the route again.
+async function routeSlugOf(service: Service): Promise<string> {
+  try {
+    const graph = await fetchServiceGraph(service.slug)
+    return graph.routes?.find((route) => route.id === service.route_id)?.slug ?? ''
+  } catch {
+    return ''
+  }
+}
+
+// With a slug the draft edits that service and saves with a PUT; without one
+// it authors a new service.
+export function useServiceDraft(serviceSlug?: string) {
   const drafts = useDraftsStore()
   const {
     compiling,
     compileError,
     result: compiledGraph,
     trigger: triggerCompile,
-    reset: resetCompile,
   } = useCompileJob(compileService)
 
   const routes = ref<RouteSummary[]>([])
@@ -61,7 +90,12 @@ export function useServiceDraft() {
   const previewLoading = ref(false)
   const previewError = ref(false)
 
+  const editing = ref<Service | null>(null)
+  const editNotFound = ref(false)
+  const editLoadFailed = ref(false)
+
   const submitted = ref(false)
+  const createdSlug = ref<string | null>(null)
   const submitting = ref(false)
   const submitError = ref('')
   const submitFault = ref<StopPlacementFault | null>(null)
@@ -70,8 +104,19 @@ export function useServiceDraft() {
   // Read only by schedulePreview, never rendered, so it stays a plain binding.
   let draggingStop = false
   let unwatchDraft: WatchStopHandle | null = null
+  const routeLoads = latestAttempt()
 
-  const draft = computed(() => drafts.serviceDraft)
+  // The store keeps one service draft, and it is not always this page's: the
+  // create draft an edit is opening over, or the one a finished edit handed the
+  // slot back to. Everything here reads the draft through this gate, so a draft
+  // belonging to the other kind of write can neither reach the form nor be sent.
+  const ready = computed(() => {
+    if (!drafts.hasServiceDraft) return false
+    if (!serviceSlug) return drafts.editingServiceId === null
+    return editing.value !== null && drafts.editingServiceId === editing.value.id
+  })
+
+  const draft = computed(() => (ready.value ? drafts.serviceDraft : null))
   const stops = computed(() => draft.value?.stops ?? [])
   const frequencyWindows = computed(() => draft.value?.frequency_windows ?? [])
 
@@ -88,6 +133,16 @@ export function useServiceDraft() {
     set: (value: string) => drafts.patchServiceDraft({ name: value }),
   })
 
+  const subtext = computed({
+    get: () => draft.value?.subtext ?? '',
+    set: (value: string) => drafts.patchServiceDraft({ subtext: value }),
+  })
+
+  const description = computed({
+    get: () => draft.value?.description ?? '',
+    set: (value: string) => drafts.patchServiceDraft({ description: value }),
+  })
+
   function patchVehicle(patch: Partial<VehicleParams>): void {
     if (!draft.value) return
     drafts.patchServiceDraft({ vehicle: { ...draft.value.vehicle, ...patch } })
@@ -99,6 +154,10 @@ export function useServiceDraft() {
       set: (value: number) => patchVehicle({ [field]: value }),
     })
   }
+
+  // An edit whose route could not be recovered opens without one, and cannot be
+  // saved until the author picks it again.
+  const routeMissing = computed(() => editing.value !== null && ready.value && !routeSlug.value)
 
   const maxSpeedKmh = vehicleField('max_speed_kmh')
   const accelerationMs2 = vehicleField('acceleration_ms2')
@@ -218,9 +277,36 @@ export function useServiceDraft() {
     }
   }
 
-  /** Loads the route picker and opens a draft, resuming a persisted one if there is one. */
-  async function start(): Promise<void> {
+  // A draft still open for editing was abandoned when its author came here
+  // instead. Clearing it hands the slot back to any create draft it set aside,
+  // rather than this page adopting an edit and saving it as a second service.
+  function openCreate(): boolean {
+    if (drafts.editingServiceId !== null) drafts.clearServiceDraft()
     if (!drafts.hasServiceDraft) drafts.startServiceDraft()
+    return true
+  }
+
+  async function openEdit(slug: string): Promise<boolean> {
+    let service: Service
+    try {
+      service = await fetchService(slug)
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) editNotFound.value = true
+      else editLoadFailed.value = true
+      return false
+    }
+    editing.value = service
+    // Resumed rather than reseeded when the slot already holds this very edit,
+    // which is what carries unsaved changes across a reload.
+    if (drafts.editingServiceId !== service.id) {
+      drafts.startServiceDraft(serviceInputFrom(service, await routeSlugOf(service)), service.id)
+    }
+    return true
+  }
+
+  async function start(): Promise<void> {
+    // Watching before the draft is opened, so a seeded edit gets its preview
+    // the same way a typed change would.
     unwatchDraft ??= watch(
       () => [draft.value?.route_slug, draft.value?.stops],
       () => {
@@ -233,6 +319,12 @@ export function useServiceDraft() {
         schedulePreview()
       },
     )
+    const opened = serviceSlug ? await openEdit(serviceSlug) : openCreate()
+    if (!opened) return
+    await Promise.all([loadRoutes(), loadRoute(routeSlug.value)])
+  }
+
+  async function loadRoutes(): Promise<void> {
     try {
       routes.value = await listRoutes()
     } catch {
@@ -242,7 +334,7 @@ export function useServiceDraft() {
     }
   }
 
-  /** Drops the pending preview and stops watching. The draft itself is persisted, so it survives. */
+  // The draft itself is persisted, so it survives.
   function dispose(): void {
     if (previewTimer) clearTimeout(previewTimer)
     previewTimer = null
@@ -252,11 +344,22 @@ export function useServiceDraft() {
 
   async function selectRoute(slug: string): Promise<void> {
     routeSlug.value = slug
+    await loadRoute(slug)
+  }
+
+  // Also run on opening, so a draft that already names a route — resumed after
+  // a reload, or seeded from a service — draws it rather than an empty map.
+  //
+  // Numbered because the fetch made on opening races the picker: a route
+  // chosen while it is in flight must not have its geometry land on the map.
+  async function loadRoute(slug: string): Promise<void> {
+    const attempt = routeLoads.begin()
     selectedRoute.value = null
     preview.value = null
     if (!slug) return
     try {
-      selectedRoute.value = await fetchRoute(slug)
+      const route = await fetchRoute(slug)
+      if (routeLoads.isCurrent(attempt)) selectedRoute.value = route
     } catch {
       // Geometry is a best-effort map preview; the picker itself still works
       // without it, so a fetch failure here is silently swallowed.
@@ -296,12 +399,27 @@ export function useServiceDraft() {
     submitError.value = ''
     submitFault.value = null
     try {
-      const created = await createService(current)
+      // Branches on the slot rather than on which page is open: a draft seeded
+      // from an existing service goes back as a PUT, and can never go out as a
+      // POST that mints a second service. The gate on `draft` is what keeps
+      // `editing` set whenever the slot names an edit.
+      const isEdit = drafts.editingServiceId !== null
+      const saved = isEdit
+        ? await updateService(editing.value!.slug, current)
+        : await createService(current)
       drafts.clearServiceDraft()
+      // A new service has never compiled, and its own page compiles it when
+      // the graph read 404s, so a create is finished the moment it is stored.
+      // An edit is not: that page reads the last compile that succeeded, which
+      // predates the edit, so the recompile has to happen here.
+      if (!isEdit) {
+        createdSlug.value = saved.slug
+        return
+      }
       submitted.value = true
-      await triggerCompile(created.slug)
+      await triggerCompile(saved.slug)
     } catch (err) {
-      submitError.value = err instanceof ApiError ? err.message : 'Something went wrong creating the service.'
+      submitError.value = authoringFault(err)
       // Null for anything this build cannot attribute to specific rows, which
       // leaves the banner as the whole of the feedback.
       submitFault.value = stopPlacementFault(err)
@@ -310,36 +428,35 @@ export function useServiceDraft() {
     }
   }
 
-  /** Clears the finished service away and opens an empty draft in its place. */
-  function startAnother(): void {
-    submitted.value = false
-    submitError.value = ''
-    submitFault.value = null
-    resetCompile()
-    preview.value = null
-    selectedRoute.value = null
-    drafts.startServiceDraft()
+  // Guarded by the gate, so giving up an edit can never clear a create draft
+  // that happens to be in the slot.
+  function discardEdit(): void {
+    if (editing.value && ready.value) drafts.clearServiceDraft()
   }
 
   return {
-    // Draft state
+    ready,
+    editing,
+    editNotFound,
+    editLoadFailed,
+    routeMissing,
     draft,
     stops,
     frequencyWindows,
     routeSlug,
     name,
+    subtext,
+    description,
     maxSpeedKmh,
     accelerationMs2,
     decelerationMs2,
     dwellS,
-    // Routes
     routes,
     routesLoading,
     routesError,
     selectedRoute,
     mapRoutes,
     selectRoute,
-    // Stops
     addStop,
     addStopAt,
     updateStop: drafts.updateStop,
@@ -347,29 +464,25 @@ export function useServiceDraft() {
     moveStop: drafts.moveStop,
     dragStop,
     dropStop,
-    // Frequency windows
     addFrequencyWindow: drafts.addFrequencyWindow,
     removeFrequencyWindow: drafts.removeFrequencyWindow,
-    // Preview
     preview,
     previewLoading,
     previewError,
     stopPreviewPairs,
     orderWarning,
-    // Submission
     canSubmit,
     submitting,
     submitted,
+    createdSlug,
     submitError,
     faultedStops,
     stopFaultMessage,
     submit,
-    startAnother,
-    // Compile
+    discardEdit,
     compiling,
     compileError,
     compiledGraph,
-    // Lifecycle
     start,
     dispose,
   }

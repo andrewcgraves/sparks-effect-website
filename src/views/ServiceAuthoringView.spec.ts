@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount, flushPromises, type DOMWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import type { Job, Route, RouteSummary, SnapStopsResponse, Service } from '../api/authoring/types'
+import { createMemoryHistory, createRouter } from 'vue-router'
+import type { Job, Route, RouteSummary, SnapStopsResponse, Service, TransitGraph } from '../api/authoring/types'
 
 vi.mock('../api/authoring/routes', () => ({
   listRoutes: vi.fn(),
@@ -10,12 +11,21 @@ vi.mock('../api/authoring/routes', () => ({
 }))
 vi.mock('../api/authoring/services', () => ({
   createService: vi.fn(),
+  updateService: vi.fn(),
+  fetchService: vi.fn(),
+  fetchServiceGraph: vi.fn(),
   compileService: vi.fn(),
 }))
 
 import ServiceAuthoringView from './ServiceAuthoringView.vue'
 import { listRoutes, fetchRoute, snapStops } from '../api/authoring/routes'
-import { createService, compileService } from '../api/authoring/services'
+import {
+  createService,
+  compileService,
+  fetchService,
+  fetchServiceGraph,
+  updateService,
+} from '../api/authoring/services'
 import { ApiError } from '../api/authoring/client'
 import { useDraftsStore } from '../stores/drafts'
 
@@ -314,7 +324,9 @@ describe('ServiceAuthoringView', () => {
         }),
       )
       expect(flaggedRows(wrapper)).toEqual([])
-      expect(wrapper.find('[data-testid="submit-error"]').text()).toContain('some new rule')
+      expect(wrapper.find('[data-testid="submit-error"]').text()).toBe(
+        "Some stops don't sit on the route. Check the flagged stops and save again.",
+      )
     })
 
     it('falls back to the banner alone for a rejection carrying no detail', async () => {
@@ -322,7 +334,9 @@ describe('ServiceAuthoringView', () => {
         new ApiError('POST /api/services failed: 422: route_slug is required', 422),
       )
       expect(flaggedRows(wrapper)).toEqual([])
-      expect(wrapper.find('[data-testid="submit-error"]').text()).toContain('route_slug is required')
+      expect(wrapper.find('[data-testid="submit-error"]').text()).toBe(
+        "Some of this service's details weren't accepted. Check them and try again.",
+      )
     })
   })
 
@@ -344,45 +358,104 @@ describe('ServiceAuthoringView', () => {
     expect(wrapper.find('[data-testid="submit"]').attributes('disabled')).toBeUndefined()
   })
 
-  it('creates the service, triggers a compile, polls the job, and shows the compiled result', async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({
-        id: 'job1',
-        kind: 'compile_user_service',
-        status: 'succeeded',
-        result: {
-          services: [{ service_id: 'svc1', edges: [{ from_slug: 'sf', to_slug: 'sj', seconds: 90 }], wait_secs: 30 }],
-        },
-      }),
-    } as Response)
+  describe('creating a service', () => {
+    const Stub = { template: '<div>stub</div>' }
 
-    const wrapper = mountView()
-    await flushPromises()
-    await wrapper.find('[data-testid="route-select"]').setValue('main-line')
-    await flushPromises()
-    await addStop(wrapper, 'A', 37.77, -122.41)
-    await addStop(wrapper, 'B', 37.33, -121.88)
-    await vi.advanceTimersByTimeAsync(400)
-    await flushPromises()
-    await wrapper.find('[data-testid="service-name"]').setValue('Northbound Express')
-    await wrapper.find('[data-testid="frequency-headway"]').setValue(15)
-    await wrapper.find('[data-testid="add-frequency"]').trigger('click')
+    async function mountNew() {
+      const router = createRouter({
+        history: createMemoryHistory(),
+        routes: [
+          { path: '/authoring/services/new', name: 'new-service', component: ServiceAuthoringView },
+          { path: '/authoring/services/:slug', name: 'service-detail', component: Stub, props: true },
+        ],
+      })
+      await router.push('/authoring/services/new')
+      const wrapper = mount(ServiceAuthoringView, {
+        global: { plugins: [router], stubs: { MapView: true } },
+      })
+      await flushPromises()
+      await wrapper.find('[data-testid="route-select"]').setValue('main-line')
+      await flushPromises()
+      await addStop(wrapper, 'A', 37.77, -122.41)
+      await addStop(wrapper, 'B', 37.33, -121.88)
+      await vi.advanceTimersByTimeAsync(400)
+      await flushPromises()
+      await wrapper.find('[data-testid="service-name"]').setValue('Northbound Express')
+      await wrapper.find('[data-testid="frequency-headway"]').setValue(15)
+      await wrapper.find('[data-testid="add-frequency"]').trigger('click')
+      return { wrapper, router }
+    }
 
-    await wrapper.find('form').trigger('submit')
-    await flushPromises()
+    it('lands on the new service\'s page, which compiles it, rather than compiling here', async () => {
+      const { wrapper, router } = await mountNew()
 
-    expect(createService).toHaveBeenCalledWith(expect.objectContaining({ route_slug: 'main-line', name: 'Northbound Express' }))
-    expect(compileService).toHaveBeenCalledWith('northbound-express')
-    expect(wrapper.find('[data-testid="compile-result"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="compile-result"]').text()).toContain('1 service')
-    const edgeRows = wrapper.findAll('[data-testid="compile-edge-row"]')
-    expect(edgeRows[0].text()).toContain('sf')
-    expect(edgeRows[0].text()).toContain('sj')
+      await wrapper.find('form').trigger('submit')
+      await flushPromises()
+
+      expect(createService).toHaveBeenCalledWith(expect.objectContaining({ route_slug: 'main-line', name: 'Northbound Express' }))
+      expect(compileService).not.toHaveBeenCalled()
+      expect(router.currentRoute.value.path).toBe('/authoring/services/northbound-express')
+    })
+
+    it('replaces the form in history, so going back does not reopen it', async () => {
+      const { wrapper, router } = await mountNew()
+      const replace = vi.spyOn(router, 'replace')
+      const push = vi.spyOn(router, 'push')
+
+      await wrapper.find('form').trigger('submit')
+      await flushPromises()
+
+      expect(replace).toHaveBeenCalledWith('/authoring/services/northbound-express')
+      expect(push).not.toHaveBeenCalled()
+    })
+
+    it('sends the subtext and description typed into the form', async () => {
+      const { wrapper } = await mountNew()
+      await wrapper.find('[data-testid="service-subtext"]').setValue('Electrified · High-speed rail')
+      await wrapper.find('textarea[data-testid="service-description"]').setValue('Runs the spine.\n\nStops at every town.')
+
+      await wrapper.find('form').trigger('submit')
+      await flushPromises()
+
+      expect(createService).toHaveBeenCalledWith(expect.objectContaining({
+        subtext: 'Electrified · High-speed rail',
+        description: 'Runs the spine.\n\nStops at every town.',
+      }))
+    })
+
+    it('stays on the form with the draft and the stop faults when the create is refused', async () => {
+      vi.mocked(createService).mockRejectedValue(
+        new ApiError('POST /api/services failed: 422: rejected', 422, 'stop_placement', {
+          fault: 'off_route',
+          route_slug: 'main-line',
+          threshold_m: 500,
+          stops: [{ seq: 1, name: 'B', slug: 'b', chainage_m: 12000, offset_m: 620 }],
+        }),
+      )
+      const { wrapper, router } = await mountNew()
+
+      await wrapper.find('form').trigger('submit')
+      await flushPromises()
+
+      expect(router.currentRoute.value.path).toBe('/authoring/services/new')
+      expect(wrapper.find('[data-testid="submit-error"]').text()).toBe(
+        'Stop "B" is too far from the route. Move it onto the line and save again.',
+      )
+      expect(wrapper.findAll('[data-testid="stop-row"]').map(stopRowName)).toEqual(['A', 'B'])
+      expect(wrapper.find('[data-testid="service-name"]').element).toHaveProperty('value', 'Northbound Express')
+      const flagged = wrapper.findAll('[data-testid="stop-row"]').map((row) => row.find('[data-testid="stop-submit-error"]').exists())
+      expect(flagged).toEqual([false, true])
+    })
   })
 
-  it('shows the 422 message from the API when creation is rejected', async () => {
+  it('bounds the subtext and description at the lengths the API accepts', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="service-subtext"]').attributes('maxlength')).toBe('140')
+    expect(wrapper.find('[data-testid="service-description"]').attributes('maxlength')).toBe('4000')
+  })
+
+  it('shows a plain-language summary, not the API message, when creation is rejected', async () => {
     vi.mocked(createService).mockRejectedValue(
       new ApiError('POST /api/services failed: 422: stop "B" is 620 m from route "main-line"', 422),
     )
@@ -402,7 +475,9 @@ describe('ServiceAuthoringView', () => {
     await wrapper.find('form').trigger('submit')
     await flushPromises()
 
-    expect(wrapper.find('[data-testid="submit-error"]').text()).toContain('620 m from route')
+    expect(wrapper.find('[data-testid="submit-error"]').text()).toBe(
+      "Some of this service's details weren't accepted. Check them and try again.",
+    )
     expect(compileService).not.toHaveBeenCalled()
   })
 
@@ -654,6 +729,165 @@ describe('ServiceAuthoringView', () => {
       await flushPromises()
 
       expect(wrapper.findAll('[data-testid="stop-row"]').map(stopRowName)).toEqual(['Stop 1', 'Stop 2'])
+    })
+  })
+
+  describe('editing an existing service', () => {
+    const savedService: Service = {
+      id: 'svc1',
+      slug: 'northbound-express',
+      route_id: 'rt1',
+      name: 'Northbound Express',
+      subtext: 'Electrified · High-speed rail',
+      description: 'Runs the spine.',
+      stops: [
+        { name: 'SF', lat: 37.77, lng: -122.41, seq: 0 },
+        { name: 'SJ', lat: 37.33, lng: -121.88, seq: 1 },
+      ],
+      vehicle: { max_speed_kmh: 320, acceleration_ms2: 1.1, deceleration_ms2: 1.2, dwell_s: 45 },
+      frequency_windows: [{ start_time: '06:00', end_time: '22:00', headway_s: 900 }],
+    }
+
+    const Stub = { template: '<div>stub</div>' }
+
+    async function mountEdit(slug = 'northbound-express') {
+      const router = createRouter({
+        history: createMemoryHistory(),
+        routes: [
+          { path: '/authoring/services/:slug', name: 'service-detail', component: Stub, props: true },
+          { path: '/authoring/services/:slug/edit', name: 'edit-service', component: ServiceAuthoringView, props: true },
+        ],
+      })
+      await router.push(`/authoring/services/${slug}/edit`)
+      const wrapper = mount(ServiceAuthoringView, {
+        props: { slug },
+        global: { plugins: [router], stubs: { MapView: true } },
+      })
+      await flushPromises()
+      await vi.advanceTimersByTimeAsync(400)
+      await flushPromises()
+      return { wrapper, router }
+    }
+
+    function fieldValue(wrapper: Awaited<ReturnType<typeof mountEdit>>['wrapper'], testId: string): string {
+      return (wrapper.find(`[data-testid="${testId}"]`).element as HTMLInputElement).value
+    }
+
+    beforeEach(() => {
+      vi.mocked(fetchService).mockResolvedValue(savedService)
+      vi.mocked(fetchServiceGraph).mockResolvedValue({ services: [], routes: [stubRoute] } as unknown as TransitGraph)
+      vi.mocked(updateService).mockResolvedValue(savedService)
+    })
+
+    it('arrives with the service\'s stops, vehicle, windows and prose filled in', async () => {
+      const { wrapper } = await mountEdit()
+
+      expect(wrapper.find('h1').text()).toBe('Edit service')
+      expect(fieldValue(wrapper, 'route-select')).toBe('main-line')
+      expect(fieldValue(wrapper, 'service-name')).toBe('Northbound Express')
+      expect(fieldValue(wrapper, 'service-subtext')).toBe('Electrified · High-speed rail')
+      expect(fieldValue(wrapper, 'service-description')).toBe('Runs the spine.')
+      expect(wrapper.findAll('[data-testid="stop-row"]').map(stopRowName)).toEqual(['SF', 'SJ'])
+      expect(fieldValue(wrapper, 'vehicle-max-speed')).toBe('320')
+      expect(fieldValue(wrapper, 'vehicle-dwell')).toBe('45')
+      expect(wrapper.find('[data-testid="frequency-list"]').text()).toContain('06:00–22:00, every 15 min')
+      expect(wrapper.find('[data-testid="submit"]').text()).toBe('Save changes')
+    })
+
+    it('links back to the service it is editing', async () => {
+      const { wrapper } = await mountEdit()
+
+      const back = wrapper.find('[data-testid="back-to-service"]')
+      expect(back.attributes('href')).toBe('/authoring/services/northbound-express')
+      expect(back.text()).toContain('Northbound Express')
+    })
+
+    it('saves with a PUT, then lands on the service once it has recompiled', async () => {
+      vi.mocked(fetch).mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ id: 'job1', kind: 'compile_user_service', status: 'succeeded', result: { services: [] } }),
+      } as Response)
+      const { wrapper, router } = await mountEdit()
+      await wrapper.find('[data-testid="service-description"]').setValue('Runs the whole spine.')
+
+      await wrapper.find('form').trigger('submit')
+      await flushPromises()
+
+      expect(updateService).toHaveBeenCalledWith('northbound-express', expect.objectContaining({
+        name: 'Northbound Express',
+        description: 'Runs the whole spine.',
+      }))
+      expect(createService).not.toHaveBeenCalled()
+      expect(compileService).toHaveBeenCalledWith('northbound-express', expect.any(Object))
+      expect(router.currentRoute.value.path).toBe('/authoring/services/northbound-express')
+    })
+
+    it('stays put and offers the way back when the recompile fails', async () => {
+      vi.mocked(compileService).mockRejectedValue(new Error('compile exploded'))
+      const { wrapper, router } = await mountEdit()
+
+      await wrapper.find('form').trigger('submit')
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="compile-error"]').text()).toBe('Something went wrong. Please try again.')
+      expect(wrapper.find('[data-testid="view-service"]').attributes('href')).toBe('/authoring/services/northbound-express')
+      expect(router.currentRoute.value.name).toBe('edit-service')
+    })
+
+    it('asks for the route again when it cannot be recovered', async () => {
+      vi.mocked(fetchServiceGraph).mockRejectedValue(new ApiError('no compiled graph', 404))
+      const { wrapper } = await mountEdit()
+
+      expect(wrapper.find('[data-testid="route-missing"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="submit"]').attributes('disabled')).toBeDefined()
+
+      await wrapper.find('[data-testid="route-select"]').setValue('main-line')
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="route-missing"]').exists()).toBe(false)
+    })
+
+    it('discarding returns to the service and hands back the create draft the edit set aside', async () => {
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft()
+      drafts.addStop({ name: 'Half-authored', lat: 1, lng: 2, seq: 0 })
+      const { wrapper, router } = await mountEdit()
+
+      await wrapper.find('[data-testid="discard-edit"]').trigger('click')
+      await flushPromises()
+
+      expect(router.currentRoute.value.path).toBe('/authoring/services/northbound-express')
+      expect(drafts.editingServiceId).toBeNull()
+      expect(drafts.serviceDraft?.stops.map((s) => s.name)).toEqual(['Half-authored'])
+    })
+
+    it('never shows a create draft in the slot while the service is loading', async () => {
+      vi.mocked(fetchService).mockReturnValue(new Promise(() => {}))
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft()
+      drafts.addStop({ name: 'Half-authored', lat: 1, lng: 2, seq: 0 })
+
+      const { wrapper } = await mountEdit()
+
+      expect(wrapper.find('[data-testid="draft-loading"]').text()).toBe('Loading service…')
+      expect(wrapper.find('form').exists()).toBe(false)
+    })
+
+    it('shows a not-found state for a service that is not the caller\'s', async () => {
+      vi.mocked(fetchService).mockRejectedValue(new ApiError('service not found', 404))
+      const { wrapper } = await mountEdit('someone-elses')
+
+      expect(wrapper.find('[data-testid="service-not-found"]').text()).toContain('someone-elses')
+      expect(wrapper.find('form').exists()).toBe(false)
+    })
+
+    it('shows an error state when the service fails to load', async () => {
+      vi.mocked(fetchService).mockRejectedValue(new Error('boom'))
+      const { wrapper } = await mountEdit()
+
+      expect(wrapper.find('[data-testid="service-error"]').exists()).toBe(true)
+      expect(wrapper.find('form').exists()).toBe(false)
     })
   })
 })
