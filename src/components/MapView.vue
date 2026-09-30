@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { Map, FullscreenControl } from 'maplibre-gl'
+import { Map, FullscreenControl, setWorkerUrl } from 'maplibre-gl'
 import type { MapMouseEvent } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import { egressStationSlugs, isochroneLayerModule, isochroneLegend, resolveIsochroneColors } from '../composables/useIsochroneLayer'
 import { centerFromCorners, routeBoundsCorners, routeLayerModule } from '../composables/useRouteLayer'
 import { originMarkerModule } from '../composables/useOriginMarker'
@@ -18,6 +19,12 @@ import { resolveMapStyleUrl } from '../mapStyle'
 import { readThemeToken } from '../themeTokens'
 import type { Route, Station } from '../api/scenarios'
 import type { SnapCoord as LatLng } from '../api/authoring/types'
+
+// maplibre-gl 6 finds its worker beside its own module via import.meta.url,
+// which a Vite bundle breaks: the worker is never emitted and no tiles load.
+// `?worker&url` emits it as a self-contained chunk; plain `?url` would drop
+// the shared module the worker imports.
+setWorkerUrl(maplibreWorkerUrl)
 
 const props = defineProps<{
   isochroneData: ChainResponse | null

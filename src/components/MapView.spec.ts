@@ -112,6 +112,7 @@ class ResizeObserverStub {
 vi.stubGlobal('ResizeObserver', ResizeObserverStub)
 
 vi.mock('maplibre-gl', () => ({
+  setWorkerUrl: vi.fn(),
   Map: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
     this['addSource'] = mockAddSource
     this['addLayer'] = mockAddLayer
