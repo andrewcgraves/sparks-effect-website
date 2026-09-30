@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDraftsStore } from '../stores/drafts'
-import { ApiError } from '../api/authoring/client'
+import { authoringFault } from '../api/authoringFault'
 import { fetchMyServices } from '../api/authoring/services'
 import { createScenario } from '../api/authoring/scenarios'
 import type { Service } from '../api/authoring/types'
@@ -60,7 +60,7 @@ async function handleSave(): Promise<void> {
     drafts.clearScenarioDraft()
     await router.push({ name: 'scenario-detail', params: { slug: created.slug } })
   } catch (err) {
-    submitError.value = err instanceof ApiError ? err.message : 'Something went wrong saving the scenario.'
+    submitError.value = authoringFault(err, 'scenario')
     submitting.value = false
   }
 }

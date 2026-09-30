@@ -26,6 +26,7 @@ vi.mock('../components/MapView.vue', () => ({
 import AuthoredServiceView from './AuthoredServiceView.vue'
 import { compileService, fetchService, fetchServiceGraph, fetchServiceIsochrone } from '../api/authoring/services'
 import { fetchServicePublication, publishService } from '../api/publications'
+import { PUBLISH_COMPILE_FAILED } from '../composables/usePublication'
 
 const Stub = { template: '<div>stub</div>' }
 
@@ -421,8 +422,8 @@ describe('AuthoredServiceView', () => {
     expect(wrapper.get('[data-testid="publication"]').attributes('data-state')).toBe('unpublished')
     // The control points at the fault; the reason itself is on the preview's
     // existing error surface, not repeated in a second one.
-    expect(wrapper.get('[data-testid="publication-error"]').text()).not.toContain('compile boom')
-    expect(wrapper.get('[data-testid="fetch-error"]').text()).toContain('compile boom')
+    expect(wrapper.get('[data-testid="publication-error"]').text()).toBe(PUBLISH_COMPILE_FAILED)
+    expect(wrapper.get('[data-testid="fetch-error"]').text()).toBe('Something went wrong. Please try again.')
   })
 
 })

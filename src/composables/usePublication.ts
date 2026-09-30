@@ -1,5 +1,6 @@
 import { computed, ref } from 'vue'
 import { ApiError } from '../api/authoring/client'
+import { authoringFault } from '../api/authoringFault'
 import { fetchServicePublication, publishService, unpublishService } from '../api/publications'
 import { latestAttempt } from './latestAttempt'
 
@@ -21,7 +22,8 @@ function isStaleGraph(err: unknown): boolean {
 }
 
 function reason(err: unknown): string {
-  return err instanceof Error ? err.message : String(err)
+  const fault = authoringFault(err)
+  return fault.charAt(0).toLowerCase() + fault.slice(1)
 }
 
 export function usePublication(

@@ -299,14 +299,14 @@ describe('useServiceDraft', () => {
       expect(useDraftsStore().hasServiceDraft).toBe(false)
     })
 
-    it('keeps the edit and reports the message when the save is refused', async () => {
+    it('keeps the edit and says why when the save is refused', async () => {
       vi.mocked(updateService).mockRejectedValue(new ApiError('PUT /api/services/northbound-express failed: 422: nope', 422))
       const draft = useServiceDraft('northbound-express')
       await draft.start()
 
       await draft.submit()
 
-      expect(draft.submitError.value).toContain('nope')
+      expect(draft.submitError.value).toBe("Some of this service's details weren't accepted. Check them and try again.")
       expect(draft.submitted.value).toBe(false)
       expect(useDraftsStore().editingServiceId).toBe('svc1')
     })
@@ -701,14 +701,14 @@ describe('useServiceDraft', () => {
       expect(createService).not.toHaveBeenCalled()
     })
 
-    it('keeps the draft and reports the message when the write is refused', async () => {
+    it('keeps the draft and says why when the write is refused', async () => {
       vi.mocked(createService).mockRejectedValue(new ApiError('POST /api/services failed: 422: nope', 422))
       const draft = useServiceDraft()
       await submittable(draft)
 
       await draft.submit()
 
-      expect(draft.submitError.value).toContain('nope')
+      expect(draft.submitError.value).toBe("Some of this service's details weren't accepted. Check them and try again.")
       expect(draft.submitted.value).toBe(false)
       expect(draft.createdSlug.value).toBeNull()
       expect(draft.stops.value).toHaveLength(2)
@@ -757,7 +757,7 @@ describe('useServiceDraft', () => {
 
       expect(draft.faultedStops.value.size).toBe(0)
       // The banner is the record of what happened, so it stays.
-      expect(draft.submitError.value).toContain('rejected')
+      expect(draft.submitError.value).toBe('Stop "B" is too far from the route. Move it onto the line and save again.')
     })
 
     it('leaves no stop flagged when the refusal is not one it recognizes', async () => {
@@ -768,7 +768,7 @@ describe('useServiceDraft', () => {
       await draft.submit()
 
       expect(draft.faultedStops.value.size).toBe(0)
-      expect(draft.submitError.value).toContain('500')
+      expect(draft.submitError.value).toBe("Couldn't reach the server. Your draft is saved; try again.")
     })
   })
 

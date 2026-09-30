@@ -3,8 +3,12 @@ import { useJobsStore } from '../stores/jobs'
 import { latestAttempt } from './latestAttempt'
 import { newTraceId, traceHeaders } from '../api/traceId'
 import type { Job, TransitGraph } from '../api/authoring'
+import { authoringFault, type AuthoringNoun } from '../api/authoringFault'
 
-export function useCompileJob(compile: (slug: string, init?: RequestInit) => Promise<Job>) {
+export function useCompileJob(
+  compile: (slug: string, init?: RequestInit) => Promise<Job>,
+  noun: AuthoringNoun = 'service',
+) {
   const jobs = useJobsStore()
   const compiling = ref(false)
   const compileError = ref('')
@@ -27,7 +31,7 @@ export function useCompileJob(compile: (slug: string, init?: RequestInit) => Pro
       result.value = finished.result ?? null
     } catch (err) {
       if (!attempts.isCurrent(attempt)) return
-      compileError.value = err instanceof Error ? err.message : 'Compile failed.'
+      compileError.value = authoringFault(err, noun)
     } finally {
       // Left alone when superseded: the attempt that replaced this one set it,
       // and owns clearing it.

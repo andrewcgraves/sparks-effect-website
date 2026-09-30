@@ -1,6 +1,7 @@
 import { computed, ref, type Ref } from 'vue'
 import { ApiError } from '../api/authoring/client'
 import type { AuthoredIsochroneRequest, Job, TransitGraph, TravelMode } from '../api/authoring'
+import type { AuthoringNoun } from '../api/authoringFault'
 import { isochroneFault, isochroneRangeRefusal, isochroneRequested } from '../api/isochroneFault'
 import type { ChainResponse } from '../fixtures/isochrone'
 import { useCompileJob } from './useCompileJob'
@@ -23,6 +24,7 @@ export interface PinnedGraphTarget<G extends TransitGraph = TransitGraph> {
 
 export interface AuthoredGraphTarget<G extends TransitGraph = TransitGraph> extends PinnedGraphTarget<G> {
   compile: (slug: string, init?: RequestInit) => Promise<Job>
+  noun?: AuthoringNoun
 }
 
 function neverCompile(): Promise<Job> {
@@ -46,7 +48,7 @@ export function useAuthoredGraph<G extends TransitGraph = TransitGraph>(
     result: compiledGraph,
     trigger: triggerCompileJob,
     reset: resetCompile,
-  } = useCompileJob(compile ?? neverCompile)
+  } = useCompileJob(compile ?? neverCompile, 'noun' in target ? target.noun : undefined)
 
   async function triggerCompile(slug: string): Promise<void> {
     if (compile) await triggerCompileJob(slug)

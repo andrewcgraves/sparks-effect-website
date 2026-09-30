@@ -10,14 +10,24 @@ export class ApiError extends Error {
   readonly status: number
   readonly code?: string
   readonly detail?: unknown
+  readonly retryAfterS?: number
 
-  constructor(message: string, status: number, code?: string, detail?: unknown) {
+  constructor(message: string, status: number, code?: string, detail?: unknown, retryAfterS?: number) {
     super(message)
     this.name = 'ApiError'
     this.status = status
     this.code = code
     this.detail = detail
+    this.retryAfterS = retryAfterS
   }
+}
+
+// Only the delta-seconds form: the API never sends an HTTP-date, and a value
+// this cannot read is better left out than guessed at.
+function retryAfterSeconds(res: Response): number | undefined {
+  const raw = res.headers?.get('Retry-After')?.trim()
+  if (!raw || !/^\d+$/.test(raw)) return undefined
+  return Number(raw)
 }
 
 export const STOP_PLACEMENT_ERROR_CODE = 'stop_placement'
@@ -96,7 +106,13 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
     } catch {
       // Error responses are not always JSON.
     }
-    throw new ApiError(`${method} ${path} failed: ${res.status}${message}`, res.status, code, detail)
+    throw new ApiError(
+      `${method} ${path} failed: ${res.status}${message}`,
+      res.status,
+      code,
+      detail,
+      retryAfterSeconds(res),
+    )
   }
 
   if (res.status === 204) return undefined as T

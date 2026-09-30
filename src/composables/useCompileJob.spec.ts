@@ -63,7 +63,7 @@ describe('useCompileJob', () => {
     await trigger('ca-hsr')
 
     expect(compile).toHaveBeenCalledTimes(1)
-    expect(compileError.value).toBe('compile blew up')
+    expect(compileError.value).toBe('Something went wrong. Please try again.')
   })
 
   // Compile has never answered 409 stale_graph — only the isochrone endpoint
@@ -76,7 +76,7 @@ describe('useCompileJob', () => {
     await trigger('ca-hsr')
 
     expect(compile).toHaveBeenCalledTimes(1)
-    expect(compileError.value).toContain('still stale')
+    expect(compileError.value).toBe('This service changed since it was last compiled. Compile it again, then retry.')
   })
 
   it('ignores an attempt that a later trigger has superseded', async () => {
