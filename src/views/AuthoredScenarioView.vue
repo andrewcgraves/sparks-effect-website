@@ -33,6 +33,7 @@ const {
   handleIsochroneSubmit,
 } = useAuthoredGraph(() => props.slug, {
   compile: compileScenario,
+  noun: 'scenario',
   fetchGraph: fetchScenarioGraph,
   isochrone: fetchScenarioIsochrone,
 })

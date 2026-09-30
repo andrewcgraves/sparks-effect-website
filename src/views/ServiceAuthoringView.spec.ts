@@ -324,7 +324,9 @@ describe('ServiceAuthoringView', () => {
         }),
       )
       expect(flaggedRows(wrapper)).toEqual([])
-      expect(wrapper.find('[data-testid="submit-error"]').text()).toContain('some new rule')
+      expect(wrapper.find('[data-testid="submit-error"]').text()).toBe(
+        "Some stops don't sit on the route. Check the flagged stops and save again.",
+      )
     })
 
     it('falls back to the banner alone for a rejection carrying no detail', async () => {
@@ -332,7 +334,9 @@ describe('ServiceAuthoringView', () => {
         new ApiError('POST /api/services failed: 422: route_slug is required', 422),
       )
       expect(flaggedRows(wrapper)).toEqual([])
-      expect(wrapper.find('[data-testid="submit-error"]').text()).toContain('route_slug is required')
+      expect(wrapper.find('[data-testid="submit-error"]').text()).toBe(
+        "Some of this service's details weren't accepted. Check them and try again.",
+      )
     })
   })
 
@@ -434,7 +438,9 @@ describe('ServiceAuthoringView', () => {
       await flushPromises()
 
       expect(router.currentRoute.value.path).toBe('/authoring/services/new')
-      expect(wrapper.find('[data-testid="submit-error"]').text()).toContain('rejected')
+      expect(wrapper.find('[data-testid="submit-error"]').text()).toBe(
+        'Stop "B" is too far from the route. Move it onto the line and save again.',
+      )
       expect(wrapper.findAll('[data-testid="stop-row"]').map(stopRowName)).toEqual(['A', 'B'])
       expect(wrapper.find('[data-testid="service-name"]').element).toHaveProperty('value', 'Northbound Express')
       const flagged = wrapper.findAll('[data-testid="stop-row"]').map((row) => row.find('[data-testid="stop-submit-error"]').exists())
@@ -449,7 +455,7 @@ describe('ServiceAuthoringView', () => {
     expect(wrapper.find('[data-testid="service-description"]').attributes('maxlength')).toBe('4000')
   })
 
-  it('shows the 422 message from the API when creation is rejected', async () => {
+  it('shows a plain-language summary, not the API message, when creation is rejected', async () => {
     vi.mocked(createService).mockRejectedValue(
       new ApiError('POST /api/services failed: 422: stop "B" is 620 m from route "main-line"', 422),
     )
@@ -469,7 +475,9 @@ describe('ServiceAuthoringView', () => {
     await wrapper.find('form').trigger('submit')
     await flushPromises()
 
-    expect(wrapper.find('[data-testid="submit-error"]').text()).toContain('620 m from route')
+    expect(wrapper.find('[data-testid="submit-error"]').text()).toBe(
+      "Some of this service's details weren't accepted. Check them and try again.",
+    )
     expect(compileService).not.toHaveBeenCalled()
   })
 
@@ -822,7 +830,7 @@ describe('ServiceAuthoringView', () => {
       await wrapper.find('form').trigger('submit')
       await flushPromises()
 
-      expect(wrapper.find('[data-testid="compile-error"]').text()).toContain('compile exploded')
+      expect(wrapper.find('[data-testid="compile-error"]').text()).toBe('Something went wrong. Please try again.')
       expect(wrapper.find('[data-testid="view-service"]').attributes('href')).toBe('/authoring/services/northbound-express')
       expect(router.currentRoute.value.name).toBe('edit-service')
     })

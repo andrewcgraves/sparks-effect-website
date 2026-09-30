@@ -201,7 +201,9 @@ describe('PublicationControl', () => {
       await flushPromises()
       await wrapper.get('[data-testid="publish-button"]').trigger('click')
       await flushPromises()
-      expect(wrapper.get('[data-testid="publication-error"]').text()).toContain('500: internal error')
+      expect(wrapper.get('[data-testid="publication-error"]').text()).toBe(
+        "Not published: couldn't reach the server. Your draft is saved; try again.",
+      )
       expect(wrapper.get('[data-testid="publication"]').attributes('data-state')).toBe('changed')
       expect(wrapper.get('time').attributes('datetime')).toBe(PUBLISHED_AT)
     })
@@ -250,7 +252,9 @@ describe('PublicationControl', () => {
       await wrapper.get('[data-testid="unpublish-button"]').trigger('click')
       await wrapper.get('[data-testid="confirm-unpublish-button"]').trigger('click')
       await flushPromises()
-      expect(wrapper.get('[data-testid="publication-error"]').text()).toContain('DELETE failed: 500')
+      expect(wrapper.get('[data-testid="publication-error"]').text()).toBe(
+        "Still published: couldn't reach the server. Your draft is saved; try again.",
+      )
       expect(wrapper.get('[data-testid="publication"]').attributes('data-state')).toBe('current')
     })
   })

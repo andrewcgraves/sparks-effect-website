@@ -3,6 +3,7 @@ import { useDraftsStore } from '../stores/drafts'
 import { useCompileJob } from './useCompileJob'
 import { latestAttempt } from './latestAttempt'
 import { ApiError, stopPlacementFault } from '../api/authoring/client'
+import { authoringFault } from '../api/authoringFault'
 import { fetchRoute, listRoutes, snapStops } from '../api/authoring/routes'
 import {
   compileService,
@@ -418,7 +419,7 @@ export function useServiceDraft(serviceSlug?: string) {
       submitted.value = true
       await triggerCompile(saved.slug)
     } catch (err) {
-      submitError.value = err instanceof ApiError ? err.message : 'Something went wrong saving the service.'
+      submitError.value = authoringFault(err)
       // Null for anything this build cannot attribute to specific rows, which
       // leaves the banner as the whole of the feedback.
       submitFault.value = stopPlacementFault(err)

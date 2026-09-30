@@ -159,7 +159,7 @@ describe('useAuthoredGraph', () => {
 
       await triggerCompile('ca-hsr')
 
-      expect(compileError.value).toContain('compile blew up')
+      expect(compileError.value).toBe("Couldn't reach the server. Your draft is saved; try again.")
       expect(compiling.value).toBe(false)
     })
 
@@ -170,8 +170,25 @@ describe('useAuthoredGraph', () => {
 
       await triggerCompile('ca-hsr')
 
-      expect(compileError.value).toContain('disconnected stop')
+      expect(compileError.value).toBe("This service couldn't be compiled. Check its stops and timetable, then try again.")
       expect(graph.value).toBeNull()
+    })
+
+    it('words a failed compile in terms of the scenario it is compiling', async () => {
+      vi.stubGlobal('fetch', failingJobFetch('graph has a disconnected stop'))
+      compile.mockResolvedValue(queuedJob)
+      const { triggerCompile, compileError } = useAuthoredGraph(() => 'ca-hsr', {
+        compile,
+        fetchGraph,
+        isochrone,
+        noun: 'scenario',
+      })
+
+      await triggerCompile('ca-hsr')
+
+      expect(compileError.value).toBe(
+        "This scenario couldn't be compiled. Check its services and interchanges, then try again.",
+      )
     })
 
     // Only the isochrone endpoint answers 409 stale_graph; compile never has.
@@ -183,7 +200,7 @@ describe('useAuthoredGraph', () => {
       await triggerCompile('ca-hsr')
 
       expect(compile).toHaveBeenCalledTimes(1)
-      expect(compileError.value).toContain('stale')
+      expect(compileError.value).toBe('This service changed since it was last compiled. Compile it again, then retry.')
     })
 
     it('reports the form as loading while a compile is in flight', async () => {
