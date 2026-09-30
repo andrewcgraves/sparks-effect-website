@@ -20,8 +20,11 @@ export async function login(email: string, password: string): Promise<LoginRespo
   })
 }
 
-export async function logout(): Promise<void> {
-  await apiRequest<void>('/api/auth/logout', { method: 'POST' })
+// An explicit token marks the request as not riding on the ambient session, so
+// a 401 from an already-dead token is not mistaken for the session expiring.
+export async function logout(token?: string): Promise<void> {
+  const headers = token ? { Authorization: `Bearer ${token}` } : undefined
+  await apiRequest<void>('/api/auth/logout', { method: 'POST', headers })
 }
 
 export async function fetchCurrentUser(): Promise<CurrentUser> {

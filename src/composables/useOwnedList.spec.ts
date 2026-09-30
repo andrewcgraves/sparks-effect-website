@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { flushPromises } from '@vue/test-utils'
 import { useOwnedList } from './useOwnedList'
+import { SessionExpiredError } from '../api/authoring/client'
 
 describe('useOwnedList', () => {
   it('starts loading with an empty list', () => {
@@ -30,5 +31,12 @@ describe('useOwnedList', () => {
     const fetcher = vi.fn().mockResolvedValue([])
     useOwnedList(fetcher)
     expect(fetcher).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports no failure when the session expired, leaving the page loading until the redirect lands', async () => {
+    const { loading, error } = useOwnedList(() => Promise.reject(new SessionExpiredError('GET /api/services failed: 401')))
+    await flushPromises()
+    expect(error.value).toBe(false)
+    expect(loading.value).toBe(true)
   })
 })

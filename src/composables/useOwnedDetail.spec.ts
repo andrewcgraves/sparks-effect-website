@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises } from '@vue/test-utils'
 import { useOwnedDetail } from './useOwnedDetail'
-import { ApiError } from '../api/authoring/client'
+import { ApiError, SessionExpiredError } from '../api/authoring/client'
 
 describe('useOwnedDetail', () => {
   afterEach(() => {
@@ -55,5 +55,14 @@ describe('useOwnedDetail', () => {
     await flushPromises()
     expect(error.value).toBe(true)
     expect(notFound.value).toBe(false)
+  })
+
+  it('reports no failure when the session expired, leaving the page loading until the redirect lands', async () => {
+    const fetcher = vi.fn().mockRejectedValue(new SessionExpiredError('GET /api/services/a failed: 401'))
+    const { notFound, error, loading } = useOwnedDetail(fetcher, 'a')
+    await flushPromises()
+    expect(error.value).toBe(false)
+    expect(notFound.value).toBe(false)
+    expect(loading.value).toBe(true)
   })
 })

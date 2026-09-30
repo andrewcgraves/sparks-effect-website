@@ -26,7 +26,8 @@ import {
   fetchServiceGraph,
   updateService,
 } from '../api/authoring/services'
-import { ApiError } from '../api/authoring/client'
+import { ApiError, SessionExpiredError } from '../api/authoring/client'
+import { SESSION_EXPIRED_FAULT } from '../api/authoringFault'
 import { useDraftsStore } from '../stores/drafts'
 
 const stubRouteSummary: RouteSummary = { slug: 'main-line', name: 'Main Line', mode: 'rail' }
@@ -713,6 +714,18 @@ describe('useServiceDraft', () => {
       expect(draft.createdSlug.value).toBeNull()
       expect(draft.stops.value).toHaveLength(2)
       expect(compileService).not.toHaveBeenCalled()
+    })
+
+    it('words a mid-save session expiry plainly, with no raw 401, and keeps the draft', async () => {
+      vi.mocked(createService).mockRejectedValue(new SessionExpiredError('POST /api/services failed: 401: unauthorized'))
+      const draft = useServiceDraft()
+      await submittable(draft)
+
+      await draft.submit()
+
+      expect(draft.submitError.value).toBe(SESSION_EXPIRED_FAULT)
+      expect(draft.submitted.value).toBe(false)
+      expect(draft.stops.value).toHaveLength(2)
     })
 
     it('attributes a stop-placement refusal to the rows it names', async () => {

@@ -15,14 +15,28 @@ const auth = useAuthStore()
 const router = useRouter()
 const route = useRoute()
 
+// The ?redirect= destination, if it is a path on this site. Anything else — an
+// absolute or protocol-relative URL, or a path a browser would read as one
+// (`/\\host`) — is dropped, so a crafted sign-in link cannot send the user
+// off-site once they have authenticated.
+function safeRedirect(value: unknown): string | null {
+  if (typeof value !== 'string' || !value.startsWith('/')) return null
+  if (value.startsWith('//') || value.startsWith('/\\')) return null
+  try {
+    const resolved = new URL(value, window.location.origin)
+    return resolved.origin === window.location.origin ? value : null
+  } catch {
+    return null
+  }
+}
+
 async function handleSubmit() {
   if (!email.value || !password.value || loading.value) return
   loading.value = true
   error.value = ''
   try {
     await auth.login(email.value, password.value)
-    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/authoring'
-    await router.push(redirect)
+    await router.push(safeRedirect(route.query.redirect) ?? '/authoring')
   } catch (err: unknown) {
     // The API returns a generic 401 for any bad credential (unknown email,
     // wrong password, no password set) to avoid account enumeration.
@@ -43,6 +57,15 @@ async function handleSubmit() {
       </h1>
       <p class="font-body text-micro text-ink-muted italic uppercase">
         Invite-only · accounts are provisioned by an admin
+      </p>
+
+      <p
+        v-if="auth.sessionExpired"
+        class="font-body text-caption text-coral mt-4"
+        role="status"
+        data-testid="session-expired"
+      >
+        Your session expired. Sign in to continue.
       </p>
 
       <form

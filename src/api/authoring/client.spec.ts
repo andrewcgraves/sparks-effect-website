@@ -6,7 +6,9 @@ import {
   STOP_PLACEMENT_ERROR_CODE,
   apiBase,
   apiRequest,
+  isSessionExpiry,
   setAuthTokenProvider,
+  setUnauthorizedHandler,
   stopPlacementFault,
 } from './client'
 
@@ -276,6 +278,77 @@ describe('auth token injection', () => {
     vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 204 } as Response)
     await apiRequest('/api/services', { headers: { Authorization: 'Bearer caller' } })
     expect(headersOf().get('Authorization')).toBe('Bearer caller')
+  })
+})
+
+describe('unauthorized handler', () => {
+  const unauthorized = { ok: false, status: 401, json: async () => ({ error: 'unauthorized' }) } as Response
+
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn())
+  })
+
+  afterEach(() => {
+    setAuthTokenProvider(null)
+    setUnauthorizedHandler(null)
+    vi.restoreAllMocks()
+  })
+
+  it('reports a 401 on a request sent with the session token, naming that token', async () => {
+    const onUnauthorized = vi.fn()
+    setAuthTokenProvider(() => 'tok-1')
+    setUnauthorizedHandler(onUnauthorized)
+    vi.mocked(fetch).mockResolvedValueOnce(unauthorized)
+
+    await expect(apiRequest('/api/services')).rejects.toBeInstanceOf(ApiError)
+    expect(onUnauthorized).toHaveBeenCalledExactlyOnceWith('tok-1')
+  })
+
+  it('stays quiet on a 401 from a request sent without a session', async () => {
+    const onUnauthorized = vi.fn()
+    setAuthTokenProvider(() => null)
+    setUnauthorizedHandler(onUnauthorized)
+    vi.mocked(fetch).mockResolvedValueOnce(unauthorized)
+
+    await expect(apiRequest('/api/auth/login', { method: 'POST', body: '{}' })).rejects.toMatchObject({ status: 401 })
+    expect(onUnauthorized).not.toHaveBeenCalled()
+  })
+
+  it('stays quiet when the caller supplied its own Authorization header', async () => {
+    const onUnauthorized = vi.fn()
+    setAuthTokenProvider(() => 'tok-1')
+    setUnauthorizedHandler(onUnauthorized)
+    vi.mocked(fetch).mockResolvedValueOnce(unauthorized)
+
+    await expect(apiRequest('/api/services', { headers: { Authorization: 'Bearer caller' } })).rejects.toMatchObject({
+      status: 401,
+    })
+    expect(onUnauthorized).not.toHaveBeenCalled()
+  })
+
+  it('stays quiet on any other failure from an authenticated request', async () => {
+    const onUnauthorized = vi.fn()
+    setAuthTokenProvider(() => 'tok-1')
+    setUnauthorizedHandler(onUnauthorized)
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: false, status: 403, json: async () => ({}) } as Response)
+
+    await expect(apiRequest('/api/services')).rejects.toMatchObject({ status: 403 })
+    expect(onUnauthorized).not.toHaveBeenCalled()
+  })
+
+  it('marks the rejection as a session expiry so views can stay quiet about it', async () => {
+    setAuthTokenProvider(() => 'tok-1')
+    vi.mocked(fetch).mockResolvedValueOnce(unauthorized)
+
+    const err = await apiRequest('/api/services').catch((e: unknown) => e)
+    expect(isSessionExpiry(err)).toBe(true)
+  })
+
+  it('does not mark a 401 sent without a session as a session expiry', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(unauthorized)
+
+    const err = await apiRequest('/api/auth/login', { method: 'POST', body: '{}' }).catch((e: unknown) => e)
+    expect(isSessionExpiry(err)).toBe(false)
   })
 })
 
