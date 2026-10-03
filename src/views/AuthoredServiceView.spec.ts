@@ -41,6 +41,7 @@ import { fetchMyScenarios } from '../api/authoring/scenarios'
 import { useConfirmHost } from '../composables/useConfirm'
 import { fetchServicePublication, publishService, type ServicePublication } from '../api/publications'
 import { PUBLISH_COMPILE_FAILED } from '../composables/usePublication'
+import { busyRegion, visibleText } from '../test/loading'
 
 const Stub = { template: '<div>stub</div>' }
 
@@ -111,6 +112,15 @@ describe('AuthoredServiceView', () => {
   afterEach(() => {
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
+  })
+
+  it('shows a page skeleton in the shape of the loaded page, not loading copy, while it loads', () => {
+    vi.mocked(fetchService).mockReturnValue(new Promise(() => {}))
+    const wrapper = mountView()
+    const region = busyRegion(wrapper, 'service-loading')
+    expect(region.find('[data-testid="map-panel-skeleton"]').exists()).toBe(true)
+    expect(region.findAll('[data-testid="card-skeleton"]')).toHaveLength(3)
+    expect(visibleText(region)).toBe('')
   })
 
   it('fetches the service named by the slug prop', async () => {

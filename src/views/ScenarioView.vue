@@ -14,6 +14,8 @@ import { useIsochrone } from '../composables/useIsochrone'
 import { useOriginPick } from '../composables/useOriginPick'
 import { usePageTitle } from '../composables/usePageTitle'
 import AllLinesLink from '../components/AllLinesLink.vue'
+import LoadingRegion from '../components/LoadingRegion.vue'
+import SkeletonShape from '../components/SkeletonShape.vue'
 import type { TravelMode } from '../api/authoring'
 
 const props = defineProps<{ slug: string }>()
@@ -21,7 +23,7 @@ const props = defineProps<{ slug: string }>()
 const origin = ref<{ lat: number; lng: number } | null>(null)
 const { pickArmed, onMapClick } = useOriginPick()
 
-const { name, description, routes, stations, services } = useScenario(props.slug)
+const { name, description, routes, stations, services, loading: scenarioLoading } = useScenario(props.slug)
 
 usePageTitle(() => name.value)
 
@@ -99,7 +101,18 @@ async function handleFormSubmit(payload: { lat: number; lng: number; duration: n
 <template>
   <main class="flex-1 p-(--page-padding)">
     <AllLinesLink />
-    <h1 class="mt-8 max-w-[720px] font-display text-display text-ink-true">
+    <LoadingRegion
+      v-if="scenarioLoading"
+      label="Loading scenario"
+      class="mt-8 max-w-[720px] font-display text-display"
+      data-testid="scenario-title-loading"
+    >
+      <SkeletonShape class="w-3/4 max-w-[480px]" />
+    </LoadingRegion>
+    <h1
+      v-else
+      class="mt-8 max-w-[720px] font-display text-display text-ink-true"
+    >
       {{ name || 'Sparks Effect' }}
     </h1>
 
