@@ -10,7 +10,9 @@ import AuthoredScenarioView from '../views/AuthoredScenarioView.vue'
 import RouteView from '../views/RouteView.vue'
 import PublishedServiceView from '../views/PublishedServiceView.vue'
 import NotFoundView from '../views/NotFoundView.vue'
+import WelcomeView from '../views/WelcomeView.vue'
 import { trackPageView } from '../analytics/index'
+import { redactPath } from '../analytics/redact'
 import { formatPageTitle } from '../composables/usePageTitle'
 import { useAuthStore } from '../stores/auth'
 
@@ -41,6 +43,25 @@ export const router = createRouter({
       name: 'login',
       component: LoginView,
       meta: { title: 'Sign in' },
+    },
+    // An invite or reset link. Open to a signed-in user too: the page itself
+    // sends them away if the link is for someone else.
+    {
+      path: '/welcome/:token',
+      name: 'welcome',
+      component: WelcomeView,
+      props: true,
+      meta: { title: 'Set your password' },
+    },
+    // The form of link sparks-effect-api issues (SPA-387).
+    {
+      path: '/set-password',
+      redirect: (to) => {
+        const token = to.query.token
+        return typeof token === 'string' && token
+          ? { name: 'welcome', params: { token }, query: {} }
+          : { path: '/login', query: {} }
+      },
     },
     {
       path: '/authoring',
@@ -137,5 +158,5 @@ export async function redirectAfterSessionExpiry(target: Router): Promise<void> 
 
 router.afterEach((to) => {
   document.title = formatPageTitle(to.meta.title)
-  trackPageView(to.path)
+  trackPageView(redactPath(to.path))
 })
