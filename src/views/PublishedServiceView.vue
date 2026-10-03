@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { fetchPublicationIsochrone, fetchServicePublication } from '../api/publications'
 import { useAuthoredGraph } from '../composables/useAuthoredGraph'
+import { usePageTitle } from '../composables/usePageTitle'
 import ScenarioPreviewPanel from '../components/ScenarioPreviewPanel.vue'
 import TimeBetweenStations from '../components/TimeBetweenStations.vue'
 import { graphStationTimeGroups } from '../components/stationTimes'
@@ -37,6 +38,8 @@ const {
 // copy keeps it that way: saying which would tell a stranger that a draft sits
 // behind a guessed slug.
 const loading = computed(() => !publication.value && !graphFailed.value && !graphNotFound.value)
+
+usePageTitle(() => publication.value?.name)
 
 const services = computed(() =>
   publication.value ? [{ id: publication.value.user_service_id, name: publication.value.name }] : [],

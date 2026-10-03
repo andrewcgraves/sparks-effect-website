@@ -126,6 +126,34 @@ describe('router', () => {
     })
   })
 
+  describe('document title', () => {
+    it('names a static page, suffixed with the site name', async () => {
+      await router.push('/login')
+      expect(document.title).toBe('Sign in · Sparks Effect')
+    })
+
+    it('names the signed-in pages', async () => {
+      useAuthStore().signIn('tok-1', { id: 'u1', email: 'a@example.com' })
+      await router.push('/authoring')
+      expect(document.title).toBe('My authoring · Sparks Effect')
+      await router.push('/authoring/services/new')
+      expect(document.title).toBe('New service · Sparks Effect')
+      await router.push('/authoring/scenarios/new')
+      expect(document.title).toBe('New scenario · Sparks Effect')
+    })
+
+    it('names an unmatched path as not found', async () => {
+      await router.push('/no-such-page')
+      expect(document.title).toBe('Page not found · Sparks Effect')
+    })
+
+    it('restores the bare site name on returning to /', async () => {
+      await router.push('/login')
+      await router.push('/')
+      expect(document.title).toBe('Sparks Effect')
+    })
+  })
+
   describe('after the session expires', () => {
     it('sends the user from an authoring page to sign in, remembering where they were', async () => {
       const auth = useAuthStore()

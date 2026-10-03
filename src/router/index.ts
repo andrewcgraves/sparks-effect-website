@@ -11,7 +11,15 @@ import RouteView from '../views/RouteView.vue'
 import PublishedServiceView from '../views/PublishedServiceView.vue'
 import NotFoundView from '../views/NotFoundView.vue'
 import { trackPageView } from '../analytics/index'
+import { formatPageTitle } from '../composables/usePageTitle'
 import { useAuthStore } from '../stores/auth'
+
+declare module 'vue-router' {
+  interface RouteMeta {
+    requiresAuth?: boolean
+    title?: string
+  }
+}
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -26,50 +34,52 @@ export const router = createRouter({
       name: 'scenario',
       component: ScenarioView,
       props: true,
+      meta: { title: 'Scenario' },
     },
     {
       path: '/login',
       name: 'login',
       component: LoginView,
+      meta: { title: 'Sign in' },
     },
     {
       path: '/authoring',
       name: 'authoring',
       component: AuthoringView,
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, title: 'My authoring' },
     },
     {
       path: '/authoring/services/new',
       name: 'new-service',
       component: ServiceAuthoringView,
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, title: 'New service' },
     },
     {
       path: '/authoring/scenarios/new',
       name: 'new-scenario',
       component: ScenarioBuilderView,
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, title: 'New scenario' },
     },
     {
       path: '/authoring/services/:slug/edit',
       name: 'edit-service',
       component: ServiceAuthoringView,
       props: true,
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, title: 'Edit service' },
     },
     {
       path: '/authoring/services/:slug',
       name: 'service-detail',
       component: AuthoredServiceView,
       props: true,
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, title: 'Service' },
     },
     {
       path: '/authoring/scenarios/:slug',
       name: 'scenario-detail',
       component: AuthoredScenarioView,
       props: true,
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, title: 'Scenario' },
     },
     // A publication, which anyone may read. The owner's draft stays behind
     // sign-in at /authoring/services/:slug (ADR-0005 in sparks-effect-api).
@@ -78,17 +88,20 @@ export const router = createRouter({
       name: 'published-service',
       component: PublishedServiceView,
       props: true,
+      meta: { title: 'Service' },
     },
     {
       path: '/routes/:slug',
       name: 'route',
       component: RouteView,
       props: true,
+      meta: { title: 'Route' },
     },
     {
       path: '/:pathMatch(.*)*',
       name: 'not-found',
       component: NotFoundView,
+      meta: { title: 'Page not found' },
     },
   ],
 })
@@ -116,5 +129,6 @@ export async function redirectAfterSessionExpiry(target: Router): Promise<void> 
 }
 
 router.afterEach((to) => {
+  document.title = formatPageTitle(to.meta.title)
   trackPageView(to.path)
 })

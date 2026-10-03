@@ -12,6 +12,7 @@ import { useScenario } from '../composables/useScenario'
 import { useScenarioTravelTimes } from '../composables/useScenarioTravelTimes'
 import { useIsochrone } from '../composables/useIsochrone'
 import { useOriginPick } from '../composables/useOriginPick'
+import { usePageTitle } from '../composables/usePageTitle'
 import type { TravelMode } from '../api/authoring'
 
 const props = defineProps<{ slug: string }>()
@@ -20,6 +21,8 @@ const origin = ref<{ lat: number; lng: number } | null>(null)
 const { pickArmed, onMapClick } = useOriginPick()
 
 const { name, description, routes, stations, services } = useScenario(props.slug)
+
+usePageTitle(() => name.value)
 
 const {
   segments,

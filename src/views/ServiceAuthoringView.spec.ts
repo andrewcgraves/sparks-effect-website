@@ -898,6 +898,15 @@ describe('ServiceAuthoringView', () => {
       expect(wrapper.find('[data-testid="submit"]').text()).toBe('Save changes')
     })
 
+    it('names the tab after the saved service, not the name being typed', async () => {
+      const { wrapper } = await mountEdit()
+      expect(document.title).toBe('Edit Northbound Express · Sparks Effect')
+
+      await wrapper.find('[data-testid="service-name"]').setValue('Southbound')
+      await flushPromises()
+      expect(document.title).toBe('Edit Northbound Express · Sparks Effect')
+    })
+
     it('links back to the service it is editing', async () => {
       const { wrapper } = await mountEdit()
 

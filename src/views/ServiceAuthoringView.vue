@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useConfirm } from '../composables/useConfirm'
+import { usePageTitle } from '../composables/usePageTitle'
 import { useServiceDraft } from '../composables/useServiceDraft'
 import { useToast } from '../composables/useToast'
 import { MAX_DESCRIPTION_CHARS, MAX_SUBTEXT_CHARS, type SnapCoord as LatLng } from '../api/authoring'
@@ -68,6 +69,10 @@ const {
   start,
   dispose,
 } = useServiceDraft(props.slug)
+
+// Named after the service as saved, not the name field: the tab should not
+// rename itself on every keystroke.
+usePageTitle(() => (editing.value ? `Edit ${editing.value.name}` : null))
 
 const servicePath = computed(() => `/authoring/services/${props.slug}`)
 

@@ -4,6 +4,7 @@ import { compileService, fetchService, fetchServiceGraph, fetchServiceIsochrone 
 import type { Service } from '../api/authoring/types'
 import { useOwnedDetail } from '../composables/useOwnedDetail'
 import { useAuthoredGraph } from '../composables/useAuthoredGraph'
+import { usePageTitle } from '../composables/usePageTitle'
 import ScenarioPreviewPanel from '../components/ScenarioPreviewPanel.vue'
 import PublicationControl from '../components/PublicationControl.vue'
 import TimeBetweenStations from '../components/TimeBetweenStations.vue'
@@ -13,6 +14,8 @@ import { ACTION_LINK_CLASS } from '../components/linkStyles'
 const props = defineProps<{ slug: string }>()
 
 const { item: service, loading, notFound, error } = useOwnedDetail<Service>(fetchService, props.slug)
+
+usePageTitle(() => service.value?.name)
 
 const stops = computed(() => [...(service.value?.stops ?? [])].sort((a, b) => a.seq - b.seq))
 
