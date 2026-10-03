@@ -114,7 +114,7 @@ watch(scenario, (loaded) => {
       </p>
       <p
         v-else-if="graphFailed"
-        class="font-body text-caption mt-8 text-coral"
+        class="font-body text-caption mt-8 text-error"
         role="alert"
         data-testid="graph-error"
       >
@@ -123,7 +123,7 @@ watch(scenario, (loaded) => {
       
       <p
         v-else-if="compileError && !graph"
-        class="font-body text-caption mt-8 text-coral"
+        class="font-body text-caption mt-8 text-error"
         role="alert"
         data-testid="compile-error"
       >

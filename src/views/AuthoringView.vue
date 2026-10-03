@@ -63,7 +63,7 @@ async function handleSignOut() {
         </p>
         <p
           v-else-if="servicesError"
-          class="font-body text-caption mt-3 text-coral"
+          class="font-body text-caption mt-3 text-error"
           role="alert"
           data-testid="services-error"
         >
@@ -117,7 +117,7 @@ async function handleSignOut() {
         </p>
         <p
           v-else-if="scenariosError"
-          class="font-body text-caption mt-3 text-coral"
+          class="font-body text-caption mt-3 text-error"
           role="alert"
           data-testid="scenarios-error"
         >

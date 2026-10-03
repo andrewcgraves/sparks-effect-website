@@ -48,7 +48,7 @@ watch(toasts, () => {
       v-for="toast in toasts"
       :key="toast.id"
       class="pointer-events-auto flex max-w-[360px] items-start gap-3 rounded-(--radius-box) border bg-surface px-4 py-3 shadow-(--shadow-panel)"
-      :class="toast.kind === 'error' ? 'border-coral text-coral' : 'border-border text-ink'"
+      :class="toast.kind === 'error' ? 'border-coral text-error' : 'border-border text-ink'"
       :data-kind="toast.kind"
       data-testid="toast"
     >
