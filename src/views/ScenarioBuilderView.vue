@@ -124,7 +124,6 @@ const {
   trigger: triggerCompile,
 } = useCompileJob(compileScenario, 'scenario')
 
-// The slug the save answered with, which is where the edit lands.
 const savedSlug = ref<string | null>(null)
 
 const scenarioPath = computed(() => `/authoring/scenarios/${savedSlug.value ?? props.slug}`)

@@ -11,7 +11,7 @@ import ScenarioPreviewPanel from '../components/ScenarioPreviewPanel.vue'
 import TimeBetweenStations from '../components/TimeBetweenStations.vue'
 import { graphStationTimeGroups } from '../components/stationTimes'
 import { ACTION_LINK_CLASS } from '../components/linkStyles'
-import { DESTRUCTIVE_BUTTON_CLASS } from '../components/buttonStyles'
+import DeleteMenu from '../components/DeleteMenu.vue'
 
 const props = defineProps<{ slug: string }>()
 
@@ -46,7 +46,7 @@ const stationTimeGroups = computed(() => graphStationTimeGroups(graph.value, ser
 
 const stationTimesFailed = computed(() => Boolean(graphFailed.value || (compileError.value && !graph.value)))
 
-const { deleting, remove } = useScenarioDeletion()
+const { deleting, confirmAndDelete } =useScenarioDeletion()
 
 watch(scenario, (loaded) => {
   if (loaded) void loadGraph(loaded.slug)
@@ -113,25 +113,11 @@ watch(scenario, (loaded) => {
           >
             Edit
           </router-link>
-          <details
-            class="relative"
-            data-testid="scenario-actions"
-          >
-            <summary :class="[ACTION_LINK_CLASS, 'list-none']">
-              More
-            </summary>
-            <div class="absolute right-0 z-10 mt-2 rounded-(--radius-box) border border-border bg-surface p-2 shadow-sm">
-              <button
-                type="button"
-                :class="[DESTRUCTIVE_BUTTON_CLASS, 'whitespace-nowrap']"
-                data-testid="delete-scenario"
-                :disabled="deleting"
-                @click="remove(scenario)"
-              >
-                {{ deleting ? 'Deleting…' : 'Delete scenario' }}
-              </button>
-            </div>
-          </details>
+          <DeleteMenu
+            noun="scenario"
+            :deleting="deleting"
+            @delete="confirmAndDelete(scenario)"
+          />
         </div>
       </div>
       <p

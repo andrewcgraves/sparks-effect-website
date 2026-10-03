@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ApiError } from '../api/authoring/client'
+import { ApiError, SessionExpiredError } from '../api/authoring/client'
 import type { Scenario } from '../api/authoring/types'
 
 vi.mock('../api/authoring/services', () => ({ deleteService: vi.fn() }))
@@ -75,16 +75,16 @@ describe('useServiceDeletion', () => {
   afterEach(() => settle(false))
 
   it('looks up its scenarios and publication before asking', async () => {
-    const { remove } = useServiceDeletion()
-    void remove(coastExpress)
+    const { confirmAndDelete } = useServiceDeletion()
+    void confirmAndDelete(coastExpress)
     await vi.waitFor(() => expect(pending.value).not.toBeNull())
     expect(fetchMyScenarios).toHaveBeenCalledTimes(1)
     expect(fetchServicePublication).toHaveBeenCalledWith('coast-express')
   })
 
   it('shows a destructive confirm with the scenario count and no public-page warning when unpublished', async () => {
-    const { remove } = useServiceDeletion()
-    void remove(coastExpress)
+    const { confirmAndDelete } = useServiceDeletion()
+    void confirmAndDelete(coastExpress)
     await vi.waitFor(() => expect(pending.value).not.toBeNull())
     expect(pending.value).toMatchObject({
       title: "Delete 'Coast Express'?",
@@ -96,15 +96,15 @@ describe('useServiceDeletion', () => {
 
   it('warns when the service is published', async () => {
     vi.mocked(fetchServicePublication).mockResolvedValue({ published_at: '2026-09-01T00:00:00Z' } as ServicePublication)
-    const { remove } = useServiceDeletion()
-    void remove(coastExpress)
+    const { confirmAndDelete } = useServiceDeletion()
+    void confirmAndDelete(coastExpress)
     await vi.waitFor(() => expect(pending.value).not.toBeNull())
     expect(pending.value?.body).toContain('Its public page will stop working.')
   })
 
   it('deletes nothing when declined', async () => {
-    const { remove } = useServiceDeletion()
-    const done = remove(coastExpress)
+    const { confirmAndDelete } = useServiceDeletion()
+    const done = confirmAndDelete(coastExpress)
     await answer(false)
     expect(await done).toBe(false)
     expect(deleteService).not.toHaveBeenCalled()
@@ -112,8 +112,8 @@ describe('useServiceDeletion', () => {
   })
 
   it('deletes, toasts and goes to My authoring when confirmed', async () => {
-    const { remove } = useServiceDeletion()
-    const done = remove(coastExpress)
+    const { confirmAndDelete } = useServiceDeletion()
+    const done = confirmAndDelete(coastExpress)
     await answer(true)
     expect(await done).toBe(true)
     expect(deleteService).toHaveBeenCalledWith('coast-express')
@@ -123,8 +123,8 @@ describe('useServiceDeletion', () => {
 
   it('stays put and toasts the reason when the delete fails', async () => {
     vi.mocked(deleteService).mockRejectedValue(new ApiError('boom', 500, 'internal'))
-    const { remove, deleting } = useServiceDeletion()
-    const done = remove(coastExpress)
+    const { confirmAndDelete, deleting } = useServiceDeletion()
+    const done = confirmAndDelete(coastExpress)
     await answer(true)
     expect(await done).toBe(false)
     expect(push).not.toHaveBeenCalled()
@@ -134,13 +134,23 @@ describe('useServiceDeletion', () => {
     expect(deleting.value).toBe(false)
   })
 
+  it('toasts nothing when the session expired mid-delete, since sign-in is already on its way', async () => {
+    vi.mocked(deleteService).mockRejectedValue(new SessionExpiredError('DELETE failed: 401'))
+    const { confirmAndDelete } = useServiceDeletion()
+    const done = confirmAndDelete(coastExpress)
+    await answer(true)
+    expect(await done).toBe(false)
+    expect(toasts.value).toHaveLength(0)
+    expect(push).not.toHaveBeenCalled()
+  })
+
   it('is busy from the first click until the delete settles, and ignores a second click', async () => {
     let finish: () => void = () => {}
     vi.mocked(deleteService).mockReturnValue(new Promise((resolve) => { finish = resolve }))
-    const { remove, deleting } = useServiceDeletion()
-    const done = remove(coastExpress)
+    const { confirmAndDelete, deleting } = useServiceDeletion()
+    const done = confirmAndDelete(coastExpress)
     expect(deleting.value).toBe(true)
-    expect(await remove(coastExpress)).toBe(false)
+    expect(await confirmAndDelete(coastExpress)).toBe(false)
     await answer(true)
     await vi.waitFor(() => expect(deleteService).toHaveBeenCalled())
     expect(deleting.value).toBe(true)
@@ -162,8 +172,8 @@ describe('useScenarioDeletion', () => {
   afterEach(() => settle(false))
 
   it('asks first, saying its services stay', async () => {
-    const { remove } = useScenarioDeletion()
-    void remove(caHsr)
+    const { confirmAndDelete } = useScenarioDeletion()
+    void confirmAndDelete(caHsr)
     await vi.waitFor(() => expect(pending.value).not.toBeNull())
     expect(pending.value).toMatchObject({
       title: "Delete 'CA HSR'?",
@@ -174,8 +184,8 @@ describe('useScenarioDeletion', () => {
   })
 
   it('deletes, toasts and goes to My authoring when confirmed', async () => {
-    const { remove } = useScenarioDeletion()
-    const done = remove(caHsr)
+    const { confirmAndDelete } = useScenarioDeletion()
+    const done = confirmAndDelete(caHsr)
     await answer(true)
     expect(await done).toBe(true)
     expect(deleteScenario).toHaveBeenCalledWith('ca-hsr')

@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ApiError } from '../api/authoring/client'
-import { authoringFault } from '../api/authoringFault'
+import { ApiError, isSessionExpiry } from '../api/authoring/client'
+import { authoringFault, type AuthoringNoun } from '../api/authoringFault'
 import { deleteService } from '../api/authoring/services'
 import { deleteScenario, fetchMyScenarios } from '../api/authoring/scenarios'
 import { fetchServicePublication } from '../api/publications'
@@ -54,9 +54,9 @@ async function serviceDeletionCost(service: DeletionTarget): Promise<ServiceDele
 }
 
 function useDeletion(
-  noun: 'service' | 'scenario',
-  describe: (target: DeletionTarget) => Promise<string>,
-  destroy: (slug: string) => Promise<void>,
+  noun: AuthoringNoun,
+  confirmBody: (target: DeletionTarget) => Promise<string>,
+  deleteBySlug: (slug: string) => Promise<void>,
 ) {
   const router = useRouter()
   const { confirm } = useConfirm()
@@ -65,20 +65,23 @@ function useDeletion(
 
   // Busy from the click, not from the confirm: the cost is looked up first,
   // and a second click in that gap must not raise a second dialog.
-  async function remove(target: DeletionTarget): Promise<boolean> {
+  async function confirmAndDelete(target: DeletionTarget): Promise<boolean> {
     if (deleting.value) return false
     deleting.value = true
     try {
       const confirmed = await confirm({
         title: `Delete '${target.name}'?`,
-        body: await describe(target),
+        body: await confirmBody(target),
         confirmLabel: `Delete ${noun}`,
         cancelLabel: 'Keep it',
         destructive: true,
       })
       if (!confirmed) return false
-      await destroy(target.slug)
+      await deleteBySlug(target.slug)
     } catch (err) {
+      // The user is already being sent to sign in; an error toast on the way
+      // out would only say so less clearly.
+      if (isSessionExpiry(err)) return false
       const fault = authoringFault(err, noun)
       toast(`Not deleted: ${fault.charAt(0).toLowerCase()}${fault.slice(1)}`, { kind: 'error' })
       return false
@@ -90,7 +93,7 @@ function useDeletion(
     return true
   }
 
-  return { deleting, remove }
+  return { deleting, confirmAndDelete }
 }
 
 export function useServiceDeletion() {

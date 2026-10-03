@@ -10,7 +10,7 @@ import PublicationControl from '../components/PublicationControl.vue'
 import TimeBetweenStations from '../components/TimeBetweenStations.vue'
 import { graphStationTimeGroups } from '../components/stationTimes'
 import { ACTION_LINK_CLASS } from '../components/linkStyles'
-import { DESTRUCTIVE_BUTTON_CLASS } from '../components/buttonStyles'
+import DeleteMenu from '../components/DeleteMenu.vue'
 
 const props = defineProps<{ slug: string }>()
 
@@ -55,7 +55,7 @@ async function recompile(slug: string): Promise<boolean> {
   return !compileError.value
 }
 
-const { deleting, remove } = useServiceDeletion()
+const { deleting, confirmAndDelete } =useServiceDeletion()
 
 watch(service, (loaded) => {
   if (loaded) void loadGraph(loaded.slug)
@@ -129,25 +129,11 @@ watch(service, (loaded) => {
           >
             Edit
           </router-link>
-          <details
-            class="relative"
-            data-testid="service-actions"
-          >
-            <summary :class="[ACTION_LINK_CLASS, 'list-none']">
-              More
-            </summary>
-            <div class="absolute right-0 z-10 mt-2 rounded-(--radius-box) border border-border bg-surface p-2 shadow-sm">
-              <button
-                type="button"
-                :class="[DESTRUCTIVE_BUTTON_CLASS, 'whitespace-nowrap']"
-                data-testid="delete-service"
-                :disabled="deleting"
-                @click="remove(service)"
-              >
-                {{ deleting ? 'Deleting…' : 'Delete service' }}
-              </button>
-            </div>
-          </details>
+          <DeleteMenu
+            noun="service"
+            :deleting="deleting"
+            @delete="confirmAndDelete(service)"
+          />
         </div>
       </div>
       <p
