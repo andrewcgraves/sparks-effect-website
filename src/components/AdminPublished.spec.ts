@@ -47,7 +47,7 @@ describe('AdminPublished', () => {
 
     expect(row(wrapper, 'coast-line').text()).toContain('Coast Line')
     expect(row(wrapper, 'coast-line').text()).toContain('coast-line')
-    expect(row(wrapper, 'bay-loop').getComponent(RouterLinkStub).props('to')).toBe('/services/bay-loop')
+    expect(row(wrapper, 'bay-loop').getComponent(RouterLinkStub).props('to')).toEqual({ name: 'published-service', params: { slug: 'bay-loop' } })
   })
 
   it('reads further pages on request', async () => {

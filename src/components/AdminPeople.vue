@@ -79,9 +79,8 @@ async function change(user: AdminUser, patch: UserChange, done: string): Promise
 }
 
 function toggleAdmin(user: AdminUser): Promise<void> {
-  return user.is_admin
-    ? change(user, { is_admin: false }, `${user.email} is no longer an admin`)
-    : change(user, { is_admin: true }, `${user.email} is now an admin`)
+  const promoting = !user.is_admin
+  return change(user, { is_admin: promoting }, promoting ? `${user.email} is now an admin` : `${user.email} is no longer an admin`)
 }
 
 async function toggleDisabled(user: AdminUser): Promise<void> {
@@ -242,7 +241,7 @@ async function sendInvite(): Promise<void> {
         :label="`${issued.kind} link for ${issued.email}`"
       />
       <p class="font-body text-micro text-ink-muted">
-        Expires {{ dateTimeFormat.format(issued.expiresAt) }}
+        Expires around {{ dateTimeFormat.format(issued.expiresAt) }}
       </p>
     </div>
 

@@ -121,7 +121,7 @@ async function unpublish(service: PublishedServiceSummary): Promise<void> {
           </div>
           <div class="flex items-center gap-3">
             <RouterLink
-              :to="`/services/${service.slug}`"
+              :to="{ name: 'published-service', params: { slug: service.slug } }"
               :class="ACTION_LINK_CLASS"
               data-testid="open-published"
             >

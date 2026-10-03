@@ -37,7 +37,6 @@ export interface ResetLink {
 export const INVITE_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000
 export const RESET_LIFETIME_MS = 60 * 60 * 1000
 
-// Oldest first.
 export async function listUsers(): Promise<AdminUser[]> {
   return apiRequest<AdminUser[]>('/api/admin/users')
 }

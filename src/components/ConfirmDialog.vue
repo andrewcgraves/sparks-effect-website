@@ -27,10 +27,10 @@ watch(pending, (now, before) => {
 // A modal <dialog> makes the page inert in browsers, but Tab can still leave
 // for the browser's own chrome; this keeps it cycling through the dialog.
 function trapTab(event: KeyboardEvent): void {
-  const buttons = [...(dialog.value?.querySelectorAll<HTMLElement>('textarea, button:not([disabled])') ?? [])]
-  if (buttons.length === 0) return
-  const first = buttons[0]
-  const last = buttons[buttons.length - 1]
+  const focusable = [...(dialog.value?.querySelectorAll<HTMLElement>('textarea, button:not([disabled])') ?? [])]
+  if (focusable.length === 0) return
+  const first = focusable[0]
+  const last = focusable[focusable.length - 1]
   if (event.shiftKey && document.activeElement === first) {
     event.preventDefault()
     last.focus()

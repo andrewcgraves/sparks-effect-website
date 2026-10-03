@@ -43,8 +43,7 @@ export function useConfirm() {
     })
   }
 
-  // The same ask with a free-text field: the trimmed note once confirmed, which
-  // may be empty, or null once declined.
+  // The note comes back trimmed, and may be empty.
   async function confirmWithNote(options: ConfirmWithNoteOptions): Promise<string | null> {
     return (await confirm(options)) ? note.value.trim() : null
   }

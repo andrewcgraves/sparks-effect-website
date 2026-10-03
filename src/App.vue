@@ -3,6 +3,7 @@ import { Analytics } from '@vercel/analytics/vue'
 import ConfirmDialog from './components/ConfirmDialog.vue'
 import SiteFooter from './components/SiteFooter.vue'
 import ToastRegion from './components/ToastRegion.vue'
+import { ACTION_LINK_CLASS } from './components/linkStyles'
 import { useAuthStore } from './stores/auth'
 
 const auth = useAuthStore()
@@ -14,7 +15,7 @@ const auth = useAuthStore()
       <RouterLink
         v-if="auth.isAuthenticated && auth.user?.is_admin"
         to="/admin"
-        class="font-display text-btn text-ink-muted uppercase transition-colors duration-200 ease-(--ease-smooth) hover:text-coral"
+        :class="ACTION_LINK_CLASS"
         data-testid="nav-admin"
       >
         Admin
