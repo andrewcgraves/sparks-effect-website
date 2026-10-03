@@ -24,7 +24,7 @@ const coastLine = {
 describe('fetchCoverIndex', () => {
   beforeEach(() => {
     vi.mocked(listCuratedScenarios).mockReset().mockResolvedValue([caHsr])
-    vi.mocked(listPublishedServices).mockReset().mockResolvedValue([coastLine])
+    vi.mocked(listPublishedServices).mockReset().mockResolvedValue({ items: [coastLine], next_cursor: null })
   })
 
   it('lists curated scenarios, then published services, each linking to its own page', async () => {
@@ -38,18 +38,34 @@ describe('fetchCoverIndex', () => {
   })
 
   it('keeps the published order the index answered in', async () => {
-    vi.mocked(listPublishedServices).mockResolvedValue([
-      { slug: 'newest', name: 'Newest' },
-      { slug: 'older', name: 'Older' },
-    ])
+    vi.mocked(listPublishedServices).mockResolvedValue({
+      items: [
+        { slug: 'newest', name: 'Newest' },
+        { slug: 'older', name: 'Older' },
+      ],
+      next_cursor: null,
+    })
 
     const index = await fetchCoverIndex()
 
     expect(index.cards.filter((card) => card.kind === 'service').map((card) => card.slug)).toEqual(['newest', 'older'])
   })
 
+  it('reads only the first page of published services, however many follow', async () => {
+    vi.mocked(listPublishedServices).mockResolvedValue({ items: [coastLine], next_cursor: 'more' })
+
+    const index = await fetchCoverIndex()
+
+    expect(listPublishedServices).toHaveBeenCalledTimes(1)
+    expect(listPublishedServices).toHaveBeenCalledWith()
+    expect(index.cards.filter((card) => card.kind === 'service').map((card) => card.slug)).toEqual(['coast-line'])
+  })
+
   it('leaves a service with no subtext uncaptioned rather than falling back to its description', async () => {
-    vi.mocked(listPublishedServices).mockResolvedValue([{ slug: 'bare', name: 'Bare', description: 'Long prose.' }])
+    vi.mocked(listPublishedServices).mockResolvedValue({
+      items: [{ slug: 'bare', name: 'Bare', description: 'Long prose.' }],
+      next_cursor: null,
+    })
 
     const index = await fetchCoverIndex()
 
@@ -83,7 +99,7 @@ describe('fetchCoverIndex', () => {
 
   it('answers an empty index, with nothing unavailable, when both reads answer empty', async () => {
     vi.mocked(listCuratedScenarios).mockResolvedValue([])
-    vi.mocked(listPublishedServices).mockResolvedValue([])
+    vi.mocked(listPublishedServices).mockResolvedValue({ items: [], next_cursor: null })
 
     expect(await fetchCoverIndex()).toEqual({ cards: [], unavailable: [] })
   })

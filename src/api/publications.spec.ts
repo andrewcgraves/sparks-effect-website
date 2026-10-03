@@ -7,13 +7,22 @@ import {
   listPublishedServices,
   publishService,
   unpublishService,
-  type PublishedServiceSummary,
+  type PublishedServicePage,
 } from './publications'
 
-const published: PublishedServiceSummary[] = [
-  { slug: 'coast-line', name: 'Coast Line', subtext: 'Electrified · Regional rail', description: 'A line.' },
-  { slug: 'bare-line', name: 'Bare Line' },
-]
+const published: PublishedServicePage = {
+  items: [
+    { slug: 'coast-line', name: 'Coast Line', subtext: 'Electrified · Regional rail', description: 'A line.' },
+    { slug: 'bare-line', name: 'Bare Line' },
+  ],
+  next_cursor: 'MjAyNi0wOS0zMFQwMzoxMjoxMVp8YmFyZS1saW5l',
+}
+
+const emptyPage: PublishedServicePage = { items: [], next_cursor: null }
+
+function requestedUrl(): URL {
+  return new URL(vi.mocked(fetch).mock.calls[0][0] as string)
+}
 
 describe('listPublishedServices', () => {
   beforeEach(() => {
@@ -30,12 +39,41 @@ describe('listPublishedServices', () => {
 
     const result = await listPublishedServices()
 
-    expect(new URL(vi.mocked(fetch).mock.calls[0][0] as string).pathname).toBe('/api/published-services')
+    expect(requestedUrl().pathname).toBe('/api/published-services')
     expect(result).toEqual(published)
   })
 
+  it('asks for the first page in the paged form, at the API’s default size', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: true, json: async () => emptyPage } as Response)
+
+    await listPublishedServices()
+
+    // An empty cursor is the first page; sending it is what selects the paged
+    // response over the bare array older websites read.
+    expect(requestedUrl().searchParams.has('cursor')).toBe(true)
+    expect(requestedUrl().searchParams.get('cursor')).toBe('')
+    expect(requestedUrl().searchParams.has('limit')).toBe(false)
+  })
+
+  it('continues from a cursor at the size asked for', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: true, json: async () => emptyPage } as Response)
+
+    await listPublishedServices({ cursor: 'abc-_123', limit: 50 })
+
+    expect(requestedUrl().searchParams.get('cursor')).toBe('abc-_123')
+    expect(requestedUrl().searchParams.get('limit')).toBe('50')
+  })
+
+  it('reads an API that predates pages as one final page', async () => {
+    // A website tag can reach production before the API's: an API without
+    // SPA-434 ignores cursor and answers the bare array.
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: true, json: async () => published.items } as Response)
+
+    expect(await listPublishedServices()).toEqual({ items: published.items, next_cursor: null })
+  })
+
   it('needs no session', async () => {
-    vi.mocked(fetch).mockResolvedValueOnce({ ok: true, json: async () => [] } as Response)
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: true, json: async () => emptyPage } as Response)
 
     await listPublishedServices()
 
