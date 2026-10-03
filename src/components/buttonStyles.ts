@@ -1,5 +1,11 @@
+const SOLID_BUTTON_CLASS =
+  'font-display text-btn cursor-pointer rounded-(--radius-field) px-4 py-2.5 uppercase transition-colors duration-200 ease-(--ease-smooth) disabled:cursor-not-allowed disabled:opacity-50'
+
 export const PRIMARY_BUTTON_CLASS =
-  'font-display text-btn cursor-pointer rounded-(--radius-field) bg-coral px-4 py-2.5 text-white uppercase transition-colors duration-200 ease-(--ease-smooth) hover:bg-ink disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-coral'
+  `${SOLID_BUTTON_CLASS} bg-coral text-white hover:bg-ink disabled:hover:bg-coral`
+
+export const DESTRUCTIVE_BUTTON_CLASS =
+  `${SOLID_BUTTON_CLASS} border border-coral bg-white text-coral hover:bg-coral hover:text-white`
 
 export const SECONDARY_BUTTON_CLASS =
   'font-display text-btn cursor-pointer rounded-(--radius-field) border border-border px-3 py-1.5 uppercase hover:bg-white disabled:cursor-not-allowed disabled:opacity-50'

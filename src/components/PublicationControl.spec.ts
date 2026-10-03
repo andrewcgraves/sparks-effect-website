@@ -13,6 +13,7 @@ vi.mock('../api/publications', () => ({
 import PublicationControl from './PublicationControl.vue'
 import { fetchServicePublication, publishService, unpublishService } from '../api/publications'
 import { PUBLISH_COMPILE_FAILED } from '../composables/usePublication'
+import { mountSharedHosts } from '../test/sharedHosts'
 
 const Stub = { template: '<div>stub</div>' }
 
@@ -50,13 +51,17 @@ function published(): void {
 }
 
 describe('PublicationControl', () => {
+  let hosts: ReturnType<typeof mountSharedHosts>
+
   beforeEach(() => {
+    hosts = mountSharedHosts()
     vi.mocked(fetchServicePublication).mockReset()
     vi.mocked(publishService).mockReset()
     vi.mocked(unpublishService).mockReset()
   })
 
   afterEach(() => {
+    hosts.unmount()
     vi.unstubAllGlobals()
   })
 
@@ -209,14 +214,118 @@ describe('PublicationControl', () => {
     })
   })
 
+  describe('toasts', () => {
+    it('says "Published" once published', async () => {
+      unpublished()
+      vi.mocked(publishService).mockResolvedValue(snapshot('2026-09-21T09:00:00Z'))
+      const wrapper = mountControl()
+      await flushPromises()
+      await wrapper.get('[data-testid="publish-button"]').trigger('click')
+      await flushPromises()
+      expect(hosts.toasts()).toEqual(['Published'])
+    })
+
+    it('says "Republished" once republished', async () => {
+      published()
+      vi.mocked(publishService).mockResolvedValue(snapshot('2026-09-22T09:00:00Z'))
+      const wrapper = mountControl({ updatedAt: AFTER })
+      await flushPromises()
+      await wrapper.get('[data-testid="publish-button"]').trigger('click')
+      await flushPromises()
+      expect(hosts.toasts()).toEqual(['Republished'])
+    })
+
+    it('says nothing when publishing fails', async () => {
+      unpublished()
+      vi.mocked(publishService).mockRejectedValue(new ApiError('PUT failed: 500', 500))
+      const wrapper = mountControl()
+      await flushPromises()
+      await wrapper.get('[data-testid="publish-button"]').trigger('click')
+      await flushPromises()
+      expect(hosts.toasts()).toEqual([])
+    })
+
+    it('says "Unpublished" once unpublished', async () => {
+      published()
+      vi.mocked(unpublishService).mockResolvedValue(undefined)
+      const wrapper = mountControl()
+      await flushPromises()
+      await wrapper.get('[data-testid="unpublish-button"]').trigger('click')
+      await flushPromises()
+      await hosts.confirmButton().trigger('click')
+      await flushPromises()
+      expect(hosts.toasts()).toEqual(['Unpublished'])
+    })
+
+    it('says nothing when unpublishing is backed out of or fails', async () => {
+      published()
+      vi.mocked(unpublishService).mockRejectedValue(new ApiError('DELETE failed: 500', 500))
+      const wrapper = mountControl()
+      await flushPromises()
+      await wrapper.get('[data-testid="unpublish-button"]').trigger('click')
+      await flushPromises()
+      await hosts.cancelButton().trigger('click')
+      await flushPromises()
+      await wrapper.get('[data-testid="unpublish-button"]').trigger('click')
+      await flushPromises()
+      await hosts.confirmButton().trigger('click')
+      await flushPromises()
+      expect(hosts.toasts()).toEqual([])
+    })
+  })
+
+  describe('focus', () => {
+    function mountAttached() {
+      const router = createRouter({
+        history: createMemoryHistory(),
+        routes: [{ path: '/services/:slug', name: 'published-service', component: Stub }],
+      })
+      return mount(PublicationControl, {
+        props: { slug: 'northbound-express', updatedAt: BEFORE, compiling: false, recompile: vi.fn().mockResolvedValue(true) },
+        global: { plugins: [router] },
+        attachTo: document.body,
+      })
+    }
+
+    it('lands on "Copy link" once published, where the publish button was', async () => {
+      unpublished()
+      vi.mocked(publishService).mockResolvedValue(snapshot('2026-09-21T09:00:00Z'))
+      const wrapper = mountAttached()
+      await flushPromises()
+      const button = wrapper.get('[data-testid="publish-button"]')
+      ;(button.element as HTMLElement).focus()
+      await button.trigger('click')
+      await flushPromises()
+      expect(document.activeElement).toBe(wrapper.get('[data-testid="copy-public-url"]').element)
+      wrapper.unmount()
+    })
+
+    it('lands on "Publish" once unpublished, where the unpublish button was', async () => {
+      published()
+      vi.mocked(unpublishService).mockResolvedValue(undefined)
+      const wrapper = mountAttached()
+      await flushPromises()
+      const button = wrapper.get('[data-testid="unpublish-button"]')
+      ;(button.element as HTMLElement).focus()
+      await button.trigger('click')
+      await flushPromises()
+      await hosts.confirmButton().trigger('click')
+      await flushPromises()
+      expect(document.activeElement).toBe(wrapper.get('[data-testid="publish-button"]').element)
+      wrapper.unmount()
+    })
+  })
+
   describe('unpublishing', () => {
     it('asks first, and does nothing until confirmed', async () => {
       published()
       const wrapper = mountControl()
       await flushPromises()
       await wrapper.get('[data-testid="unpublish-button"]').trigger('click')
+      await flushPromises()
       expect(unpublishService).not.toHaveBeenCalled()
-      expect(wrapper.get('[data-testid="confirm-unpublish"]').text()).toContain('stop working')
+      expect(hosts.dialogOpen()).toBe(true)
+      expect(hosts.dialog().text()).toContain('stop working')
     })
 
     it('can be backed out of', async () => {
@@ -224,9 +333,11 @@ describe('PublicationControl', () => {
       const wrapper = mountControl()
       await flushPromises()
       await wrapper.get('[data-testid="unpublish-button"]').trigger('click')
-      await wrapper.get('[data-testid="cancel-unpublish-button"]').trigger('click')
+      await flushPromises()
+      await hosts.cancelButton().trigger('click')
+      await flushPromises()
       expect(unpublishService).not.toHaveBeenCalled()
-      expect(wrapper.find('[data-testid="confirm-unpublish"]').exists()).toBe(false)
+      expect(hosts.dialogOpen()).toBe(false)
       expect(wrapper.get('[data-testid="publication"]').attributes('data-state')).toBe('current')
     })
 
@@ -236,11 +347,12 @@ describe('PublicationControl', () => {
       const wrapper = mountControl()
       await flushPromises()
       await wrapper.get('[data-testid="unpublish-button"]').trigger('click')
-      await wrapper.get('[data-testid="confirm-unpublish-button"]').trigger('click')
+      await flushPromises()
+      await hosts.confirmButton().trigger('click')
       await flushPromises()
       expect(unpublishService).toHaveBeenCalledWith('northbound-express')
       expect(wrapper.get('[data-testid="publication"]').attributes('data-state')).toBe('unpublished')
-      expect(wrapper.find('[data-testid="confirm-unpublish"]').exists()).toBe(false)
+      expect(hosts.dialogOpen()).toBe(false)
       expect(wrapper.find('[data-testid="public-url"]').exists()).toBe(false)
     })
 
@@ -250,7 +362,8 @@ describe('PublicationControl', () => {
       const wrapper = mountControl()
       await flushPromises()
       await wrapper.get('[data-testid="unpublish-button"]').trigger('click')
-      await wrapper.get('[data-testid="confirm-unpublish-button"]').trigger('click')
+      await flushPromises()
+      await hosts.confirmButton().trigger('click')
       await flushPromises()
       expect(wrapper.get('[data-testid="publication-error"]').text()).toBe(
         "Still published: couldn't reach the server. Your draft is saved; try again.",

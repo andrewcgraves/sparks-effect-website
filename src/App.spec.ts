@@ -45,4 +45,11 @@ describe('App routing', () => {
     expect(wrapper.find('[data-testid="nav-authoring"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="nav-login"]').exists()).toBe(false)
   })
+
+  it('hosts the shared confirm dialog and toast region on every page', async () => {
+    const wrapper = mount(App, { global: { plugins: [router] } })
+    await flushPromises()
+    expect(wrapper.find('[data-testid="confirm-dialog"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="toast-region"]').exists()).toBe(true)
+  })
 })

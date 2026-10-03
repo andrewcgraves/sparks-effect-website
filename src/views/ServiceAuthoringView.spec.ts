@@ -28,6 +28,7 @@ import {
 } from '../api/authoring/services'
 import { ApiError } from '../api/authoring/client'
 import { useDraftsStore } from '../stores/drafts'
+import { mountSharedHosts } from '../test/sharedHosts'
 
 const stubRouteSummary: RouteSummary = { slug: 'main-line', name: 'Main Line', mode: 'rail' }
 
@@ -100,7 +101,10 @@ async function mountWithTwoStops() {
 }
 
 describe('ServiceAuthoringView', () => {
+  let hosts: ReturnType<typeof mountSharedHosts>
+
   beforeEach(() => {
+    hosts = mountSharedHosts()
     vi.clearAllMocks()
     setActivePinia(createPinia())
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
@@ -113,6 +117,7 @@ describe('ServiceAuthoringView', () => {
   })
 
   afterEach(() => {
+    hosts.unmount()
     vi.useRealTimers()
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
@@ -251,16 +256,71 @@ describe('ServiceAuthoringView', () => {
     }
   })
 
-  it('removes a stop', async () => {
+  it('removes a stop once confirmed, and says so', async () => {
     const wrapper = mountView()
     await flushPromises()
     await addStop(wrapper, 'A', 1, 1)
     await addStop(wrapper, 'B', 2, 2)
 
     await wrapper.find('[data-testid="stop-remove-0"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.findAll('[data-testid="stop-row"]')).toHaveLength(2)
+    expect(hosts.dialogOpen()).toBe(true)
+    expect(hosts.dialog().text()).toContain('A')
+
+    await hosts.confirmButton().trigger('click')
+    await flushPromises()
     const rows = wrapper.findAll('[data-testid="stop-row"]')
     expect(rows).toHaveLength(1)
     expect(stopRowName(rows[0])).toBe('B')
+    expect(hosts.toasts()).toEqual(['Stop removed'])
+  })
+
+  it.each([
+    ['the stop that took its place', 0, 'stop-remove-0'],
+    ['the stop before it, when it was last', 1, 'stop-remove-0'],
+  ])('moves focus to %s once a stop is removed', async (_, removed, focused) => {
+    const wrapper = mount(ServiceAuthoringView, { global: { stubs: { MapView: true } }, attachTo: document.body })
+    await flushPromises()
+    await addStop(wrapper, 'A', 1, 1)
+    await addStop(wrapper, 'B', 2, 2)
+
+    const trigger = wrapper.get(`[data-testid="stop-remove-${removed}"]`)
+    ;(trigger.element as HTMLElement).focus()
+    await trigger.trigger('click')
+    await flushPromises()
+    await hosts.confirmButton().trigger('click')
+    await flushPromises()
+    expect(document.activeElement).toBe(wrapper.get(`[data-testid="${focused}"]`).element)
+    wrapper.unmount()
+  })
+
+  it('moves focus to the new-stop name once the last stop is removed', async () => {
+    const wrapper = mount(ServiceAuthoringView, { global: { stubs: { MapView: true } }, attachTo: document.body })
+    await flushPromises()
+    await addStop(wrapper, 'A', 1, 1)
+
+    const trigger = wrapper.get('[data-testid="stop-remove-0"]')
+    ;(trigger.element as HTMLElement).focus()
+    await trigger.trigger('click')
+    await flushPromises()
+    await hosts.confirmButton().trigger('click')
+    await flushPromises()
+    expect(document.activeElement).toBe(wrapper.get('[data-testid="stop-name"]').element)
+    wrapper.unmount()
+  })
+
+  it('keeps a stop when removing it is backed out of', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    await addStop(wrapper, 'A', 1, 1)
+
+    await wrapper.find('[data-testid="stop-remove-0"]').trigger('click')
+    await flushPromises()
+    await hosts.cancelButton().trigger('click')
+    await flushPromises()
+    expect(wrapper.findAll('[data-testid="stop-row"]')).toHaveLength(1)
+    expect(hosts.toasts()).toEqual([])
   })
 
   it('edits a stop lat/lng inline via updateStop', async () => {
@@ -584,6 +644,9 @@ describe('ServiceAuthoringView', () => {
       await clickMap(wrapper, 37.77, -122.41)
       await clickMap(wrapper, 37.33, -121.88)
       await wrapper.find('[data-testid="stop-remove-1"]').trigger('click')
+      await flushPromises()
+      await hosts.confirmButton().trigger('click')
+      await flushPromises()
       await clickMap(wrapper, 38.0, -122.0)
 
       expect(stopNames(wrapper)).toEqual(['Stop 1', 'Stop 3'])

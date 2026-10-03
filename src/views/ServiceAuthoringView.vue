@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useConfirm } from '../composables/useConfirm'
 import { useServiceDraft } from '../composables/useServiceDraft'
+import { useToast } from '../composables/useToast'
 import { MAX_DESCRIPTION_CHARS, MAX_SUBTEXT_CHARS, type SnapCoord as LatLng } from '../api/authoring'
 import MapView from '../components/MapView.vue'
 import { PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS, TOGGLE_BUTTON_CLASS } from '../components/buttonStyles'
@@ -104,6 +106,35 @@ function handleAddStop(): void {
   newStopName.value = ''
   newStopLat.value = null
   newStopLng.value = null
+}
+
+const stopsSection = ref<HTMLElement | null>(null)
+
+const { confirm } = useConfirm()
+const { show: toast } = useToast()
+
+async function handleRemoveStop(index: number): Promise<void> {
+  const stop = stops.value[index]
+  if (!stop) return
+  const confirmed = await confirm({
+    title: 'Remove this stop?',
+    body: `${stop.name || 'This stop'} comes off the route, and this can't be undone.`,
+    confirmLabel: 'Remove stop',
+    cancelLabel: 'Keep stop',
+    destructive: true,
+  })
+  // The list may have changed under the open dialog; remove the stop that was
+  // asked about, not whatever now sits at its old index.
+  const at = stops.value.findIndex((s) => s.id === stop.id)
+  if (!confirmed || at === -1) return
+  removeStop(at)
+  toast('Stop removed')
+  // The remove button that had focus went with its row; carry focus to the
+  // stop that took its place, or the one before, or the new-stop name.
+  await nextTick()
+  const next = Math.min(at, stops.value.length - 1)
+  const target = next >= 0 ? `[data-testid="stop-remove-${next}"]` : '[data-testid="stop-name"]'
+  stopsSection.value?.querySelector<HTMLElement>(target)?.focus()
 }
 
 function handleAddFrequencyWindow(): void {
@@ -248,7 +279,10 @@ watch(createdSlug, (created) => {
             </p>
           </section>
 
-          <section class="rounded-(--radius-box) border border-border bg-surface p-4">
+          <section
+            ref="stopsSection"
+            class="rounded-(--radius-box) border border-border bg-surface p-4"
+          >
             <div class="flex flex-wrap items-center justify-between gap-2">
               <h2 class="font-display text-h3 text-ink-true">
                 Stops
@@ -337,7 +371,7 @@ watch(createdSlug, (created) => {
                     type="button"
                     class="cursor-pointer px-1 text-ink-muted hover:text-coral"
                     :data-testid="`stop-remove-${index}`"
-                    @click="removeStop(index)"
+                    @click="handleRemoveStop(index)"
                   >
                     ✕
                   </button>
