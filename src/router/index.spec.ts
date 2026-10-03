@@ -80,6 +80,11 @@ describe('router', () => {
       expect(router.currentRoute.value.path).toBe('/login')
     })
 
+    it('gates editing an authored scenario behind sign-in', async () => {
+      await router.push('/authoring/scenarios/ca-hsr/edit')
+      expect(router.currentRoute.value.path).toBe('/login')
+    })
+
     it('gates the authored-scenario detail page behind sign-in', async () => {
       await router.push('/authoring/scenarios/ca-hsr')
       expect(router.currentRoute.value.path).toBe('/login')
@@ -113,6 +118,12 @@ describe('router', () => {
       await router.push('/authoring/services/northbound-express/edit')
       expect(router.currentRoute.value.name).toBe('edit-service')
       expect(router.currentRoute.value.params.slug).toBe('northbound-express')
+    })
+
+    it('passes the slug to the scenario builder for editing', async () => {
+      await router.push('/authoring/scenarios/ca-hsr/edit')
+      expect(router.currentRoute.value.name).toBe('edit-scenario')
+      expect(router.currentRoute.value.params.slug).toBe('ca-hsr')
     })
 
     it('keeps the new-service form ahead of the slug route', async () => {
@@ -152,6 +163,14 @@ describe('router', () => {
       expect(document.title).toBe('My scenario · Sparks Effect')
       await router.push('/scenario/ca-hsr')
       expect(document.title).toBe('Scenario · Sparks Effect')
+    })
+
+    it('names an edit page by what it edits before the draft loads', async () => {
+      useAuthStore().signIn('tok-1', { id: 'u1', email: 'a@example.com' })
+      await router.push('/authoring/services/northbound-express/edit')
+      expect(document.title).toBe('Edit service · Sparks Effect')
+      await router.push('/authoring/scenarios/ca-hsr/edit')
+      expect(document.title).toBe('Edit scenario · Sparks Effect')
     })
 
     it('names an unmatched path as not found', async () => {

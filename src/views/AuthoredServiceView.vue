@@ -5,6 +5,7 @@ import type { Service } from '../api/authoring/types'
 import { useOwnedDetail } from '../composables/useOwnedDetail'
 import { useAuthoredGraph } from '../composables/useAuthoredGraph'
 import { usePageTitle } from '../composables/usePageTitle'
+import { useServiceDeletion } from '../composables/useDeletion'
 import ScenarioPreviewPanel from '../components/ScenarioPreviewPanel.vue'
 import PublicationControl from '../components/PublicationControl.vue'
 import TimeBetweenStations from '../components/TimeBetweenStations.vue'
@@ -12,6 +13,7 @@ import { graphStationTimeGroups } from '../components/stationTimes'
 import { ACTION_LINK_CLASS } from '../components/linkStyles'
 import BreadcrumbTrail from '../components/BreadcrumbTrail.vue'
 import { AUTHORING_CRUMB } from '../components/crumbs'
+import DeleteMenu from '../components/DeleteMenu.vue'
 
 const props = defineProps<{ slug: string }>()
 
@@ -57,6 +59,8 @@ async function recompile(slug: string): Promise<boolean> {
   await triggerCompile(slug)
   return !compileError.value
 }
+
+const { deleting, confirmAndDelete } = useServiceDeletion()
 
 watch(service, (loaded) => {
   if (loaded) void loadGraph(loaded.slug)
@@ -116,13 +120,20 @@ watch(service, (loaded) => {
             {{ service.slug }}
           </p>
         </hgroup>
-        <router-link
-          :to="`/authoring/services/${service.slug}/edit`"
-          :class="ACTION_LINK_CLASS"
-          data-testid="edit-service"
-        >
-          Edit
-        </router-link>
+        <div class="flex items-start gap-6">
+          <router-link
+            :to="`/authoring/services/${service.slug}/edit`"
+            :class="ACTION_LINK_CLASS"
+            data-testid="edit-service"
+          >
+            Edit
+          </router-link>
+          <DeleteMenu
+            noun="service"
+            :deleting="deleting"
+            @delete="confirmAndDelete(service)"
+          />
+        </div>
       </div>
       <p
         v-if="service.description"
