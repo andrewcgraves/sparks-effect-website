@@ -144,10 +144,27 @@ describe('WelcomeView', () => {
       expect(useAuthStore().isAuthenticated).toBe(false)
     })
 
+    it('leaves the link usable, so a stronger password still goes through', async () => {
+      vi.mocked(fetch)
+        .mockResolvedValueOnce(linkFor('invite'))
+        .mockResolvedValueOnce(respond(422, {
+          code: 'validation',
+          detail: { faults: [{ field: 'password', rule: 'min_length', message: 'x' }] },
+        }))
+        .mockResolvedValueOnce(respond(200, SESSION))
+      const { router, wrapper } = await open()
+
+      await choose(wrapper, 'short')
+      await choose(wrapper, 'a-strong-new-password')
+
+      expect(router.currentRoute.value.path).toBe('/authoring')
+      expect(useAuthStore().token).toBe('session-1')
+    })
+
     it.each([
       ['common', 'That password is too common. Choose something harder to guess.'],
       ['matches_email', "Your password can't be your email address."],
-      ['max_length', 'That password is too long. Use 72 characters or fewer.'],
+      ['max_length', 'That password is too long. Choose a shorter one.'],
     ])('words the %s rule', async (rule, sentence) => {
       vi.mocked(fetch).mockResolvedValueOnce(linkFor('invite')).mockResolvedValueOnce(respond(422, {
         code: 'validation',
@@ -175,6 +192,16 @@ describe('WelcomeView', () => {
     it('sends someone signed in as a different user to their own authoring', async () => {
       useAuthStore().signIn('admin-session', { id: 'u-admin', email: 'admin@example.com' })
       vi.mocked(fetch).mockResolvedValueOnce(linkFor('invite'))
+      const { router } = await open()
+
+      expect(router.currentRoute.value.path).toBe('/authoring')
+    })
+
+    it('sends them away when it cannot tell whose session it is', async () => {
+      useAuthStore().signIn('some-session')
+      vi.mocked(fetch)
+        .mockResolvedValueOnce(linkFor('invite'))
+        .mockRejectedValueOnce(new TypeError('Failed to fetch'))
       const { router } = await open()
 
       expect(router.currentRoute.value.path).toBe('/authoring')

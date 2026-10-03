@@ -8,6 +8,10 @@ describe('redactPath', () => {
     expect(redactPath('/welcome/abc123')).toBe('/welcome')
   })
 
+  it('drops the token from a mangled link that lands on the not-found page', () => {
+    expect(redactPath('/welcome/abc123/extra')).toBe('/welcome')
+  })
+
   it('leaves every other path as it is', () => {
     expect(redactPath('/scenario/ca-hsr')).toBe('/scenario/ca-hsr')
     expect(redactPath('/welcome')).toBe('/welcome')

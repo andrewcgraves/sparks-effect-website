@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { ApiError, fetchAccountToken, fetchCurrentUser, redeemAccountToken, type AccountToken } from '../api/authoring'
+import { retryAfterSentence } from '../api/authoringFault'
 import { usePageTitle } from '../composables/usePageTitle'
 import { PRIMARY_BUTTON_CLASS } from '../components/buttonStyles'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
@@ -15,7 +16,8 @@ const POLICY_COPY = 'At least 12 characters. Not your email address, and not a c
 const RULE_SENTENCES: Record<string, string> = {
   required: 'Choose a password.',
   min_length: 'Use at least 12 characters.',
-  max_length: 'That password is too long. Use 72 characters or fewer.',
+  // The cap is 72 bytes, not characters, so a count would mislead.
+  max_length: 'That password is too long. Choose a shorter one.',
   matches_email: "Your password can't be your email address.",
   common: 'That password is too common. Choose something harder to guess.',
 }
@@ -48,7 +50,10 @@ function sameEmail(a: string | undefined, b: string): boolean {
 async function signedInAsSomeoneElse(email: string): Promise<boolean> {
   if (!auth.isAuthenticated) return false
   const me = auth.user ?? await fetchCurrentUser().catch(() => null)
-  return Boolean(me?.email) && !sameEmail(me?.email, email)
+  // A 401 just now has signed the dead session out, so the form is safe to show.
+  if (!auth.isAuthenticated) return false
+  // Unsure whose session this is, so fail closed rather than risk the link.
+  return !sameEmail(me?.email, email)
 }
 
 onMounted(async () => {
@@ -89,7 +94,7 @@ async function handleSubmit() {
     } else if (err instanceof ApiError && err.status === 422) {
       error.value = policySentence(err)
     } else if (err instanceof ApiError && err.status === 429) {
-      error.value = "You're going a little fast. Wait a moment, then try again."
+      error.value = retryAfterSentence(err.retryAfterS)
     } else {
       error.value = 'Something went wrong setting your password. Try again.'
     }
