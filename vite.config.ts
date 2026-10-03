@@ -1,32 +1,40 @@
 /// <reference types="vitest/config" />
-import { defineConfig, loadEnv, type Plugin } from 'vite'
+import { defineConfig, loadEnv, type HtmlTagDescriptor, type Plugin } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
 import { shortCommitSha } from './src/buildVersion.ts'
+import { resolveTilePreconnectOrigin } from './src/tileHost.ts'
+import { safeHttpOrigin } from './src/preconnect.ts'
 
-function httpOrigin(raw: string | undefined): string | null {
-  const trimmed = raw?.trim()
-  if (!trimmed) return null
-  try {
-    const url = new URL(trimmed)
-    // A preconnect is an origin: a path on the API base is not part of it, and
-    // a relative or non-http value has nothing to connect to ahead of time.
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
-    return url.origin
-  } catch {
-    return null
+function preconnectTags(apiBaseUrl: string | undefined, stadiaApiKey: string | undefined): HtmlTagDescriptor[] {
+  const tags: HtmlTagDescriptor[] = [
+    {
+      tag: 'link',
+      attrs: {
+        rel: 'preconnect',
+        href: resolveTilePreconnectOrigin(stadiaApiKey),
+        crossorigin: true,
+      },
+      injectTo: 'head',
+    },
+  ]
+  const apiOrigin = safeHttpOrigin(apiBaseUrl)
+  if (apiOrigin) {
+    tags.push({
+      tag: 'link',
+      attrs: { rel: 'preconnect', href: apiOrigin, crossorigin: true },
+      injectTo: 'head',
+    })
   }
+  return tags
 }
 
-function apiOriginPreconnect(apiBaseUrl: string | undefined): Plugin {
-  const origin = httpOrigin(apiBaseUrl)
+function preconnectPlugin(apiBaseUrl: string | undefined, stadiaApiKey: string | undefined): Plugin {
+  const tags = preconnectTags(apiBaseUrl, stadiaApiKey)
   return {
-    name: 'api-origin-preconnect',
-    transformIndexHtml(html) {
-      if (!origin) return html
-      const tile = '<link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin />'
-      const api = `<link rel="preconnect" href="${origin}" crossorigin />`
-      return html.replace(tile, `${tile}\n    ${api}`)
+    name: 'preconnect',
+    transformIndexHtml() {
+      return tags
     },
   }
 }
@@ -34,8 +42,9 @@ function apiOriginPreconnect(apiBaseUrl: string | undefined): Plugin {
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_')
   const apiBaseUrl = process.env.VITE_API_BASE_URL ?? env.VITE_API_BASE_URL
+  const stadiaApiKey = process.env.VITE_STADIA_API_KEY ?? env.VITE_STADIA_API_KEY
   return {
-    plugins: [vue(), tailwindcss(), apiOriginPreconnect(apiBaseUrl)],
+    plugins: [vue(), tailwindcss(), preconnectPlugin(apiBaseUrl, stadiaApiKey)],
     define: {
       // Vercel sets the commit SHA at build time; local builds show "dev".
       __BUILD_VERSION__: JSON.stringify(shortCommitSha(process.env.VERCEL_GIT_COMMIT_SHA)),
