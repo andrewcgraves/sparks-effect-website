@@ -296,4 +296,52 @@ describe('useIsochrone', () => {
       expect(data.value).toEqual(stubResponse)
     })
   })
+
+  describe('overlapping requests', () => {
+    function deferred<T>() {
+      let resolve!: (value: T) => void
+      let reject!: (reason: unknown) => void
+      const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej })
+      return { promise, resolve, reject }
+    }
+    const older: ChainResponse = { ...stubResponse, metadata: { ...stubResponse.metadata, mode: 'walk' } }
+    const newer: ChainResponse = { ...stubResponse, metadata: { ...stubResponse.metadata, mode: 'bike' } }
+
+    it('keeps the newer answer when the older one lands last', async () => {
+      const first = deferred<ChainResponse>()
+      vi.mocked(fetchIsochrone).mockReturnValueOnce(first.promise).mockResolvedValueOnce(newer)
+      const { data, loading, generate } = useIsochrone()
+      const a = generate(request)
+      await generate({ ...request, mode: 'bike' })
+      first.resolve(older)
+      await a
+      expect(data.value).toEqual(newer)
+      expect(loading.value).toBe(false)
+    })
+
+    it('keeps the newer answer when the older one fails last', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+      const first = deferred<ChainResponse>()
+      vi.mocked(fetchIsochrone).mockReturnValueOnce(first.promise).mockResolvedValueOnce(newer)
+      const { data, error, generate } = useIsochrone()
+      const a = generate(request)
+      await generate({ ...request, mode: 'bike' })
+      first.reject(new Error('late'))
+      await a
+      expect(data.value).toEqual(newer)
+      expect(error.value).toBeNull()
+    })
+
+    it('lets a shown answer stand over a request still in flight', async () => {
+      const first = deferred<ChainResponse>()
+      vi.mocked(fetchIsochrone).mockReturnValueOnce(first.promise)
+      const { data, loading, generate, show } = useIsochrone()
+      const a = generate(request)
+      show(newer)
+      first.resolve(older)
+      await a
+      expect(data.value).toEqual(newer)
+      expect(loading.value).toBe(false)
+    })
+  })
 })

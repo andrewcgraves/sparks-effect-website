@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import IsochroneForm from '../IsochroneForm.vue'
+import CopyLinkButton from '../components/CopyLinkButton.vue'
 import MapView from '../components/MapView.vue'
 import PrerenderedIsochrones from '../components/PrerenderedIsochrones.vue'
 import TimeBetweenStations from '../components/TimeBetweenStations.vue'
@@ -14,9 +15,11 @@ import { useIsochrone } from '../composables/useIsochrone'
 import { useOriginPick } from '../composables/useOriginPick'
 import { usePageTitle } from '../composables/usePageTitle'
 import AllLinesLink from '../components/AllLinesLink.vue'
+import { useIsochroneQuery } from '../composables/useIsochroneQuery'
+import type { IsochronePayload } from '../isochroneQuery'
+import type { ChainResponse } from '../fixtures/isochrone'
 import LoadingRegion from '../components/LoadingRegion.vue'
 import SkeletonShape from '../components/SkeletonShape.vue'
-import type { TravelMode } from '../api/authoring'
 
 const props = defineProps<{ slug: string }>()
 
@@ -81,7 +84,7 @@ function onOriginChange(coords: { lat: number; lng: number } | null) {
   origin.value = coords
 }
 
-async function handleFormSubmit(payload: { lat: number; lng: number; duration: number; mode: TravelMode }) {
+async function handleFormSubmit(payload: IsochronePayload) {
   // Generating replaces what the map is drawing, so the pre-rendered pick that
   // was drawing it is no longer the answer on screen and stops being marked as
   // one. Cleared on submit rather than on success: the moment the question
@@ -95,6 +98,19 @@ async function handleFormSubmit(payload: { lat: number; lng: number; duration: n
     mode: payload.mode,
     scenario_slug: props.slug,
   })
+}
+
+const { initial: linkedIsochrone, submit: submitIsochrone, forget: forgetIsochrone, shareable } = useIsochroneQuery({
+  plot: handleFormSubmit,
+  plotted: () => isochroneData.value !== null && fetchError.value === null,
+  // The stations are what the range check measures against; plotting a link
+  // before they arrive would skip it and spend a routing job on a refusal.
+  ready: () => stations.value.length > 0,
+})
+
+function onPrerenderedSelect(result: ChainResponse) {
+  showIsochrone(result)
+  void forgetIsochrone()
 }
 </script>
 
@@ -138,15 +154,17 @@ async function handleFormSubmit(payload: { lat: number; lng: number; duration: n
           ref="isochroneForm"
           :error="fetchError"
           :loading="isLoading"
-          @submit="handleFormSubmit"
+          :initial="linkedIsochrone"
+          @submit="submitIsochrone"
           @origin-change="onOriginChange"
           @pick-armed="pickArmed = $event"
         />
+        <CopyLinkButton v-if="shareable" />
         
         <PrerenderedIsochrones
           v-model:selected-id="selectedPrerenderedId"
           :slug="props.slug"
-          @select="showIsochrone"
+          @select="onPrerenderedSelect"
         />
         
         <TimeRemaining

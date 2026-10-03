@@ -47,6 +47,13 @@ describe('router', () => {
     expect(trackPageView).toHaveBeenCalledWith('/nope')
   })
 
+  it('does not count a query change on the same page as another page view', async () => {
+    await router.push('/scenario/ca-hsr')
+    vi.mocked(trackPageView).mockClear()
+    await router.replace({ query: { at: '37.3,-121.8', mode: 'walk', mins: '60' } })
+    expect(trackPageView).not.toHaveBeenCalled()
+  })
+
   describe('set-password links', () => {
     it('opens the set-password page for a /welcome/:token link', async () => {
       await router.push('/welcome/secret-token')
@@ -55,6 +62,7 @@ describe('router', () => {
     })
 
     it('records the page view as /welcome, keeping the token out of analytics', async () => {
+      await router.push('/')
       await router.push('/welcome/secret-token')
       expect(trackPageView).toHaveBeenCalledWith('/welcome')
       expect(JSON.stringify(vi.mocked(trackPageView).mock.calls)).not.toContain('secret-token')
@@ -210,6 +218,13 @@ describe('router', () => {
     it('names an unmatched path as not found', async () => {
       await router.push('/no-such-page')
       expect(document.title).toBe('Page not found · Sparks Effect')
+    })
+
+    it('keeps the page\'s own title when only the query changes', async () => {
+      await router.push('/scenario/ca-hsr')
+      document.title = 'California HSR · Sparks Effect'
+      await router.replace({ query: { at: '37.3,-121.8', mode: 'walk', mins: '60' } })
+      expect(document.title).toBe('California HSR · Sparks Effect')
     })
 
     it('restores the bare site name on returning to /', async () => {
