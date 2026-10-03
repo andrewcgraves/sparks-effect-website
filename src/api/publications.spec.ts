@@ -64,6 +64,14 @@ describe('listPublishedServices', () => {
     expect(requestedUrl().searchParams.get('limit')).toBe('50')
   })
 
+  it('reads an API that predates pages as one final page', async () => {
+    // A website tag can reach production before the API's: an API without
+    // SPA-434 ignores cursor and answers the bare array.
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: true, json: async () => published.items } as Response)
+
+    expect(await listPublishedServices()).toEqual({ items: published.items, next_cursor: null })
+  })
+
   it('needs no session', async () => {
     vi.mocked(fetch).mockResolvedValueOnce({ ok: true, json: async () => emptyPage } as Response)
 
