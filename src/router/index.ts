@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory, type Router } from 'vue-router'
+import { createRouter, createWebHistory, START_LOCATION, type Router } from 'vue-router'
 import CoverPage from '../views/CoverPage.vue'
 import ScenarioView from '../views/ScenarioView.vue'
 import LoginView from '../views/LoginView.vue'
@@ -11,7 +11,9 @@ import RouteView from '../views/RouteView.vue'
 import PublishedServiceView from '../views/PublishedServiceView.vue'
 import NotFoundView from '../views/NotFoundView.vue'
 import AdminView from '../views/AdminView.vue'
+import WelcomeView from '../views/WelcomeView.vue'
 import { trackPageView } from '../analytics/index'
+import { redactPath } from '../analytics/redact'
 import { formatPageTitle } from '../composables/usePageTitle'
 import { useAuthStore } from '../stores/auth'
 
@@ -43,6 +45,25 @@ export const router = createRouter({
       name: 'login',
       component: LoginView,
       meta: { title: 'Sign in' },
+    },
+    // An invite or reset link. Open to a signed-in user too: the page itself
+    // sends them away if the link is for someone else.
+    {
+      path: '/welcome/:token',
+      name: 'welcome',
+      component: WelcomeView,
+      props: true,
+      meta: { title: 'Set your password' },
+    },
+    // The form of link sparks-effect-api issues (SPA-387).
+    {
+      path: '/set-password',
+      redirect: (to) => {
+        const token = to.query.token
+        return typeof token === 'string' && token
+          ? { name: 'welcome', params: { token }, query: {} }
+          : { path: '/login', query: {} }
+      },
     },
     {
       path: '/authoring',
@@ -151,7 +172,11 @@ export async function redirectAfterSessionExpiry(target: Router): Promise<void> 
   await target.push({ path: '/login', query: { redirect: current.fullPath } })
 }
 
-router.afterEach((to) => {
+router.afterEach((to, from) => {
+  // A query change on the same page — a plotted isochrone written to the URL —
+  // is not a new page: it would reset the title the page named itself, and
+  // count a page view per plot. The first navigation's `from` is also '/'.
+  if (from !== START_LOCATION && to.path === from.path) return
   document.title = formatPageTitle(to.meta.title)
-  trackPageView(to.path)
+  trackPageView(redactPath(to.path))
 })

@@ -46,6 +46,38 @@ body {
   }
 }
 
+.skeleton {
+  background-color: var(--color-placeholder);
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgb(255 255 255 / 45%) 50%,
+    transparent 100%
+  );
+  background-repeat: no-repeat;
+  background-size: 50% 100%;
+  animation: skeleton-shimmer 1.6s ease-in-out infinite;
+}
+
+@keyframes skeleton-shimmer {
+  from {
+    background-position: -100% 0;
+  }
+
+  to {
+    background-position: 200% 0;
+  }
+}
+
+/* The global rule above only shortens animations, which would leave the
+   highlight frozen part-way across; a still skeleton has no highlight. */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+    background-image: none;
+  }
+}
+
 .maplibregl-popup.tooltip-popup .maplibregl-popup-content {
   background: none;
   box-shadow: none;

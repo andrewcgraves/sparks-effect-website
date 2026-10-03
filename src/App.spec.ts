@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
+import { Analytics, type BeforeSend } from '@vercel/analytics/vue'
 import App from './App.vue'
 import { router } from './router'
 import { useAuthStore } from './stores/auth'
@@ -83,5 +84,14 @@ describe('App routing', () => {
     const wrapper = mount(App, { global: { plugins: [router] } })
     await flushPromises()
     expect(wrapper.find('[data-testid="build-version"]').exists()).toBe(true)
+  })
+
+  it('keeps a set-password token out of the page views Vercel Analytics reports', async () => {
+    const wrapper = mount(App, { global: { plugins: [router] } })
+    await flushPromises()
+    const beforeSend = wrapper.findComponent(Analytics).props('beforeSend') as BeforeSend
+
+    expect(beforeSend({ type: 'pageview', url: 'https://sparks.example/welcome/secret-token' }))
+      .toEqual({ type: 'pageview', url: 'https://sparks.example/welcome' })
   })
 })

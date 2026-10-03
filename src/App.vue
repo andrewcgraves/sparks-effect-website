@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { Analytics } from '@vercel/analytics/vue'
+import { Analytics, type BeforeSend } from '@vercel/analytics/vue'
+import { redactUrl } from './analytics/redact'
 import ConfirmDialog from './components/ConfirmDialog.vue'
 import SiteFooter from './components/SiteFooter.vue'
 import ToastRegion from './components/ToastRegion.vue'
@@ -7,6 +8,8 @@ import { ACTION_LINK_CLASS } from './components/linkStyles'
 import { useAuthStore } from './stores/auth'
 
 const auth = useAuthStore()
+
+const redactAnalyticsEvent: BeforeSend = (event) => ({ ...event, url: redactUrl(event.url) })
 </script>
 
 <template>
@@ -41,6 +44,6 @@ const auth = useAuthStore()
     <SiteFooter />
     <ConfirmDialog />
     <ToastRegion />
-    <Analytics />
+    <Analytics :before-send="redactAnalyticsEvent" />
   </div>
 </template>

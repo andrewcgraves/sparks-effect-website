@@ -19,6 +19,7 @@ vi.mock('../api/authoring/services', () => ({
 
 import ServiceAuthoringView from './ServiceAuthoringView.vue'
 import { breadcrumbTrail } from '../test/breadcrumbs'
+import { busyRegion, visibleText } from '../test/loading'
 import { listRoutes, fetchRoute, snapStops } from '../api/authoring/routes'
 import {
   createService,
@@ -129,6 +130,15 @@ describe('ServiceAuthoringView', () => {
     await flushPromises()
     const options = wrapper.findAll('[data-testid="route-select"] option')
     expect(options.some((o) => o.text().includes('Main Line'))).toBe(true)
+  })
+
+  it('shows a route-picker skeleton, not loading copy, while the routes load', async () => {
+    vi.mocked(listRoutes).mockReturnValue(new Promise(() => {}))
+    const wrapper = mountView()
+    await flushPromises()
+    const region = busyRegion(wrapper, 'routes-loading')
+    expect(region.find('[data-testid="field-skeleton"]').exists()).toBe(true)
+    expect(visibleText(region)).toBe('')
   })
 
   it('shows an error state when routes fail to load', async () => {
@@ -995,7 +1005,9 @@ describe('ServiceAuthoringView', () => {
 
       const { wrapper } = await mountEdit()
 
-      expect(wrapper.find('[data-testid="draft-loading"]').text()).toBe('Loading service…')
+      const region = busyRegion(wrapper, 'draft-loading')
+      expect(region.find('[data-testid="map-panel-skeleton"]').exists()).toBe(true)
+      expect(visibleText(region)).toBe('')
       expect(wrapper.find('form').exists()).toBe(false)
     })
 

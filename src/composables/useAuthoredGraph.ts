@@ -1,21 +1,15 @@
 import { computed, ref, type Ref } from 'vue'
 import { ApiError, isSessionExpiry } from '../api/authoring/client'
-import type { AuthoredIsochroneRequest, Job, TransitGraph, TravelMode } from '../api/authoring'
+import type { AuthoredIsochroneRequest, Job, TransitGraph } from '../api/authoring'
 import type { AuthoringNoun } from '../api/authoringFault'
 import { isochroneFault, isochroneRangeRefusal, isochroneRequested } from '../api/isochroneFault'
 import type { ChainResponse } from '../fixtures/isochrone'
+import type { IsochronePayload } from '../isochroneQuery'
 import { useCompileJob } from './useCompileJob'
 import { latestAttempt } from './latestAttempt'
 import { graphRoutes, graphStations } from './scenarioGraphMap'
 
 export const MAX_STALE_GRAPH_RETRIES = 3
-
-export interface IsochronePayload {
-  lat: number
-  lng: number
-  duration: number
-  mode: TravelMode
-}
 
 export interface PinnedGraphTarget<G extends TransitGraph = TransitGraph> {
   fetchGraph: (slug: string) => Promise<G>

@@ -15,6 +15,7 @@ vi.mock('../views/AuthoredScenarioView.vue', () => ({ default: { props: ['slug']
 vi.mock('../views/PublishedServiceView.vue', () => ({ default: { props: ['slug'], template: '<div />' } }))
 vi.mock('../views/NotFoundView.vue', () => ({ default: { template: '<div />' } }))
 vi.mock('../views/AdminView.vue', () => ({ default: { template: '<div />' } }))
+vi.mock('../views/WelcomeView.vue', () => ({ default: { props: ['token'], template: '<div />' } }))
 
 import { router, redirectAfterSessionExpiry } from './index'
 import { trackPageView } from '../analytics/index'
@@ -45,6 +46,47 @@ describe('router', () => {
   it('tracks a page view for unmatched paths using the actual route path', async () => {
     await router.push('/nope')
     expect(trackPageView).toHaveBeenCalledWith('/nope')
+  })
+
+  it('does not count a query change on the same page as another page view', async () => {
+    await router.push('/scenario/ca-hsr')
+    vi.mocked(trackPageView).mockClear()
+    await router.replace({ query: { at: '37.3,-121.8', mode: 'walk', mins: '60' } })
+    expect(trackPageView).not.toHaveBeenCalled()
+  })
+
+  describe('set-password links', () => {
+    it('opens the set-password page for a /welcome/:token link', async () => {
+      await router.push('/welcome/secret-token')
+      expect(router.currentRoute.value.name).toBe('welcome')
+      expect(router.currentRoute.value.params.token).toBe('secret-token')
+    })
+
+    it('records the page view as /welcome, keeping the token out of analytics', async () => {
+      await router.push('/')
+      await router.push('/welcome/secret-token')
+      expect(trackPageView).toHaveBeenCalledWith('/welcome')
+      expect(JSON.stringify(vi.mocked(trackPageView).mock.calls)).not.toContain('secret-token')
+    })
+
+    it('forwards the link the API issues, /set-password?token=, to the same page', async () => {
+      await router.push('/set-password?token=secret-token')
+      expect(router.currentRoute.value.name).toBe('welcome')
+      expect(router.currentRoute.value.params.token).toBe('secret-token')
+      expect(router.currentRoute.value.query).toEqual({})
+      expect(JSON.stringify(vi.mocked(trackPageView).mock.calls)).not.toContain('secret-token')
+    })
+
+    it('sends a /set-password link with no token to sign in', async () => {
+      await router.push('/set-password')
+      expect(router.currentRoute.value.path).toBe('/login')
+    })
+
+    it('lets a signed-in user open a link, so the page can check whose it is', async () => {
+      useAuthStore().signIn('tok-1', { id: 'u1', email: 'a@example.com' })
+      await router.push('/welcome/secret-token')
+      expect(router.currentRoute.value.name).toBe('welcome')
+    })
   })
 
   describe('auth gating', () => {
@@ -237,6 +279,13 @@ describe('router', () => {
     it('names an unmatched path as not found', async () => {
       await router.push('/no-such-page')
       expect(document.title).toBe('Page not found · Sparks Effect')
+    })
+
+    it('keeps the page\'s own title when only the query changes', async () => {
+      await router.push('/scenario/ca-hsr')
+      document.title = 'California HSR · Sparks Effect'
+      await router.replace({ query: { at: '37.3,-121.8', mode: 'walk', mins: '60' } })
+      expect(document.title).toBe('California HSR · Sparks Effect')
     })
 
     it('restores the bare site name on returning to /', async () => {
