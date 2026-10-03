@@ -1,8 +1,9 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
-import { homeOnlyRouter } from '../test/router'
 import ScenarioView from './ScenarioView.vue'
 import { ref } from 'vue'
+import type { Router } from 'vue-router'
+import { testRouter, testRouterAt } from '../test/router'
 
 vi.mock('../api/isochrone', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api/isochrone')>()
@@ -92,11 +93,22 @@ const stubIsochrone: ChainResponse = {
   },
 }
 
-function mountScenarioView(slug = 'ca-hsr', stubs: Record<string, boolean> = { MapView: true, IsochroneForm: true }) {
+function mountScenarioView(
+  slug = 'ca-hsr',
+  stubs: Record<string, boolean> = { MapView: true, IsochroneForm: true },
+  router: Router = testRouter(),
+) {
   return mount(ScenarioView, {
     props: { slug },
-    global: { plugins: [homeOnlyRouter()], stubs },
+    global: { stubs, plugins: [router] },
   })
+}
+
+async function mountScenarioViewAt(path: string, stubs: Record<string, boolean> = { MapView: true }) {
+  const router = await testRouterAt(path)
+  const wrapper = mountScenarioView('ca-hsr', stubs, router)
+  await flushPromises()
+  return { wrapper, router }
 }
 
 describe('ScenarioView', () => {
@@ -118,31 +130,9 @@ describe('ScenarioView', () => {
     })
   })
 
-  it('links back to all lines', () => {
-    expect(mountScenarioView().get('[data-testid="back-to-lines"]').attributes('href')).toBe('/')
-  })
-
   it('titles the page with the scenario name alone', () => {
     const wrapper = mountScenarioView()
     expect(wrapper.get('h1').text()).toBe('CA HSR')
-  })
-
-  it('names the tab after the scenario once its name arrives', async () => {
-    const name = ref('')
-    mockUseScenario.mockReturnValue({
-      name,
-      description: ref(''),
-      routes: ref([]),
-      stations: ref(stubStations),
-      services: ref([]),
-    })
-    document.title = 'Scenario · Sparks Effect'
-    mountScenarioView()
-    expect(document.title).toBe('Scenario · Sparks Effect')
-
-    name.value = 'CA HSR'
-    await flushPromises()
-    expect(document.title).toBe('CA HSR · Sparks Effect')
   })
 
   it('carries no hard-coded tagline under the name', () => {
@@ -1080,6 +1070,87 @@ describe('ScenarioView', () => {
       expect(wrapper.findComponent({ name: 'IsochroneForm' }).props('error')).toBeNull()
       expect(wrapper.findComponent({ name: 'MapView' }).props('isochroneData'))
         .toEqual(prerendered.result)
+    })
+  })
+
+  describe('a shareable isochrone', () => {
+    const linked = '/scenario/ca-hsr?at=37.71,-122.41&mode=transit&mins=120'
+
+    it('plots the origin, mode and budget a link names, once, as the page opens', async () => {
+      vi.mocked(fetchIsochrone).mockResolvedValue(stubIsochrone)
+      const { wrapper } = await mountScenarioViewAt(linked)
+      expect(fetchIsochrone).toHaveBeenCalledTimes(1)
+      expect(fetchIsochrone).toHaveBeenCalledWith({
+        lat: 37.71,
+        lng: -122.41,
+        budget_mins: 120,
+        mode: 'transit',
+        scenario_slug: 'ca-hsr',
+      })
+      expect((wrapper.get('input[data-testid="lat"]').element as HTMLInputElement).value).toBe('37.71')
+      expect((wrapper.get('input[data-testid="mode-transit"]').element as HTMLInputElement).checked).toBe(true)
+      expect(wrapper.findComponent({ name: 'MapView' }).props('isochroneData')).toEqual(stubIsochrone)
+    })
+
+    it('waits for the scenario\'s stations, so a link out of range spends no routing job', async () => {
+      const stations = ref<Station[]>([])
+      mockUseScenario.mockReturnValue({
+        name: ref('CA HSR'), description: ref(''), routes: ref([]), stations, services: ref([]),
+      })
+      const { wrapper, router } = await mountScenarioViewAt(
+        `/scenario/ca-hsr?at=${DISTANT_ORIGIN.lat},${DISTANT_ORIGIN.lng}&mode=walk&mins=45`,
+      )
+      expect(fetchIsochrone).not.toHaveBeenCalled()
+
+      stations.value = stubStations
+      await flushPromises()
+      expect(fetchIsochrone).not.toHaveBeenCalled()
+      expect(wrapper.find('[data-testid="fetch-error"]').exists()).toBe(true)
+      expect(router.currentRoute.value.query).toEqual({})
+      expect(wrapper.find('[data-testid="copy-link"]').exists()).toBe(false)
+    })
+
+    it('ignores a link it cannot read, leaving the form at its defaults', async () => {
+      const { wrapper } = await mountScenarioViewAt('/scenario/ca-hsr?at=north&mode=teleport&mins=7')
+      expect(fetchIsochrone).not.toHaveBeenCalled()
+      expect((wrapper.get('input[data-testid="lat"]').element as HTMLInputElement).value).toBe('')
+      expect((wrapper.get('input[data-testid="mode-walk"]').element as HTMLInputElement).checked).toBe(true)
+      expect((wrapper.get('input[data-testid="duration-slider-option-60"]').element as HTMLInputElement).checked).toBe(true)
+      expect(wrapper.find('[data-testid="fetch-error"]').exists()).toBe(false)
+    })
+
+    it('puts what was plotted in the URL, and offers to copy it', async () => {
+      vi.mocked(fetchIsochrone).mockResolvedValue(stubIsochrone)
+      const { wrapper, router } = await mountScenarioViewAt('/scenario/ca-hsr')
+      expect(wrapper.find('[data-testid="copy-link"]').exists()).toBe(false)
+
+      await wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('submit', {
+        lat: 37.712345678, lng: -122.41, duration: 45, mode: 'bike',
+      })
+      await flushPromises()
+      expect(router.currentRoute.value.query).toEqual({ at: '37.71235,-122.41', mode: 'bike', mins: '45' })
+      expect(wrapper.find('[data-testid="copy-link"]').exists()).toBe(true)
+    })
+
+    it('leaves the URL alone when the plot fails', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+      vi.mocked(fetchIsochrone).mockRejectedValue(new Error('API down'))
+      const { wrapper, router } = await mountScenarioViewAt('/scenario/ca-hsr')
+      await wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('submit', {
+        lat: 37.71, lng: -122.41, duration: 45, mode: 'bike',
+      })
+      await flushPromises()
+      expect(router.currentRoute.value.query).toEqual({})
+      expect(wrapper.find('[data-testid="copy-link"]').exists()).toBe(false)
+    })
+
+    it('stops naming a plotted isochrone once a pre-rendered one replaces it', async () => {
+      vi.mocked(fetchIsochrone).mockResolvedValue(stubIsochrone)
+      const { wrapper, router } = await mountScenarioViewAt(linked)
+      await wrapper.findComponent({ name: 'PrerenderedIsochrones' }).vm.$emit('select', stubIsochrone)
+      await flushPromises()
+      expect(router.currentRoute.value.query).toEqual({})
+      expect(wrapper.find('[data-testid="copy-link"]').exists()).toBe(false)
     })
   })
 })

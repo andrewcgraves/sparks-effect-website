@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
-import { homeOnlyRouter } from '../test/router'
+import { testRouter } from '../test/router'
 import type { Route } from '../api/authoring'
 
 vi.mock('../api/authoring/routes', () => ({
@@ -27,7 +27,7 @@ const stubRoute: Route = {
 function mountRouteView(slug = 'main-line') {
   return mount(RouteView, {
     props: { slug },
-    global: { plugins: [homeOnlyRouter()], stubs: { MapView: true } },
+    global: { plugins: [testRouter()], stubs: { MapView: true } },
   })
 }
 
