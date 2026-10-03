@@ -58,7 +58,7 @@ void loadGraph(props.slug)
 </script>
 
 <template>
-  <main class="min-h-svh p-(--page-padding)">
+  <main class="flex-1 p-(--page-padding)">
     <p
       v-if="loading"
       class="font-body text-body text-ink-muted"

@@ -9,14 +9,14 @@ export interface TileCredit {
 const OPENFREEMAP_CREDIT: TileCredit = { name: 'OpenFreeMap', href: 'https://openfreemap.org' }
 const STADIA_CREDIT: TileCredit = { name: 'Stadia Maps', href: 'https://stadiamaps.com' }
 
-function stadiaApiKey(apiKey: string | undefined): string | undefined {
+function nonBlankKey(apiKey: string | undefined): string | undefined {
   return apiKey?.trim() || undefined
 }
 
 export function resolveMapStyleUrl(
   apiKey: string | undefined = import.meta.env.VITE_STADIA_API_KEY as string | undefined,
 ): string {
-  const key = stadiaApiKey(apiKey)
+  const key = nonBlankKey(apiKey)
   if (key) {
     return `${STADIA_ALIDADE_SMOOTH}?api_key=${encodeURIComponent(key)}`
   }
@@ -26,5 +26,5 @@ export function resolveMapStyleUrl(
 export function resolveTileCredit(
   apiKey: string | undefined = import.meta.env.VITE_STADIA_API_KEY as string | undefined,
 ): TileCredit {
-  return stadiaApiKey(apiKey) ? STADIA_CREDIT : OPENFREEMAP_CREDIT
+  return nonBlankKey(apiKey) ? STADIA_CREDIT : OPENFREEMAP_CREDIT
 }

@@ -2,7 +2,7 @@
 </script>
 
 <template>
-  <main class="min-h-svh p-(--page-padding)">
+  <main class="flex-1 p-(--page-padding)">
     <h1 class="font-display text-display text-ink-true">
       Page not found
     </h1>

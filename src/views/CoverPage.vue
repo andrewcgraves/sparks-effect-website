@@ -23,7 +23,7 @@ fetchCoverIndex()
 </script>
 
 <template>
-  <main class="flex min-h-svh flex-col p-(--page-padding)">
+  <main class="flex flex-1 flex-col p-(--page-padding)">
     <div class="flex-1">
       <h1 class="font-display text-display text-ink-true">
         Sparks Effect

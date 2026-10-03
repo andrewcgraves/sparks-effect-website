@@ -9,7 +9,7 @@ const auth = useAuthStore()
 </script>
 
 <template>
-  <div class="min-h-svh">
+  <div class="flex min-h-svh flex-col">
     <header class="flex justify-end gap-4 p-(--page-padding) pb-0">
       <RouterLink
         v-if="auth.isAuthenticated"

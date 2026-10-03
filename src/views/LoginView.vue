@@ -55,7 +55,7 @@ async function handleSubmit() {
 </script>
 
 <template>
-  <main class="min-h-svh p-(--page-padding)">
+  <main class="flex-1 p-(--page-padding)">
     <div class="mx-auto flex max-w-[360px] flex-col gap-2">
       <h1 class="font-display text-display text-ink-true">
         Sign in
