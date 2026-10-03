@@ -28,17 +28,27 @@ async function handleSignOut() {
           My authoring
         </h1>
         <p class="font-body text-micro text-ink-muted italic uppercase">
-          Signed in as {{ auth.user?.email ?? '…' }}
+          Signed in as {{ auth.user?.name || auth.user?.email || '…' }}
         </p>
       </hgroup>
-      <button
-        type="button"
-        :class="ACTION_LINK_CLASS"
-        data-testid="sign-out"
-        @click="handleSignOut"
-      >
-        Sign out
-      </button>
+      <!-- Until the header account menu (M4) exists, the account page is reached from here. -->
+      <div class="flex gap-4">
+        <router-link
+          to="/account"
+          :class="ACTION_LINK_CLASS"
+          data-testid="account-link"
+        >
+          Account
+        </router-link>
+        <button
+          type="button"
+          :class="ACTION_LINK_CLASS"
+          data-testid="sign-out"
+          @click="handleSignOut"
+        >
+          Sign out
+        </button>
+      </div>
     </div>
 
     <div class="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-2">

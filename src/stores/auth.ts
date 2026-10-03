@@ -1,6 +1,16 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { ApiError, fetchCurrentUser, login as loginRequest, logout as logoutRequest, type CurrentUser } from '../api/authoring'
+import {
+  ApiError,
+  changePassword as changePasswordRequest,
+  fetchCurrentUser,
+  login as loginRequest,
+  logout as logoutRequest,
+  revokeAllSessions,
+  updateMe,
+  WrongCurrentPasswordError,
+  type CurrentUser,
+} from '../api/authoring'
 import { readJson, removeKey, writeJson } from './storage'
 
 export const AUTH_STORAGE_KEY = 'sparks-effect.auth'
@@ -91,6 +101,33 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  // Other devices are only signed out once the API confirms it, so a failed
+  // revoke leaves this one signed in too rather than pretending it worked.
+  async function logoutEverywhere(): Promise<void> {
+    await revokeAllSessions()
+    signOut()
+  }
+
+  async function updateName(name: string): Promise<void> {
+    user.value = await updateMe(name)
+  }
+
+  async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    const presenting = token.value
+    if (!presenting) throw new WrongCurrentPasswordError()
+    try {
+      await changePasswordRequest(currentPassword, newPassword, presenting)
+    } catch (err: unknown) {
+      if (!(err instanceof ApiError) || err.status !== 401) throw err
+      // The API gives a wrong current password and a dead session the same
+      // 401. Asking who we are on the ambient session tells them apart: if the
+      // session is gone, that request expires it through the usual path and
+      // its error propagates from here instead.
+      await fetchCurrentUser()
+      throw new WrongCurrentPasswordError()
+    }
+  }
+
   // A 401 means the session was revoked or expired, so the stored token is
   // dead and we sign out. Any other failure (offline, API down) is treated as
   // transient: the token is kept so a later call can still succeed.
@@ -121,6 +158,9 @@ export const useAuthStore = defineStore('auth', () => {
     expireSession,
     login,
     logout,
+    logoutEverywhere,
+    updateName,
+    changePassword,
     restoreSession,
   }
 })

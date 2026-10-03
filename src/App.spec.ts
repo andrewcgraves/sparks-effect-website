@@ -46,6 +46,20 @@ describe('App routing', () => {
     expect(wrapper.find('[data-testid="nav-login"]').exists()).toBe(false)
   })
 
+  it('sends a signed-out visitor to /account through sign-in, and back', async () => {
+    await router.push('/account')
+    expect(router.currentRoute.value.fullPath).toBe('/login?redirect=/account')
+  })
+
+  it('opens the account page when signed in', async () => {
+    useAuthStore().signIn('tok-1', { id: 'u1', email: 'a@example.com' })
+    await router.push('/account')
+    const wrapper = mount(App, { global: { plugins: [router] } })
+    await flushPromises()
+    expect(router.currentRoute.value.path).toBe('/account')
+    expect(wrapper.find('h1').text()).toBe('Account')
+  })
+
   it('hosts the shared confirm dialog and toast region on every page', async () => {
     const wrapper = mount(App, { global: { plugins: [router] } })
     await flushPromises()

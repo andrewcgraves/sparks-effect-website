@@ -30,3 +30,32 @@ export async function logout(token?: string): Promise<void> {
 export async function fetchCurrentUser(): Promise<CurrentUser> {
   return apiRequest<CurrentUser>('/api/auth/me')
 }
+
+export async function updateMe(name: string): Promise<CurrentUser> {
+  return apiRequest<CurrentUser>('/api/auth/me', {
+    method: 'PATCH',
+    body: JSON.stringify({ name }),
+  })
+}
+
+export class WrongCurrentPasswordError extends Error {
+  constructor() {
+    super('current password is incorrect')
+    this.name = 'WrongCurrentPasswordError'
+  }
+}
+
+// The API answers a wrong current password with 401, the same status as a dead
+// session. The explicit token keeps that 401 from signing the user out; the
+// caller decides which of the two it was.
+export async function changePassword(currentPassword: string, newPassword: string, token: string): Promise<void> {
+  await apiRequest<void>('/api/auth/password', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  })
+}
+
+export async function revokeAllSessions(): Promise<void> {
+  await apiRequest<void>('/api/auth/sessions/revoke-all', { method: 'POST' })
+}
