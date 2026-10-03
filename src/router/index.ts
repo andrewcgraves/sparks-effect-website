@@ -72,14 +72,14 @@ export const router = createRouter({
       name: 'service-detail',
       component: AuthoredServiceView,
       props: true,
-      meta: { requiresAuth: true, title: 'Service' },
+      meta: { requiresAuth: true, title: 'My service' },
     },
     {
       path: '/authoring/scenarios/:slug',
       name: 'scenario-detail',
       component: AuthoredScenarioView,
       props: true,
-      meta: { requiresAuth: true, title: 'Scenario' },
+      meta: { requiresAuth: true, title: 'My scenario' },
     },
     // A publication, which anyone may read. The owner's draft stays behind
     // sign-in at /authoring/services/:slug (ADR-0005 in sparks-effect-api).

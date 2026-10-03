@@ -142,6 +142,18 @@ describe('router', () => {
       expect(document.title).toBe('New scenario · Sparks Effect')
     })
 
+    it('tells an owner\'s draft apart from its public page before either loads', async () => {
+      useAuthStore().signIn('tok-1', { id: 'u1', email: 'a@example.com' })
+      await router.push('/authoring/services/northbound-express')
+      expect(document.title).toBe('My service · Sparks Effect')
+      await router.push('/services/northbound-express')
+      expect(document.title).toBe('Service · Sparks Effect')
+      await router.push('/authoring/scenarios/ca-hsr')
+      expect(document.title).toBe('My scenario · Sparks Effect')
+      await router.push('/scenario/ca-hsr')
+      expect(document.title).toBe('Scenario · Sparks Effect')
+    })
+
     it('names an unmatched path as not found', async () => {
       await router.push('/no-such-page')
       expect(document.title).toBe('Page not found · Sparks Effect')
