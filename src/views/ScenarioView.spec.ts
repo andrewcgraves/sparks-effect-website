@@ -122,6 +122,24 @@ describe('ScenarioView', () => {
     expect(wrapper.get('h1').text()).toBe('CA HSR')
   })
 
+  it('names the tab after the scenario once its name arrives', async () => {
+    const name = ref('')
+    mockUseScenario.mockReturnValue({
+      name,
+      description: ref(''),
+      routes: ref([]),
+      stations: ref(stubStations),
+      services: ref([]),
+    })
+    document.title = 'Scenario · Sparks Effect'
+    mountScenarioView()
+    expect(document.title).toBe('Scenario · Sparks Effect')
+
+    name.value = 'CA HSR'
+    await flushPromises()
+    expect(document.title).toBe('CA HSR · Sparks Effect')
+  })
+
   it('carries no hard-coded tagline under the name', () => {
     const wrapper = mountScenarioView()
     expect(wrapper.text()).not.toContain('Electrified')

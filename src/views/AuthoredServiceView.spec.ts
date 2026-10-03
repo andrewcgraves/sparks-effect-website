@@ -104,6 +104,13 @@ describe('AuthoredServiceView', () => {
     expect(fetchService).toHaveBeenCalledWith('northbound-express')
   })
 
+  it('names the tab after the service once it loads', async () => {
+    vi.mocked(fetchService).mockResolvedValue(stubService)
+    mountView()
+    await flushPromises()
+    expect(document.title).toBe('Northbound Express · Sparks Effect')
+  })
+
   it('shows the name and slug once loaded', async () => {
     vi.mocked(fetchService).mockResolvedValue(stubService)
     const wrapper = mountView()

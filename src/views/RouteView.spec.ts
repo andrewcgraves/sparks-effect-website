@@ -41,6 +41,13 @@ describe('RouteView', () => {
     expect(fetchRoute).toHaveBeenCalledWith('main-line')
   })
 
+  it('names the tab after the route once it loads', async () => {
+    vi.mocked(fetchRoute).mockResolvedValueOnce(stubRoute)
+    mountRouteView()
+    await flushPromises()
+    expect(document.title).toBe('Main Line · Sparks Effect')
+  })
+
   it('shows a loading state while the route is loading', () => {
     vi.mocked(fetchRoute).mockReturnValueOnce(new Promise(() => {}))
     const wrapper = mountRouteView()

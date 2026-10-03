@@ -6,6 +6,7 @@ import type { Scenario } from '../api/authoring/types'
 import { useOwnedDetail } from '../composables/useOwnedDetail'
 import { useOwnedList } from '../composables/useOwnedList'
 import { useAuthoredGraph } from '../composables/useAuthoredGraph'
+import { usePageTitle } from '../composables/usePageTitle'
 import ScenarioPreviewPanel from '../components/ScenarioPreviewPanel.vue'
 import TimeBetweenStations from '../components/TimeBetweenStations.vue'
 import { graphStationTimeGroups } from '../components/stationTimes'
@@ -14,6 +15,8 @@ import { ACTION_LINK_CLASS } from '../components/linkStyles'
 const props = defineProps<{ slug: string }>()
 
 const { item: scenario, loading, notFound, error } = useOwnedDetail<Scenario>(fetchScenario, props.slug)
+
+usePageTitle(() => scenario.value?.name)
 
 const {
   compiling,

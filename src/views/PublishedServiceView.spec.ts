@@ -103,6 +103,12 @@ describe('PublishedServiceView', () => {
     expect(fetchServiceGraph).not.toHaveBeenCalled()
   })
 
+  it('names the tab after the published service once it loads', async () => {
+    mountView()
+    await flushPromises()
+    expect(document.title).toBe('Northbound Express · Sparks Effect')
+  })
+
   it('shows the title, subtext and description', async () => {
     const wrapper = mountView()
     await flushPromises()

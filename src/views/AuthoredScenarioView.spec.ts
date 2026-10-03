@@ -85,6 +85,12 @@ describe('AuthoredScenarioView', () => {
     vi.unstubAllGlobals()
   })
 
+  it('names the tab after the scenario once it loads', async () => {
+    mountView()
+    await flushPromises()
+    expect(document.title).toBe('CA HSR · Sparks Effect')
+  })
+
   it('loads the scenario named by the slug prop and shows its name', async () => {
     const wrapper = mountView()
     await flushPromises()
