@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { mount, flushPromises, RouterLinkStub } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import type { Scenario, Service } from '../api/authoring/types'
 
@@ -8,16 +8,20 @@ vi.mock('../api/authoring/services', () => ({
 }))
 vi.mock('../api/authoring/scenarios', () => ({
   createScenario: vi.fn(),
+  fetchScenario: vi.fn(),
+  updateScenario: vi.fn(),
+  compileScenario: vi.fn(),
 }))
 
 const push = vi.fn()
+const replace = vi.fn()
 vi.mock('vue-router', () => ({
-  useRouter: () => ({ push }),
+  useRouter: () => ({ push, replace }),
 }))
 
 import ScenarioBuilderView from './ScenarioBuilderView.vue'
 import { fetchMyServices } from '../api/authoring/services'
-import { createScenario } from '../api/authoring/scenarios'
+import { compileScenario, createScenario, fetchScenario, updateScenario } from '../api/authoring/scenarios'
 import { ApiError, SessionExpiredError } from '../api/authoring/client'
 import { SESSION_EXPIRED_FAULT } from '../api/authoringFault'
 import { useDraftsStore } from '../stores/drafts'
@@ -163,5 +167,158 @@ describe('ScenarioBuilderView', () => {
 
     expect(wrapper.find('[data-testid="submit-error"]').text()).toBe(SESSION_EXPIRED_FAULT)
     expect(useDraftsStore().scenarioDraft).not.toBeNull()
+  })
+})
+
+describe('ScenarioBuilderView editing an existing scenario', () => {
+  const existing: Scenario = {
+    id: 's1',
+    slug: 'ca-hsr',
+    name: 'CA HSR',
+    description: 'California High-Speed Rail',
+    service_ids: ['svc1'],
+  }
+
+  function mountEdit() {
+    return mount(ScenarioBuilderView, {
+      props: { slug: 'ca-hsr' },
+      global: { stubs: { RouterLink: RouterLinkStub } },
+    })
+  }
+
+  function stubCompileJob(status: 'succeeded' | 'failed') {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        id: 'job1',
+        kind: 'compile_user_scenario',
+        status,
+        result: status === 'succeeded' ? { services: [] } : undefined,
+        error: status === 'failed' ? 'merge failed' : undefined,
+      }),
+    } as Response))
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    setActivePinia(createPinia())
+    vi.mocked(fetchMyServices).mockResolvedValue([stubServiceA, stubServiceB])
+    vi.mocked(fetchScenario).mockResolvedValue(existing)
+    vi.mocked(updateScenario).mockImplementation(async (slug, input) => ({ ...existing, ...input, slug }))
+    vi.mocked(compileScenario).mockResolvedValue({ id: 'job1', kind: 'compile_user_scenario', status: 'queued' } as never)
+    stubCompileJob('succeeded')
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  })
+
+  it('opens with the scenario\'s name, description and member services', async () => {
+    const wrapper = mountEdit()
+    await flushPromises()
+    expect(fetchScenario).toHaveBeenCalledWith('ca-hsr')
+    expect(wrapper.get('h1').text()).toBe('Edit scenario')
+    expect((wrapper.get('[data-testid="scenario-name"]').element as HTMLInputElement).value).toBe('CA HSR')
+    expect((wrapper.get('[data-testid="scenario-description"]').element as HTMLTextAreaElement).value)
+      .toBe('California High-Speed Rail')
+    expect((wrapper.get('[data-testid="service-checkbox-svc1"]').element as HTMLInputElement).checked).toBe(true)
+    expect((wrapper.get('[data-testid="service-checkbox-svc2"]').element as HTMLInputElement).checked).toBe(false)
+  })
+
+  it('links back to the scenario it edits', async () => {
+    const wrapper = mountEdit()
+    await flushPromises()
+    expect(wrapper.getComponent(RouterLinkStub).props('to')).toBe('/authoring/scenarios/ca-hsr')
+  })
+
+  it('leaves a new-scenario draft in progress alone', async () => {
+    const drafts = useDraftsStore()
+    drafts.startScenarioDraft({ name: 'Half-built', description: '', service_ids: ['svc2'] })
+    const wrapper = mountEdit()
+    await flushPromises()
+    await wrapper.get('[data-testid="scenario-name"]').setValue('CA HSR Phase 2')
+    expect(drafts.scenarioDraft).toEqual({ name: 'Half-built', description: '', service_ids: ['svc2'] })
+  })
+
+  it('saves changed members, name and description over the same scenario', async () => {
+    const wrapper = mountEdit()
+    await flushPromises()
+    await wrapper.get('[data-testid="scenario-name"]').setValue('CA HSR Phase 2')
+    await wrapper.get('[data-testid="scenario-description"]').setValue('With the Altamont link')
+    await wrapper.get('[data-testid="service-checkbox-svc1"]').setValue(false)
+    await wrapper.get('[data-testid="service-checkbox-svc2"]').setValue(true)
+    expect(wrapper.get('[data-testid="save-scenario"]').text()).toBe('Save changes')
+
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(updateScenario).toHaveBeenCalledWith('ca-hsr', {
+      name: 'CA HSR Phase 2',
+      description: 'With the Altamont link',
+      service_ids: ['svc2'],
+    })
+    expect(createScenario).not.toHaveBeenCalled()
+  })
+
+  it('recompiles after saving and only then lands on the scenario\'s page', async () => {
+    const wrapper = mountEdit()
+    await flushPromises()
+    await wrapper.get('[data-testid="service-checkbox-svc2"]').setValue(true)
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(compileScenario).toHaveBeenCalledWith('ca-hsr', expect.anything())
+    expect(replace).toHaveBeenCalledWith('/authoring/scenarios/ca-hsr')
+    expect(push).not.toHaveBeenCalled()
+  })
+
+  it('reports a failed recompile and stays put, with a way to the scenario', async () => {
+    stubCompileJob('failed')
+    const wrapper = mountEdit()
+    await flushPromises()
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(replace).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="compile-error"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="save-scenario"]').exists()).toBe(false)
+  })
+
+  it('cannot save with every member service removed', async () => {
+    const wrapper = mountEdit()
+    await flushPromises()
+    await wrapper.get('[data-testid="service-checkbox-svc1"]').setValue(false)
+    expect(wrapper.get('[data-testid="save-scenario"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('says the scenario was not found on a 404', async () => {
+    vi.mocked(fetchScenario).mockRejectedValue(new ApiError('not found', 404))
+    const wrapper = mountEdit()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="scenario-not-found"]').exists()).toBe(true)
+    expect(wrapper.find('form').exists()).toBe(false)
+  })
+
+  it('says loading failed on any other error', async () => {
+    vi.mocked(fetchScenario).mockRejectedValue(new Error('boom'))
+    const wrapper = mountEdit()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="scenario-error"]').exists()).toBe(true)
+    expect(wrapper.find('form').exists()).toBe(false)
+  })
+
+  it('keeps the form and says why when the save is refused', async () => {
+    vi.mocked(updateScenario).mockRejectedValue(new ApiError('PUT failed: 422', 422))
+    const wrapper = mountEdit()
+    await flushPromises()
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(wrapper.get('[data-testid="submit-error"]').text()).toBe(
+      "Some of this scenario's details weren't accepted. Check them and try again.",
+    )
+    expect(compileScenario).not.toHaveBeenCalled()
+    expect(replace).not.toHaveBeenCalled()
   })
 })

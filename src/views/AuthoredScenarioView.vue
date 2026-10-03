@@ -6,10 +6,12 @@ import type { Scenario } from '../api/authoring/types'
 import { useOwnedDetail } from '../composables/useOwnedDetail'
 import { useOwnedList } from '../composables/useOwnedList'
 import { useAuthoredGraph } from '../composables/useAuthoredGraph'
+import { useScenarioDeletion } from '../composables/useDeletion'
 import ScenarioPreviewPanel from '../components/ScenarioPreviewPanel.vue'
 import TimeBetweenStations from '../components/TimeBetweenStations.vue'
 import { graphStationTimeGroups } from '../components/stationTimes'
 import { ACTION_LINK_CLASS } from '../components/linkStyles'
+import { DESTRUCTIVE_BUTTON_CLASS } from '../components/buttonStyles'
 
 const props = defineProps<{ slug: string }>()
 
@@ -43,6 +45,8 @@ const { items: services } = useOwnedList(fetchMyServices)
 const stationTimeGroups = computed(() => graphStationTimeGroups(graph.value, services.value))
 
 const stationTimesFailed = computed(() => Boolean(graphFailed.value || (compileError.value && !graph.value)))
+
+const { deleting, remove } = useScenarioDeletion()
 
 watch(scenario, (loaded) => {
   if (loaded) void loadGraph(loaded.slug)
@@ -92,14 +96,44 @@ watch(scenario, (loaded) => {
     </template>
 
     <template v-else-if="scenario">
-      <hgroup class="mt-8 flex flex-col gap-2">
-        <h1 class="font-display text-display text-ink-true">
-          {{ scenario.name }}
-        </h1>
-        <p class="font-body text-micro text-ink-muted uppercase">
-          {{ scenario.slug }}
-        </p>
-      </hgroup>
+      <div class="mt-8 flex items-start justify-between gap-4">
+        <hgroup class="flex flex-col gap-2">
+          <h1 class="font-display text-display text-ink-true">
+            {{ scenario.name }}
+          </h1>
+          <p class="font-body text-micro text-ink-muted uppercase">
+            {{ scenario.slug }}
+          </p>
+        </hgroup>
+        <div class="flex items-start gap-6">
+          <router-link
+            :to="`/authoring/scenarios/${scenario.slug}/edit`"
+            :class="ACTION_LINK_CLASS"
+            data-testid="edit-scenario"
+          >
+            Edit
+          </router-link>
+          <details
+            class="relative"
+            data-testid="scenario-actions"
+          >
+            <summary :class="[ACTION_LINK_CLASS, 'list-none']">
+              More
+            </summary>
+            <div class="absolute right-0 z-10 mt-2 rounded-(--radius-box) border border-border bg-surface p-2 shadow-sm">
+              <button
+                type="button"
+                :class="[DESTRUCTIVE_BUTTON_CLASS, 'whitespace-nowrap']"
+                data-testid="delete-scenario"
+                :disabled="deleting"
+                @click="remove(scenario)"
+              >
+                {{ deleting ? 'Deleting…' : 'Delete scenario' }}
+              </button>
+            </div>
+          </details>
+        </div>
+      </div>
       <p
         v-if="scenario.description"
         class="font-body text-body mt-3 max-w-[720px] text-ink"

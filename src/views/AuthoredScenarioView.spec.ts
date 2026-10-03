@@ -10,6 +10,8 @@ vi.mock('../api/authoring/scenarios', () => ({
   fetchScenarioGraph: vi.fn(),
   compileScenario: vi.fn(),
   fetchScenarioIsochrone: vi.fn(),
+  fetchMyScenarios: vi.fn(),
+  deleteScenario: vi.fn(),
 }))
 vi.mock('../api/authoring/services', () => ({
   fetchMyServices: vi.fn(),
@@ -27,7 +29,9 @@ import {
   fetchScenarioGraph,
   compileScenario,
   fetchScenarioIsochrone,
+  deleteScenario,
 } from '../api/authoring/scenarios'
+import { useConfirmHost } from '../composables/useConfirm'
 import { fetchMyServices } from '../api/authoring/services'
 
 const Stub = { template: '<div>stub</div>' }
@@ -58,6 +62,7 @@ function mountView(slug = 'ca-hsr') {
     routes: [
       { path: '/authoring', name: 'authoring', component: Stub },
       { path: '/authoring/scenarios/:slug', name: 'scenario-detail', component: AuthoredScenarioView, props: true },
+      { path: '/authoring/scenarios/:slug/edit', name: 'edit-scenario', component: Stub },
     ],
   })
   return mount(AuthoredScenarioView, { props: { slug }, global: { plugins: [router] } })
@@ -73,6 +78,7 @@ describe('AuthoredScenarioView', () => {
       { id: 'svc2', slug: 'midtown-local', route_id: 'r1', name: 'Midtown Local', stops: [], vehicle: { max_speed_kmh: 100, acceleration_ms2: 1, deceleration_ms2: 1, dwell_s: 30 }, frequency_windows: [] },
     ])
     vi.mocked(fetchScenarioIsochrone).mockReset()
+    vi.mocked(deleteScenario).mockReset().mockResolvedValue()
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -299,5 +305,45 @@ describe('AuthoredScenarioView', () => {
     const wrapper = mountView()
     await flushPromises()
     expect(wrapper.find('[data-testid="compile-error"]').exists()).toBe(true)
+  })
+
+  it('links to editing the scenario', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.get('[data-testid="edit-scenario"]').attributes('href'))
+      .toBe('/authoring/scenarios/ca-hsr/edit')
+  })
+
+  it('keeps Delete behind a secondary menu', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    const menu = wrapper.get('[data-testid="scenario-actions"]')
+    expect(menu.element.tagName).toBe('DETAILS')
+    expect(menu.find('[data-testid="delete-scenario"]').exists()).toBe(true)
+  })
+
+  it('asks before deleting, and deletes nothing when declined', async () => {
+    const { pending, settle } = useConfirmHost()
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.get('[data-testid="delete-scenario"]').trigger('click')
+    await flushPromises()
+    expect(pending.value?.title).toBe("Delete 'CA HSR'?")
+    settle(false)
+    await flushPromises()
+    expect(deleteScenario).not.toHaveBeenCalled()
+  })
+
+  it('deletes once confirmed and goes to My authoring', async () => {
+    const { settle } = useConfirmHost()
+    const wrapper = mountView()
+    await wrapper.vm.$router.push('/authoring/scenarios/ca-hsr')
+    await flushPromises()
+    await wrapper.get('[data-testid="delete-scenario"]').trigger('click')
+    await flushPromises()
+    settle(true)
+    await flushPromises()
+    expect(deleteScenario).toHaveBeenCalledWith('ca-hsr')
+    expect(wrapper.vm.$router.currentRoute.value.path).toBe('/authoring')
   })
 })

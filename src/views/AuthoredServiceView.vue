@@ -4,11 +4,13 @@ import { compileService, fetchService, fetchServiceGraph, fetchServiceIsochrone 
 import type { Service } from '../api/authoring/types'
 import { useOwnedDetail } from '../composables/useOwnedDetail'
 import { useAuthoredGraph } from '../composables/useAuthoredGraph'
+import { useServiceDeletion } from '../composables/useDeletion'
 import ScenarioPreviewPanel from '../components/ScenarioPreviewPanel.vue'
 import PublicationControl from '../components/PublicationControl.vue'
 import TimeBetweenStations from '../components/TimeBetweenStations.vue'
 import { graphStationTimeGroups } from '../components/stationTimes'
 import { ACTION_LINK_CLASS } from '../components/linkStyles'
+import { DESTRUCTIVE_BUTTON_CLASS } from '../components/buttonStyles'
 
 const props = defineProps<{ slug: string }>()
 
@@ -52,6 +54,8 @@ async function recompile(slug: string): Promise<boolean> {
   await triggerCompile(slug)
   return !compileError.value
 }
+
+const { deleting, remove } = useServiceDeletion()
 
 watch(service, (loaded) => {
   if (loaded) void loadGraph(loaded.slug)
@@ -117,13 +121,34 @@ watch(service, (loaded) => {
             {{ service.slug }}
           </p>
         </hgroup>
-        <router-link
-          :to="`/authoring/services/${service.slug}/edit`"
-          :class="ACTION_LINK_CLASS"
-          data-testid="edit-service"
-        >
-          Edit
-        </router-link>
+        <div class="flex items-start gap-6">
+          <router-link
+            :to="`/authoring/services/${service.slug}/edit`"
+            :class="ACTION_LINK_CLASS"
+            data-testid="edit-service"
+          >
+            Edit
+          </router-link>
+          <details
+            class="relative"
+            data-testid="service-actions"
+          >
+            <summary :class="[ACTION_LINK_CLASS, 'list-none']">
+              More
+            </summary>
+            <div class="absolute right-0 z-10 mt-2 rounded-(--radius-box) border border-border bg-surface p-2 shadow-sm">
+              <button
+                type="button"
+                :class="[DESTRUCTIVE_BUTTON_CLASS, 'whitespace-nowrap']"
+                data-testid="delete-service"
+                :disabled="deleting"
+                @click="remove(service)"
+              >
+                {{ deleting ? 'Deleting…' : 'Delete service' }}
+              </button>
+            </div>
+          </details>
+        </div>
       </div>
       <p
         v-if="service.description"
