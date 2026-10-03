@@ -1,7 +1,8 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import { createMemoryHistory, createRouter, type Router } from 'vue-router'
+import type { Router } from 'vue-router'
+import { testRouter, testRouterAt } from '../test/router'
 import { ApiError } from '../api/authoring/client'
 import type { ServicePublication } from '../api/publications'
 import type { ChainResponse } from '../fixtures/isochrone'
@@ -72,21 +73,12 @@ const plot = {
 
 const submit = { lat: 37.7, lng: -122.4, duration: 30, mode: 'walk' }
 
-function testRouter(): Router {
-  return createRouter({
-    history: createMemoryHistory(),
-    routes: [{ path: '/:pathMatch(.*)*', component: { template: '<div />' } }],
-  })
-}
-
 function mountView(slug = 'northbound-express', router: Router = testRouter()) {
   return mount(PublishedServiceView, { props: { slug }, global: { plugins: [router] } })
 }
 
 async function mountViewAt(path: string, slug = 'northbound-express') {
-  const router = testRouter()
-  await router.push(path)
-  await router.isReady()
+  const router = await testRouterAt(path)
   const wrapper = mountView(slug, router)
   await flushPromises()
   return { wrapper, router }
@@ -252,7 +244,7 @@ describe('PublishedServiceView', () => {
     })
   })
 
-  describe('a shareable splash zone', () => {
+  describe('a shareable isochrone', () => {
     const linked = '/services/northbound-express?at=37.7,-122.4&mode=bike&mins=75'
 
     it('plots the origin, mode and budget a link names, once the publication has loaded', async () => {

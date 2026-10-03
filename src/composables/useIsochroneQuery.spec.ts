@@ -1,26 +1,21 @@
 import { describe, expect, it, vi } from 'vitest'
 import { defineComponent, ref, type Ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
-import { createMemoryHistory, createRouter } from 'vue-router'
+import { testRouterAt } from '../test/router'
 import { useIsochroneQuery } from './useIsochroneQuery'
-import type { SplashZone } from '../splashQuery'
+import type { IsochronePayload } from '../isochroneQuery'
 
 interface Harness {
-  plot: ReturnType<typeof vi.fn<(zone: SplashZone) => Promise<void>>>
+  plot: ReturnType<typeof vi.fn<(payload: IsochronePayload) => Promise<void>>>
   plotted: Ref<boolean>
   ready: Ref<boolean>
 }
 
 async function setup(path: string, { ready = true, plotted = true } = {}) {
-  const router = createRouter({
-    history: createMemoryHistory(),
-    routes: [{ path: '/scenario/:slug', component: { template: '<div />' } }],
-  })
-  await router.push(path)
-  await router.isReady()
+  const router = await testRouterAt(path)
 
   const harness: Harness = {
-    plot: vi.fn<(zone: SplashZone) => Promise<void>>().mockResolvedValue(undefined),
+    plot: vi.fn<(payload: IsochronePayload) => Promise<void>>().mockResolvedValue(undefined),
     plotted: ref(plotted),
     ready: ref(ready),
   }
@@ -40,7 +35,7 @@ async function setup(path: string, { ready = true, plotted = true } = {}) {
   return { router, harness, query }
 }
 
-const zone: SplashZone = { lat: 37.33821, lng: -121.88635, mode: 'transit', duration: 60 }
+const payload: IsochronePayload = { lat: 37.33821, lng: -121.88635, mode: 'transit', duration: 60 }
 
 describe('useIsochroneQuery', () => {
   it('reads the form\'s starting values from the link', async () => {
@@ -48,7 +43,7 @@ describe('useIsochroneQuery', () => {
     expect(query.initial).toEqual({ lat: 37.3382, lng: -121.8863, mode: 'transit', duration: 60 })
   })
 
-  it('plots the linked splash zone once on load', async () => {
+  it('plots the linked isochrone once on load', async () => {
     const { harness } = await setup('/scenario/ca-hsr?at=37.3382,-121.8863&mode=transit&mins=60')
     expect(harness.plot).toHaveBeenCalledTimes(1)
     expect(harness.plot).toHaveBeenCalledWith({ lat: 37.3382, lng: -121.8863, mode: 'transit', duration: 60 })
@@ -81,7 +76,7 @@ describe('useIsochroneQuery', () => {
   it('writes a successful plot into the URL, replacing the history entry', async () => {
     const { router, query } = await setup('/scenario/ca-hsr?ref=newsletter')
     const push = vi.spyOn(router, 'push')
-    await query.submit({ ...zone, lat: 37.338212345 })
+    await query.submit({ ...payload, lat: 37.338212345 })
     expect(push).not.toHaveBeenCalled()
     expect(router.currentRoute.value.query).toEqual({
       ref: 'newsletter',
@@ -91,10 +86,17 @@ describe('useIsochroneQuery', () => {
     })
   })
 
-  it('leaves the URL alone when the plot fails', async () => {
-    const { router, harness, query } = await setup('/scenario/ca-hsr')
+  it('drops the isochrone from the URL when the plot fails, keeping the rest', async () => {
+    const { router, harness, query } = await setup('/scenario/ca-hsr?ref=newsletter')
+    await query.submit(payload)
     harness.plotted.value = false
-    await query.submit(zone)
+    await query.submit({ ...payload, mode: 'bike' })
+    expect(router.currentRoute.value.query).toEqual({ ref: 'newsletter' })
+    expect(query.shareable.value).toBe(false)
+  })
+
+  it('drops a linked isochrone whose plot fails', async () => {
+    const { router } = await setup('/scenario/ca-hsr?at=1,2&mode=walk&mins=45', { plotted: false })
     expect(router.currentRoute.value.query).toEqual({})
   })
 
@@ -102,26 +104,26 @@ describe('useIsochroneQuery', () => {
     const { router, harness, query } = await setup('/scenario/ca-hsr')
     let finishFirst!: () => void
     harness.plot.mockImplementationOnce(() => new Promise<void>((resolve) => { finishFirst = resolve }))
-    const first = query.submit({ ...zone, mode: 'walk' })
-    await query.submit({ ...zone, mode: 'bike' })
+    const first = query.submit({ ...payload, mode: 'walk' })
+    await query.submit({ ...payload, mode: 'bike' })
     finishFirst()
     await first
     await flushPromises()
     expect(router.currentRoute.value.query.mode).toBe('bike')
   })
 
-  it('is shareable only once the URL names a splash zone', async () => {
+  it('is shareable only once the URL names an isochrone', async () => {
     const { query } = await setup('/scenario/ca-hsr')
     expect(query.shareable.value).toBe(false)
-    await query.submit(zone)
+    await query.submit(payload)
     expect(query.shareable.value).toBe(true)
   })
 
-  it('forgets the splash zone, keeping the rest of the query, and outlives a plot still in flight', async () => {
+  it('forgets the isochrone, keeping the rest of the query, and outlives a plot still in flight', async () => {
     const { router, harness, query } = await setup('/scenario/ca-hsr?ref=newsletter&at=1,2&mode=walk&mins=45')
     let finish!: () => void
     harness.plot.mockImplementationOnce(() => new Promise<void>((resolve) => { finish = resolve }))
-    const inFlight = query.submit(zone)
+    const inFlight = query.submit(payload)
     await query.forget()
     finish()
     await inFlight

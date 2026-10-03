@@ -9,7 +9,7 @@ import { reverseGeocode } from './api/geocoding'
 import { getCurrentPosition } from './api/geolocation'
 import { trackModeToggle } from './analytics/index'
 import { TRAVEL_MODES, type TravelMode } from './api/authoring/types'
-import { DEFAULT_DURATION, DEFAULT_MODE, DURATION_OPTIONS, type SplashZone } from './splashQuery'
+import { DEFAULT_DURATION, DEFAULT_MODE, DURATION_OPTIONS, type IsochronePayload } from './isochroneQuery'
 
 const MODE_LABELS: Record<TravelMode, string> = {
   walk: 'Walk',
@@ -31,13 +31,13 @@ const props = withDefaults(
   defineProps<{
     error?: string | null
     loading?: boolean
-    initial?: Partial<SplashZone>
+    initial?: Partial<IsochronePayload>
   }>(),
   { error: null, loading: false, initial: () => ({}) },
 )
 
 const emit = defineEmits<{
-  submit: [payload: { lat: number; lng: number; duration: number; mode: TravelMode }]
+  submit: [payload: IsochronePayload]
   'origin-change': [origin: { lat: number; lng: number } | null]
   'pick-armed': [armed: boolean]
 }>()

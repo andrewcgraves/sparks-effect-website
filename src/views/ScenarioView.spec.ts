@@ -2,7 +2,8 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import ScenarioView from './ScenarioView.vue'
 import { ref } from 'vue'
-import { createMemoryHistory, createRouter, type Router } from 'vue-router'
+import type { Router } from 'vue-router'
+import { testRouter, testRouterAt } from '../test/router'
 
 vi.mock('../api/isochrone', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api/isochrone')>()
@@ -92,13 +93,6 @@ const stubIsochrone: ChainResponse = {
   },
 }
 
-function testRouter(): Router {
-  return createRouter({
-    history: createMemoryHistory(),
-    routes: [{ path: '/:pathMatch(.*)*', component: { template: '<div />' } }],
-  })
-}
-
 function mountScenarioView(
   slug = 'ca-hsr',
   stubs: Record<string, boolean> = { MapView: true, IsochroneForm: true },
@@ -110,12 +104,8 @@ function mountScenarioView(
   })
 }
 
-// The page reads its link once, as it is set up, so the router is already
-// there when it mounts — as it is for a pasted link.
 async function mountScenarioViewAt(path: string, stubs: Record<string, boolean> = { MapView: true }) {
-  const router = testRouter()
-  await router.push(path)
-  await router.isReady()
+  const router = await testRouterAt(path)
   const wrapper = mountScenarioView('ca-hsr', stubs, router)
   await flushPromises()
   return { wrapper, router }
@@ -1083,7 +1073,7 @@ describe('ScenarioView', () => {
     })
   })
 
-  describe('a shareable splash zone', () => {
+  describe('a shareable isochrone', () => {
     const linked = '/scenario/ca-hsr?at=37.71,-122.41&mode=transit&mins=120'
 
     it('plots the origin, mode and budget a link names, once, as the page opens', async () => {
@@ -1100,6 +1090,24 @@ describe('ScenarioView', () => {
       expect((wrapper.get('input[data-testid="lat"]').element as HTMLInputElement).value).toBe('37.71')
       expect((wrapper.get('input[data-testid="mode-transit"]').element as HTMLInputElement).checked).toBe(true)
       expect(wrapper.findComponent({ name: 'MapView' }).props('isochroneData')).toEqual(stubIsochrone)
+    })
+
+    it('waits for the scenario\'s stations, so a link out of range spends no routing job', async () => {
+      const stations = ref<Station[]>([])
+      mockUseScenario.mockReturnValue({
+        name: ref('CA HSR'), description: ref(''), routes: ref([]), stations, services: ref([]),
+      })
+      const { wrapper, router } = await mountScenarioViewAt(
+        `/scenario/ca-hsr?at=${DISTANT_ORIGIN.lat},${DISTANT_ORIGIN.lng}&mode=walk&mins=45`,
+      )
+      expect(fetchIsochrone).not.toHaveBeenCalled()
+
+      stations.value = stubStations
+      await flushPromises()
+      expect(fetchIsochrone).not.toHaveBeenCalled()
+      expect(wrapper.find('[data-testid="fetch-error"]').exists()).toBe(true)
+      expect(router.currentRoute.value.query).toEqual({})
+      expect(wrapper.find('[data-testid="copy-link"]').exists()).toBe(false)
     })
 
     it('ignores a link it cannot read, leaving the form at its defaults', async () => {
@@ -1136,7 +1144,7 @@ describe('ScenarioView', () => {
       expect(wrapper.find('[data-testid="copy-link"]').exists()).toBe(false)
     })
 
-    it('stops naming a plotted splash zone once a pre-rendered one replaces it', async () => {
+    it('stops naming a plotted isochrone once a pre-rendered one replaces it', async () => {
       vi.mocked(fetchIsochrone).mockResolvedValue(stubIsochrone)
       const { wrapper, router } = await mountScenarioViewAt(linked)
       await wrapper.findComponent({ name: 'PrerenderedIsochrones' }).vm.$emit('select', stubIsochrone)

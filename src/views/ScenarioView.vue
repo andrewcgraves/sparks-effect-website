@@ -14,7 +14,7 @@ import { useScenarioTravelTimes } from '../composables/useScenarioTravelTimes'
 import { useIsochrone } from '../composables/useIsochrone'
 import { useOriginPick } from '../composables/useOriginPick'
 import { useIsochroneQuery } from '../composables/useIsochroneQuery'
-import type { SplashZone } from '../splashQuery'
+import type { IsochronePayload } from '../isochroneQuery'
 import type { ChainResponse } from '../fixtures/isochrone'
 
 const props = defineProps<{ slug: string }>()
@@ -78,7 +78,7 @@ function onOriginChange(coords: { lat: number; lng: number } | null) {
   origin.value = coords
 }
 
-async function handleFormSubmit(payload: SplashZone) {
+async function handleFormSubmit(payload: IsochronePayload) {
   // Generating replaces what the map is drawing, so the pre-rendered pick that
   // was drawing it is no longer the answer on screen and stops being marked as
   // one. Cleared on submit rather than on success: the moment the question
@@ -94,14 +94,17 @@ async function handleFormSubmit(payload: SplashZone) {
   })
 }
 
-const { initial: linkedZone, submit: submitZone, forget: forgetZone, shareable } = useIsochroneQuery({
+const { initial: linkedIsochrone, submit: submitIsochrone, forget: forgetIsochrone, shareable } = useIsochroneQuery({
   plot: handleFormSubmit,
   plotted: () => isochroneData.value !== null && fetchError.value === null,
+  // The stations are what the range check measures against; plotting a link
+  // before they arrive would skip it and spend a routing job on a refusal.
+  ready: () => stations.value.length > 0,
 })
 
 function onPrerenderedSelect(result: ChainResponse) {
   showIsochrone(result)
-  void forgetZone()
+  void forgetIsochrone()
 }
 </script>
 
@@ -133,8 +136,8 @@ function onPrerenderedSelect(result: ChainResponse) {
           ref="isochroneForm"
           :error="fetchError"
           :loading="isLoading"
-          :initial="linkedZone"
-          @submit="submitZone"
+          :initial="linkedIsochrone"
+          @submit="submitIsochrone"
           @origin-change="onOriginChange"
           @pick-armed="pickArmed = $event"
         />

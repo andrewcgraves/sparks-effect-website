@@ -58,7 +58,7 @@ const stops = computed(() => {
 
 // Waits for the publication: a link to an unpublished service must not spend
 // a routing job on a page that will only say "not found".
-const { initial: linkedZone, submit: submitZone, shareable } = useIsochroneQuery({
+const { initial: linkedIsochrone, submit: submitIsochrone, shareable } = useIsochroneQuery({
   plot: handleIsochroneSubmit,
   plotted: () => isochroneData.value !== null && isochroneError.value === null,
   ready: () => publication.value !== null,
@@ -125,8 +125,8 @@ void loadGraph(props.slug)
         :services="services"
         :map-stations="mapStations"
         :map-routes="mapRoutes"
-        :initial="linkedZone"
-        @submit="submitZone"
+        :initial="linkedIsochrone"
+        @submit="submitIsochrone"
         @origin-change="onOriginChange"
       >
         <template #after-form>

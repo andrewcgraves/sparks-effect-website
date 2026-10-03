@@ -9,8 +9,7 @@ import { useOriginPick } from '../composables/useOriginPick'
 import type { NearMiss, Service, StopCluster } from '../api/authoring/types'
 import type { Route, Station } from '../api/scenarios'
 import type { ChainResponse } from '../fixtures/isochrone'
-import type { IsochronePayload } from '../composables/useAuthoredGraph'
-import type { SplashZone } from '../splashQuery'
+import type { IsochronePayload } from '../isochroneQuery'
 
 const props = defineProps<{
   origin: { lat: number; lng: number } | null
@@ -23,7 +22,7 @@ const props = defineProps<{
   mapStations?: Station[]
   mapRoutes?: Route[]
   statusNote?: string | null
-  initial?: Partial<SplashZone>
+  initial?: Partial<IsochronePayload>
 }>()
 
 defineEmits<{
