@@ -6,6 +6,7 @@ import { usePageTitle } from '../composables/usePageTitle'
 import AllLinesLink from '../components/AllLinesLink.vue'
 import ScenarioPreviewPanel from '../components/ScenarioPreviewPanel.vue'
 import TimeBetweenStations from '../components/TimeBetweenStations.vue'
+import PageSkeleton from '../components/PageSkeleton.vue'
 import { graphStationTimeGroups } from '../components/stationTimes'
 
 const props = defineProps<{ slug: string }>()
@@ -67,12 +68,12 @@ void loadGraph(props.slug)
       <AllLinesLink />
     </div>
 
-    <p
+    <PageSkeleton
       v-if="loading"
-      class="font-body text-body text-ink-muted"
-    >
-      Loading service…
-    </p>
+      label="Loading service"
+      :cards="2"
+      data-testid="service-loading"
+    />
 
     <template v-else-if="graphNotFound">
       <h1 class="font-display text-display text-ink-true">

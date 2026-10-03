@@ -15,6 +15,7 @@ import { ACTION_LINK_CLASS } from '../components/linkStyles'
 import BreadcrumbTrail from '../components/BreadcrumbTrail.vue'
 import { AUTHORING_CRUMB } from '../components/crumbs'
 import DeleteMenu from '../components/DeleteMenu.vue'
+import PageSkeleton from '../components/PageSkeleton.vue'
 
 const props = defineProps<{ slug: string }>()
 
@@ -62,12 +63,14 @@ watch(scenario, (loaded) => {
   <main class="flex-1 p-(--page-padding)">
     <BreadcrumbTrail :items="[AUTHORING_CRUMB, { label: scenario?.name ?? 'Scenario' }]" />
 
-    <p
+    <PageSkeleton
       v-if="loading"
-      class="font-body text-body mt-8 text-ink-muted"
-    >
-      Loading scenario…
-    </p>
+      label="Loading scenario"
+      subtitle
+      :cards="1"
+      class="mt-8"
+      data-testid="scenario-loading"
+    />
 
     <template v-else-if="notFound">
       <h1 class="font-display text-display mt-8 text-ink-true">

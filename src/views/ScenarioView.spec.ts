@@ -457,10 +457,10 @@ describe('ScenarioView', () => {
     })
   })
 
-  it('shows muted loading copy while the travel times are in flight', async () => {
+  it('shows a run-time skeleton while the travel times are in flight', async () => {
     vi.mocked(fetchScenarioTravelTimes).mockReturnValue(new Promise(() => {}))
     const wrapper = mountScenarioView()
-    expect(wrapper.get('[data-testid="station-times-loading"]').classes()).toContain('text-ink-muted')
+    expect(wrapper.get('[data-testid="station-times-loading"]').attributes('aria-busy')).toBe('true')
   })
 
   it('logs and hides the section when the travel times fail, leaving the map usable', async () => {

@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { fetchCoverIndex, type CoverCard, type CoverSource } from '../api/coverIndex'
 import { LIST_CARD_LINK_CLASS } from '../components/linkStyles'
+import ListSkeleton from '../components/ListSkeleton.vue'
 
 const UNAVAILABLE_COPY: Record<CoverSource, string> = {
   scenario: "Couldn't load the curated scenarios.",
@@ -39,13 +40,12 @@ fetchCoverIndex()
         <h2 class="font-display text-h2 text-ink-true">
           Published routes
         </h2>
-        <p
+        <ListSkeleton
           v-if="loading"
-          class="font-body text-caption mt-3 text-ink-muted italic"
+          label="Loading published routes"
+          class="mt-3 max-w-[420px]"
           data-testid="scenarios-loading"
-        >
-          Loading…
-        </p>
+        />
         <p
           v-else-if="error"
           class="font-body text-caption mt-3 text-error"

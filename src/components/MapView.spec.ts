@@ -403,6 +403,14 @@ describe('MapView', () => {
     expect(mockAddLayer).not.toHaveBeenCalled()
   })
 
+  it('covers the frame with a busy skeleton until the map has loaded', async () => {
+    const wrapper = mount(MapView, { props: defaultProps })
+    expect(wrapper.get('[data-testid="map-skeleton"]').attributes('aria-busy')).toBe('true')
+    await triggerMapLoad()
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('[data-testid="map-skeleton"]').exists()).toBe(false)
+  })
+
   it('shows the loading overlay when loading prop is true', () => {
     const wrapper = mount(MapView, { props: { ...defaultProps, loading: true } })
     expect(wrapper.find('[data-testid="map-loading"]').exists()).toBe(true)

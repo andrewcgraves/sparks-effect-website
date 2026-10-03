@@ -15,6 +15,7 @@ import AuthoringView from './AuthoringView.vue'
 import { fetchMyServices } from '../api/authoring/services'
 import { fetchMyScenarios } from '../api/authoring/scenarios'
 import { useAuthStore } from '../stores/auth'
+import { busyRegion, visibleText } from '../test/loading'
 
 const LoginStub = { template: '<div>login</div>' }
 
@@ -75,6 +76,18 @@ describe('AuthoringView', () => {
     const { wrapper } = await mountAuthoring()
     await flushPromises()
     expect(wrapper.text()).toContain('a@example.com')
+  })
+
+  it.each([
+    ['services', 'services-loading'],
+    ['scenarios', 'scenarios-loading'],
+  ])('shows skeleton cards for %s while they load, with no loading copy', async (_, testId) => {
+    vi.mocked(fetchMyServices).mockReturnValue(new Promise(() => {}))
+    vi.mocked(fetchMyScenarios).mockReturnValue(new Promise(() => {}))
+    const { wrapper } = await mountAuthoring()
+    const region = busyRegion(wrapper, testId)
+    expect(region.findAll('[data-testid="list-card-skeleton"]').length).toBeGreaterThan(0)
+    expect(visibleText(region)).toBe('')
   })
 
   it('links back out to all lines', async () => {

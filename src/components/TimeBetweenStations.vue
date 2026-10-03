@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { TOGGLE_BUTTON_CLASS } from './buttonStyles'
+import LoadingRegion from './LoadingRegion.vue'
+import SkeletonShape from './SkeletonShape.vue'
 import { formatRunTime } from './stationTimes'
 import type { StationTimeGroup } from './stationTimes'
 
@@ -29,13 +31,23 @@ function choose(group: StationTimeGroup, index: number): void {
       Time between stations
     </h2>
 
-    <p
+    <LoadingRegion
       v-if="props.loading"
-      class="font-body text-caption mt-2 text-ink-muted italic"
+      label="Loading run times"
+      class="mt-3 flex flex-col"
       data-testid="station-times-loading"
     >
-      Loading run times…
-    </p>
+      <!-- One header row and three body rows at the table's caption row height. -->
+      <div
+        v-for="row in 4"
+        :key="row"
+        class="text-caption grid h-[19.5px] grid-cols-3 items-center gap-3"
+      >
+        <SkeletonShape class="w-2/3" />
+        <SkeletonShape class="w-2/3" />
+        <SkeletonShape class="w-1/2" />
+      </div>
+    </LoadingRegion>
 
     <p
       v-else-if="!props.groups.length"

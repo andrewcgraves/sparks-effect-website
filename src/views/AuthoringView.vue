@@ -6,6 +6,7 @@ import { fetchMyServices } from '../api/authoring/services'
 import { fetchMyScenarios } from '../api/authoring/scenarios'
 import { ACTION_LINK_CLASS, LIST_CARD_LINK_CLASS } from '../components/linkStyles'
 import AllLinesLink from '../components/AllLinesLink.vue'
+import ListSkeleton from '../components/ListSkeleton.vue'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -55,12 +56,12 @@ async function handleSignOut() {
             + New service
           </router-link>
         </div>
-        <p
+        <ListSkeleton
           v-if="servicesLoading"
-          class="font-body text-caption mt-3 text-ink-muted italic"
-        >
-          Loading…
-        </p>
+          label="Loading your services"
+          class="mt-3"
+          data-testid="services-loading"
+        />
         <p
           v-else-if="servicesError"
           class="font-body text-caption mt-3 text-error"
@@ -109,12 +110,12 @@ async function handleSignOut() {
             + New scenario
           </router-link>
         </div>
-        <p
+        <ListSkeleton
           v-if="scenariosLoading"
-          class="font-body text-caption mt-3 text-ink-muted italic"
-        >
-          Loading…
-        </p>
+          label="Loading your scenarios"
+          class="mt-3"
+          data-testid="scenarios-loading"
+        />
         <p
           v-else-if="scenariosError"
           class="font-body text-caption mt-3 text-error"

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import TimeBetweenStations from './TimeBetweenStations.vue'
+import SkeletonShape from './SkeletonShape.vue'
+import { busyRegion, visibleText } from '../test/loading'
 import type { StationTimeGroup } from './stationTimes'
 
 const coastLine: StationTimeGroup = {
@@ -108,13 +110,19 @@ describe('TimeBetweenStations', () => {
     expect(wrapper.findAll('[data-testid="station-time-row"]')).toHaveLength(2)
   })
 
-  it('shows muted loading copy instead of a table while run times are in flight', () => {
+  it('shows skeleton rows instead of a table while run times are in flight', () => {
     const wrapper = mountSection([], true)
-    expect(wrapper.get('[data-testid="station-times-loading"]').classes()).toContain('text-ink-muted')
+    const region = busyRegion(wrapper, 'station-times-loading')
+    expect(region.findAllComponents(SkeletonShape).length).toBeGreaterThan(0)
+    expect(visibleText(region)).toBe('')
     expect(wrapper.find('table').exists()).toBe(false)
   })
 
-  it('keeps the loading copy in place of stale groups', () => {
+  it('keeps its heading while loading so the card does not change shape', () => {
+    expect(mountSection([], true).get('h2').text()).toBe('Time between stations')
+  })
+
+  it('keeps the skeleton in place of stale groups', () => {
     const wrapper = mountSection([coastLine], true)
     expect(wrapper.find('[data-testid="station-time-group"]').exists()).toBe(false)
   })

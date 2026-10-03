@@ -10,6 +10,7 @@ import { fetchRoute } from '../api/authoring/routes'
 import { ApiError } from '../api/authoring/client'
 
 import RouteView from './RouteView.vue'
+import { busyRegion, visibleText } from '../test/loading'
 
 const stubRoute: Route = {
   id: 'rt1',
@@ -54,10 +55,12 @@ describe('RouteView', () => {
     expect(document.title).toBe('Main Line · Sparks Effect')
   })
 
-  it('shows a loading state while the route is loading', () => {
+  it('shows a page skeleton with a map placeholder, not loading copy, while the route is loading', () => {
     vi.mocked(fetchRoute).mockReturnValueOnce(new Promise(() => {}))
     const wrapper = mountRouteView()
-    expect(wrapper.text()).toContain('Loading')
+    const region = busyRegion(wrapper, 'route-loading')
+    expect(region.find('[data-testid="map-panel-skeleton"]').exists()).toBe(true)
+    expect(visibleText(region)).toBe('')
     expect(wrapper.findComponent({ name: 'MapView' }).exists()).toBe(false)
   })
 

@@ -9,6 +9,9 @@ import { MAX_DESCRIPTION_CHARS, MAX_SUBTEXT_CHARS, type SnapCoord as LatLng } fr
 import BreadcrumbTrail from '../components/BreadcrumbTrail.vue'
 import { AUTHORING_CRUMB, type Crumb } from '../components/crumbs'
 import MapView from '../components/MapView.vue'
+import FieldSkeleton from '../components/FieldSkeleton.vue'
+import LoadingRegion from '../components/LoadingRegion.vue'
+import SkeletonShape from '../components/SkeletonShape.vue'
 import { PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS, TOGGLE_BUTTON_CLASS } from '../components/buttonStyles'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
 import { ACTION_LINK_CLASS } from '../components/linkStyles'
@@ -215,13 +218,31 @@ watch(createdSlug, (created) => {
       Failed to load this service. Please try again.
     </p>
 
-    <p
+    <LoadingRegion
       v-else-if="!submitted && !ready"
-      class="font-body text-body mt-8 text-ink-muted"
+      :label="slug ? 'Loading service' : 'Loading'"
+      class="mt-8 grid grid-cols-1 items-start gap-8 lg:grid-cols-[1fr_1fr]"
       data-testid="draft-loading"
     >
-      {{ slug ? 'Loading service…' : 'Loading…' }}
-    </p>
+      <div class="flex flex-col gap-6">
+        <SkeletonShape
+          shape="card"
+          :lines="1"
+        />
+        <SkeletonShape
+          shape="card"
+          :lines="4"
+        />
+        <FieldSkeleton />
+        <FieldSkeleton />
+        <FieldSkeleton :rows="5" />
+      </div>
+      <SkeletonShape
+        shape="block"
+        class="h-[70vh] min-h-[70vh]"
+        data-testid="map-panel-skeleton"
+      />
+    </LoadingRegion>
 
     <template v-else-if="!submitted">
       <div class="mt-8 grid grid-cols-1 items-start gap-8 lg:grid-cols-[1fr_1fr]">
@@ -233,12 +254,14 @@ watch(createdSlug, (created) => {
             <h2 class="font-display text-h3 text-ink-true">
               Route
             </h2>
-            <p
+            <LoadingRegion
               v-if="routesLoading"
-              class="font-body text-caption mt-2 text-ink-muted italic"
+              label="Loading routes"
+              class="mt-2"
+              data-testid="routes-loading"
             >
-              Loading routes…
-            </p>
+              <FieldSkeleton />
+            </LoadingRegion>
             <p
               v-else-if="routesError"
               class="font-body text-caption mt-2 text-error"
