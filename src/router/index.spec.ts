@@ -14,6 +14,7 @@ vi.mock('../views/AuthoredServiceView.vue', () => ({ default: { props: ['slug'],
 vi.mock('../views/AuthoredScenarioView.vue', () => ({ default: { props: ['slug'], template: '<div />' } }))
 vi.mock('../views/PublishedServiceView.vue', () => ({ default: { props: ['slug'], template: '<div />' } }))
 vi.mock('../views/NotFoundView.vue', () => ({ default: { template: '<div />' } }))
+vi.mock('../views/WelcomeView.vue', () => ({ default: { props: ['token'], template: '<div />' } }))
 
 import { router, redirectAfterSessionExpiry } from './index'
 import { trackPageView } from '../analytics/index'
@@ -51,6 +52,40 @@ describe('router', () => {
     vi.mocked(trackPageView).mockClear()
     await router.replace({ query: { at: '37.3,-121.8', mode: 'walk', mins: '60' } })
     expect(trackPageView).not.toHaveBeenCalled()
+  })
+
+  describe('set-password links', () => {
+    it('opens the set-password page for a /welcome/:token link', async () => {
+      await router.push('/welcome/secret-token')
+      expect(router.currentRoute.value.name).toBe('welcome')
+      expect(router.currentRoute.value.params.token).toBe('secret-token')
+    })
+
+    it('records the page view as /welcome, keeping the token out of analytics', async () => {
+      await router.push('/')
+      await router.push('/welcome/secret-token')
+      expect(trackPageView).toHaveBeenCalledWith('/welcome')
+      expect(JSON.stringify(vi.mocked(trackPageView).mock.calls)).not.toContain('secret-token')
+    })
+
+    it('forwards the link the API issues, /set-password?token=, to the same page', async () => {
+      await router.push('/set-password?token=secret-token')
+      expect(router.currentRoute.value.name).toBe('welcome')
+      expect(router.currentRoute.value.params.token).toBe('secret-token')
+      expect(router.currentRoute.value.query).toEqual({})
+      expect(JSON.stringify(vi.mocked(trackPageView).mock.calls)).not.toContain('secret-token')
+    })
+
+    it('sends a /set-password link with no token to sign in', async () => {
+      await router.push('/set-password')
+      expect(router.currentRoute.value.path).toBe('/login')
+    })
+
+    it('lets a signed-in user open a link, so the page can check whose it is', async () => {
+      useAuthStore().signIn('tok-1', { id: 'u1', email: 'a@example.com' })
+      await router.push('/welcome/secret-token')
+      expect(router.currentRoute.value.name).toBe('welcome')
+    })
   })
 
   describe('auth gating', () => {

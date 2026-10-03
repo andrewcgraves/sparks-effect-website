@@ -27,6 +27,7 @@ vi.mock('../components/MapView.vue', () => ({
 import PublishedServiceView from './PublishedServiceView.vue'
 import { fetchPublicationIsochrone, fetchServicePublication } from '../api/publications'
 import { compileService, fetchService, fetchServiceGraph, fetchServiceIsochrone } from '../api/authoring/services'
+import { busyRegion, visibleText } from '../test/loading'
 
 const publication: ServicePublication = {
   user_service_id: 'svc1',
@@ -96,6 +97,19 @@ describe('PublishedServiceView', () => {
     // reaching fetch — a compile, a job poll — is a request it must not make.
     fetchSpy.mockReset()
     vi.stubGlobal('fetch', fetchSpy)
+  })
+
+  it('shows a page skeleton in the shape of the loaded page, not loading copy, while it loads', () => {
+    vi.mocked(fetchServicePublication).mockReturnValue(new Promise(() => {}))
+    const wrapper = mountView()
+    const region = busyRegion(wrapper, 'service-loading')
+    expect(region.find('[data-testid="map-panel-skeleton"]').exists()).toBe(true)
+    expect(region.findAll('[data-testid="card-skeleton"]')).toHaveLength(2)
+    expect(visibleText(region)).toBe('')
+  })
+
+  it('links back to all lines', () => {
+    expect(mountView().get('[data-testid="back-to-lines"]').attributes('href')).toBe('/')
   })
 
   afterEach(() => {

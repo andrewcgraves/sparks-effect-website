@@ -20,6 +20,7 @@ vi.mock('vue-router', () => ({
 }))
 
 import { breadcrumbTrail } from '../test/breadcrumbs'
+import { busyRegion, visibleText } from '../test/loading'
 import ScenarioBuilderView from './ScenarioBuilderView.vue'
 import { fetchMyServices } from '../api/authoring/services'
 import { compileScenario, createScenario, fetchScenario, updateScenario } from '../api/authoring/scenarios'
@@ -104,7 +105,14 @@ describe('ScenarioBuilderView', () => {
     const wrapper = mountView()
     await flushPromises()
     expect(wrapper.find('[data-testid="services-error"]').exists()).toBe(false)
-    expect(wrapper.text()).toContain('Loading')
+    expect(wrapper.get('[data-testid="services-loading"]').attributes('aria-busy')).toBe('true')
+  })
+
+  it('shows skeleton service rows, not loading copy, while the services load', () => {
+    vi.mocked(fetchMyServices).mockReturnValue(new Promise(() => {}))
+    const region = busyRegion(mountView(), 'services-loading')
+    expect(region.findAll('[data-testid="list-card-skeleton"]').length).toBeGreaterThan(0)
+    expect(visibleText(region)).toBe('')
   })
 
   it('disables save until a name and at least one service are chosen', async () => {
@@ -221,6 +229,13 @@ describe('ScenarioBuilderView editing an existing scenario', () => {
   afterEach(() => {
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
+  })
+
+  it('shows a form skeleton, not loading copy, while the scenario loads', () => {
+    vi.mocked(fetchScenario).mockReturnValue(new Promise(() => {}))
+    const region = busyRegion(mountEdit(), 'draft-loading')
+    expect(region.findAll('[data-testid="field-skeleton"]')).toHaveLength(2)
+    expect(visibleText(region)).toBe('')
   })
 
   it('opens with the scenario\'s name, description and member services', async () => {
