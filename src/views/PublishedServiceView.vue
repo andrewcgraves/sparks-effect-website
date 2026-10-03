@@ -2,6 +2,8 @@
 import { computed } from 'vue'
 import { fetchPublicationIsochrone, fetchServicePublication } from '../api/publications'
 import { useAuthoredGraph } from '../composables/useAuthoredGraph'
+import { useIsochroneQuery } from '../composables/useIsochroneQuery'
+import CopyLinkButton from '../components/CopyLinkButton.vue'
 import ScenarioPreviewPanel from '../components/ScenarioPreviewPanel.vue'
 import TimeBetweenStations from '../components/TimeBetweenStations.vue'
 import { graphStationTimeGroups } from '../components/stationTimes'
@@ -52,6 +54,14 @@ const stops = computed(() => {
   const outbound = stationTimeGroups.value[0]?.directions[0]?.rows ?? []
   if (outbound.length) return [outbound[0].from, ...outbound.map((row) => row.to)]
   return mapStations.value.map((station) => station.name)
+})
+
+// Waits for the publication: a link to an unpublished service must not spend
+// a routing job on a page that will only say "not found".
+const { initial: linkedZone, submit: submitZone, shareable } = useIsochroneQuery({
+  plot: handleIsochroneSubmit,
+  plotted: () => isochroneData.value !== null && isochroneError.value === null,
+  ready: () => publication.value !== null,
 })
 
 void loadGraph(props.slug)
@@ -115,9 +125,14 @@ void loadGraph(props.slug)
         :services="services"
         :map-stations="mapStations"
         :map-routes="mapRoutes"
-        @submit="handleIsochroneSubmit"
+        :initial="linkedZone"
+        @submit="submitZone"
         @origin-change="onOriginChange"
-      />
+      >
+        <template #after-form>
+          <CopyLinkButton v-if="shareable" />
+        </template>
+      </ScenarioPreviewPanel>
 
       <div class="mt-8 grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] items-start gap-4">
         <section class="rounded-(--radius-box) border border-border bg-surface p-4">

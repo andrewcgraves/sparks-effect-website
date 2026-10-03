@@ -10,6 +10,7 @@ import type { NearMiss, Service, StopCluster } from '../api/authoring/types'
 import type { Route, Station } from '../api/scenarios'
 import type { ChainResponse } from '../fixtures/isochrone'
 import type { IsochronePayload } from '../composables/useAuthoredGraph'
+import type { SplashZone } from '../splashQuery'
 
 const props = defineProps<{
   origin: { lat: number; lng: number } | null
@@ -22,6 +23,7 @@ const props = defineProps<{
   mapStations?: Station[]
   mapRoutes?: Route[]
   statusNote?: string | null
+  initial?: Partial<SplashZone>
 }>()
 
 defineEmits<{
@@ -83,10 +85,12 @@ function formatMeters(total: number): string {
         ref="isochroneForm"
         :error="props.error"
         :loading="props.loading"
+        :initial="props.initial"
         @submit="$emit('submit', $event)"
         @origin-change="$emit('origin-change', $event)"
         @pick-armed="pickArmed = $event"
       />
+      <slot name="after-form" />
       <p
         v-if="props.statusNote"
         class="font-body text-caption text-ink-muted italic"

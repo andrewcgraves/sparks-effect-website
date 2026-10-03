@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
+import { createMemoryHistory, createRouter, type Router } from 'vue-router'
 import { ApiError } from '../api/authoring/client'
 import type { ServicePublication } from '../api/publications'
 import type { ChainResponse } from '../fixtures/isochrone'
@@ -71,8 +72,24 @@ const plot = {
 
 const submit = { lat: 37.7, lng: -122.4, duration: 30, mode: 'walk' }
 
-function mountView(slug = 'northbound-express') {
-  return mount(PublishedServiceView, { props: { slug } })
+function testRouter(): Router {
+  return createRouter({
+    history: createMemoryHistory(),
+    routes: [{ path: '/:pathMatch(.*)*', component: { template: '<div />' } }],
+  })
+}
+
+function mountView(slug = 'northbound-express', router: Router = testRouter()) {
+  return mount(PublishedServiceView, { props: { slug }, global: { plugins: [router] } })
+}
+
+async function mountViewAt(path: string, slug = 'northbound-express') {
+  const router = testRouter()
+  await router.push(path)
+  await router.isReady()
+  const wrapper = mountView(slug, router)
+  await flushPromises()
+  return { wrapper, router }
 }
 
 describe('PublishedServiceView', () => {
@@ -232,6 +249,46 @@ describe('PublishedServiceView', () => {
       expect(compileService).not.toHaveBeenCalled()
       expect(fetchSpy).not.toHaveBeenCalled()
       expect(wrapper.find('[role="alert"]').exists()).toBe(true)
+    })
+  })
+
+  describe('a shareable splash zone', () => {
+    const linked = '/services/northbound-express?at=37.7,-122.4&mode=bike&mins=75'
+
+    it('plots the origin, mode and budget a link names, once the publication has loaded', async () => {
+      const { wrapper } = await mountViewAt(linked)
+      expect(fetchPublicationIsochrone).toHaveBeenCalledTimes(1)
+      expect(fetchPublicationIsochrone).toHaveBeenCalledWith('northbound-express', {
+        lat: 37.7, lng: -122.4, budget_mins: 75, mode: 'bike',
+      })
+      expect((wrapper.get('input[data-testid="mode-bike"]').element as HTMLInputElement).checked).toBe(true)
+      expect(wrapper.findComponent({ name: 'TimeRemaining' }).exists()).toBe(true)
+      expect(wrapper.find('[data-testid="copy-link"]').exists()).toBe(true)
+    })
+
+    it('spends no routing job on a link to a service that is not published', async () => {
+      vi.mocked(fetchServicePublication).mockRejectedValue(new ApiError('service not found', 404))
+      await mountViewAt(linked)
+      expect(fetchPublicationIsochrone).not.toHaveBeenCalled()
+    })
+
+    it('ignores a link it cannot read, leaving the form at its defaults', async () => {
+      const { wrapper } = await mountViewAt('/services/northbound-express?at=37.7&mode=fly&mins=1000')
+      expect(fetchPublicationIsochrone).not.toHaveBeenCalled()
+      expect((wrapper.get('input[data-testid="lat"]').element as HTMLInputElement).value).toBe('')
+      expect((wrapper.get('input[data-testid="mode-walk"]').element as HTMLInputElement).checked).toBe(true)
+      expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+    })
+
+    it('puts what was plotted in the URL, and offers to copy it', async () => {
+      const { wrapper, router } = await mountViewAt('/services/northbound-express')
+      expect(wrapper.find('[data-testid="copy-link"]').exists()).toBe(false)
+
+      wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('submit', submit)
+      await flushPromises()
+
+      expect(router.currentRoute.value.query).toEqual({ at: '37.7,-122.4', mode: 'walk', mins: '30' })
+      expect(wrapper.find('[data-testid="copy-link"]').exists()).toBe(true)
     })
   })
 })
