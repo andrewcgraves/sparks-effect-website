@@ -2,7 +2,7 @@ import { createApp } from 'vue'
 import './style.css'
 import App from './App.vue'
 import { redirectAfterSessionExpiry, router } from './router'
-import { installStores } from './stores'
+import { installStores } from './stores/install'
 import { configureSink } from './analytics/index'
 import { vercelSink } from './analytics/sinks'
 
