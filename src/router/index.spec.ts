@@ -46,6 +46,13 @@ describe('router', () => {
     expect(trackPageView).toHaveBeenCalledWith('/nope')
   })
 
+  it('does not count a query change on the same page as another page view', async () => {
+    await router.push('/scenario/ca-hsr')
+    vi.mocked(trackPageView).mockClear()
+    await router.replace({ query: { at: '37.3,-121.8', mode: 'walk', mins: '60' } })
+    expect(trackPageView).not.toHaveBeenCalled()
+  })
+
   describe('auth gating', () => {
     it('redirects a signed-out visitor away from /authoring to /login, preserving the destination', async () => {
       await router.push('/authoring')
@@ -176,6 +183,13 @@ describe('router', () => {
     it('names an unmatched path as not found', async () => {
       await router.push('/no-such-page')
       expect(document.title).toBe('Page not found · Sparks Effect')
+    })
+
+    it('keeps the page\'s own title when only the query changes', async () => {
+      await router.push('/scenario/ca-hsr')
+      document.title = 'California HSR · Sparks Effect'
+      await router.replace({ query: { at: '37.3,-121.8', mode: 'walk', mins: '60' } })
+      expect(document.title).toBe('California HSR · Sparks Effect')
     })
 
     it('restores the bare site name on returning to /', async () => {

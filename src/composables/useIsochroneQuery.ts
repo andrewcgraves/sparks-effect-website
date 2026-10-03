@@ -1,24 +1,19 @@
 import { computed, watch } from 'vue'
-import { useRoute, useRouter, type LocationQuery } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import {
   DEFAULT_DURATION,
   DEFAULT_MODE,
   readIsochroneQuery,
+  withoutIsochrone,
   writeIsochroneQuery,
   type IsochronePayload,
 } from '../isochroneQuery'
 import { latestAttempt } from './latestAttempt'
 
-const QUERY_KEYS = new Set(['at', 'mode', 'mins'])
-
 export interface IsochroneQueryOptions {
   plot: (payload: IsochronePayload) => Promise<void>
   plotted: () => boolean
   ready?: () => boolean
-}
-
-function withoutIsochrone(query: LocationQuery): LocationQuery {
-  return Object.fromEntries(Object.entries(query).filter(([key]) => !QUERY_KEYS.has(key)))
 }
 
 export function useIsochroneQuery({ plot, plotted, ready = () => true }: IsochroneQueryOptions) {

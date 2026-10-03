@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory, type Router } from 'vue-router'
+import { createRouter, createWebHistory, START_LOCATION, type Router } from 'vue-router'
 import CoverPage from '../views/CoverPage.vue'
 import ScenarioView from '../views/ScenarioView.vue'
 import LoginView from '../views/LoginView.vue'
@@ -135,7 +135,11 @@ export async function redirectAfterSessionExpiry(target: Router): Promise<void> 
   await target.push({ path: '/login', query: { redirect: current.fullPath } })
 }
 
-router.afterEach((to) => {
+router.afterEach((to, from) => {
+  // A query change on the same page — a plotted isochrone written to the URL —
+  // is not a new page: it would reset the title the page named itself, and
+  // count a page view per plot. The first navigation's `from` is also '/'.
+  if (from !== START_LOCATION && to.path === from.path) return
   document.title = formatPageTitle(to.meta.title)
   trackPageView(to.path)
 })

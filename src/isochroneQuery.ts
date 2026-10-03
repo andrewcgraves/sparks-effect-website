@@ -13,6 +13,8 @@ export interface IsochronePayload {
 export const DEFAULT_MODE: TravelMode = 'walk'
 export const DEFAULT_DURATION = 60
 
+const QUERY_KEYS = ['at', 'mode', 'mins']
+
 // A repeated key arrives as an array; neither of its values is more the
 // sender's meaning than the other, so it is read as no value at all.
 function single(query: LocationQuery, key: string): string | null {
@@ -58,6 +60,10 @@ export function readIsochroneQuery(query: LocationQuery): Partial<IsochronePaylo
 // enough to read in a pasted link.
 function formatCoordinate(value: number): string {
   return String(Number(value.toFixed(5)))
+}
+
+export function withoutIsochrone(query: LocationQuery): LocationQuery {
+  return Object.fromEntries(Object.entries(query).filter(([key]) => !QUERY_KEYS.includes(key)))
 }
 
 export function writeIsochroneQuery(payload: IsochronePayload): { at: string; mode: TravelMode; mins: string } {
