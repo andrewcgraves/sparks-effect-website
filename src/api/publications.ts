@@ -35,10 +35,24 @@ export interface PublishedServiceSummary {
   description?: string
 }
 
-// Most recently published first. Unpublished services never appear, for any
-// caller, owner included.
-export function listPublishedServices(): Promise<PublishedServiceSummary[]> {
-  return apiRequest<PublishedServiceSummary[]>('/api/published-services')
+export interface PublishedServicePage {
+  items: PublishedServiceSummary[]
+  next_cursor: string | null
+}
+
+// Most recently first published first; republishing keeps a service's place,
+// so following next_cursor reaches every service once. Unpublished services
+// never appear, for any caller, owner included.
+//
+// cursor is always sent, empty for the first page: without it or limit the API
+// answers the bare array it kept for websites built before SPA-434. Leaving
+// limit out takes the API's default of 50; it caps any limit at 100.
+export function listPublishedServices(
+  page: { cursor?: string; limit?: number } = {},
+): Promise<PublishedServicePage> {
+  const params = new URLSearchParams({ cursor: page.cursor ?? '' })
+  if (page.limit !== undefined) params.set('limit', String(page.limit))
+  return apiRequest<PublishedServicePage>(`/api/published-services?${params}`)
 }
 
 export function fetchPublicationIsochrone(

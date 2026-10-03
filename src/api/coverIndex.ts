@@ -58,7 +58,10 @@ export async function fetchCoverIndex(): Promise<CoverIndex> {
   }
 
   if (services.status === 'fulfilled') {
-    for (const service of services.value) {
+    // One page, the most recently published: the cover's request must not
+    // grow with every service published. Paging past it is the services
+    // page's job (SPA-202).
+    for (const service of services.value.items) {
       // The subtext, not the description: the subtext is the one-line
       // descriptor a service shows under its name, while its description is a
       // few paragraphs of prose that belongs on its page, not on a card.
