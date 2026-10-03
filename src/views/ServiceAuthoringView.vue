@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useConfirm } from '../composables/useConfirm'
 import { useServiceDraft } from '../composables/useServiceDraft'
@@ -108,6 +108,8 @@ function handleAddStop(): void {
   newStopLng.value = null
 }
 
+const stopsSection = ref<HTMLElement | null>(null)
+
 const { confirm } = useConfirm()
 const { show: toast } = useToast()
 
@@ -116,7 +118,7 @@ async function handleRemoveStop(index: number): Promise<void> {
   if (!stop) return
   const confirmed = await confirm({
     title: 'Remove this stop?',
-    body: `${stop.name || `Stop ${index + 1}`} comes off the route, and this can't be undone.`,
+    body: `${stop.name || 'This stop'} comes off the route, and this can't be undone.`,
     confirmLabel: 'Remove stop',
     cancelLabel: 'Keep stop',
     destructive: true,
@@ -127,6 +129,12 @@ async function handleRemoveStop(index: number): Promise<void> {
   if (!confirmed || at === -1) return
   removeStop(at)
   toast('Stop removed')
+  // The remove button that had focus went with its row; carry focus to the
+  // stop that took its place, or the one before, or the new-stop name.
+  await nextTick()
+  const next = Math.min(at, stops.value.length - 1)
+  const target = next >= 0 ? `[data-testid="stop-remove-${next}"]` : '[data-testid="stop-name"]'
+  stopsSection.value?.querySelector<HTMLElement>(target)?.focus()
 }
 
 function handleAddFrequencyWindow(): void {
@@ -271,7 +279,10 @@ watch(createdSlug, (created) => {
             </p>
           </section>
 
-          <section class="rounded-(--radius-box) border border-border bg-surface p-4">
+          <section
+            ref="stopsSection"
+            class="rounded-(--radius-box) border border-border bg-surface p-4"
+          >
             <div class="flex flex-wrap items-center justify-between gap-2">
               <h2 class="font-display text-h3 text-ink-true">
                 Stops

@@ -22,6 +22,10 @@ describe('ToastRegion', () => {
     return host.get('[data-testid="toast-region"]')
   }
 
+  function stack() {
+    return host.get('[data-testid="toast-stack"]')
+  }
+
   function messages(): string[] {
     return host.findAll('[data-testid="toast-message"]').map((m) => m.text())
   }
@@ -42,9 +46,9 @@ describe('ToastRegion', () => {
     expect(messages()).toEqual([])
   })
 
-  it('puts the message inside the live region', async () => {
+  it('announces only the message, not the dismiss control', async () => {
     await show('Published')
-    expect(region().text()).toContain('Published')
+    expect(region().text()).toBe('Published')
   })
 
   it('marks the kind of toast', async () => {
@@ -82,10 +86,10 @@ describe('ToastRegion', () => {
   it('waits while hovered, then finishes counting down', async () => {
     await show('Published')
     await elapse(TOAST_DURATION_MS - 1000)
-    await region().trigger('mouseenter')
+    await stack().trigger('mouseenter')
     await elapse(TOAST_DURATION_MS * 2)
     expect(messages()).toEqual(['Published'])
-    await region().trigger('mouseleave')
+    await stack().trigger('mouseleave')
     await elapse(999)
     expect(messages()).toEqual(['Published'])
     await elapse(1)
@@ -94,19 +98,32 @@ describe('ToastRegion', () => {
 
   it('waits while focus is inside it', async () => {
     await show('Published')
-    await region().trigger('focusin')
+    await stack().trigger('focusin')
     await elapse(TOAST_DURATION_MS * 2)
     expect(messages()).toEqual(['Published'])
-    await region().trigger('focusout')
+    await stack().trigger('focusout')
+    await elapse(TOAST_DURATION_MS)
+    expect(messages()).toEqual([])
+  })
+
+  it('starts the clocks again when the toast holding focus is pushed out', async () => {
+    await show('One')
+    const dismiss = host.get('[data-testid="toast-dismiss"]').element as HTMLButtonElement
+    dismiss.focus()
+    await stack().trigger('focusin')
+    await show('Two')
+    await show('Three')
+    await show('Four')
+    expect(messages()).toEqual(['Two', 'Three', 'Four'])
     await elapse(TOAST_DURATION_MS)
     expect(messages()).toEqual([])
   })
 
   it('stays paused while either hover or focus still holds it', async () => {
     await show('Published')
-    await region().trigger('mouseenter')
-    await region().trigger('focusin')
-    await region().trigger('mouseleave')
+    await stack().trigger('mouseenter')
+    await stack().trigger('focusin')
+    await stack().trigger('mouseleave')
     await elapse(TOAST_DURATION_MS * 2)
     expect(messages()).toEqual(['Published'])
   })

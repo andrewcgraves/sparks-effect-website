@@ -91,14 +91,15 @@ describe('ConfirmDialog', () => {
     expect(host.get('[data-testid="confirm-dialog-cancel"]').text()).toBe('Cancel')
   })
 
-  it('focuses the safe choice when the action is destructive', async () => {
-    await ask()
+  it.each([true, false])('focuses the safe choice on open (destructive: %s)', async (destructive) => {
+    await ask({ ...DESTRUCTIVE, destructive })
     expect(document.activeElement).toBe(host.get('[data-testid="confirm-dialog-cancel"]').element)
   })
 
-  it('focuses the confirm button when the action is not destructive', async () => {
-    await ask({ ...DESTRUCTIVE, destructive: false })
-    expect(document.activeElement).toBe(host.get('[data-testid="confirm-dialog-confirm"]').element)
+  it('resolves false when the browser closes the dialog itself', async () => {
+    const { answer } = await ask()
+    dialog().close()
+    await expect(answer).resolves.toBe(false)
   })
 
   it('styles a destructive confirm differently from an ordinary one', async () => {

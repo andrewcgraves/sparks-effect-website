@@ -276,6 +276,40 @@ describe('ServiceAuthoringView', () => {
     expect(hosts.toasts()).toEqual(['Stop removed'])
   })
 
+  it.each([
+    ['the stop that took its place', 0, 'stop-remove-0'],
+    ['the stop before it, when it was last', 1, 'stop-remove-0'],
+  ])('moves focus to %s once a stop is removed', async (_, removed, focused) => {
+    const wrapper = mount(ServiceAuthoringView, { global: { stubs: { MapView: true } }, attachTo: document.body })
+    await flushPromises()
+    await addStop(wrapper, 'A', 1, 1)
+    await addStop(wrapper, 'B', 2, 2)
+
+    const trigger = wrapper.get(`[data-testid="stop-remove-${removed}"]`)
+    ;(trigger.element as HTMLElement).focus()
+    await trigger.trigger('click')
+    await flushPromises()
+    await hosts.confirmButton().trigger('click')
+    await flushPromises()
+    expect(document.activeElement).toBe(wrapper.get(`[data-testid="${focused}"]`).element)
+    wrapper.unmount()
+  })
+
+  it('moves focus to the new-stop name once the last stop is removed', async () => {
+    const wrapper = mount(ServiceAuthoringView, { global: { stubs: { MapView: true } }, attachTo: document.body })
+    await flushPromises()
+    await addStop(wrapper, 'A', 1, 1)
+
+    const trigger = wrapper.get('[data-testid="stop-remove-0"]')
+    ;(trigger.element as HTMLElement).focus()
+    await trigger.trigger('click')
+    await flushPromises()
+    await hosts.confirmButton().trigger('click')
+    await flushPromises()
+    expect(document.activeElement).toBe(wrapper.get('[data-testid="stop-name"]').element)
+    wrapper.unmount()
+  })
+
   it('keeps a stop when removing it is backed out of', async () => {
     const wrapper = mountView()
     await flushPromises()

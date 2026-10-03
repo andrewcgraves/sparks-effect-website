@@ -6,7 +6,6 @@ import { DESTRUCTIVE_BUTTON_CLASS, PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS 
 const { pending, settle } = useConfirmHost()
 
 const dialog = ref<HTMLDialogElement | null>(null)
-const confirmButton = ref<HTMLButtonElement | null>(null)
 const cancelButton = ref<HTMLButtonElement | null>(null)
 
 watch(pending, (now, before) => {
@@ -14,9 +13,9 @@ watch(pending, (now, before) => {
   if (!el) return
   if (now) {
     if (!el.open) el.showModal()
-    // A destructive action must be chosen deliberately, so Enter on open
-    // lands on the safe choice.
-    ;(now.destructive ? cancelButton : confirmButton).value?.focus()
+    // Whatever is asked must be chosen deliberately, so Enter on open lands on
+    // the safe choice.
+    cancelButton.value?.focus()
     return
   }
   if (el.open) el.close()
@@ -60,6 +59,7 @@ function onKeydown(event: KeyboardEvent): void {
     data-testid="confirm-dialog"
     @keydown="onKeydown"
     @cancel.prevent="settle(false)"
+    @close="settle(false)"
   >
     <template v-if="pending">
       <h2
@@ -85,7 +85,6 @@ function onKeydown(event: KeyboardEvent): void {
           {{ pending.cancelLabel ?? 'Cancel' }}
         </button>
         <button
-          ref="confirmButton"
           type="button"
           :class="pending.destructive ? DESTRUCTIVE_BUTTON_CLASS : PRIMARY_BUTTON_CLASS"
           data-testid="confirm-dialog-confirm"

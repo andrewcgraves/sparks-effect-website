@@ -11,6 +11,8 @@ export interface Toast {
 export const TOAST_DURATION_MS = 4000
 const MAX_TOASTS = 3
 
+type HoldReason = 'hover' | 'focus'
+
 interface Countdown {
   remainingMs: number
   startedAt: number
@@ -21,7 +23,7 @@ interface Countdown {
 // caller can raise a toast and the host rendered once in App.vue shows it.
 const toasts = ref<Toast[]>([])
 const countdowns = new Map<number, Countdown>()
-const holds = new Set<'hover' | 'focus'>()
+const holds = new Set<HoldReason>()
 let nextId = 1
 
 function dismiss(id: number): void {
@@ -37,7 +39,7 @@ function run(id: number, countdown: Countdown): void {
 
 // Hovering or focusing the region stops every toast's clock, so a message
 // being read or reached for doesn't vanish; each picks up where it left off.
-function hold(reason: 'hover' | 'focus'): void {
+function hold(reason: HoldReason): void {
   if (holds.size === 0) {
     for (const countdown of countdowns.values()) {
       clearTimeout(countdown.timer)
@@ -47,7 +49,7 @@ function hold(reason: 'hover' | 'focus'): void {
   holds.add(reason)
 }
 
-function release(reason: 'hover' | 'focus'): void {
+function release(reason: HoldReason): void {
   if (!holds.delete(reason) || holds.size > 0) return
   for (const [id, countdown] of countdowns) run(id, countdown)
 }

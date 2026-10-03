@@ -274,6 +274,48 @@ describe('PublicationControl', () => {
     })
   })
 
+  describe('focus', () => {
+    function mountAttached() {
+      const router = createRouter({
+        history: createMemoryHistory(),
+        routes: [{ path: '/services/:slug', name: 'published-service', component: Stub }],
+      })
+      return mount(PublicationControl, {
+        props: { slug: 'northbound-express', updatedAt: BEFORE, compiling: false, recompile: vi.fn().mockResolvedValue(true) },
+        global: { plugins: [router] },
+        attachTo: document.body,
+      })
+    }
+
+    it('lands on "Copy link" once published, where the publish button was', async () => {
+      unpublished()
+      vi.mocked(publishService).mockResolvedValue(snapshot('2026-09-21T09:00:00Z'))
+      const wrapper = mountAttached()
+      await flushPromises()
+      const button = wrapper.get('[data-testid="publish-button"]')
+      ;(button.element as HTMLElement).focus()
+      await button.trigger('click')
+      await flushPromises()
+      expect(document.activeElement).toBe(wrapper.get('[data-testid="copy-public-url"]').element)
+      wrapper.unmount()
+    })
+
+    it('lands on "Publish" once unpublished, where the unpublish button was', async () => {
+      published()
+      vi.mocked(unpublishService).mockResolvedValue(undefined)
+      const wrapper = mountAttached()
+      await flushPromises()
+      const button = wrapper.get('[data-testid="unpublish-button"]')
+      ;(button.element as HTMLElement).focus()
+      await button.trigger('click')
+      await flushPromises()
+      await hosts.confirmButton().trigger('click')
+      await flushPromises()
+      expect(document.activeElement).toBe(wrapper.get('[data-testid="publish-button"]').element)
+      wrapper.unmount()
+    })
+  })
+
   describe('unpublishing', () => {
     it('asks first, and does nothing until confirmed', async () => {
       published()
