@@ -1,7 +1,13 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useAuthStore, AUTH_STORAGE_KEY } from './auth'
-import { ApiError } from '../api/authoring'
+import {
+  ApiError,
+  SessionExpiredError,
+  WrongCurrentPasswordError,
+  setAuthTokenProvider,
+  setUnauthorizedHandler,
+} from '../api/authoring'
 
 describe('useAuthStore', () => {
   beforeEach(() => {
@@ -261,6 +267,153 @@ describe('useAuthStore', () => {
       await auth.logout()
 
       expect(auth.isAuthenticated).toBe(false)
+    })
+  })
+
+  describe('updateName', () => {
+    it('saves the name and replaces the user with the one the API returns', async () => {
+      const updated = { id: 'u1', email: 'a@example.com', name: 'Ada' }
+      vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 200, json: async () => updated } as Response)
+
+      const auth = useAuthStore()
+      auth.signIn('tok-1', { id: 'u1', email: 'a@example.com', name: 'Bootstrap Admin' })
+      await auth.updateName('Ada')
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0]
+      expect(url).toContain('/api/auth/me')
+      expect((init as RequestInit).method).toBe('PATCH')
+      expect(auth.user).toEqual(updated)
+    })
+
+    it('leaves the user as it was when the API refuses the name', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: false,
+        status: 422,
+        json: async () => ({ code: 'validation', detail: { faults: [{ field: 'name', rule: 'required' }] } }),
+      } as Response)
+
+      const auth = useAuthStore()
+      auth.signIn('tok-1', { id: 'u1', email: 'a@example.com', name: 'Ada' })
+      await expect(auth.updateName('')).rejects.toBeInstanceOf(ApiError)
+      expect(auth.user?.name).toBe('Ada')
+    })
+  })
+
+  describe('changePassword', () => {
+    // As installStores wires them: requests ride on the store's token, and a
+    // 401 for that token expires the session.
+    function wireClient(auth: ReturnType<typeof useAuthStore>) {
+      setAuthTokenProvider(() => auth.token)
+      setUnauthorizedHandler((sent) => {
+        if (auth.token === sent) auth.expireSession()
+      })
+    }
+
+    afterEach(() => {
+      setAuthTokenProvider(null)
+      setUnauthorizedHandler(null)
+    })
+
+    it('sends both passwords and keeps this session signed in', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 204 } as Response)
+
+      const auth = useAuthStore()
+      auth.signIn('tok-1', { id: 'u1', email: 'a@example.com' })
+      wireClient(auth)
+      await auth.changePassword('old-password', 'a-new-password')
+
+      const [url] = vi.mocked(fetch).mock.calls[0]
+      expect(url).toContain('/api/auth/password')
+      expect(auth.isAuthenticated).toBe(true)
+    })
+
+    it('reports a wrong current password without signing out, when the session is still good', async () => {
+      vi.mocked(fetch)
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 401,
+          json: async () => ({ error: 'current password is incorrect' }),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({ id: 'u1', email: 'a@example.com' }),
+        } as Response)
+
+      const auth = useAuthStore()
+      auth.signIn('tok-1', { id: 'u1', email: 'a@example.com' })
+      wireClient(auth)
+
+      await expect(auth.changePassword('wrong', 'a-new-password')).rejects.toBeInstanceOf(WrongCurrentPasswordError)
+      expect(auth.isAuthenticated).toBe(true)
+      expect(auth.sessionExpired).toBe(false)
+    })
+
+    it('expires the session when the 401 was the session dying, not the password', async () => {
+      const unauthorized = {
+        ok: false,
+        status: 401,
+        json: async () => ({ error: 'authentication required' }),
+      } as Response
+      vi.mocked(fetch).mockResolvedValueOnce(unauthorized).mockResolvedValueOnce(unauthorized)
+
+      const auth = useAuthStore()
+      auth.signIn('tok-1', { id: 'u1', email: 'a@example.com' })
+      wireClient(auth)
+
+      await expect(auth.changePassword('old-password', 'a-new-password')).rejects.toBeInstanceOf(SessionExpiredError)
+      expect(auth.isAuthenticated).toBe(false)
+      expect(auth.sessionExpired).toBe(true)
+    })
+
+    it('treats having no session as an expiry, not a wrong password', async () => {
+      await expect(useAuthStore().changePassword('old-password', 'a-new-password'))
+        .rejects.toBeInstanceOf(SessionExpiredError)
+      expect(fetch).not.toHaveBeenCalled()
+    })
+
+    it('passes a weak-password refusal through untouched', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: false,
+        status: 422,
+        json: async () => ({ code: 'validation', detail: { faults: [{ field: 'new_password', rule: 'min_length' }] } }),
+      } as Response)
+
+      const auth = useAuthStore()
+      auth.signIn('tok-1', { id: 'u1', email: 'a@example.com' })
+      wireClient(auth)
+
+      const err = await auth.changePassword('old-password', 'short').catch((e: unknown) => e)
+      expect(err).toBeInstanceOf(ApiError)
+      expect((err as ApiError).status).toBe(422)
+      expect(fetch).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('logoutEverywhere', () => {
+    it('revokes every session, then signs out locally', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 204 } as Response)
+
+      const auth = useAuthStore()
+      auth.signIn('tok-1', { id: 'u1', email: 'a@example.com' })
+      setAuthTokenProvider(() => auth.token)
+      await auth.logoutEverywhere()
+      setAuthTokenProvider(null)
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0]
+      expect(url).toContain('/api/auth/sessions/revoke-all')
+      expect(new Headers((init as RequestInit).headers).get('Authorization')).toBe('Bearer tok-1')
+      expect(auth.isAuthenticated).toBe(false)
+      expect(window.localStorage.getItem(AUTH_STORAGE_KEY)).toBeNull()
+    })
+
+    it('stays signed in when the other sessions could not be revoked', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({}) } as Response)
+
+      const auth = useAuthStore()
+      auth.signIn('tok-1', { id: 'u1', email: 'a@example.com' })
+      await expect(auth.logoutEverywhere()).rejects.toBeInstanceOf(ApiError)
+      expect(auth.isAuthenticated).toBe(true)
     })
   })
 

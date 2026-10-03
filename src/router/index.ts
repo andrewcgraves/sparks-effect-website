@@ -3,6 +3,7 @@ import CoverPage from '../views/CoverPage.vue'
 import ScenarioView from '../views/ScenarioView.vue'
 import LoginView from '../views/LoginView.vue'
 import AuthoringView from '../views/AuthoringView.vue'
+import AccountView from '../views/AccountView.vue'
 import ServiceAuthoringView from '../views/ServiceAuthoringView.vue'
 import ScenarioBuilderView from '../views/ScenarioBuilderView.vue'
 import AuthoredServiceView from '../views/AuthoredServiceView.vue'
@@ -70,6 +71,12 @@ export const router = createRouter({
       name: 'authoring',
       component: AuthoringView,
       meta: { requiresAuth: true, title: 'My authoring' },
+    },
+    {
+      path: '/account',
+      name: 'account',
+      component: AccountView,
+      meta: { requiresAuth: true, title: 'Account' },
     },
     {
       path: '/authoring/services/new',
