@@ -4,17 +4,22 @@ import { compileService, fetchService, fetchServiceGraph, fetchServiceIsochrone 
 import type { Service } from '../api/authoring/types'
 import { useOwnedDetail } from '../composables/useOwnedDetail'
 import { useAuthoredGraph } from '../composables/useAuthoredGraph'
+import { usePageTitle } from '../composables/usePageTitle'
 import { useServiceDeletion } from '../composables/useDeletion'
 import ScenarioPreviewPanel from '../components/ScenarioPreviewPanel.vue'
 import PublicationControl from '../components/PublicationControl.vue'
 import TimeBetweenStations from '../components/TimeBetweenStations.vue'
 import { graphStationTimeGroups } from '../components/stationTimes'
 import { ACTION_LINK_CLASS } from '../components/linkStyles'
+import BreadcrumbTrail from '../components/BreadcrumbTrail.vue'
+import { AUTHORING_CRUMB } from '../components/crumbs'
 import DeleteMenu from '../components/DeleteMenu.vue'
 
 const props = defineProps<{ slug: string }>()
 
 const { item: service, loading, notFound, error } = useOwnedDetail<Service>(fetchService, props.slug)
+
+usePageTitle(() => service.value?.name)
 
 const stops = computed(() => [...(service.value?.stops ?? [])].sort((a, b) => a.seq - b.seq))
 
@@ -55,7 +60,7 @@ async function recompile(slug: string): Promise<boolean> {
   return !compileError.value
 }
 
-const { deleting, confirmAndDelete } =useServiceDeletion()
+const { deleting, confirmAndDelete } = useServiceDeletion()
 
 watch(service, (loaded) => {
   if (loaded) void loadGraph(loaded.slug)
@@ -63,14 +68,8 @@ watch(service, (loaded) => {
 </script>
 
 <template>
-  <main class="min-h-svh p-(--page-padding)">
-    <router-link
-      to="/authoring"
-      :class="ACTION_LINK_CLASS"
-      data-testid="back-to-authoring"
-    >
-      ← My authoring
-    </router-link>
+  <main class="flex-1 p-(--page-padding)">
+    <BreadcrumbTrail :items="[AUTHORING_CRUMB, { label: service?.name ?? 'Service' }]" />
 
     <p
       v-if="loading"
@@ -161,7 +160,7 @@ watch(service, (loaded) => {
       </p>
       <p
         v-else-if="graphFailed"
-        class="font-body text-caption mt-8 text-coral"
+        class="font-body text-caption mt-8 text-error"
         role="alert"
         data-testid="graph-error"
       >
@@ -170,7 +169,7 @@ watch(service, (loaded) => {
       
       <p
         v-else-if="compileError && !graph"
-        class="font-body text-caption mt-8 text-coral"
+        class="font-body text-caption mt-8 text-error"
         role="alert"
         data-testid="compile-error"
       >

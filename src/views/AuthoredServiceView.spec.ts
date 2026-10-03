@@ -28,6 +28,7 @@ vi.mock('../components/MapView.vue', () => ({
   },
 }))
 
+import { breadcrumbTrail } from '../test/breadcrumbs'
 import AuthoredServiceView from './AuthoredServiceView.vue'
 import {
   compileService,
@@ -119,6 +120,13 @@ describe('AuthoredServiceView', () => {
     expect(fetchService).toHaveBeenCalledWith('northbound-express')
   })
 
+  it('names the tab after the service once it loads', async () => {
+    vi.mocked(fetchService).mockResolvedValue(stubService)
+    mountView()
+    await flushPromises()
+    expect(document.title).toBe('Northbound Express · Sparks Effect')
+  })
+
   it('shows the name and slug once loaded', async () => {
     vi.mocked(fetchService).mockResolvedValue(stubService)
     const wrapper = mountView()
@@ -189,11 +197,14 @@ describe('AuthoredServiceView', () => {
     expect(wrapper.findAll('[data-testid="service-window-row"]')).toHaveLength(1)
   })
 
-  it('links back to the authoring page', async () => {
+  it('shows where it sits: the service, under My authoring', async () => {
     vi.mocked(fetchService).mockResolvedValue(stubService)
     const wrapper = mountView()
     await flushPromises()
-    expect(wrapper.find('[data-testid="back-to-authoring"]').attributes('href')).toBe('/authoring')
+    expect(breadcrumbTrail(wrapper)).toEqual([
+      ['My authoring', '/authoring'],
+      ['Northbound Express', null],
+    ])
   })
 
   it('links to editing the service', async () => {

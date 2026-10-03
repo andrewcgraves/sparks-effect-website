@@ -77,6 +77,14 @@ describe('AuthoringView', () => {
     expect(wrapper.text()).toContain('a@example.com')
   })
 
+  it('links back out to all lines', async () => {
+    vi.mocked(fetchMyServices).mockResolvedValue([])
+    vi.mocked(fetchMyScenarios).mockResolvedValue([])
+    const { wrapper } = await mountAuthoring()
+    await flushPromises()
+    expect(wrapper.get('[data-testid="back-to-lines"]').attributes('href')).toBe('/')
+  })
+
   it('links to the new-service authoring form', async () => {
     vi.mocked(fetchMyServices).mockResolvedValue([])
     vi.mocked(fetchMyScenarios).mockResolvedValue([])

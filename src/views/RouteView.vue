@@ -1,14 +1,18 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import AllLinesLink from '../components/AllLinesLink.vue'
 import MapView from '../components/MapView.vue'
 import { fetchRoute } from '../api/authoring/routes'
 import type { Route } from '../api/authoring'
 import { useOwnedDetail } from '../composables/useOwnedDetail'
+import { usePageTitle } from '../composables/usePageTitle'
 import type { Route as ScenarioRoute } from '../api/scenarios'
 
 const props = defineProps<{ slug: string }>()
 
 const { item: route, loading, notFound, error } = useOwnedDetail<Route>(fetchRoute, props.slug)
+
+usePageTitle(() => route.value?.name)
 
 const mapRoutes = computed<ScenarioRoute[]>(() => {
   if (!route.value) return []
@@ -24,7 +28,11 @@ const mapRoutes = computed<ScenarioRoute[]>(() => {
 </script>
 
 <template>
-  <main class="min-h-svh p-(--page-padding)">
+  <main class="flex-1 p-(--page-padding)">
+    <div class="mb-8">
+      <AllLinesLink />
+    </div>
+
     <p
       v-if="loading"
       class="font-body text-body text-ink-muted"

@@ -52,4 +52,18 @@ describe('App routing', () => {
     expect(wrapper.find('[data-testid="confirm-dialog"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="toast-region"]').exists()).toBe(true)
   })
+
+  it('ends the cover page with the one site footer', async () => {
+    const wrapper = mount(App, { global: { plugins: [router] } })
+    await flushPromises()
+    expect(wrapper.findAll('footer')).toHaveLength(1)
+    expect(wrapper.find('[data-testid="build-version"]').exists()).toBe(true)
+  })
+
+  it('ends the not-found page with the site footer', async () => {
+    await router.push('/nope')
+    const wrapper = mount(App, { global: { plugins: [router] } })
+    await flushPromises()
+    expect(wrapper.find('[data-testid="build-version"]').exists()).toBe(true)
+  })
 })

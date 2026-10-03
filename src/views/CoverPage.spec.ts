@@ -130,10 +130,4 @@ describe('CoverPage', () => {
     expect(wrapper.get('[data-testid="scenarios-partial"]').text()).toBe("Couldn't load the curated scenarios.")
     expect(wrapper.find('[data-testid="scenarios-empty"]').exists()).toBe(false)
   })
-
-  it('renders a footer with attribution', async () => {
-    vi.mocked(fetchCoverIndex).mockResolvedValue(index([]))
-    const { wrapper } = await mountCover()
-    expect(wrapper.find('footer').exists()).toBe(true)
-  })
 })

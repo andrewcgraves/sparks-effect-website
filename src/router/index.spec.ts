@@ -137,6 +137,54 @@ describe('router', () => {
     })
   })
 
+  describe('document title', () => {
+    it('names a static page, suffixed with the site name', async () => {
+      await router.push('/login')
+      expect(document.title).toBe('Sign in · Sparks Effect')
+    })
+
+    it('names the signed-in pages', async () => {
+      useAuthStore().signIn('tok-1', { id: 'u1', email: 'a@example.com' })
+      await router.push('/authoring')
+      expect(document.title).toBe('My authoring · Sparks Effect')
+      await router.push('/authoring/services/new')
+      expect(document.title).toBe('New service · Sparks Effect')
+      await router.push('/authoring/scenarios/new')
+      expect(document.title).toBe('New scenario · Sparks Effect')
+    })
+
+    it('tells an owner\'s draft apart from its public page before either loads', async () => {
+      useAuthStore().signIn('tok-1', { id: 'u1', email: 'a@example.com' })
+      await router.push('/authoring/services/northbound-express')
+      expect(document.title).toBe('My service · Sparks Effect')
+      await router.push('/services/northbound-express')
+      expect(document.title).toBe('Service · Sparks Effect')
+      await router.push('/authoring/scenarios/ca-hsr')
+      expect(document.title).toBe('My scenario · Sparks Effect')
+      await router.push('/scenario/ca-hsr')
+      expect(document.title).toBe('Scenario · Sparks Effect')
+    })
+
+    it('names an edit page by what it edits before the draft loads', async () => {
+      useAuthStore().signIn('tok-1', { id: 'u1', email: 'a@example.com' })
+      await router.push('/authoring/services/northbound-express/edit')
+      expect(document.title).toBe('Edit service · Sparks Effect')
+      await router.push('/authoring/scenarios/ca-hsr/edit')
+      expect(document.title).toBe('Edit scenario · Sparks Effect')
+    })
+
+    it('names an unmatched path as not found', async () => {
+      await router.push('/no-such-page')
+      expect(document.title).toBe('Page not found · Sparks Effect')
+    })
+
+    it('restores the bare site name on returning to /', async () => {
+      await router.push('/login')
+      await router.push('/')
+      expect(document.title).toBe('Sparks Effect')
+    })
+  })
+
   describe('after the session expires', () => {
     it('sends the user from an authoring page to sign in, remembering where they were', async () => {
       const auth = useAuthStore()

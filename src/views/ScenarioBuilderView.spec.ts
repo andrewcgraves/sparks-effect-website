@@ -19,6 +19,7 @@ vi.mock('vue-router', () => ({
   useRouter: () => ({ push, replace }),
 }))
 
+import { breadcrumbTrail } from '../test/breadcrumbs'
 import ScenarioBuilderView from './ScenarioBuilderView.vue'
 import { fetchMyServices } from '../api/authoring/services'
 import { compileScenario, createScenario, fetchScenario, updateScenario } from '../api/authoring/scenarios'
@@ -55,7 +56,7 @@ const stubScenario: Scenario = {
 }
 
 function mountView() {
-  return mount(ScenarioBuilderView)
+  return mount(ScenarioBuilderView, { global: { stubs: { RouterLink: RouterLinkStub } } })
 }
 
 async function fillAndSelect(wrapper: ReturnType<typeof mountView>) {
@@ -74,6 +75,13 @@ describe('ScenarioBuilderView', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
+  })
+
+  it('shows where it sits: a new scenario, under My authoring', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    expect(breadcrumbTrail(wrapper).map(([label]) => label)).toEqual(['My authoring', 'New scenario'])
+    expect(wrapper.getComponent(RouterLinkStub).props('to')).toBe('/authoring')
   })
 
   it('loads the caller\'s services and offers them as a checklist', async () => {
@@ -227,10 +235,20 @@ describe('ScenarioBuilderView editing an existing scenario', () => {
     expect((wrapper.get('[data-testid="service-checkbox-svc2"]').element as HTMLInputElement).checked).toBe(false)
   })
 
-  it('links back to the scenario it edits', async () => {
+  it('shows where it sits: editing this scenario, under My authoring', async () => {
     const wrapper = mountEdit()
     await flushPromises()
-    expect(wrapper.getComponent(RouterLinkStub).props('to')).toBe('/authoring/scenarios/ca-hsr')
+    expect(breadcrumbTrail(wrapper).map(([label]) => label)).toEqual(['My authoring', 'CA HSR', 'Edit'])
+    expect(wrapper.findAllComponents(RouterLinkStub).map((link) => link.props('to')))
+      .toEqual(['/authoring', '/authoring/scenarios/ca-hsr'])
+  })
+
+  it('names the tab after the scenario as loaded, not as typed', async () => {
+    const wrapper = mountEdit()
+    await flushPromises()
+    expect(document.title).toBe('Edit CA HSR · Sparks Effect')
+    await wrapper.get('[data-testid="scenario-name"]').setValue('CA HSR Phase 2')
+    expect(document.title).toBe('Edit CA HSR · Sparks Effect')
   })
 
   it('leaves a new-scenario draft in progress alone', async () => {

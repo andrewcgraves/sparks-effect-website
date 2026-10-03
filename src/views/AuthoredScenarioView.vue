@@ -6,16 +6,21 @@ import type { Scenario } from '../api/authoring/types'
 import { useOwnedDetail } from '../composables/useOwnedDetail'
 import { useOwnedList } from '../composables/useOwnedList'
 import { useAuthoredGraph } from '../composables/useAuthoredGraph'
+import { usePageTitle } from '../composables/usePageTitle'
 import { useScenarioDeletion } from '../composables/useDeletion'
 import ScenarioPreviewPanel from '../components/ScenarioPreviewPanel.vue'
 import TimeBetweenStations from '../components/TimeBetweenStations.vue'
 import { graphStationTimeGroups } from '../components/stationTimes'
 import { ACTION_LINK_CLASS } from '../components/linkStyles'
+import BreadcrumbTrail from '../components/BreadcrumbTrail.vue'
+import { AUTHORING_CRUMB } from '../components/crumbs'
 import DeleteMenu from '../components/DeleteMenu.vue'
 
 const props = defineProps<{ slug: string }>()
 
 const { item: scenario, loading, notFound, error } = useOwnedDetail<Scenario>(fetchScenario, props.slug)
+
+usePageTitle(() => scenario.value?.name)
 
 const {
   compiling,
@@ -46,7 +51,7 @@ const stationTimeGroups = computed(() => graphStationTimeGroups(graph.value, ser
 
 const stationTimesFailed = computed(() => Boolean(graphFailed.value || (compileError.value && !graph.value)))
 
-const { deleting, confirmAndDelete } =useScenarioDeletion()
+const { deleting, confirmAndDelete } = useScenarioDeletion()
 
 watch(scenario, (loaded) => {
   if (loaded) void loadGraph(loaded.slug)
@@ -54,14 +59,8 @@ watch(scenario, (loaded) => {
 </script>
 
 <template>
-  <main class="min-h-svh p-(--page-padding)">
-    <router-link
-      to="/authoring"
-      :class="ACTION_LINK_CLASS"
-      data-testid="back-to-authoring"
-    >
-      ← My authoring
-    </router-link>
+  <main class="flex-1 p-(--page-padding)">
+    <BreadcrumbTrail :items="[AUTHORING_CRUMB, { label: scenario?.name ?? 'Scenario' }]" />
 
     <p
       v-if="loading"
@@ -136,7 +135,7 @@ watch(scenario, (loaded) => {
       </p>
       <p
         v-else-if="graphFailed"
-        class="font-body text-caption mt-8 text-coral"
+        class="font-body text-caption mt-8 text-error"
         role="alert"
         data-testid="graph-error"
       >
@@ -145,7 +144,7 @@ watch(scenario, (loaded) => {
       
       <p
         v-else-if="compileError && !graph"
-        class="font-body text-caption mt-8 text-coral"
+        class="font-body text-caption mt-8 text-error"
         role="alert"
         data-testid="compile-error"
       >

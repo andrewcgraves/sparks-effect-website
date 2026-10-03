@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
+import { homeOnlyRouter } from '../test/router'
 import ScenarioView from './ScenarioView.vue'
 import { ref } from 'vue'
 
@@ -94,7 +95,7 @@ const stubIsochrone: ChainResponse = {
 function mountScenarioView(slug = 'ca-hsr', stubs: Record<string, boolean> = { MapView: true, IsochroneForm: true }) {
   return mount(ScenarioView, {
     props: { slug },
-    global: { stubs },
+    global: { plugins: [homeOnlyRouter()], stubs },
   })
 }
 
@@ -117,9 +118,31 @@ describe('ScenarioView', () => {
     })
   })
 
+  it('links back to all lines', () => {
+    expect(mountScenarioView().get('[data-testid="back-to-lines"]').attributes('href')).toBe('/')
+  })
+
   it('titles the page with the scenario name alone', () => {
     const wrapper = mountScenarioView()
     expect(wrapper.get('h1').text()).toBe('CA HSR')
+  })
+
+  it('names the tab after the scenario once its name arrives', async () => {
+    const name = ref('')
+    mockUseScenario.mockReturnValue({
+      name,
+      description: ref(''),
+      routes: ref([]),
+      stations: ref(stubStations),
+      services: ref([]),
+    })
+    document.title = 'Scenario · Sparks Effect'
+    mountScenarioView()
+    expect(document.title).toBe('Scenario · Sparks Effect')
+
+    name.value = 'CA HSR'
+    await flushPromises()
+    expect(document.title).toBe('CA HSR · Sparks Effect')
   })
 
   it('carries no hard-coded tagline under the name', () => {

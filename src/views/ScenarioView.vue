@@ -12,6 +12,8 @@ import { useScenario } from '../composables/useScenario'
 import { useScenarioTravelTimes } from '../composables/useScenarioTravelTimes'
 import { useIsochrone } from '../composables/useIsochrone'
 import { useOriginPick } from '../composables/useOriginPick'
+import { usePageTitle } from '../composables/usePageTitle'
+import AllLinesLink from '../components/AllLinesLink.vue'
 import type { TravelMode } from '../api/authoring'
 
 const props = defineProps<{ slug: string }>()
@@ -20,6 +22,8 @@ const origin = ref<{ lat: number; lng: number } | null>(null)
 const { pickArmed, onMapClick } = useOriginPick()
 
 const { name, description, routes, stations, services } = useScenario(props.slug)
+
+usePageTitle(() => name.value)
 
 const {
   segments,
@@ -93,8 +97,9 @@ async function handleFormSubmit(payload: { lat: number; lng: number; duration: n
 </script>
 
 <template>
-  <main class="min-h-svh p-(--page-padding)">
-    <h1 class="max-w-[720px] font-display text-display text-ink-true">
+  <main class="flex-1 p-(--page-padding)">
+    <AllLinesLink />
+    <h1 class="mt-8 max-w-[720px] font-display text-display text-ink-true">
       {{ name || 'Sparks Effect' }}
     </h1>
 

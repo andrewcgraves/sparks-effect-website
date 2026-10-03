@@ -8,6 +8,9 @@ import { fetchMyServices } from '../api/authoring/services'
 import { compileScenario, createScenario, fetchScenario, updateScenario } from '../api/authoring/scenarios'
 import type { ScenarioInput, Service } from '../api/authoring/types'
 import { useCompileJob } from '../composables/useCompileJob'
+import { usePageTitle } from '../composables/usePageTitle'
+import BreadcrumbTrail from '../components/BreadcrumbTrail.vue'
+import { AUTHORING_CRUMB, type Crumb } from '../components/crumbs'
 import { PRIMARY_BUTTON_CLASS } from '../components/buttonStyles'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
 import { ACTION_LINK_CLASS } from '../components/linkStyles'
@@ -128,6 +131,17 @@ const savedSlug = ref<string | null>(null)
 
 const scenarioPath = computed(() => `/authoring/scenarios/${savedSlug.value ?? props.slug}`)
 
+// Named after the scenario as loaded, not the name field: the tab should not
+// rename itself on every keystroke.
+usePageTitle(() => (editName.value ? `Edit ${editName.value}` : null))
+
+const trail = computed<Crumb[]>(() => [
+  AUTHORING_CRUMB,
+  ...(props.slug
+    ? [{ label: editName.value || 'Scenario', to: scenarioPath.value }, { label: 'Edit' }]
+    : [{ label: 'New scenario' }]),
+])
+
 // The scenario's page reads the last compile that succeeded, which predates
 // the edit, so an edit recompiles here and lands there only once that compile
 // has. Replaced rather than pushed, so going back does not reopen a finished
@@ -160,19 +174,9 @@ async function handleSave(): Promise<void> {
 </script>
 
 <template>
-  <main class="min-h-svh p-(--page-padding)">
-    <router-link
-      v-if="slug"
-      :to="scenarioPath"
-      :class="ACTION_LINK_CLASS"
-      data-testid="back-to-scenario"
-    >
-      ← {{ editName || 'Scenario' }}
-    </router-link>
-    <h1
-      class="font-display text-display text-ink-true"
-      :class="{ 'mt-8': slug }"
-    >
+  <main class="flex-1 p-(--page-padding)">
+    <BreadcrumbTrail :items="trail" />
+    <h1 class="mt-8 font-display text-display text-ink-true">
       {{ slug ? 'Edit scenario' : 'New scenario' }}
     </h1>
 
@@ -265,7 +269,7 @@ async function handleSave(): Promise<void> {
         </p>
         <p
           v-else-if="servicesError"
-          class="font-body text-caption mt-2 text-coral"
+          class="font-body text-caption mt-2 text-error"
           role="alert"
           data-testid="services-error"
         >
@@ -311,7 +315,7 @@ async function handleSave(): Promise<void> {
 
       <p
         v-if="submitError"
-        class="font-body text-caption text-coral"
+        class="font-body text-caption text-error"
         role="alert"
         data-testid="submit-error"
       >

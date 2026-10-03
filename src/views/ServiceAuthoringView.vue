@@ -2,9 +2,12 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useConfirm } from '../composables/useConfirm'
+import { usePageTitle } from '../composables/usePageTitle'
 import { useServiceDraft } from '../composables/useServiceDraft'
 import { useToast } from '../composables/useToast'
 import { MAX_DESCRIPTION_CHARS, MAX_SUBTEXT_CHARS, type SnapCoord as LatLng } from '../api/authoring'
+import BreadcrumbTrail from '../components/BreadcrumbTrail.vue'
+import { AUTHORING_CRUMB, type Crumb } from '../components/crumbs'
 import MapView from '../components/MapView.vue'
 import { PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS, TOGGLE_BUTTON_CLASS } from '../components/buttonStyles'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
@@ -69,7 +72,18 @@ const {
   dispose,
 } = useServiceDraft(props.slug)
 
+// Named after the service as saved, not the name field: the tab should not
+// rename itself on every keystroke.
+usePageTitle(() => (editing.value ? `Edit ${editing.value.name}` : null))
+
 const servicePath = computed(() => `/authoring/services/${props.slug}`)
+
+const trail = computed<Crumb[]>(() => [
+  AUTHORING_CRUMB,
+  ...(props.slug
+    ? [{ label: editing.value?.name ?? 'Service', to: servicePath.value }, { label: 'Edit' }]
+    : [{ label: 'New service' }]),
+])
 
 const submitLabel = computed(() => {
   if (props.slug) return submitting.value ? 'Saving…' : 'Save changes'
@@ -179,19 +193,9 @@ watch(createdSlug, (created) => {
 </script>
 
 <template>
-  <main class="min-h-svh p-(--page-padding)">
-    <router-link
-      v-if="slug"
-      :to="servicePath"
-      :class="ACTION_LINK_CLASS"
-      data-testid="back-to-service"
-    >
-      ← {{ editing?.name ?? 'Service' }}
-    </router-link>
-    <h1
-      class="font-display text-display text-ink-true"
-      :class="{ 'mt-8': slug }"
-    >
+  <main class="flex-1 p-(--page-padding)">
+    <BreadcrumbTrail :items="trail" />
+    <h1 class="mt-8 font-display text-display text-ink-true">
       {{ slug ? 'Edit service' : 'New service' }}
     </h1>
 
@@ -237,7 +241,7 @@ watch(createdSlug, (created) => {
             </p>
             <p
               v-else-if="routesError"
-              class="font-body text-caption mt-2 text-coral"
+              class="font-body text-caption mt-2 text-error"
               role="alert"
               data-testid="routes-error"
             >
@@ -271,7 +275,7 @@ watch(createdSlug, (created) => {
             </label>
             <p
               v-if="routeMissing"
-              class="font-body text-caption mt-2 text-coral"
+              class="font-body text-caption mt-2 text-error"
               role="alert"
               data-testid="route-missing"
             >
@@ -335,14 +339,14 @@ watch(createdSlug, (created) => {
                   >
                   <span
                     v-if="preview?.stops[index]?.off_route"
-                    class="text-coral"
+                    class="text-error"
                     data-testid="stop-off-route"
                   >
                     {{ Math.round(preview!.stops[index].offset_m) }}m off the route
                   </span>
                   <span
                     v-if="faultedStops.has(stop.seq)"
-                    class="text-coral"
+                    class="text-error"
                     data-testid="stop-submit-error"
                   >
                     {{ stopFaultMessage(faultedStops.get(stop.seq)!) }}
@@ -388,7 +392,7 @@ watch(createdSlug, (created) => {
             </p>
             <p
               v-if="previewError"
-              class="font-body text-caption mt-2 text-coral"
+              class="font-body text-caption mt-2 text-error"
               role="alert"
               data-testid="preview-error"
             >
@@ -396,7 +400,7 @@ watch(createdSlug, (created) => {
             </p>
             <p
               v-if="orderWarning"
-              class="font-body text-caption mt-2 text-coral"
+              class="font-body text-caption mt-2 text-error"
               role="alert"
               data-testid="order-warning"
             >
@@ -616,7 +620,7 @@ watch(createdSlug, (created) => {
 
           <p
             v-if="submitError"
-            class="font-body text-caption text-coral"
+            class="font-body text-caption text-error"
             role="alert"
             data-testid="submit-error"
           >
@@ -653,7 +657,7 @@ watch(createdSlug, (created) => {
         </p>
         <p
           v-else-if="compileError"
-          class="font-body text-caption text-coral"
+          class="font-body text-caption text-error"
           role="alert"
           data-testid="compile-error"
         >

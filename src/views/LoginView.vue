@@ -55,7 +55,7 @@ async function handleSubmit() {
 </script>
 
 <template>
-  <main class="min-h-svh p-(--page-padding)">
+  <main class="flex-1 p-(--page-padding)">
     <div class="mx-auto flex max-w-[360px] flex-col gap-2">
       <h1 class="font-display text-display text-ink-true">
         Sign in
@@ -66,7 +66,7 @@ async function handleSubmit() {
 
       <p
         v-if="auth.sessionExpired"
-        class="font-body text-caption text-coral mt-4"
+        class="font-body text-caption text-error mt-4"
         role="status"
         data-testid="session-expired"
       >
@@ -109,7 +109,7 @@ async function handleSubmit() {
 
         <p
           v-if="error"
-          class="font-body text-caption text-coral"
+          class="font-body text-caption text-error"
           role="alert"
           data-testid="login-error"
         >

@@ -5,6 +5,7 @@ export const THEME_TOKEN_FALLBACKS = {
   '--color-ink-muted': '#4a4a4f',
   '--color-ink-faint': '#b8b8be',
   '--color-coral': '#e1665b',
+  '--color-error': '#c2453b',
 } as const
 
 export type ThemeTokenName = keyof typeof THEME_TOKEN_FALLBACKS
