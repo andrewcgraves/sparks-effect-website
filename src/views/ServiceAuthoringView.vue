@@ -237,7 +237,7 @@ watch(createdSlug, (created) => {
             </p>
             <p
               v-else-if="routesError"
-              class="font-body text-caption mt-2 text-coral"
+              class="font-body text-caption mt-2 text-error"
               role="alert"
               data-testid="routes-error"
             >
@@ -271,7 +271,7 @@ watch(createdSlug, (created) => {
             </label>
             <p
               v-if="routeMissing"
-              class="font-body text-caption mt-2 text-coral"
+              class="font-body text-caption mt-2 text-error"
               role="alert"
               data-testid="route-missing"
             >
@@ -335,14 +335,14 @@ watch(createdSlug, (created) => {
                   >
                   <span
                     v-if="preview?.stops[index]?.off_route"
-                    class="text-coral"
+                    class="text-error"
                     data-testid="stop-off-route"
                   >
                     {{ Math.round(preview!.stops[index].offset_m) }}m off the route
                   </span>
                   <span
                     v-if="faultedStops.has(stop.seq)"
-                    class="text-coral"
+                    class="text-error"
                     data-testid="stop-submit-error"
                   >
                     {{ stopFaultMessage(faultedStops.get(stop.seq)!) }}
@@ -388,7 +388,7 @@ watch(createdSlug, (created) => {
             </p>
             <p
               v-if="previewError"
-              class="font-body text-caption mt-2 text-coral"
+              class="font-body text-caption mt-2 text-error"
               role="alert"
               data-testid="preview-error"
             >
@@ -396,7 +396,7 @@ watch(createdSlug, (created) => {
             </p>
             <p
               v-if="orderWarning"
-              class="font-body text-caption mt-2 text-coral"
+              class="font-body text-caption mt-2 text-error"
               role="alert"
               data-testid="order-warning"
             >
@@ -616,7 +616,7 @@ watch(createdSlug, (created) => {
 
           <p
             v-if="submitError"
-            class="font-body text-caption text-coral"
+            class="font-body text-caption text-error"
             role="alert"
             data-testid="submit-error"
           >
@@ -653,7 +653,7 @@ watch(createdSlug, (created) => {
         </p>
         <p
           v-else-if="compileError"
-          class="font-body text-caption text-coral"
+          class="font-body text-caption text-error"
           role="alert"
           data-testid="compile-error"
         >

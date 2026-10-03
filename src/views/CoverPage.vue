@@ -48,7 +48,7 @@ fetchCoverIndex()
         </p>
         <p
           v-else-if="error"
-          class="font-body text-caption mt-3 text-coral"
+          class="font-body text-caption mt-3 text-error"
           role="alert"
           data-testid="scenarios-error"
         >
@@ -58,7 +58,7 @@ fetchCoverIndex()
           <p
             v-for="source in unavailable"
             :key="source"
-            class="font-body text-caption mt-3 text-coral"
+            class="font-body text-caption mt-3 text-error"
             role="alert"
             data-testid="scenarios-partial"
           >

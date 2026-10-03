@@ -111,7 +111,7 @@ async function handleSave(): Promise<void> {
         </p>
         <p
           v-else-if="servicesError"
-          class="font-body text-caption mt-2 text-coral"
+          class="font-body text-caption mt-2 text-error"
           role="alert"
           data-testid="services-error"
         >
@@ -157,7 +157,7 @@ async function handleSave(): Promise<void> {
 
       <p
         v-if="submitError"
-        class="font-body text-caption text-coral"
+        class="font-body text-caption text-error"
         role="alert"
         data-testid="submit-error"
       >

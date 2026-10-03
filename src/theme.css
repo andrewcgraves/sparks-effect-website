@@ -7,6 +7,7 @@
   --color-surface: #f4f4f5;
   --color-placeholder: #d9d9d9;
   --color-coral: #e1665b;
+  --color-error: #c2453b;
   --color-apricot: #ef9261;
   --color-slate: #1e293b;
 
@@ -45,7 +46,7 @@
   --text-caption: 13px;
   --text-caption--line-height: 1.5;
 
-  --text-micro: 10px;
+  --text-micro: 12px;
   --text-micro--letter-spacing: 0.12em;
 
   --text-btn: 13px;

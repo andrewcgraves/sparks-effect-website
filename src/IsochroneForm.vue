@@ -198,7 +198,7 @@ function handleSubmit() {
       </button>
       <p
         v-if="locationError"
-        class="font-body text-caption text-coral italic"
+        class="font-body text-caption text-error italic"
         data-testid="location-error"
       >
         {{ locationError }}
@@ -280,7 +280,7 @@ function handleSubmit() {
 
     <p
       v-if="showError"
-      class="font-body text-caption text-coral"
+      class="font-body text-caption text-error"
       role="alert"
       data-testid="fetch-error"
     >
