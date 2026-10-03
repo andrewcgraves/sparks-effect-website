@@ -3,7 +3,6 @@ import { defineStore } from 'pinia'
 import type {
   FrequencyWindow,
   ScenarioInput,
-  ServiceInput,
   Stop,
   VehicleParams,
 } from '../api/authoring'
@@ -23,7 +22,39 @@ const DEFAULT_VEHICLE: VehicleParams = {
   dwell_s: 30,
 }
 
-function emptyServiceDraft(): ServiceInput {
+export interface DraftStop {
+  id: string
+  name: string
+  lat: number
+  lng: number
+  seq: number
+}
+
+export interface DraftFrequencyWindow {
+  id: string
+  start_time: string
+  end_time: string
+  headway_s: number
+}
+
+export interface ServiceDraft {
+  route_slug: string
+  name: string
+  subtext?: string
+  description?: string
+  stops: DraftStop[]
+  vehicle: VehicleParams
+  frequency_windows: DraftFrequencyWindow[]
+}
+
+type Unidentified<T extends { id: string }> = Omit<T, 'id'> & { id?: unknown }
+
+type ServiceDraftSeed = Omit<ServiceDraft, 'stops' | 'frequency_windows'> & {
+  stops: Unidentified<DraftStop>[]
+  frequency_windows: Unidentified<DraftFrequencyWindow>[]
+}
+
+function emptyServiceDraft(): ServiceDraft {
   return { route_slug: '', name: '', stops: [], vehicle: { ...DEFAULT_VEHICLE }, frequency_windows: [] }
 }
 
@@ -33,17 +64,30 @@ function emptyScenarioDraft(): ScenarioInput {
 
 const AUTO_STOP_NAME = /^Stop (\d+)$/
 
-function renumber(stops: Stop[]): Stop[] {
+function renumber(stops: DraftStop[]): DraftStop[] {
   return stops.map((stop, index) => ({ ...stop, seq: index }))
 }
 
+function backfillRowId<T extends { id?: unknown }>(row: T): Omit<T, 'id'> & { id: string } {
+  const id = typeof row.id === 'string' && row.id !== '' ? row.id : crypto.randomUUID()
+  return { ...row, id }
+}
+
+function backfillDraftIds(draft: ServiceDraftSeed): ServiceDraft {
+  return {
+    ...draft,
+    stops: draft.stops.map(backfillRowId),
+    frequency_windows: draft.frequency_windows.map(backfillRowId),
+  }
+}
+
 export interface SetAsideServiceDraft {
-  draft: ServiceInput
+  draft: ServiceDraft
   stopCounter: number
 }
 
 export interface PersistedDrafts {
-  serviceDraft: ServiceInput | null
+  serviceDraft: ServiceDraft | null
   scenarioDraft: ScenarioInput | null
   editingServiceId: string | null
   editingScenarioId: string | null
@@ -62,8 +106,8 @@ function emptyPersistedDrafts(): PersistedDrafts {
   }
 }
 
-function isStop(value: unknown): value is Stop {
-  const stop = value as Partial<Stop> | null
+function isStop(value: unknown): value is Unidentified<DraftStop> {
+  const stop = value as Partial<DraftStop> | null
   return (
     typeof stop?.lat === 'number' &&
     typeof stop.lng === 'number' &&
@@ -82,8 +126,8 @@ function isVehicleParams(value: unknown): value is VehicleParams {
   )
 }
 
-function isFrequencyWindow(value: unknown): value is FrequencyWindow {
-  const frequencyWindow = value as Partial<FrequencyWindow> | null
+function isFrequencyWindow(value: unknown): value is Unidentified<DraftFrequencyWindow> {
+  const frequencyWindow = value as Partial<DraftFrequencyWindow> | null
   return (
     typeof frequencyWindow?.start_time === 'string' &&
     typeof frequencyWindow.end_time === 'string' &&
@@ -95,11 +139,14 @@ function isAbsentOrString(value: unknown): boolean {
   return value === undefined || typeof value === 'string'
 }
 
-function isServiceInput(value: unknown): value is ServiceInput {
-  const service = value as Partial<ServiceInput> | null
+function isServiceInput(value: unknown): value is ServiceDraftSeed {
+  const service = value as Partial<ServiceDraftSeed> | null
   // The prose is allowed to be missing, not just empty: every draft stored
   // before a service had prose lacks both keys, and requiring them here would
   // throw each of those drafts away on the next read.
+  // A row id is allowed to be missing too: every draft stored before stops and
+  // frequency windows carried a client-only id lacks that key, and requiring
+  // it here would throw those drafts away on the next read.
   return (
     typeof service?.route_slug === 'string' &&
     typeof service.name === 'string' &&
@@ -132,7 +179,7 @@ function readStopCounter(value: unknown): number {
 function readSetAsideServiceDraft(value: unknown): SetAsideServiceDraft | null {
   const setAside = value as Partial<SetAsideServiceDraft> | null
   if (!isServiceInput(setAside?.draft)) return null
-  return { draft: setAside.draft, stopCounter: readStopCounter(setAside.stopCounter) }
+  return { draft: backfillDraftIds(setAside.draft), stopCounter: readStopCounter(setAside.stopCounter) }
 }
 
 function readPersistedDrafts(userId: string): PersistedDrafts {
@@ -141,7 +188,7 @@ function readPersistedDrafts(userId: string): PersistedDrafts {
 
   // Each draft stands or falls on its own: a corrupt service draft is no reason
   // to throw away a sound scenario sitting beside it.
-  const serviceDraft = isServiceInput(parsed.serviceDraft) ? parsed.serviceDraft : null
+  const serviceDraft = isServiceInput(parsed.serviceDraft) ? backfillDraftIds(parsed.serviceDraft) : null
   const scenarioDraft = isScenarioInput(parsed.scenarioDraft) ? parsed.scenarioDraft : null
   const setAsideServiceDraft = readSetAsideServiceDraft(parsed.setAsideServiceDraft)
   const scenario = {
@@ -175,7 +222,7 @@ function readPersistedDrafts(userId: string): PersistedDrafts {
 export const useDraftsStore = defineStore('drafts', () => {
   const auth = useAuthStore()
 
-  const serviceDraft = ref<ServiceInput | null>(null)
+  const serviceDraft = ref<ServiceDraft | null>(null)
   const scenarioDraft = ref<ScenarioInput | null>(null)
   const editingServiceId = ref<string | null>(null)
   const editingScenarioId = ref<string | null>(null)
@@ -240,7 +287,7 @@ export const useDraftsStore = defineStore('drafts', () => {
     { immediate: true },
   )
 
-  function startServiceDraft(seed?: ServiceInput, serviceId: string | null = null): void {
+  function startServiceDraft(seed?: ServiceDraftSeed, serviceId: string | null = null): void {
     // There is one slot, so opening an edit over a create draft sets the create
     // draft aside rather than overwriting it: it is work no API can hand back.
     // An edit displaced by another edit is simply dropped — what it would have
@@ -248,8 +295,9 @@ export const useDraftsStore = defineStore('drafts', () => {
     if (serviceId !== null && serviceDraft.value && editingServiceId.value === null) {
       setAsideServiceDraft.value = { draft: serviceDraft.value, stopCounter: serviceStopCounter.value }
     }
-    // Cloned so editing the draft never mutates the caller's service.
-    serviceDraft.value = seed ? structuredClone(seed) : emptyServiceDraft()
+    // Cloned so editing the draft never mutates the caller's service. Ids the
+    // seed already carries stay; rows from before this field existed get one.
+    serviceDraft.value = seed ? backfillDraftIds(structuredClone(seed)) : emptyServiceDraft()
     editingServiceId.value = serviceId
     serviceStopCounter.value = 0
   }
@@ -274,14 +322,17 @@ export const useDraftsStore = defineStore('drafts', () => {
   // invalidates every computed derived from it, so naming a service redrew all
   // of its stops on the authoring map. Only the patched fields are reactive
   // writes, so untouched ones — `stops` above all — stay undisturbed.
-  function patchServiceDraft(patch: Partial<ServiceInput>): void {
+  function patchServiceDraft(patch: Partial<ServiceDraft>): void {
     if (!serviceDraft.value) return
     Object.assign(serviceDraft.value, patch)
   }
 
   function addStop(stop: Stop): void {
     if (!serviceDraft.value) return
-    serviceDraft.value.stops = renumber([...serviceDraft.value.stops, stop])
+    serviceDraft.value.stops = renumber([
+      ...serviceDraft.value.stops,
+      { id: crypto.randomUUID(), name: stop.name, lat: stop.lat, lng: stop.lng, seq: stop.seq },
+    ])
   }
 
   function removeStop(index: number): void {
@@ -310,7 +361,15 @@ export const useDraftsStore = defineStore('drafts', () => {
 
   function addFrequencyWindow(window: FrequencyWindow): void {
     if (!serviceDraft.value) return
-    serviceDraft.value.frequency_windows = [...serviceDraft.value.frequency_windows, window]
+    serviceDraft.value.frequency_windows = [
+      ...serviceDraft.value.frequency_windows,
+      {
+        id: crypto.randomUUID(),
+        start_time: window.start_time,
+        end_time: window.end_time,
+        headway_s: window.headway_s,
+      },
+    ]
   }
 
   function removeFrequencyWindow(index: number): void {

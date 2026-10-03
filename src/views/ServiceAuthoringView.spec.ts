@@ -210,6 +210,47 @@ describe('ServiceAuthoringView', () => {
     expect(stopRowName(rows[1])).toBe('A')
   })
 
+  // Vue writes :value back on patch, so uncommitted characters do not survive
+  // the reorder by themselves. Restoring them on that same node, then firing
+  // change, checks the commit hits the stop the node is keyed to. The
+  // node-identity assertion is what locks :key="stop.id".
+  it('keeps a half-typed stop name on the stop that was typed into when another row is reordered', async () => {
+    // Attached so a node still in the document reports isConnected.
+    const wrapper = mount(ServiceAuthoringView, {
+      attachTo: document.body,
+      global: { stubs: { MapView: true } },
+    })
+    try {
+      await flushPromises()
+      await addStop(wrapper, 'Alpha', 1, 1)
+      await addStop(wrapper, 'Bravo', 2, 2)
+      await addStop(wrapper, 'Charlie', 3, 3)
+
+      const nameInput = wrapper.get('[data-testid="stop-edit-name-2"]').element as HTMLInputElement
+      nameInput.value = 'Charlie West'
+
+      await wrapper.get('[data-testid="stop-down-1"]').trigger('click')
+
+      const charlieRow = wrapper.findAll('[data-testid="stop-row"]').find((row) => {
+        const lat = row.get('[data-testid^="stop-edit-lat-"]').element as HTMLInputElement
+        return Number(lat.value) === 3
+      })
+      expect(charlieRow?.element.contains(nameInput)).toBe(true)
+      expect(nameInput.isConnected).toBe(true)
+
+      nameInput.value = 'Charlie West'
+      nameInput.dispatchEvent(new Event('change', { bubbles: true }))
+      await flushPromises()
+
+      const stops = useDraftsStore().serviceDraft!.stops
+      const charlie = stops.find((stop) => stop.lat === 3 && stop.lng === 3)
+      expect(charlie?.name).toBe('Charlie West')
+      expect(stops.map((stop) => stop.name)).toEqual(['Alpha', 'Charlie West', 'Bravo'])
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
   it('removes a stop', async () => {
     const wrapper = mountView()
     await flushPromises()
@@ -518,8 +559,8 @@ describe('ServiceAuthoringView', () => {
 
       const stops = useDraftsStore().serviceDraft!.stops
       expect(stops).toEqual([
-        { name: 'Stop 1', lat: 37.77, lng: -122.41, seq: 0 },
-        { name: 'Stop 2', lat: 37.33, lng: -121.88, seq: 1 },
+        { id: expect.any(String), name: 'Stop 1', lat: 37.77, lng: -122.41, seq: 0 },
+        { id: expect.any(String), name: 'Stop 2', lat: 37.33, lng: -121.88, seq: 1 },
       ])
       expect(stopNames(wrapper)).toEqual(['Stop 1', 'Stop 2'])
     })
@@ -642,8 +683,8 @@ describe('ServiceAuthoringView', () => {
       await drag(wrapper, '0', [{ lat: 37.8, lng: -122.4 }], { lat: 37.85, lng: -122.35 })
 
       expect(useDraftsStore().serviceDraft!.stops).toEqual([
-        { name: 'SF', lat: 37.85, lng: -122.35, seq: 0 },
-        { name: 'SJ', lat: 37.33, lng: -121.88, seq: 1 },
+        { id: expect.any(String), name: 'SF', lat: 37.85, lng: -122.35, seq: 0 },
+        { id: expect.any(String), name: 'SJ', lat: 37.33, lng: -121.88, seq: 1 },
       ])
     })
 

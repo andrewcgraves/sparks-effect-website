@@ -1,5 +1,5 @@
 import { computed, ref, watch, type WatchStopHandle } from 'vue'
-import { useDraftsStore } from '../stores/drafts'
+import { useDraftsStore, type ServiceDraft } from '../stores/drafts'
 import { useCompileJob } from './useCompileJob'
 import { latestAttempt } from './latestAttempt'
 import { ApiError, isSessionExpiry, stopPlacementFault } from '../api/authoring/client'
@@ -29,10 +29,12 @@ import type { StopPreviewPair } from './useStopPreviewLayer'
 
 export const PREVIEW_DEBOUNCE_MS = 400
 
-// A service read back in the shape it is written in. The fields the server
+// A service read back in the shape the form edits. The fields the server
 // derives are left behind — stop slugs, chainage and offset are re-minted from
-// the stops on every write — so the draft holds only what the form edits.
-function serviceInputFrom(service: Service, routeSlug: string): ServiceInput {
+// the stops on every write — and each stop and frequency window gets a
+// client-only id so the editor can key its rows. That id is not part of the
+// body create and update stringify, so serviceInputFromDraft takes it back off.
+function serviceInputFrom(service: Service, routeSlug: string): ServiceDraft {
   return {
     route_slug: routeSlug,
     name: service.name,
@@ -40,7 +42,13 @@ function serviceInputFrom(service: Service, routeSlug: string): ServiceInput {
     description: service.description ?? '',
     stops: [...service.stops]
       .sort((a, b) => a.seq - b.seq)
-      .map((stop, seq) => ({ name: stop.name, lat: stop.lat, lng: stop.lng, seq })),
+      .map((stop, seq) => ({
+        id: crypto.randomUUID(),
+        name: stop.name,
+        lat: stop.lat,
+        lng: stop.lng,
+        seq,
+      })),
     vehicle: {
       max_speed_kmh: service.vehicle.max_speed_kmh,
       acceleration_ms2: service.vehicle.acceleration_ms2,
@@ -48,9 +56,27 @@ function serviceInputFrom(service: Service, routeSlug: string): ServiceInput {
       dwell_s: service.vehicle.dwell_s,
     },
     frequency_windows: service.frequency_windows.map((window) => ({
+      id: crypto.randomUUID(),
       start_time: window.start_time,
       end_time: window.end_time,
       headway_s: window.headway_s,
+    })),
+  }
+}
+
+function serviceInputFromDraft(draft: ServiceDraft): ServiceInput {
+  const { route_slug, name, subtext, description, vehicle, stops, frequency_windows } = draft
+  return {
+    route_slug,
+    name,
+    subtext,
+    description,
+    vehicle,
+    stops: stops.map(({ name, lat, lng, seq }) => ({ name, lat, lng, seq })),
+    frequency_windows: frequency_windows.map(({ start_time, end_time, headway_s }) => ({
+      start_time,
+      end_time,
+      headway_s,
     })),
   }
 }
@@ -407,8 +433,8 @@ export function useServiceDraft(serviceSlug?: string) {
       // `editing` set whenever the slot names an edit.
       const isEdit = drafts.editingServiceId !== null
       const saved = isEdit
-        ? await updateService(editing.value!.slug, current)
-        : await createService(current)
+        ? await updateService(editing.value!.slug, serviceInputFromDraft(current))
+        : await createService(serviceInputFromDraft(current))
       drafts.clearServiceDraft()
       // A new service has never compiled, and its own page compiles it when
       // the graph read 404s, so a create is finished the moment it is stored.

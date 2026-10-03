@@ -271,7 +271,7 @@ watch(createdSlug, (created) => {
             >
               <li
                 v-for="(stop, index) in stops"
-                :key="index"
+                :key="stop.id"
                 class="font-body text-caption flex items-center justify-between gap-2 rounded-(--radius-field) border border-border bg-white px-3 py-2 text-ink"
                 data-testid="stop-row"
               >
@@ -472,7 +472,7 @@ watch(createdSlug, (created) => {
             >
               <li
                 v-for="(window, index) in frequencyWindows"
-                :key="index"
+                :key="window.id"
                 class="font-body text-caption flex items-center justify-between gap-2 rounded-(--radius-field) border border-border bg-white px-3 py-2 text-ink"
               >
                 <span>{{ window.start_time }}–{{ window.end_time }}, every {{ Math.round(window.headway_s / 60) }} min</span>
