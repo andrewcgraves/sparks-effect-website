@@ -97,14 +97,5 @@ fetchCoverIndex()
         </template>
       </section>
     </div>
-
-    <footer class="font-body text-micro mt-16 text-ink-muted">
-      Map data © <a
-        class="underline"
-        href="https://www.openstreetmap.org/copyright"
-        target="_blank"
-        rel="noopener noreferrer"
-      >OpenStreetMap</a> contributors · Tiles via OpenFreeMap
-    </footer>
   </main>
 </template>

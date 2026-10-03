@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Analytics } from '@vercel/analytics/vue'
 import ConfirmDialog from './components/ConfirmDialog.vue'
+import SiteFooter from './components/SiteFooter.vue'
 import ToastRegion from './components/ToastRegion.vue'
 import { useAuthStore } from './stores/auth'
 
@@ -28,6 +29,7 @@ const auth = useAuthStore()
       </RouterLink>
     </header>
     <RouterView />
+    <SiteFooter />
     <ConfirmDialog />
     <ToastRegion />
     <Analytics />

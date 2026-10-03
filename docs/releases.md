@@ -13,6 +13,10 @@ Vercel builds every commit: a preview per pull request, and `trunk` as staging.
 CI here is a gate, not a deploy: lint, typecheck, tests, build. Vercel does the
 building that ships.
 
+Every page's footer shows the short commit SHA the build was made from
+(`VERCEL_GIT_COMMIT_SHA`, or `dev` for a local build). Promotion doesn't
+rebuild, so production shows the same SHA its staging build did.
+
 ## Releasing
 
 A release is a tag. Tag a commit that is already on `trunk`:
