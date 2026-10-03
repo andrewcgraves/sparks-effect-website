@@ -5,13 +5,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('./scenarios', () => ({
   listCuratedScenarios: vi.fn(),
 }))
-vi.mock('./publications', () => ({
+vi.mock('./publishedIndex', () => ({
   listPublishedServices: vi.fn(),
 }))
 
 import { CoverIndexUnavailableError, fetchCoverIndex } from './coverIndex'
 import { listCuratedScenarios } from './scenarios'
-import { listPublishedServices } from './publications'
+import { listPublishedServices } from './publishedIndex'
 
 const caHsr = { slug: 'ca-hsr', name: 'CA HSR', description: 'California High-Speed Rail' }
 const coastLine = {

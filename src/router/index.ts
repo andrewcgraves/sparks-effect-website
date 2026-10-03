@@ -1,14 +1,5 @@
 import { createRouter, createWebHistory, type Router } from 'vue-router'
 import CoverPage from '../views/CoverPage.vue'
-import ScenarioView from '../views/ScenarioView.vue'
-import LoginView from '../views/LoginView.vue'
-import AuthoringView from '../views/AuthoringView.vue'
-import ServiceAuthoringView from '../views/ServiceAuthoringView.vue'
-import ScenarioBuilderView from '../views/ScenarioBuilderView.vue'
-import AuthoredServiceView from '../views/AuthoredServiceView.vue'
-import AuthoredScenarioView from '../views/AuthoredScenarioView.vue'
-import RouteView from '../views/RouteView.vue'
-import PublishedServiceView from '../views/PublishedServiceView.vue'
 import NotFoundView from '../views/NotFoundView.vue'
 import WelcomeView from '../views/WelcomeView.vue'
 import { trackPageView } from '../analytics/index'
@@ -34,14 +25,14 @@ export const router = createRouter({
     {
       path: '/scenario/:slug',
       name: 'scenario',
-      component: ScenarioView,
+      component: () => import('../views/ScenarioView.vue'),
       props: true,
       meta: { title: 'Scenario' },
     },
     {
       path: '/login',
       name: 'login',
-      component: LoginView,
+      component: () => import('../views/LoginView.vue'),
       meta: { title: 'Sign in' },
     },
     // An invite or reset link. Open to a signed-in user too: the page itself
@@ -66,46 +57,46 @@ export const router = createRouter({
     {
       path: '/authoring',
       name: 'authoring',
-      component: AuthoringView,
+      component: () => import('../views/AuthoringView.vue'),
       meta: { requiresAuth: true, title: 'My authoring' },
     },
     {
       path: '/authoring/services/new',
       name: 'new-service',
-      component: ServiceAuthoringView,
+      component: () => import('../views/ServiceAuthoringView.vue'),
       meta: { requiresAuth: true, title: 'New service' },
     },
     {
       path: '/authoring/scenarios/new',
       name: 'new-scenario',
-      component: ScenarioBuilderView,
+      component: () => import('../views/ScenarioBuilderView.vue'),
       meta: { requiresAuth: true, title: 'New scenario' },
     },
     {
       path: '/authoring/services/:slug/edit',
       name: 'edit-service',
-      component: ServiceAuthoringView,
+      component: () => import('../views/ServiceAuthoringView.vue'),
       props: true,
       meta: { requiresAuth: true, title: 'Edit service' },
     },
     {
       path: '/authoring/scenarios/:slug/edit',
       name: 'edit-scenario',
-      component: ScenarioBuilderView,
+      component: () => import('../views/ScenarioBuilderView.vue'),
       props: true,
       meta: { requiresAuth: true, title: 'Edit scenario' },
     },
     {
       path: '/authoring/services/:slug',
       name: 'service-detail',
-      component: AuthoredServiceView,
+      component: () => import('../views/AuthoredServiceView.vue'),
       props: true,
       meta: { requiresAuth: true, title: 'My service' },
     },
     {
       path: '/authoring/scenarios/:slug',
       name: 'scenario-detail',
-      component: AuthoredScenarioView,
+      component: () => import('../views/AuthoredScenarioView.vue'),
       props: true,
       meta: { requiresAuth: true, title: 'My scenario' },
     },
@@ -114,14 +105,14 @@ export const router = createRouter({
     {
       path: '/services/:slug',
       name: 'published-service',
-      component: PublishedServiceView,
+      component: () => import('../views/PublishedServiceView.vue'),
       props: true,
       meta: { title: 'Service' },
     },
     {
       path: '/routes/:slug',
       name: 'route',
-      component: RouteView,
+      component: () => import('../views/RouteView.vue'),
       props: true,
       meta: { title: 'Route' },
     },

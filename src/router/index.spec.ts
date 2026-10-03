@@ -9,6 +9,8 @@ vi.mock('../views/CoverPage.vue', () => ({ default: { template: '<div />' } }))
 vi.mock('../views/ScenarioView.vue', () => ({ default: { props: ['slug'], template: '<div />' } }))
 vi.mock('../views/LoginView.vue', () => ({ default: { template: '<div />' } }))
 vi.mock('../views/AuthoringView.vue', () => ({ default: { template: '<div />' } }))
+vi.mock('../views/ServiceAuthoringView.vue', () => ({ default: { props: ['slug'], template: '<div />' } }))
+vi.mock('../views/ScenarioBuilderView.vue', () => ({ default: { props: ['slug'], template: '<div />' } }))
 vi.mock('../views/RouteView.vue', () => ({ default: { props: ['slug'], template: '<div />' } }))
 vi.mock('../views/AuthoredServiceView.vue', () => ({ default: { props: ['slug'], template: '<div />' } }))
 vi.mock('../views/AuthoredScenarioView.vue', () => ({ default: { props: ['slug'], template: '<div />' } }))
@@ -21,6 +23,14 @@ import { trackPageView } from '../analytics/index'
 import { useAuthStore } from '../stores/auth'
 
 describe('router', () => {
+  it('loads cover and not-found eagerly and every other named route on demand', () => {
+    const named = router.getRoutes().filter((route) => route.name != null)
+    const eager = named
+      .filter((route) => typeof route.components?.default !== 'function')
+      .map((route) => route.name)
+    expect(eager.sort()).toEqual(['cover', 'not-found'])
+  })
+
   beforeEach(() => {
     vi.mocked(trackPageView).mockClear()
     window.localStorage.clear()

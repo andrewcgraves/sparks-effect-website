@@ -1,5 +1,5 @@
 import { listCuratedScenarios } from './scenarios'
-import { listPublishedServices } from './publications'
+import { listPublishedServices } from './publishedIndex'
 
 export type CoverSource = 'scenario' | 'service'
 
