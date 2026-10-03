@@ -1,5 +1,6 @@
-const OPENFREEMAP_POSITRON = 'https://tiles.openfreemap.org/styles/positron'
-const STADIA_ALIDADE_SMOOTH = 'https://tiles.stadiamaps.com/styles/alidade_smooth.json'
+import { resolveTilePreconnectOrigin, styleUrlForKey } from './tileHost'
+
+export { resolveTilePreconnectOrigin }
 
 export interface TileCredit {
   name: string
@@ -16,11 +17,7 @@ function nonBlankKey(apiKey: string | undefined): string | undefined {
 export function resolveMapStyleUrl(
   apiKey: string | undefined = import.meta.env.VITE_STADIA_API_KEY as string | undefined,
 ): string {
-  const key = nonBlankKey(apiKey)
-  if (key) {
-    return `${STADIA_ALIDADE_SMOOTH}?api_key=${encodeURIComponent(key)}`
-  }
-  return OPENFREEMAP_POSITRON
+  return styleUrlForKey(apiKey)
 }
 
 export function resolveTileCredit(

@@ -24,6 +24,14 @@ import { trackPageView } from '../analytics/index'
 import { AUTH_STORAGE_KEY, useAuthStore } from '../stores/auth'
 
 describe('router', () => {
+  it('loads cover and not-found eagerly and every other named route on demand', () => {
+    const named = router.getRoutes().filter((route) => route.name != null)
+    const eager = named
+      .filter((route) => typeof route.components?.default !== 'function')
+      .map((route) => route.name)
+    expect(eager.sort()).toEqual(['cover', 'not-found'])
+  })
+
   beforeEach(() => {
     vi.mocked(trackPageView).mockClear()
     window.localStorage.clear()
