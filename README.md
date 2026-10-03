@@ -54,6 +54,11 @@ whichever sink is configured — the console in dev, `vercelSink` in production
 builds (see `src/main.ts`). `vercelSink` deliberately drops `page_view` so
 navigations are not counted twice.
 
+A set-password link (`/welcome/:token`, or `/set-password?token=` as the API
+issues it) carries a one-time token that signs its holder in. Both page-view
+paths strip it through `src/analytics/redact.ts`: the router records `/welcome`,
+and `<Analytics />` is given a `beforeSend` that rewrites the URL the same way.
+
 Collection needs Web Analytics enabled for the project in the Vercel dashboard
 (Analytics → Enable), which is what serves `/_vercel/insights/*`.
 
