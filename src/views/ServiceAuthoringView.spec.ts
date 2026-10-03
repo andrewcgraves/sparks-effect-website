@@ -28,6 +28,7 @@ import {
 } from '../api/authoring/services'
 import { ApiError } from '../api/authoring/client'
 import { useDraftsStore } from '../stores/drafts'
+import { mountSharedHosts } from '../test/sharedHosts'
 
 const stubRouteSummary: RouteSummary = { slug: 'main-line', name: 'Main Line', mode: 'rail' }
 
@@ -100,7 +101,10 @@ async function mountWithTwoStops() {
 }
 
 describe('ServiceAuthoringView', () => {
+  let hosts: ReturnType<typeof mountSharedHosts>
+
   beforeEach(() => {
+    hosts = mountSharedHosts()
     vi.clearAllMocks()
     setActivePinia(createPinia())
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
@@ -113,6 +117,7 @@ describe('ServiceAuthoringView', () => {
   })
 
   afterEach(() => {
+    hosts.unmount()
     vi.useRealTimers()
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
@@ -251,16 +256,37 @@ describe('ServiceAuthoringView', () => {
     }
   })
 
-  it('removes a stop', async () => {
+  it('removes a stop once confirmed, and says so', async () => {
     const wrapper = mountView()
     await flushPromises()
     await addStop(wrapper, 'A', 1, 1)
     await addStop(wrapper, 'B', 2, 2)
 
     await wrapper.find('[data-testid="stop-remove-0"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.findAll('[data-testid="stop-row"]')).toHaveLength(2)
+    expect(hosts.dialogOpen()).toBe(true)
+    expect(hosts.dialog().text()).toContain('A')
+
+    await hosts.confirmButton().trigger('click')
+    await flushPromises()
     const rows = wrapper.findAll('[data-testid="stop-row"]')
     expect(rows).toHaveLength(1)
     expect(stopRowName(rows[0])).toBe('B')
+    expect(hosts.toasts()).toEqual(['Stop removed'])
+  })
+
+  it('keeps a stop when removing it is backed out of', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    await addStop(wrapper, 'A', 1, 1)
+
+    await wrapper.find('[data-testid="stop-remove-0"]').trigger('click')
+    await flushPromises()
+    await hosts.cancelButton().trigger('click')
+    await flushPromises()
+    expect(wrapper.findAll('[data-testid="stop-row"]')).toHaveLength(1)
+    expect(hosts.toasts()).toEqual([])
   })
 
   it('edits a stop lat/lng inline via updateStop', async () => {
@@ -584,6 +610,9 @@ describe('ServiceAuthoringView', () => {
       await clickMap(wrapper, 37.77, -122.41)
       await clickMap(wrapper, 37.33, -121.88)
       await wrapper.find('[data-testid="stop-remove-1"]').trigger('click')
+      await flushPromises()
+      await hosts.confirmButton().trigger('click')
+      await flushPromises()
       await clickMap(wrapper, 38.0, -122.0)
 
       expect(stopNames(wrapper)).toEqual(['Stop 1', 'Stop 3'])

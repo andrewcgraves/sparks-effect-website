@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useConfirm } from '../composables/useConfirm'
 import { useServiceDraft } from '../composables/useServiceDraft'
+import { useToast } from '../composables/useToast'
 import { MAX_DESCRIPTION_CHARS, MAX_SUBTEXT_CHARS, type SnapCoord as LatLng } from '../api/authoring'
 import MapView from '../components/MapView.vue'
 import { PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS, TOGGLE_BUTTON_CLASS } from '../components/buttonStyles'
@@ -104,6 +106,27 @@ function handleAddStop(): void {
   newStopName.value = ''
   newStopLat.value = null
   newStopLng.value = null
+}
+
+const { confirm } = useConfirm()
+const { show: toast } = useToast()
+
+async function handleRemoveStop(index: number): Promise<void> {
+  const stop = stops.value[index]
+  if (!stop) return
+  const confirmed = await confirm({
+    title: 'Remove this stop?',
+    body: `${stop.name || `Stop ${index + 1}`} comes off the route, and this can't be undone.`,
+    confirmLabel: 'Remove stop',
+    cancelLabel: 'Keep stop',
+    destructive: true,
+  })
+  // The list may have changed under the open dialog; remove the stop that was
+  // asked about, not whatever now sits at its old index.
+  const at = stops.value.findIndex((s) => s.id === stop.id)
+  if (!confirmed || at === -1) return
+  removeStop(at)
+  toast('Stop removed')
 }
 
 function handleAddFrequencyWindow(): void {
@@ -337,7 +360,7 @@ watch(createdSlug, (created) => {
                     type="button"
                     class="cursor-pointer px-1 text-ink-muted hover:text-coral"
                     :data-testid="`stop-remove-${index}`"
-                    @click="removeStop(index)"
+                    @click="handleRemoveStop(index)"
                   >
                     ✕
                   </button>

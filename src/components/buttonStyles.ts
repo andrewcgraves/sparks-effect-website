@@ -6,3 +6,6 @@ export const SECONDARY_BUTTON_CLASS =
 
 export const TOGGLE_BUTTON_CLASS =
   `${SECONDARY_BUTTON_CLASS} aria-pressed:border-coral aria-pressed:bg-coral aria-pressed:text-white`
+
+export const DESTRUCTIVE_BUTTON_CLASS =
+  'font-display text-btn cursor-pointer rounded-(--radius-field) border border-coral bg-white px-4 py-2.5 text-coral uppercase transition-colors duration-200 ease-(--ease-smooth) hover:bg-coral hover:text-white disabled:cursor-not-allowed disabled:opacity-50'

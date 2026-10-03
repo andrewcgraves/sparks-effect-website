@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useConfirm } from '../composables/useConfirm'
 import { instant, usePublication } from '../composables/usePublication'
+import { useToast } from '../composables/useToast'
 import { PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS } from './buttonStyles'
 
 const props = defineProps<{
@@ -55,13 +57,25 @@ async function copyPublicUrl(): Promise<void> {
 
 onBeforeUnmount(() => clearTimeout(copiedTimer))
 
+const { confirm } = useConfirm()
+const { show: toast } = useToast()
+
+async function publishAndSay(): Promise<void> {
+  const republishing = state.value === 'changed'
+  if (await publish()) toast(republishing ? 'Republished' : 'Published')
+}
+
 // Unpublishing breaks a URL that may already have been shared, so it takes a
 // second, deliberate click.
-const confirmingUnpublish = ref(false)
-
 async function confirmUnpublish(): Promise<void> {
-  await unpublish()
-  confirmingUnpublish.value = false
+  const confirmed = await confirm({
+    title: 'Unpublish this service?',
+    body: "Its public link will stop working for anyone you've shared it with, and stays broken until you publish again.",
+    confirmLabel: 'Unpublish',
+    cancelLabel: 'Keep published',
+    destructive: true,
+  })
+  if (confirmed && await unpublish()) toast('Unpublished')
 }
 </script>
 
@@ -144,53 +158,14 @@ async function confirmUnpublish(): Promise<void> {
         Couldn't copy the link. Select it above and copy it yourself.
       </p>
 
-      <div
-        v-if="confirmingUnpublish"
-        class="mt-4 flex flex-col gap-3"
-        role="group"
-        aria-labelledby="confirm-unpublish-prompt"
-        data-testid="confirm-unpublish"
-      >
-        <p
-          id="confirm-unpublish-prompt"
-          class="font-body text-caption text-ink"
-        >
-          Unpublish this service? Its public link will stop working for anyone you've shared it with, and stays
-          broken until you publish again.
-        </p>
-        <div class="flex flex-wrap gap-3">
-          <button
-            type="button"
-            :class="PRIMARY_BUTTON_CLASS"
-            :disabled="busy"
-            data-testid="confirm-unpublish-button"
-            @click="confirmUnpublish"
-          >
-            {{ unpublishing ? 'Unpublishing…' : 'Unpublish' }}
-          </button>
-          <button
-            type="button"
-            :class="SECONDARY_BUTTON_CLASS"
-            :disabled="busy"
-            data-testid="cancel-unpublish-button"
-            @click="confirmingUnpublish = false"
-          >
-            Keep published
-          </button>
-        </div>
-      </div>
-
-      <div
-        v-else
-        class="mt-4 flex flex-wrap gap-3"
-      >
+      <div class="mt-4 flex flex-wrap gap-3">
         <button
           v-if="state !== 'current'"
           type="button"
           :class="PRIMARY_BUTTON_CLASS"
           :disabled="publishDisabled"
           data-testid="publish-button"
-          @click="publish"
+          @click="publishAndSay"
         >
           {{ publishing ? 'Publishing…' : state === 'changed' ? 'Republish' : 'Publish' }}
         </button>
@@ -200,9 +175,9 @@ async function confirmUnpublish(): Promise<void> {
           :class="SECONDARY_BUTTON_CLASS"
           :disabled="busy"
           data-testid="unpublish-button"
-          @click="confirmingUnpublish = true"
+          @click="confirmUnpublish"
         >
-          Unpublish
+          {{ unpublishing ? 'Unpublishing…' : 'Unpublish' }}
         </button>
       </div>
 

@@ -78,8 +78,8 @@ export function usePublication(
   // is to compile and try again — once: stale again straight after a clean
   // compile means an edit landed in between, which the owner should hear about
   // rather than have looped over.
-  async function publish(): Promise<void> {
-    if (busy.value) return
+  async function publish(): Promise<boolean> {
+    if (busy.value) return false
     const slug = getSlug()
     publishing.value = true
     error.value = null
@@ -91,27 +91,31 @@ export function usePublication(
         if (!isStaleGraph(err)) throw err
         if (!(await recompile(slug))) {
           error.value = PUBLISH_COMPILE_FAILED
-          return
+          return false
         }
         pub = await publishService(slug)
       }
       publishedAt.value = pub.published_at
+      return true
     } catch (err) {
       error.value = isStaleGraph(err) ? PUBLISH_RACED_EDIT : `Not published: ${reason(err)}`
+      return false
     } finally {
       publishing.value = false
     }
   }
 
-  async function unpublish(): Promise<void> {
-    if (busy.value) return
+  async function unpublish(): Promise<boolean> {
+    if (busy.value) return false
     unpublishing.value = true
     error.value = null
     try {
       await unpublishService(getSlug())
       publishedAt.value = null
+      return true
     } catch (err) {
       error.value = `Still published: ${reason(err)}`
+      return false
     } finally {
       unpublishing.value = false
     }
