@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { listPublishedServices, unpublishService, type PublishedServiceSummary } from '../api/publications'
+import { listPublishedServices, type PublishedServiceSummary } from '../api/publishedIndex'
+import { unpublishService } from '../api/publications'
 import { adminFault } from '../api/adminFault'
 import { isSessionExpiry } from '../api/authoring/client'
 import { useConfirm } from '../composables/useConfirm'
