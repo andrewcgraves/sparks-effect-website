@@ -40,6 +40,7 @@ import type { Route, Station, TravelTimes } from '../api/scenarios'
 import type { PrerenderedIsochrone } from '../api/prerenderedIsochrones'
 import type { ChainResponse } from '../fixtures/isochrone'
 import { formatTimeRemaining } from '../components/timeRemaining'
+import { busyRegion, visibleText } from '../test/loading'
 
 const stubStations: Station[] = [
   {
@@ -115,6 +116,7 @@ describe('ScenarioView', () => {
       routes: ref([]),
       stations: ref(stubStations),
       services: ref([]),
+      loading: ref(false),
     })
   })
 
@@ -125,6 +127,21 @@ describe('ScenarioView', () => {
   it('titles the page with the scenario name alone', () => {
     const wrapper = mountScenarioView()
     expect(wrapper.get('h1').text()).toBe('CA HSR')
+  })
+
+  it('holds the title line with a skeleton, not the fallback name, while the scenario loads', () => {
+    mockUseScenario.mockReturnValue({
+      name: ref(''),
+      description: ref(''),
+      routes: ref([]),
+      stations: ref([]),
+      services: ref([]),
+      loading: ref(true),
+    })
+    const wrapper = mountScenarioView()
+    const region = busyRegion(wrapper, 'scenario-title-loading')
+    expect(visibleText(region)).toBe('')
+    expect(wrapper.find('h1').exists()).toBe(false)
   })
 
   it('names the tab after the scenario once its name arrives', async () => {

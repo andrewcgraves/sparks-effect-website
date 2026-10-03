@@ -9,9 +9,7 @@ const props = withDefaults(defineProps<{ rows?: number }>(), { rows: 1 })
     class="font-body text-micro flex flex-col gap-1"
     data-testid="field-skeleton"
   >
-    <span class="flex h-[1lh] items-center">
-      <SkeletonShape class="w-24" />
-    </span>
+    <SkeletonShape class="w-24" />
     <!-- A field is `rows` lines of 14px text plus py-1.5 and a 1px border. -->
     <SkeletonShape
       shape="block"

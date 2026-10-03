@@ -37,11 +37,11 @@ function choose(group: StationTimeGroup, index: number): void {
       class="mt-3 flex flex-col"
       data-testid="station-times-loading"
     >
-      <!-- One header row and three body rows at the table's caption row height. -->
+      <!-- The table's head row plus three body rows, in its caption type. -->
       <div
         v-for="row in 4"
         :key="row"
-        class="text-caption grid h-[19.5px] grid-cols-3 items-center gap-3"
+        class="font-body text-caption grid grid-cols-3 gap-3"
       >
         <SkeletonShape class="w-2/3" />
         <SkeletonShape class="w-2/3" />

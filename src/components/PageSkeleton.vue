@@ -5,25 +5,20 @@ import SkeletonShape from './SkeletonShape.vue'
 const props = withDefaults(defineProps<{
   label?: string
   subtitle?: boolean
-  sideLines?: number
   cards?: number
-}>(), { label: 'Loading', subtitle: false, sideLines: 4, cards: 0 })
+}>(), { label: 'Loading', subtitle: false, cards: 0 })
 </script>
 
 <template>
-  <!-- Mirrors the detail pages' layout classes (title, map panel grid, card
-       grid) so the page keeps its shape when the real content swaps in. -->
   <LoadingRegion :label="props.label">
+    <!-- Mirrors the detail pages' layout classes (title, map panel grid, card
+         grid) so the page keeps its shape when the real content swaps in. -->
     <div class="flex flex-col gap-2">
-      <div class="font-display text-display flex h-[1lh] items-center">
-        <SkeletonShape class="w-3/4 max-w-[480px]" />
-      </div>
-      <div
+      <SkeletonShape class="font-display text-display w-3/4 max-w-[480px]" />
+      <SkeletonShape
         v-if="props.subtitle"
-        class="font-body text-micro flex h-[1lh] items-center"
-      >
-        <SkeletonShape class="w-32" />
-      </div>
+        class="font-body text-micro w-32"
+      />
     </div>
 
     <div class="mt-8 grid grid-cols-1 items-start gap-4 lg:grid-cols-[2fr_1fr]">
@@ -34,7 +29,7 @@ const props = withDefaults(defineProps<{
       />
       <SkeletonShape
         shape="card"
-        :lines="props.sideLines"
+        :lines="4"
       />
     </div>
 

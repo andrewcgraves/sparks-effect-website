@@ -8,7 +8,11 @@ describe('SkeletonShape', () => {
   })
 
   it('draws a placeholder-coloured shimmer shape', () => {
-    expect(mount(SkeletonShape).classes()).toContain('skeleton')
+    expect(mount(SkeletonShape).find('.skeleton').exists()).toBe(true)
+  })
+
+  it('stands a line in for one line box of the surrounding type', () => {
+    expect(mount(SkeletonShape).classes()).toContain('h-[1lh]')
   })
 
   it('takes its size from the caller so it can match the content it stands in for', () => {

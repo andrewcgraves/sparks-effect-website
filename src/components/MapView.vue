@@ -11,8 +11,6 @@ import { originWalkLine, originWalkModule } from '../composables/useOriginWalkLa
 import { RAW_STOP_LAYER_ID, stopPreviewModule } from '../composables/useStopPreviewLayer'
 import type { StopPreviewPair } from '../composables/useStopPreviewLayer'
 import { stopDragModule } from '../composables/useStopDrag'
-import LoadingRegion from './LoadingRegion.vue'
-import SkeletonShape from './SkeletonShape.vue'
 import { stationHighlightModule } from '../composables/useStationHighlight'
 import { mapModules } from '../composables/mapLifecycle'
 import { ISOCHRONE_BOUNDS_CORNERS, ISOCHRONE_CENTER, isochroneBoundsCorners } from '../fixtures/isochrone'
@@ -21,6 +19,8 @@ import { resolveMapStyleUrl } from '../mapStyle'
 import { readThemeToken } from '../themeTokens'
 import type { Route, Station } from '../api/scenarios'
 import type { SnapCoord as LatLng } from '../api/authoring/types'
+import LoadingRegion from './LoadingRegion.vue'
+import SkeletonShape from './SkeletonShape.vue'
 
 // maplibre-gl 6 finds its worker beside its own module via import.meta.url,
 // which a Vite bundle breaks: the worker is never emitted and no tiles load.

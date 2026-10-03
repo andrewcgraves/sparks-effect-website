@@ -1,40 +1,32 @@
 <script setup lang="ts">
+import { LIST_CARD_FRAME_CLASS } from './linkStyles'
 import LoadingRegion from './LoadingRegion.vue'
 import SkeletonShape from './SkeletonShape.vue'
 
 const props = withDefaults(defineProps<{
   label?: string
-  count?: number
   caption?: boolean
-  surface?: 'surface' | 'white'
-}>(), { label: 'Loading', count: 3, caption: true, surface: 'surface' })
+  background?: 'surface' | 'white'
+}>(), { label: 'Loading', caption: true, background: 'surface' })
 
+const CARD_COUNT = 3
 const NAME_WIDTHS = ['w-1/2', 'w-2/3', 'w-2/5']
 </script>
 
 <template>
   <LoadingRegion :label="props.label">
     <ul class="flex flex-col gap-2">
-      <!-- Same frame and type as a loaded card, with each bar sitting in one
-           line box, so the list holds its height when the real cards land. -->
       <li
-        v-for="index in props.count"
+        v-for="index in CARD_COUNT"
         :key="index"
-        :class="[
-          'font-body text-body flex flex-col gap-1 rounded-(--radius-field) border border-border px-3 py-2',
-          props.surface === 'white' ? 'bg-white' : 'bg-surface',
-        ]"
+        :class="[LIST_CARD_FRAME_CLASS, props.background === 'white' ? 'bg-white' : 'bg-surface']"
         data-testid="list-card-skeleton"
       >
-        <span class="flex h-[1lh] items-center">
-          <SkeletonShape :class="NAME_WIDTHS[(index - 1) % NAME_WIDTHS.length]" />
-        </span>
-        <span
+        <SkeletonShape :class="NAME_WIDTHS[(index - 1) % NAME_WIDTHS.length]" />
+        <SkeletonShape
           v-if="props.caption"
-          class="text-micro flex h-[1lh] items-center"
-        >
-          <SkeletonShape class="w-1/4" />
-        </span>
+          class="text-micro w-1/4"
+        />
       </li>
     </ul>
   </LoadingRegion>

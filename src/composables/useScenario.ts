@@ -8,6 +8,7 @@ export function useScenario(slug: string) {
   const routes = ref<Route[]>([])
   const stations = ref<Station[]>([])
   const services = ref<Service[]>([])
+  const loading = ref(true)
 
   fetchScenario(slug).then((detail) => {
     name.value = detail.name
@@ -15,7 +16,7 @@ export function useScenario(slug: string) {
     routes.value = detail.routes
     stations.value = detail.stations
     services.value = detail.services
-  }).catch(() => {})
+  }).catch(() => {}).finally(() => { loading.value = false })
 
-  return { name, description, routes, stations, services }
+  return { name, description, routes, stations, services, loading }
 }

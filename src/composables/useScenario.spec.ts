@@ -79,6 +79,21 @@ describe('useScenario', () => {
     expect(services.value).toEqual([])
   })
 
+  it('is loading until the fetch settles', async () => {
+    vi.mocked(fetchScenario).mockResolvedValueOnce(stubDetail)
+    const { loading } = useScenario('ca-hsr')
+    expect(loading.value).toBe(true)
+    await flushPromises()
+    expect(loading.value).toBe(false)
+  })
+
+  it('stops loading when the fetch rejects, so the page can fall back', async () => {
+    vi.mocked(fetchScenario).mockRejectedValueOnce(new Error('boom'))
+    const { loading } = useScenario('ca-hsr')
+    await flushPromises()
+    expect(loading.value).toBe(false)
+  })
+
   it('populates routes after fetch resolves', async () => {
     vi.mocked(fetchScenario).mockResolvedValueOnce(stubDetail)
     const { routes } = useScenario('ca-hsr')

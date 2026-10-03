@@ -207,10 +207,7 @@ async function handleSave(): Promise<void> {
     >
       <FieldSkeleton />
       <FieldSkeleton :rows="3" />
-      <SkeletonShape
-        shape="card"
-        :lines="3"
-      />
+      <SkeletonShape shape="card" />
     </LoadingRegion>
 
     <section
@@ -274,7 +271,7 @@ async function handleSave(): Promise<void> {
           v-if="servicesLoading"
           label="Loading your services"
           :caption="false"
-          surface="white"
+          background="white"
           class="mt-3"
           data-testid="services-loading"
         />
