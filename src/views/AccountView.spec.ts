@@ -97,6 +97,20 @@ describe('AccountView', () => {
       expect(wrapper.get('[data-testid="profile-error"]').text()).toBe('Your name can be at most 80 characters.')
     })
 
+    it('fills the name in when the user record arrives, but never over what the user typed', async () => {
+      const { wrapper, auth } = await mountAccount()
+      const field = () => (wrapper.get('[data-testid="name"]').element as HTMLInputElement).value
+
+      auth.user = { id: 'u1', email: 'a@example.com', name: 'Restored Name' }
+      await flushPromises()
+      expect(field()).toBe('Restored Name')
+
+      await wrapper.get('[data-testid="name"]').setValue('Ada')
+      auth.user = { id: 'u1', email: 'a@example.com', name: 'Another Tab' }
+      await flushPromises()
+      expect(field()).toBe('Ada')
+    })
+
     it('offers no save until the name is changed and not blank', async () => {
       const { wrapper } = await mountAccount()
       const save = () => wrapper.get('[data-testid="save-name"]').element as HTMLButtonElement
@@ -118,9 +132,10 @@ describe('AccountView', () => {
       await flushPromises()
     }
 
-    it('states the policy beside the field', async () => {
+    it('states the policy beside the field, and leaves enforcing it to the API so its message shows', async () => {
       const { wrapper } = await mountAccount()
       expect(wrapper.get('[data-testid="password-policy"]').text()).toContain('at least 12 characters')
+      expect(wrapper.get('[data-testid="new-password"]').attributes('minlength')).toBeUndefined()
     })
 
     it('changes the password, clears the fields and says other devices were signed out', async () => {

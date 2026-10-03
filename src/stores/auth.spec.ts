@@ -349,6 +349,12 @@ describe('useAuthStore', () => {
       expect(auth.sessionExpired).toBe(true)
     })
 
+    it('treats having no session as an expiry, not a wrong password', async () => {
+      await expect(useAuthStore().changePassword('old-password', 'a-new-password'))
+        .rejects.toBeInstanceOf(SessionExpiredError)
+      expect(fetch).not.toHaveBeenCalled()
+    })
+
     it('passes a weak-password refusal through untouched', async () => {
       vi.mocked(fetch).mockResolvedValueOnce({
         ok: false,

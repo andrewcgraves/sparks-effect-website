@@ -3,15 +3,13 @@ import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { accountFault } from '../api/accountFault'
-import { isSessionExpiry } from '../api/authoring'
+import { isSessionExpiry, NAME_MAX_LENGTH, PASSWORD_MIN_LENGTH } from '../api/authoring'
 import { useConfirm } from '../composables/useConfirm'
 import { useToast } from '../composables/useToast'
 import { DESTRUCTIVE_BUTTON_CLASS, PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS } from '../components/buttonStyles'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
 import BreadcrumbTrail from '../components/BreadcrumbTrail.vue'
 import { AUTHORING_CRUMB } from '../components/crumbs'
-
-const MIN_PASSWORD_LENGTH = 12
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -21,12 +19,12 @@ const { show: toast } = useToast()
 const SECTION_CLASS = 'flex flex-col gap-4 rounded-(--radius-box) border border-border bg-surface p-4'
 const ERROR_CLASS = 'font-body text-caption text-error'
 
-const signedInAs = computed(() => auth.user?.name || auth.user?.email || '…')
-
 // The user record can land after the page does (restoreSession runs on boot),
-// so the field follows it until the user saves something of their own.
+// so the field follows the stored name for as long as the user hasn't edited it.
 const name = ref(auth.user?.name ?? '')
-watch(() => auth.user?.name, (saved) => { name.value = saved ?? '' })
+watch(() => auth.user?.name, (saved, previous) => {
+  if (name.value === (previous ?? '')) name.value = saved ?? ''
+})
 const savingName = ref(false)
 const profileError = ref('')
 const nameChanged = computed(() => {
@@ -113,7 +111,7 @@ async function signOutEverywhere(): Promise<void> {
           class="font-body text-micro text-ink-muted italic uppercase"
           data-testid="signed-in-as"
         >
-          Signed in as {{ signedInAs }}
+          Signed in as {{ auth.displayName ?? '…' }}
         </p>
       </hgroup>
 
@@ -140,7 +138,7 @@ async function signOutEverywhere(): Promise<void> {
               data-testid="name"
               type="text"
               autocomplete="name"
-              maxlength="80"
+              :maxlength="NAME_MAX_LENGTH"
               aria-describedby="account-name-hint"
             >
           </label>
@@ -209,7 +207,6 @@ async function signOutEverywhere(): Promise<void> {
               data-testid="new-password"
               type="password"
               autocomplete="new-password"
-              :minlength="MIN_PASSWORD_LENGTH"
               aria-describedby="account-password-policy"
             >
           </label>
@@ -218,7 +215,7 @@ async function signOutEverywhere(): Promise<void> {
             class="font-body text-caption text-ink-muted"
             data-testid="password-policy"
           >
-            Use at least {{ MIN_PASSWORD_LENGTH }} characters. Changing it signs you out on your other devices.
+            Use at least {{ PASSWORD_MIN_LENGTH }} characters. Changing it signs you out on your other devices.
           </p>
           <button
             type="submit"

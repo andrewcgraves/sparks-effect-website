@@ -28,7 +28,7 @@ async function handleSignOut() {
           My authoring
         </h1>
         <p class="font-body text-micro text-ink-muted italic uppercase">
-          Signed in as {{ auth.user?.name || auth.user?.email || '…' }}
+          Signed in as {{ auth.displayName ?? '…' }}
         </p>
       </hgroup>
       <!-- Until the header account menu (M4) exists, the account page is reached from here. -->

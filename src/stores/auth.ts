@@ -7,6 +7,7 @@ import {
   login as loginRequest,
   logout as logoutRequest,
   revokeAllSessions,
+  SessionExpiredError,
   updateMe,
   WrongCurrentPasswordError,
   type CurrentUser,
@@ -46,6 +47,9 @@ export const useAuthStore = defineStore('auth', () => {
   const sessionExpired = ref(false)
 
   const isAuthenticated = computed(() => Boolean(token.value))
+
+  // The display name, once one is set; until then the email stands in.
+  const displayName = computed(() => user.value?.name || user.value?.email || null)
 
   // Persistence is best-effort: a full or disabled store must not break sign-in.
   function persist(): void {
@@ -113,10 +117,10 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
-    const presenting = token.value
-    if (!presenting) throw new WrongCurrentPasswordError()
+    const sessionToken = token.value
+    if (!sessionToken) throw new SessionExpiredError('no session to change the password of')
     try {
-      await changePasswordRequest(currentPassword, newPassword, presenting)
+      await changePasswordRequest(currentPassword, newPassword, sessionToken)
     } catch (err: unknown) {
       if (!(err instanceof ApiError) || err.status !== 401) throw err
       // The API gives a wrong current password and a dead session the same
@@ -152,6 +156,7 @@ export const useAuthStore = defineStore('auth', () => {
     userId,
     user,
     isAuthenticated,
+    displayName,
     sessionExpired,
     signIn,
     signOut,

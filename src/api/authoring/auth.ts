@@ -38,6 +38,10 @@ export async function updateMe(name: string): Promise<CurrentUser> {
   })
 }
 
+// Mirrors of the API's own limits, for wording them; the API enforces them.
+export const PASSWORD_MIN_LENGTH = 12
+export const NAME_MAX_LENGTH = 80
+
 export class WrongCurrentPasswordError extends Error {
   constructor() {
     super('current password is incorrect')
