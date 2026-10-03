@@ -214,22 +214,21 @@ async function handleSave(): Promise<void> {
       >
         Saved. Compiling this scenario…
       </p>
-      <template v-else-if="compileError">
-        <p
-          class="font-body text-caption text-coral"
-          role="alert"
-          data-testid="compile-error"
-        >
-          Your changes are saved, but the recompile failed. {{ compileError }}
-        </p>
-        <router-link
-          :to="scenarioPath"
-          :class="ACTION_LINK_CLASS"
-          data-testid="go-to-scenario"
-        >
-          Go to the scenario
-        </router-link>
-      </template>
+      <p
+        v-else-if="compileError"
+        class="font-body text-caption text-coral"
+        role="alert"
+        data-testid="compile-error"
+      >
+        Your changes are saved, but the recompile failed. {{ compileError }}
+      </p>
+      <router-link
+        :to="scenarioPath"
+        :class="ACTION_LINK_CLASS"
+        data-testid="go-to-scenario"
+      >
+        Go to the scenario
+      </router-link>
     </section>
 
     <form

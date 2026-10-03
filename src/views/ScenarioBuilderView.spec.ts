@@ -292,6 +292,18 @@ describe('ScenarioBuilderView editing an existing scenario', () => {
     expect(push).not.toHaveBeenCalled()
   })
 
+  it('offers a way to the scenario while the recompile is still running', async () => {
+    vi.mocked(compileScenario).mockReturnValue(new Promise(() => {}))
+    const wrapper = mountEdit()
+    await flushPromises()
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="compiling-status"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="go-to-scenario"]').getComponent(RouterLinkStub).props('to'))
+      .toBe('/authoring/scenarios/ca-hsr')
+  })
+
   it('reports a failed recompile and stays put, with a way to the scenario', async () => {
     stubCompileJob('failed')
     const wrapper = mountEdit()
