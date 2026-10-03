@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
-import { createMemoryHistory, createRouter } from 'vue-router'
+import { homeOnlyRouter } from '../test/router'
 import ScenarioView from './ScenarioView.vue'
 import { ref } from 'vue'
 
@@ -92,14 +92,10 @@ const stubIsochrone: ChainResponse = {
   },
 }
 
-function testRouter() {
-  return createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { template: '<div />' } }] })
-}
-
 function mountScenarioView(slug = 'ca-hsr', stubs: Record<string, boolean> = { MapView: true, IsochroneForm: true }) {
   return mount(ScenarioView, {
     props: { slug },
-    global: { plugins: [testRouter()], stubs },
+    global: { plugins: [homeOnlyRouter()], stubs },
   })
 }
 

@@ -8,6 +8,7 @@ import { fetchMyServices } from '../api/authoring/services'
 import { createScenario } from '../api/authoring/scenarios'
 import type { Service } from '../api/authoring/types'
 import BreadcrumbTrail from '../components/BreadcrumbTrail.vue'
+import { AUTHORING_CRUMB } from '../components/crumbs'
 import { PRIMARY_BUTTON_CLASS } from '../components/buttonStyles'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
 
@@ -72,7 +73,7 @@ async function handleSave(): Promise<void> {
 
 <template>
   <main class="flex-1 p-(--page-padding)">
-    <BreadcrumbTrail :items="[{ label: 'My authoring', to: '/authoring' }, { label: 'New scenario' }]" />
+    <BreadcrumbTrail :items="[AUTHORING_CRUMB, { label: 'New scenario' }]" />
     <h1 class="mt-8 font-display text-display text-ink-true">
       New scenario
     </h1>

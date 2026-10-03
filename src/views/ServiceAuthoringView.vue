@@ -6,7 +6,8 @@ import { usePageTitle } from '../composables/usePageTitle'
 import { useServiceDraft } from '../composables/useServiceDraft'
 import { useToast } from '../composables/useToast'
 import { MAX_DESCRIPTION_CHARS, MAX_SUBTEXT_CHARS, type SnapCoord as LatLng } from '../api/authoring'
-import BreadcrumbTrail, { type Crumb } from '../components/BreadcrumbTrail.vue'
+import BreadcrumbTrail from '../components/BreadcrumbTrail.vue'
+import { AUTHORING_CRUMB, type Crumb } from '../components/crumbs'
 import MapView from '../components/MapView.vue'
 import { PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS, TOGGLE_BUTTON_CLASS } from '../components/buttonStyles'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
@@ -78,7 +79,7 @@ usePageTitle(() => (editing.value ? `Edit ${editing.value.name}` : null))
 const servicePath = computed(() => `/authoring/services/${props.slug}`)
 
 const trail = computed<Crumb[]>(() => [
-  { label: 'My authoring', to: '/authoring' },
+  AUTHORING_CRUMB,
   ...(props.slug
     ? [{ label: editing.value?.name ?? 'Service', to: servicePath.value }, { label: 'Edit' }]
     : [{ label: 'New service' }]),

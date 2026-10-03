@@ -11,6 +11,7 @@ import ScenarioPreviewPanel from '../components/ScenarioPreviewPanel.vue'
 import TimeBetweenStations from '../components/TimeBetweenStations.vue'
 import { graphStationTimeGroups } from '../components/stationTimes'
 import BreadcrumbTrail from '../components/BreadcrumbTrail.vue'
+import { AUTHORING_CRUMB } from '../components/crumbs'
 
 const props = defineProps<{ slug: string }>()
 
@@ -54,7 +55,7 @@ watch(scenario, (loaded) => {
 
 <template>
   <main class="flex-1 p-(--page-padding)">
-    <BreadcrumbTrail :items="[{ label: 'My authoring', to: '/authoring' }, { label: scenario?.name ?? 'Scenario' }]" />
+    <BreadcrumbTrail :items="[AUTHORING_CRUMB, { label: scenario?.name ?? 'Scenario' }]" />
 
     <p
       v-if="loading"

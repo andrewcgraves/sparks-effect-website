@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
-import { createMemoryHistory, createRouter } from 'vue-router'
+import { homeOnlyRouter } from '../test/router'
 import { createPinia, setActivePinia } from 'pinia'
 import { ApiError } from '../api/authoring/client'
 import type { ServicePublication } from '../api/publications'
@@ -72,12 +72,8 @@ const plot = {
 
 const submit = { lat: 37.7, lng: -122.4, duration: 30, mode: 'walk' }
 
-function testRouter() {
-  return createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { template: '<div />' } }] })
-}
-
 function mountView(slug = 'northbound-express') {
-  return mount(PublishedServiceView, { props: { slug }, global: { plugins: [testRouter()] } })
+  return mount(PublishedServiceView, { props: { slug }, global: { plugins: [homeOnlyRouter()] } })
 }
 
 describe('PublishedServiceView', () => {

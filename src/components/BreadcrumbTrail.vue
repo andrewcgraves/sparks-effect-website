@@ -1,11 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import type { Crumb } from './crumbs'
 import { ACTION_LINK_CLASS } from './linkStyles'
-
-export interface Crumb {
-  label: string
-  to?: string
-}
 
 const props = defineProps<{ items: Crumb[] }>()
 
@@ -17,8 +13,8 @@ const current = computed(() => props.items.at(-1))
   <nav aria-label="Breadcrumb">
     <ol class="font-display text-btn flex flex-wrap items-center gap-x-2 gap-y-1 uppercase">
       <li
-        v-for="crumb in ancestors"
-        :key="crumb.label"
+        v-for="(crumb, index) in ancestors"
+        :key="index"
         class="flex items-center gap-x-2"
       >
         <RouterLink
