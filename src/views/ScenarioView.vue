@@ -13,6 +13,7 @@ import { useScenarioTravelTimes } from '../composables/useScenarioTravelTimes'
 import { useIsochrone } from '../composables/useIsochrone'
 import { useOriginPick } from '../composables/useOriginPick'
 import { usePageTitle } from '../composables/usePageTitle'
+import AllLinesLink from '../components/AllLinesLink.vue'
 import type { TravelMode } from '../api/authoring'
 
 const props = defineProps<{ slug: string }>()
@@ -97,7 +98,8 @@ async function handleFormSubmit(payload: { lat: number; lng: number; duration: n
 
 <template>
   <main class="flex-1 p-(--page-padding)">
-    <h1 class="max-w-[720px] font-display text-display text-ink-true">
+    <AllLinesLink />
+    <h1 class="mt-8 max-w-[720px] font-display text-display text-ink-true">
       {{ name || 'Sparks Effect' }}
     </h1>
 

@@ -10,7 +10,8 @@ import { usePageTitle } from '../composables/usePageTitle'
 import ScenarioPreviewPanel from '../components/ScenarioPreviewPanel.vue'
 import TimeBetweenStations from '../components/TimeBetweenStations.vue'
 import { graphStationTimeGroups } from '../components/stationTimes'
-import { ACTION_LINK_CLASS } from '../components/linkStyles'
+import BreadcrumbTrail from '../components/BreadcrumbTrail.vue'
+import { AUTHORING_CRUMB } from '../components/crumbs'
 
 const props = defineProps<{ slug: string }>()
 
@@ -54,13 +55,7 @@ watch(scenario, (loaded) => {
 
 <template>
   <main class="flex-1 p-(--page-padding)">
-    <router-link
-      to="/authoring"
-      :class="ACTION_LINK_CLASS"
-      data-testid="back-to-authoring"
-    >
-      ← My authoring
-    </router-link>
+    <BreadcrumbTrail :items="[AUTHORING_CRUMB, { label: scenario?.name ?? 'Scenario' }]" />
 
     <p
       v-if="loading"

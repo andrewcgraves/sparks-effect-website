@@ -21,6 +21,7 @@ vi.mock('../components/MapView.vue', () => ({
   },
 }))
 
+import { breadcrumbTrail } from '../test/breadcrumbs'
 import AuthoredScenarioView from './AuthoredScenarioView.vue'
 import {
   fetchScenario,
@@ -255,10 +256,13 @@ describe('AuthoredScenarioView', () => {
     expect(wrapper.find('[data-testid="map"]').exists()).toBe(true)
   })
 
-  it('links back to the authoring page', async () => {
+  it('shows where it sits: the scenario, under My authoring', async () => {
     const wrapper = mountView()
     await flushPromises()
-    expect(wrapper.find('[data-testid="back-to-authoring"]').attributes('href')).toBe('/authoring')
+    expect(breadcrumbTrail(wrapper)).toEqual([
+      ['My authoring', '/authoring'],
+      ['CA HSR', null],
+    ])
   })
 
   it('shows a not-found state on a 404 rather than a blank page', async () => {

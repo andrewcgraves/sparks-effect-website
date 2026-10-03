@@ -18,6 +18,7 @@ vi.mock('../api/authoring/services', () => ({
 }))
 
 import ServiceAuthoringView from './ServiceAuthoringView.vue'
+import { breadcrumbTrail } from '../test/breadcrumbs'
 import { listRoutes, fetchRoute, snapStops } from '../api/authoring/routes'
 import {
   createService,
@@ -487,6 +488,15 @@ describe('ServiceAuthoringView', () => {
       return { wrapper, router }
     }
 
+    it('shows where it sits: a new service, under My authoring', async () => {
+      const { wrapper } = await mountNew()
+
+      expect(breadcrumbTrail(wrapper)).toEqual([
+        ['My authoring', '/authoring'],
+        ['New service', null],
+      ])
+    })
+
     it('lands on the new service\'s page, which compiles it, rather than compiling here', async () => {
       const { wrapper, router } = await mountNew()
 
@@ -907,12 +917,14 @@ describe('ServiceAuthoringView', () => {
       expect(document.title).toBe('Edit Northbound Express · Sparks Effect')
     })
 
-    it('links back to the service it is editing', async () => {
+    it('shows where it sits: editing the service, under My authoring', async () => {
       const { wrapper } = await mountEdit()
 
-      const back = wrapper.find('[data-testid="back-to-service"]')
-      expect(back.attributes('href')).toBe('/authoring/services/northbound-express')
-      expect(back.text()).toContain('Northbound Express')
+      expect(breadcrumbTrail(wrapper)).toEqual([
+        ['My authoring', '/authoring'],
+        ['Northbound Express', '/authoring/services/northbound-express'],
+        ['Edit', null],
+      ])
     })
 
     it('saves with a PUT, then lands on the service once it has recompiled', async () => {

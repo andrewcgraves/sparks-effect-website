@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import AllLinesLink from '../components/AllLinesLink.vue'
 import MapView from '../components/MapView.vue'
 import { fetchRoute } from '../api/authoring/routes'
 import type { Route } from '../api/authoring'
@@ -28,6 +29,10 @@ const mapRoutes = computed<ScenarioRoute[]>(() => {
 
 <template>
   <main class="flex-1 p-(--page-padding)">
+    <div class="mb-8">
+      <AllLinesLink />
+    </div>
+
     <p
       v-if="loading"
       class="font-body text-body text-ink-muted"

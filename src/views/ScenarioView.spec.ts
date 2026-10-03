@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
+import { homeOnlyRouter } from '../test/router'
 import ScenarioView from './ScenarioView.vue'
 import { ref } from 'vue'
 
@@ -94,7 +95,7 @@ const stubIsochrone: ChainResponse = {
 function mountScenarioView(slug = 'ca-hsr', stubs: Record<string, boolean> = { MapView: true, IsochroneForm: true }) {
   return mount(ScenarioView, {
     props: { slug },
-    global: { stubs },
+    global: { plugins: [homeOnlyRouter()], stubs },
   })
 }
 
@@ -115,6 +116,10 @@ describe('ScenarioView', () => {
       stations: ref(stubStations),
       services: ref([]),
     })
+  })
+
+  it('links back to all lines', () => {
+    expect(mountScenarioView().get('[data-testid="back-to-lines"]').attributes('href')).toBe('/')
   })
 
   it('titles the page with the scenario name alone', () => {

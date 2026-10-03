@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
+import { homeOnlyRouter } from '../test/router'
 import type { Route } from '../api/authoring'
 
 vi.mock('../api/authoring/routes', () => ({
@@ -26,13 +27,18 @@ const stubRoute: Route = {
 function mountRouteView(slug = 'main-line') {
   return mount(RouteView, {
     props: { slug },
-    global: { stubs: { MapView: true } },
+    global: { plugins: [homeOnlyRouter()], stubs: { MapView: true } },
   })
 }
 
 describe('RouteView', () => {
   beforeEach(() => {
     vi.mocked(fetchRoute).mockReset()
+  })
+
+  it('links back to all lines, even while the route is still loading', () => {
+    vi.mocked(fetchRoute).mockReturnValueOnce(new Promise(() => {}))
+    expect(mountRouteView().get('[data-testid="back-to-lines"]').attributes('href')).toBe('/')
   })
 
   it('calls fetchRoute with the given slug', () => {
