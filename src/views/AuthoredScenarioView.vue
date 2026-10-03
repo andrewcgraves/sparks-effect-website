@@ -50,7 +50,7 @@ watch(scenario, (loaded) => {
 </script>
 
 <template>
-  <main class="min-h-svh p-(--page-padding)">
+  <main class="flex-1 p-(--page-padding)">
     <router-link
       to="/authoring"
       :class="ACTION_LINK_CLASS"

@@ -12,7 +12,7 @@ export default defineConfig([
   {
     files: ['**/*.{ts,vue}'],
     languageOptions: {
-      globals: globals.browser,
+      globals: { ...globals.browser, __BUILD_VERSION__: 'readonly' },
       parserOptions: {
         parser: tseslint.parser,
       },

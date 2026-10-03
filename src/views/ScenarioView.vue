@@ -93,7 +93,7 @@ async function handleFormSubmit(payload: { lat: number; lng: number; duration: n
 </script>
 
 <template>
-  <main class="min-h-svh p-(--page-padding)">
+  <main class="flex-1 p-(--page-padding)">
     <h1 class="max-w-[720px] font-display text-display text-ink-true">
       {{ name || 'Sparks Effect' }}
     </h1>
