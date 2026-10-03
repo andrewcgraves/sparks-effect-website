@@ -34,6 +34,7 @@ import {
 } from '../api/authoring/scenarios'
 import { useConfirmHost } from '../composables/useConfirm'
 import { fetchMyServices } from '../api/authoring/services'
+import { busyRegion, visibleText } from '../test/loading'
 
 const Stub = { template: '<div>stub</div>' }
 
@@ -90,6 +91,15 @@ describe('AuthoredScenarioView', () => {
   afterEach(() => {
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
+  })
+
+  it('shows a page skeleton in the shape of the loaded page, not loading copy, while it loads', () => {
+    vi.mocked(fetchScenario).mockReturnValue(new Promise(() => {}))
+    const wrapper = mountView()
+    const region = busyRegion(wrapper, 'scenario-loading')
+    expect(region.find('[data-testid="map-panel-skeleton"]').exists()).toBe(true)
+    expect(region.findAll('[data-testid="card-skeleton"]')).toHaveLength(1)
+    expect(visibleText(region)).toBe('')
   })
 
   it('names the tab after the scenario once it loads', async () => {
@@ -239,12 +249,12 @@ describe('AuthoredScenarioView', () => {
       .toEqual(['Los Angeles', 'Bakersfield', '2:20'])
   })
 
-  it('shows muted loading copy for run times while the graph is still being read', async () => {
+  it('shows a run-time skeleton while the graph is still being read', async () => {
     vi.mocked(fetchScenarioGraph).mockReturnValue(new Promise(() => {}))
     const wrapper = mountView()
     await flushPromises()
     // Not yet knowing the run times must not read as "there are none".
-    expect(wrapper.get('[data-testid="station-times-loading"]').classes()).toContain('text-ink-muted')
+    expect(wrapper.get('[data-testid="station-times-loading"]').attributes('aria-busy')).toBe('true')
     expect(wrapper.find('[data-testid="station-times-empty"]').exists()).toBe(false)
   })
 

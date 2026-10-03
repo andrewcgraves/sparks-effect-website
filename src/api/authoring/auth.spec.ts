@@ -1,7 +1,15 @@
 // @vitest-environment node
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { changePassword, login, logout, revokeAllSessions, updateMe } from './auth'
+import {
+  changePassword,
+  fetchAccountToken,
+  login,
+  logout,
+  redeemAccountToken,
+  revokeAllSessions,
+  updateMe,
+} from './auth'
 
 describe('login', () => {
   beforeEach(() => {
@@ -60,6 +68,65 @@ describe('logout', () => {
     const [url, init] = vi.mocked(fetch).mock.calls[0]
     expect(url).toContain('/api/auth/logout')
     expect((init as RequestInit).method).toBe('POST')
+  })
+})
+
+describe('fetchAccountToken', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn())
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('GETs the link by its token and returns whom it is for', async () => {
+    const body = { purpose: 'invite', email: 'new@example.com', expires_at: '2026-10-10T00:00:00Z' }
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 200, json: async () => body } as Response)
+
+    const result = await fetchAccountToken('tok/with?odd chars')
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0]
+    expect(url).toContain('/api/auth/tokens/tok%2Fwith%3Fodd%20chars')
+    expect((init as RequestInit | undefined)?.method ?? 'GET').toBe('GET')
+    expect(result).toEqual(body)
+  })
+
+  it('rejects with a 404 ApiError for a link that is no longer valid', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      json: async () => ({ error: 'link not found or no longer valid' }),
+    } as Response)
+
+    await expect(fetchAccountToken('gone')).rejects.toMatchObject({ status: 404 })
+  })
+})
+
+describe('redeemAccountToken', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn())
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('POSTs the new password to the link and returns the session', async () => {
+    const body = {
+      token: 'session-1',
+      expires_at: '2026-10-04T00:00:00Z',
+      user: { id: 'u1', email: 'new@example.com', is_admin: false },
+    }
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 200, json: async () => body } as Response)
+
+    const result = await redeemAccountToken('tok-1', 'a-strong-new-password')
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0]
+    expect(url).toContain('/api/auth/tokens/tok-1')
+    expect((init as RequestInit).method).toBe('POST')
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({ password: 'a-strong-new-password' })
+    expect(result).toEqual(body)
   })
 })
 

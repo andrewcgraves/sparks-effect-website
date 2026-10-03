@@ -10,6 +10,10 @@ import type { ScenarioInput, Service } from '../api/authoring/types'
 import { useCompileJob } from '../composables/useCompileJob'
 import { usePageTitle } from '../composables/usePageTitle'
 import BreadcrumbTrail from '../components/BreadcrumbTrail.vue'
+import FieldSkeleton from '../components/FieldSkeleton.vue'
+import ListSkeleton from '../components/ListSkeleton.vue'
+import LoadingRegion from '../components/LoadingRegion.vue'
+import SkeletonShape from '../components/SkeletonShape.vue'
 import { AUTHORING_CRUMB, type Crumb } from '../components/crumbs'
 import { PRIMARY_BUTTON_CLASS } from '../components/buttonStyles'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
@@ -195,13 +199,16 @@ async function handleSave(): Promise<void> {
     >
       Failed to load this scenario. Please try again.
     </p>
-    <p
+    <LoadingRegion
       v-else-if="editLoading"
-      class="font-body text-body mt-8 text-ink-muted"
+      label="Loading scenario"
+      class="mt-8 flex max-w-[560px] flex-col gap-6"
       data-testid="draft-loading"
     >
-      Loading scenario…
-    </p>
+      <FieldSkeleton />
+      <FieldSkeleton :rows="3" />
+      <SkeletonShape shape="card" />
+    </LoadingRegion>
 
     <section
       v-else-if="savedSlug"
@@ -260,12 +267,14 @@ async function handleSave(): Promise<void> {
         <h2 class="font-display text-h3 text-ink-true">
           Services
         </h2>
-        <p
+        <ListSkeleton
           v-if="servicesLoading"
-          class="font-body text-caption mt-2 text-ink-muted italic"
-        >
-          Loading your services…
-        </p>
+          label="Loading your services"
+          :caption="false"
+          background="white"
+          class="mt-3"
+          data-testid="services-loading"
+        />
         <p
           v-else-if="servicesError"
           class="font-body text-caption mt-2 text-error"

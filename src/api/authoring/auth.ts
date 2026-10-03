@@ -63,3 +63,24 @@ export async function changePassword(currentPassword: string, newPassword: strin
 export async function revokeAllSessions(): Promise<void> {
   await apiRequest<void>('/api/auth/sessions/revoke-all', { method: 'POST' })
 }
+
+export type AccountTokenPurpose = 'invite' | 'reset'
+
+export interface AccountToken {
+  purpose: AccountTokenPurpose
+  email: string
+  expires_at: string
+}
+
+// A used, expired or unknown link, or one for a disabled account, all answer
+// the same 404, so the page cannot tell them apart and should not try.
+export async function fetchAccountToken(token: string): Promise<AccountToken> {
+  return apiRequest<AccountToken>(`/api/auth/tokens/${encodeURIComponent(token)}`)
+}
+
+export async function redeemAccountToken(token: string, password: string): Promise<LoginResponse> {
+  return apiRequest<LoginResponse>(`/api/auth/tokens/${encodeURIComponent(token)}`, {
+    method: 'POST',
+    body: JSON.stringify({ password }),
+  })
+}
