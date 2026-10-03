@@ -12,6 +12,14 @@ const auth = useAuthStore()
   <div class="flex min-h-svh flex-col">
     <header class="flex justify-end gap-4 p-(--page-padding) pb-0">
       <RouterLink
+        v-if="auth.isAuthenticated && auth.user?.is_admin"
+        to="/admin"
+        class="font-display text-btn text-ink-muted uppercase transition-colors duration-200 ease-(--ease-smooth) hover:text-coral"
+        data-testid="nav-admin"
+      >
+        Admin
+      </RouterLink>
+      <RouterLink
         v-if="auth.isAuthenticated"
         to="/authoring"
         class="font-display text-btn text-ink-muted uppercase transition-colors duration-200 ease-(--ease-smooth) hover:text-coral"

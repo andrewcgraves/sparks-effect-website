@@ -94,7 +94,17 @@ export const useAuthStore = defineStore('auth', () => {
   // A 401 means the session was revoked or expired, so the stored token is
   // dead and we sign out. Any other failure (offline, API down) is treated as
   // transient: the token is kept so a later call can still succeed.
-  async function restoreSession(): Promise<void> {
+  //
+  // Callers that ask while a restore is in flight share it: the router waits on
+  // the one started at boot before deciding whether an admin page may open.
+  let restoring: Promise<void> | null = null
+
+  function restoreSession(): Promise<void> {
+    restoring ??= fetchSession().finally(() => { restoring = null })
+    return restoring
+  }
+
+  async function fetchSession(): Promise<void> {
     if (!token.value) return
     try {
       const me = await fetchCurrentUser()

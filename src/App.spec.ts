@@ -46,6 +46,24 @@ describe('App routing', () => {
     expect(wrapper.find('[data-testid="nav-login"]').exists()).toBe(false)
   })
 
+  it('shows an Admin link to an admin', async () => {
+    useAuthStore().signIn('tok-1', { id: 'u1', email: 'a@example.com', is_admin: true })
+    const wrapper = mount(App, { global: { plugins: [router] } })
+    await flushPromises()
+    expect(wrapper.get('[data-testid="nav-admin"]').attributes('href')).toBe('/admin')
+  })
+
+  it('shows no Admin link to a signed-in non-admin, or while signed out', async () => {
+    const signedOut = mount(App, { global: { plugins: [router] } })
+    await flushPromises()
+    expect(signedOut.find('[data-testid="nav-admin"]').exists()).toBe(false)
+
+    useAuthStore().signIn('tok-1', { id: 'u1', email: 'a@example.com', is_admin: false })
+    const member = mount(App, { global: { plugins: [router] } })
+    await flushPromises()
+    expect(member.find('[data-testid="nav-admin"]').exists()).toBe(false)
+  })
+
   it('hosts the shared confirm dialog and toast region on every page', async () => {
     const wrapper = mount(App, { global: { plugins: [router] } })
     await flushPromises()

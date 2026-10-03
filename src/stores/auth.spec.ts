@@ -170,6 +170,23 @@ describe('useAuthStore', () => {
       expect(auth.isAuthenticated).toBe(true)
     })
 
+    it('shares one /api/auth/me request between callers that ask while it is in flight', async () => {
+      const me = { id: 'u1', email: 'a@example.com', is_admin: true }
+      vi.mocked(fetch).mockResolvedValue({ ok: true, status: 200, json: async () => me } as Response)
+
+      window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: 'tok-1' }))
+      setActivePinia(createPinia())
+      const auth = useAuthStore()
+      await Promise.all([auth.restoreSession(), auth.restoreSession()])
+
+      expect(fetch).toHaveBeenCalledTimes(1)
+      expect(auth.user).toEqual(me)
+
+      // Once settled, a later call asks again.
+      await auth.restoreSession()
+      expect(fetch).toHaveBeenCalledTimes(2)
+    })
+
     it('surfaces a 401 as an ApiError carrying the status', async () => {
       vi.mocked(fetch).mockResolvedValueOnce({
         ok: false,

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
 vi.mock('../analytics/index', () => ({
@@ -14,10 +14,11 @@ vi.mock('../views/AuthoredServiceView.vue', () => ({ default: { props: ['slug'],
 vi.mock('../views/AuthoredScenarioView.vue', () => ({ default: { props: ['slug'], template: '<div />' } }))
 vi.mock('../views/PublishedServiceView.vue', () => ({ default: { props: ['slug'], template: '<div />' } }))
 vi.mock('../views/NotFoundView.vue', () => ({ default: { template: '<div />' } }))
+vi.mock('../views/AdminView.vue', () => ({ default: { template: '<div />' } }))
 
 import { router, redirectAfterSessionExpiry } from './index'
 import { trackPageView } from '../analytics/index'
-import { useAuthStore } from '../stores/auth'
+import { AUTH_STORAGE_KEY, useAuthStore } from '../stores/auth'
 
 describe('router', () => {
   beforeEach(() => {
@@ -94,6 +95,66 @@ describe('router', () => {
       await router.push('/services/northbound-express')
       expect(router.currentRoute.value.name).toBe('published-service')
       expect(router.currentRoute.value.params.slug).toBe('northbound-express')
+    })
+  })
+
+  describe('admin gating', () => {
+    // The router is shared, and a push to the route it is already on skips the
+    // guard; start every case from elsewhere.
+    beforeEach(async () => {
+      await router.push('/')
+    })
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    it('sends a signed-out visitor to sign in first', async () => {
+      await router.push('/admin')
+      expect(router.currentRoute.value.path).toBe('/login')
+      expect(router.currentRoute.value.query.redirect).toBe('/admin')
+    })
+
+    it('sends a signed-in non-admin home', async () => {
+      useAuthStore().signIn('tok-1', { id: 'u1', email: 'a@example.com', is_admin: false })
+      await router.push('/admin')
+      expect(router.currentRoute.value.path).toBe('/')
+    })
+
+    it('lets an admin in', async () => {
+      useAuthStore().signIn('tok-1', { id: 'u1', email: 'a@example.com', is_admin: true })
+      await router.push('/admin')
+      expect(router.currentRoute.value.path).toBe('/admin')
+    })
+
+    it('waits for a restored session to say who the user is before deciding', async () => {
+      // A reload: the token comes back from storage but the user record is
+      // still on its way from /api/auth/me.
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ id: 'u1', email: 'a@example.com', is_admin: true }),
+      } as Response))
+      window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: 'tok-1', userId: 'u1' }))
+      setActivePinia(createPinia())
+
+      await router.push('/admin')
+
+      expect(router.currentRoute.value.path).toBe('/admin')
+    })
+
+    it('sends a restored non-admin home once /api/auth/me answers', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ id: 'u1', email: 'a@example.com', is_admin: false }),
+      } as Response))
+      window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: 'tok-1', userId: 'u1' }))
+      setActivePinia(createPinia())
+
+      await router.push('/admin')
+
+      expect(router.currentRoute.value.path).toBe('/')
     })
   })
 
