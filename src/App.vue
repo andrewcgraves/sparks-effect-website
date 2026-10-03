@@ -4,6 +4,7 @@ import { redactUrl } from './analytics/redact'
 import ConfirmDialog from './components/ConfirmDialog.vue'
 import SiteFooter from './components/SiteFooter.vue'
 import ToastRegion from './components/ToastRegion.vue'
+import { ACTION_LINK_CLASS } from './components/linkStyles'
 import { useAuthStore } from './stores/auth'
 
 const auth = useAuthStore()
@@ -14,6 +15,14 @@ const redactAnalyticsEvent: BeforeSend = (event) => ({ ...event, url: redactUrl(
 <template>
   <div class="flex min-h-svh flex-col">
     <header class="flex justify-end gap-4 p-(--page-padding) pb-0">
+      <RouterLink
+        v-if="auth.isAuthenticated && auth.user?.is_admin"
+        to="/admin"
+        :class="ACTION_LINK_CLASS"
+        data-testid="nav-admin"
+      >
+        Admin
+      </RouterLink>
       <RouterLink
         v-if="auth.isAuthenticated"
         to="/authoring"

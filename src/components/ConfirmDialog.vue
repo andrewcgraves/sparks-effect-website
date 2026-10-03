@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { useConfirmHost } from '../composables/useConfirm'
+import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from './fieldStyles'
 import { DESTRUCTIVE_BUTTON_CLASS, PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS } from './buttonStyles'
 
-const { pending, settle } = useConfirmHost()
+const { pending, note, settle } = useConfirmHost()
 
 const dialog = ref<HTMLDialogElement | null>(null)
 const cancelButton = ref<HTMLButtonElement | null>(null)
+const noteField = ref<HTMLTextAreaElement | null>(null)
 
 watch(pending, (now, before) => {
   const el = dialog.value
@@ -14,8 +16,8 @@ watch(pending, (now, before) => {
   if (now) {
     if (!el.open) el.showModal()
     // Whatever is asked must be chosen deliberately, so Enter on open lands on
-    // the safe choice.
-    cancelButton.value?.focus()
+    // the safe choice, or in the note, where Enter only starts a new line.
+    ;(noteField.value ?? cancelButton.value)?.focus()
     return
   }
   if (el.open) el.close()
@@ -25,10 +27,10 @@ watch(pending, (now, before) => {
 // A modal <dialog> makes the page inert in browsers, but Tab can still leave
 // for the browser's own chrome; this keeps it cycling through the dialog.
 function trapTab(event: KeyboardEvent): void {
-  const buttons = [...(dialog.value?.querySelectorAll<HTMLButtonElement>('button:not([disabled])') ?? [])]
-  if (buttons.length === 0) return
-  const first = buttons[0]
-  const last = buttons[buttons.length - 1]
+  const focusable = [...(dialog.value?.querySelectorAll<HTMLElement>('textarea, button:not([disabled])') ?? [])]
+  if (focusable.length === 0) return
+  const first = focusable[0]
+  const last = focusable[focusable.length - 1]
   if (event.shiftKey && document.activeElement === first) {
     event.preventDefault()
     last.focus()
@@ -74,6 +76,19 @@ function onKeydown(event: KeyboardEvent): void {
       >
         {{ pending.body }}
       </p>
+      <label
+        v-if="pending.noteLabel"
+        :class="['mt-4', FIELD_LABEL_CLASS]"
+      >
+        {{ pending.noteLabel }}
+        <textarea
+          ref="noteField"
+          v-model="note"
+          rows="3"
+          :class="FIELD_INPUT_CLASS"
+          data-testid="confirm-dialog-note"
+        />
+      </label>
       <div class="mt-5 flex flex-wrap justify-end gap-3">
         <button
           ref="cancelButton"

@@ -11,6 +11,7 @@ import AuthoredScenarioView from '../views/AuthoredScenarioView.vue'
 import RouteView from '../views/RouteView.vue'
 import PublishedServiceView from '../views/PublishedServiceView.vue'
 import NotFoundView from '../views/NotFoundView.vue'
+import AdminView from '../views/AdminView.vue'
 import WelcomeView from '../views/WelcomeView.vue'
 import { trackPageView } from '../analytics/index'
 import { redactPath } from '../analytics/redact'
@@ -20,6 +21,7 @@ import { useAuthStore } from '../stores/auth'
 declare module 'vue-router' {
   interface RouteMeta {
     requiresAuth?: boolean
+    requiresAdmin?: boolean
     title?: string
   }
 }
@@ -116,6 +118,12 @@ export const router = createRouter({
       props: true,
       meta: { requiresAuth: true, title: 'My scenario' },
     },
+    {
+      path: '/admin',
+      name: 'admin',
+      component: AdminView,
+      meta: { requiresAuth: true, requiresAdmin: true, title: 'Admin' },
+    },
     // A publication, which anyone may read. The owner's draft stays behind
     // sign-in at /authoring/services/:slug (ADR-0005 in sparks-effect-api).
     {
@@ -141,11 +149,19 @@ export const router = createRouter({
   ],
 })
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   const auth = useAuthStore()
 
   if (to.meta.requiresAuth && !auth.isAuthenticated) {
     return { path: '/login', query: { redirect: to.fullPath } }
+  }
+
+  // Only a convenience: the API refuses a non-admin on every admin endpoint.
+  // After a reload the token is back before /api/auth/me has said whose it is,
+  // so this waits for that rather than turning an admin away.
+  if (to.meta.requiresAdmin) {
+    if (!auth.user) await auth.restoreSession()
+    if (!auth.user?.is_admin) return { path: '/' }
   }
 
   if (to.name === 'login' && auth.isAuthenticated) {
