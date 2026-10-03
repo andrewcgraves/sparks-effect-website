@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { mount, flushPromises, RouterLinkStub } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import type { Scenario, Service } from '../api/authoring/types'
 
@@ -15,6 +15,7 @@ vi.mock('vue-router', () => ({
   useRouter: () => ({ push }),
 }))
 
+import { breadcrumbTrail } from '../test/breadcrumbs'
 import ScenarioBuilderView from './ScenarioBuilderView.vue'
 import { fetchMyServices } from '../api/authoring/services'
 import { createScenario } from '../api/authoring/scenarios'
@@ -51,7 +52,7 @@ const stubScenario: Scenario = {
 }
 
 function mountView() {
-  return mount(ScenarioBuilderView)
+  return mount(ScenarioBuilderView, { global: { stubs: { RouterLink: RouterLinkStub } } })
 }
 
 async function fillAndSelect(wrapper: ReturnType<typeof mountView>) {
@@ -70,6 +71,13 @@ describe('ScenarioBuilderView', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
+  })
+
+  it('shows where it sits: a new scenario, under My authoring', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    expect(breadcrumbTrail(wrapper).map(([label]) => label)).toEqual(['My authoring', 'New scenario'])
+    expect(wrapper.getComponent(RouterLinkStub).props('to')).toBe('/authoring')
   })
 
   it('loads the caller\'s services and offers them as a checklist', async () => {

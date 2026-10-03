@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { fetchPublicationIsochrone, fetchServicePublication } from '../api/publications'
 import { useAuthoredGraph } from '../composables/useAuthoredGraph'
 import { usePageTitle } from '../composables/usePageTitle'
+import AllLinesLink from '../components/AllLinesLink.vue'
 import ScenarioPreviewPanel from '../components/ScenarioPreviewPanel.vue'
 import TimeBetweenStations from '../components/TimeBetweenStations.vue'
 import { graphStationTimeGroups } from '../components/stationTimes'
@@ -62,6 +63,10 @@ void loadGraph(props.slug)
 
 <template>
   <main class="flex-1 p-(--page-padding)">
+    <div class="mb-8">
+      <AllLinesLink />
+    </div>
+
     <p
       v-if="loading"
       class="font-body text-body text-ink-muted"

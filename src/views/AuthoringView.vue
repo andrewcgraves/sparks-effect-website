@@ -5,6 +5,7 @@ import { useOwnedList } from '../composables/useOwnedList'
 import { fetchMyServices } from '../api/authoring/services'
 import { fetchMyScenarios } from '../api/authoring/scenarios'
 import { ACTION_LINK_CLASS, LIST_CARD_LINK_CLASS } from '../components/linkStyles'
+import AllLinesLink from '../components/AllLinesLink.vue'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -20,7 +21,8 @@ async function handleSignOut() {
 
 <template>
   <main class="flex-1 p-(--page-padding)">
-    <div class="flex items-start justify-between gap-4">
+    <AllLinesLink />
+    <div class="mt-8 flex items-start justify-between gap-4">
       <hgroup class="flex flex-col gap-2">
         <h1 class="font-display text-display text-ink-true">
           My authoring

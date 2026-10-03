@@ -6,6 +6,7 @@ import { usePageTitle } from '../composables/usePageTitle'
 import { useServiceDraft } from '../composables/useServiceDraft'
 import { useToast } from '../composables/useToast'
 import { MAX_DESCRIPTION_CHARS, MAX_SUBTEXT_CHARS, type SnapCoord as LatLng } from '../api/authoring'
+import BreadcrumbTrail, { type Crumb } from '../components/BreadcrumbTrail.vue'
 import MapView from '../components/MapView.vue'
 import { PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS, TOGGLE_BUTTON_CLASS } from '../components/buttonStyles'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
@@ -75,6 +76,13 @@ const {
 usePageTitle(() => (editing.value ? `Edit ${editing.value.name}` : null))
 
 const servicePath = computed(() => `/authoring/services/${props.slug}`)
+
+const trail = computed<Crumb[]>(() => [
+  { label: 'My authoring', to: '/authoring' },
+  ...(props.slug
+    ? [{ label: editing.value?.name ?? 'Service', to: servicePath.value }, { label: 'Edit' }]
+    : [{ label: 'New service' }]),
+])
 
 const submitLabel = computed(() => {
   if (props.slug) return submitting.value ? 'Saving…' : 'Save changes'
@@ -185,18 +193,8 @@ watch(createdSlug, (created) => {
 
 <template>
   <main class="flex-1 p-(--page-padding)">
-    <router-link
-      v-if="slug"
-      :to="servicePath"
-      :class="ACTION_LINK_CLASS"
-      data-testid="back-to-service"
-    >
-      ← {{ editing?.name ?? 'Service' }}
-    </router-link>
-    <h1
-      class="font-display text-display text-ink-true"
-      :class="{ 'mt-8': slug }"
-    >
+    <BreadcrumbTrail :items="trail" />
+    <h1 class="mt-8 font-display text-display text-ink-true">
       {{ slug ? 'Edit service' : 'New service' }}
     </h1>
 

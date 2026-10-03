@@ -23,6 +23,7 @@ vi.mock('../components/MapView.vue', () => ({
   },
 }))
 
+import { breadcrumbTrail } from '../test/breadcrumbs'
 import AuthoredServiceView from './AuthoredServiceView.vue'
 import { compileService, fetchService, fetchServiceGraph, fetchServiceIsochrone } from '../api/authoring/services'
 import { fetchServicePublication, publishService } from '../api/publications'
@@ -181,11 +182,14 @@ describe('AuthoredServiceView', () => {
     expect(wrapper.findAll('[data-testid="service-window-row"]')).toHaveLength(1)
   })
 
-  it('links back to the authoring page', async () => {
+  it('shows where it sits: the service, under My authoring', async () => {
     vi.mocked(fetchService).mockResolvedValue(stubService)
     const wrapper = mountView()
     await flushPromises()
-    expect(wrapper.find('[data-testid="back-to-authoring"]').attributes('href')).toBe('/authoring')
+    expect(breadcrumbTrail(wrapper)).toEqual([
+      ['My authoring', '/authoring'],
+      ['Northbound Express', null],
+    ])
   })
 
   it('links to editing the service', async () => {

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
+import { createMemoryHistory, createRouter } from 'vue-router'
 import { createPinia, setActivePinia } from 'pinia'
 import { ApiError } from '../api/authoring/client'
 import type { ServicePublication } from '../api/publications'
@@ -71,8 +72,12 @@ const plot = {
 
 const submit = { lat: 37.7, lng: -122.4, duration: 30, mode: 'walk' }
 
+function testRouter() {
+  return createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { template: '<div />' } }] })
+}
+
 function mountView(slug = 'northbound-express') {
-  return mount(PublishedServiceView, { props: { slug } })
+  return mount(PublishedServiceView, { props: { slug }, global: { plugins: [testRouter()] } })
 }
 
 describe('PublishedServiceView', () => {
@@ -87,6 +92,10 @@ describe('PublishedServiceView', () => {
     // reaching fetch — a compile, a job poll — is a request it must not make.
     fetchSpy.mockReset()
     vi.stubGlobal('fetch', fetchSpy)
+  })
+
+  it('links back to all lines', () => {
+    expect(mountView().get('[data-testid="back-to-lines"]').attributes('href')).toBe('/')
   })
 
   afterEach(() => {
