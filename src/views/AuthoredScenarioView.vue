@@ -7,10 +7,15 @@ import { useOwnedDetail } from '../composables/useOwnedDetail'
 import { useOwnedList } from '../composables/useOwnedList'
 import { useAuthoredGraph } from '../composables/useAuthoredGraph'
 import { usePageTitle } from '../composables/usePageTitle'
+import { useScenarioDeletion } from '../composables/useDeletion'
 import ScenarioPreviewPanel from '../components/ScenarioPreviewPanel.vue'
 import TimeBetweenStations from '../components/TimeBetweenStations.vue'
 import { graphStationTimeGroups } from '../components/stationTimes'
 import { ACTION_LINK_CLASS } from '../components/linkStyles'
+import BreadcrumbTrail from '../components/BreadcrumbTrail.vue'
+import { AUTHORING_CRUMB } from '../components/crumbs'
+import DeleteMenu from '../components/DeleteMenu.vue'
+import PageSkeleton from '../components/PageSkeleton.vue'
 
 const props = defineProps<{ slug: string }>()
 
@@ -47,6 +52,8 @@ const stationTimeGroups = computed(() => graphStationTimeGroups(graph.value, ser
 
 const stationTimesFailed = computed(() => Boolean(graphFailed.value || (compileError.value && !graph.value)))
 
+const { deleting, confirmAndDelete } = useScenarioDeletion()
+
 watch(scenario, (loaded) => {
   if (loaded) void loadGraph(loaded.slug)
 }, { immediate: true })
@@ -54,20 +61,16 @@ watch(scenario, (loaded) => {
 
 <template>
   <main class="flex-1 p-(--page-padding)">
-    <router-link
-      to="/authoring"
-      :class="ACTION_LINK_CLASS"
-      data-testid="back-to-authoring"
-    >
-      ← My authoring
-    </router-link>
+    <BreadcrumbTrail :items="[AUTHORING_CRUMB, { label: scenario?.name ?? 'Scenario' }]" />
 
-    <p
+    <PageSkeleton
       v-if="loading"
-      class="font-body text-body mt-8 text-ink-muted"
-    >
-      Loading scenario…
-    </p>
+      label="Loading scenario"
+      subtitle
+      :cards="1"
+      class="mt-8"
+      data-testid="scenario-loading"
+    />
 
     <template v-else-if="notFound">
       <h1 class="font-display text-display mt-8 text-ink-true">
@@ -95,14 +98,30 @@ watch(scenario, (loaded) => {
     </template>
 
     <template v-else-if="scenario">
-      <hgroup class="mt-8 flex flex-col gap-2">
-        <h1 class="font-display text-display text-ink-true">
-          {{ scenario.name }}
-        </h1>
-        <p class="font-body text-micro text-ink-muted uppercase">
-          {{ scenario.slug }}
-        </p>
-      </hgroup>
+      <div class="mt-8 flex items-start justify-between gap-4">
+        <hgroup class="flex flex-col gap-2">
+          <h1 class="font-display text-display text-ink-true">
+            {{ scenario.name }}
+          </h1>
+          <p class="font-body text-micro text-ink-muted uppercase">
+            {{ scenario.slug }}
+          </p>
+        </hgroup>
+        <div class="flex items-start gap-6">
+          <router-link
+            :to="`/authoring/scenarios/${scenario.slug}/edit`"
+            :class="ACTION_LINK_CLASS"
+            data-testid="edit-scenario"
+          >
+            Edit
+          </router-link>
+          <DeleteMenu
+            noun="scenario"
+            :deleting="deleting"
+            @delete="confirmAndDelete(scenario)"
+          />
+        </div>
+      </div>
       <p
         v-if="scenario.description"
         class="font-body text-body mt-3 max-w-[720px] text-ink"
@@ -119,7 +138,7 @@ watch(scenario, (loaded) => {
       </p>
       <p
         v-else-if="graphFailed"
-        class="font-body text-caption mt-8 text-coral"
+        class="font-body text-caption mt-8 text-error"
         role="alert"
         data-testid="graph-error"
       >
@@ -128,7 +147,7 @@ watch(scenario, (loaded) => {
       
       <p
         v-else-if="compileError && !graph"
-        class="font-body text-caption mt-8 text-coral"
+        class="font-body text-caption mt-8 text-error"
         role="alert"
         data-testid="compile-error"
       >

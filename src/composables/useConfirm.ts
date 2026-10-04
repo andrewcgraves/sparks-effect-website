@@ -1,4 +1,4 @@
-import { shallowRef } from 'vue'
+import { ref, shallowRef } from 'vue'
 
 export interface ConfirmOptions {
   title: string
@@ -8,7 +8,12 @@ export interface ConfirmOptions {
   destructive?: boolean
 }
 
+export interface ConfirmWithNoteOptions extends ConfirmOptions {
+  noteLabel: string
+}
+
 interface PendingConfirm extends ConfirmOptions {
+  noteLabel?: string
   resolve: (confirmed: boolean) => void
   returnFocus: HTMLElement | null
 }
@@ -16,6 +21,7 @@ interface PendingConfirm extends ConfirmOptions {
 // One dialog serves the whole site, so the ask lives at module scope: any
 // caller can raise it and the host rendered once in App.vue shows it.
 const pending = shallowRef<PendingConfirm | null>(null)
+const note = ref('')
 
 function settle(confirmed: boolean): void {
   const current = pending.value
@@ -25,20 +31,26 @@ function settle(confirmed: boolean): void {
 }
 
 export function useConfirm() {
-  function confirm(options: ConfirmOptions): Promise<boolean> {
+  function confirm(options: ConfirmOptions | ConfirmWithNoteOptions): Promise<boolean> {
     // A second ask while one is open replaces it, declining the first, but
     // focus still goes back to where the user was before either.
     const returnFocus = pending.value?.returnFocus
       ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null)
     settle(false)
+    note.value = ''
     return new Promise((resolve) => {
       pending.value = { ...options, resolve, returnFocus }
     })
   }
 
-  return { confirm }
+  // The note comes back trimmed, and may be empty.
+  async function confirmWithNote(options: ConfirmWithNoteOptions): Promise<string | null> {
+    return (await confirm(options)) ? note.value.trim() : null
+  }
+
+  return { confirm, confirmWithNote }
 }
 
 export function useConfirmHost() {
-  return { pending, settle }
+  return { pending, note, settle }
 }

@@ -18,6 +18,8 @@ vi.mock('../api/authoring/services', () => ({
 }))
 
 import ServiceAuthoringView from './ServiceAuthoringView.vue'
+import { breadcrumbTrail } from '../test/breadcrumbs'
+import { busyRegion, visibleText } from '../test/loading'
 import { listRoutes, fetchRoute, snapStops } from '../api/authoring/routes'
 import {
   createService,
@@ -128,6 +130,15 @@ describe('ServiceAuthoringView', () => {
     await flushPromises()
     const options = wrapper.findAll('[data-testid="route-select"] option')
     expect(options.some((o) => o.text().includes('Main Line'))).toBe(true)
+  })
+
+  it('shows a route-picker skeleton, not loading copy, while the routes load', async () => {
+    vi.mocked(listRoutes).mockReturnValue(new Promise(() => {}))
+    const wrapper = mountView()
+    await flushPromises()
+    const region = busyRegion(wrapper, 'routes-loading')
+    expect(region.find('[data-testid="field-skeleton"]').exists()).toBe(true)
+    expect(visibleText(region)).toBe('')
   })
 
   it('shows an error state when routes fail to load', async () => {
@@ -486,6 +497,15 @@ describe('ServiceAuthoringView', () => {
       await wrapper.find('[data-testid="add-frequency"]').trigger('click')
       return { wrapper, router }
     }
+
+    it('shows where it sits: a new service, under My authoring', async () => {
+      const { wrapper } = await mountNew()
+
+      expect(breadcrumbTrail(wrapper)).toEqual([
+        ['My authoring', '/authoring'],
+        ['New service', null],
+      ])
+    })
 
     it('lands on the new service\'s page, which compiles it, rather than compiling here', async () => {
       const { wrapper, router } = await mountNew()
@@ -907,12 +927,14 @@ describe('ServiceAuthoringView', () => {
       expect(document.title).toBe('Edit Northbound Express · Sparks Effect')
     })
 
-    it('links back to the service it is editing', async () => {
+    it('shows where it sits: editing the service, under My authoring', async () => {
       const { wrapper } = await mountEdit()
 
-      const back = wrapper.find('[data-testid="back-to-service"]')
-      expect(back.attributes('href')).toBe('/authoring/services/northbound-express')
-      expect(back.text()).toContain('Northbound Express')
+      expect(breadcrumbTrail(wrapper)).toEqual([
+        ['My authoring', '/authoring'],
+        ['Northbound Express', '/authoring/services/northbound-express'],
+        ['Edit', null],
+      ])
     })
 
     it('saves with a PUT, then lands on the service once it has recompiled', async () => {
@@ -983,7 +1005,9 @@ describe('ServiceAuthoringView', () => {
 
       const { wrapper } = await mountEdit()
 
-      expect(wrapper.find('[data-testid="draft-loading"]').text()).toBe('Loading service…')
+      const region = busyRegion(wrapper, 'draft-loading')
+      expect(region.find('[data-testid="map-panel-skeleton"]').exists()).toBe(true)
+      expect(visibleText(region)).toBe('')
       expect(wrapper.find('form').exists()).toBe(false)
     })
 

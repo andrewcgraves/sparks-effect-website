@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
+import { testRouter } from '../test/router'
 import type { Route } from '../api/authoring'
 
 vi.mock('../api/authoring/routes', () => ({
@@ -9,6 +10,7 @@ import { fetchRoute } from '../api/authoring/routes'
 import { ApiError } from '../api/authoring/client'
 
 import RouteView from './RouteView.vue'
+import { busyRegion, visibleText } from '../test/loading'
 
 const stubRoute: Route = {
   id: 'rt1',
@@ -26,13 +28,18 @@ const stubRoute: Route = {
 function mountRouteView(slug = 'main-line') {
   return mount(RouteView, {
     props: { slug },
-    global: { stubs: { MapView: true } },
+    global: { plugins: [testRouter()], stubs: { MapView: true } },
   })
 }
 
 describe('RouteView', () => {
   beforeEach(() => {
     vi.mocked(fetchRoute).mockReset()
+  })
+
+  it('links back to all lines, even while the route is still loading', () => {
+    vi.mocked(fetchRoute).mockReturnValueOnce(new Promise(() => {}))
+    expect(mountRouteView().get('[data-testid="back-to-lines"]').attributes('href')).toBe('/')
   })
 
   it('calls fetchRoute with the given slug', () => {
@@ -48,10 +55,12 @@ describe('RouteView', () => {
     expect(document.title).toBe('Main Line · Sparks Effect')
   })
 
-  it('shows a loading state while the route is loading', () => {
+  it('shows a page skeleton with a map placeholder, not loading copy, while the route is loading', () => {
     vi.mocked(fetchRoute).mockReturnValueOnce(new Promise(() => {}))
     const wrapper = mountRouteView()
-    expect(wrapper.text()).toContain('Loading')
+    const region = busyRegion(wrapper, 'route-loading')
+    expect(region.find('[data-testid="map-panel-skeleton"]').exists()).toBe(true)
+    expect(visibleText(region)).toBe('')
     expect(wrapper.findComponent({ name: 'MapView' }).exists()).toBe(false)
   })
 

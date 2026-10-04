@@ -5,6 +5,8 @@ import { useOwnedList } from '../composables/useOwnedList'
 import { fetchMyServices } from '../api/authoring/services'
 import { fetchMyScenarios } from '../api/authoring/scenarios'
 import { ACTION_LINK_CLASS, LIST_CARD_LINK_CLASS } from '../components/linkStyles'
+import AllLinesLink from '../components/AllLinesLink.vue'
+import ListSkeleton from '../components/ListSkeleton.vue'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -20,23 +22,34 @@ async function handleSignOut() {
 
 <template>
   <main class="flex-1 p-(--page-padding)">
-    <div class="flex items-start justify-between gap-4">
+    <AllLinesLink />
+    <div class="mt-8 flex items-start justify-between gap-4">
       <hgroup class="flex flex-col gap-2">
         <h1 class="font-display text-display text-ink-true">
           My authoring
         </h1>
         <p class="font-body text-micro text-ink-muted italic uppercase">
-          Signed in as {{ auth.user?.email ?? '…' }}
+          Signed in as {{ auth.displayName ?? '…' }}
         </p>
       </hgroup>
-      <button
-        type="button"
-        :class="ACTION_LINK_CLASS"
-        data-testid="sign-out"
-        @click="handleSignOut"
-      >
-        Sign out
-      </button>
+      <!-- Until the header account menu (M4) exists, the account page is reached from here. -->
+      <div class="flex gap-4">
+        <router-link
+          to="/account"
+          :class="ACTION_LINK_CLASS"
+          data-testid="account-link"
+        >
+          Account
+        </router-link>
+        <button
+          type="button"
+          :class="ACTION_LINK_CLASS"
+          data-testid="sign-out"
+          @click="handleSignOut"
+        >
+          Sign out
+        </button>
+      </div>
     </div>
 
     <div class="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-2">
@@ -53,15 +66,15 @@ async function handleSignOut() {
             + New service
           </router-link>
         </div>
-        <p
+        <ListSkeleton
           v-if="servicesLoading"
-          class="font-body text-caption mt-3 text-ink-muted italic"
-        >
-          Loading…
-        </p>
+          label="Loading your services"
+          class="mt-3"
+          data-testid="services-loading"
+        />
         <p
           v-else-if="servicesError"
-          class="font-body text-caption mt-3 text-coral"
+          class="font-body text-caption mt-3 text-error"
           role="alert"
           data-testid="services-error"
         >
@@ -107,15 +120,15 @@ async function handleSignOut() {
             + New scenario
           </router-link>
         </div>
-        <p
+        <ListSkeleton
           v-if="scenariosLoading"
-          class="font-body text-caption mt-3 text-ink-muted italic"
-        >
-          Loading…
-        </p>
+          label="Loading your scenarios"
+          class="mt-3"
+          data-testid="scenarios-loading"
+        />
         <p
           v-else-if="scenariosError"
-          class="font-body text-caption mt-3 text-coral"
+          class="font-body text-caption mt-3 text-error"
           role="alert"
           data-testid="scenarios-error"
         >

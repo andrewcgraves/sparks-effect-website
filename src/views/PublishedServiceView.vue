@@ -3,8 +3,12 @@ import { computed } from 'vue'
 import { fetchPublicationIsochrone, fetchServicePublication } from '../api/publications'
 import { useAuthoredGraph } from '../composables/useAuthoredGraph'
 import { usePageTitle } from '../composables/usePageTitle'
+import AllLinesLink from '../components/AllLinesLink.vue'
+import { useIsochroneQuery } from '../composables/useIsochroneQuery'
+import CopyLinkButton from '../components/CopyLinkButton.vue'
 import ScenarioPreviewPanel from '../components/ScenarioPreviewPanel.vue'
 import TimeBetweenStations from '../components/TimeBetweenStations.vue'
+import PageSkeleton from '../components/PageSkeleton.vue'
 import { graphStationTimeGroups } from '../components/stationTimes'
 
 const props = defineProps<{ slug: string }>()
@@ -57,17 +61,29 @@ const stops = computed(() => {
   return mapStations.value.map((station) => station.name)
 })
 
+// Waits for the publication: a link to an unpublished service must not spend
+// a routing job on a page that will only say "not found".
+const { initial: linkedIsochrone, submit: submitIsochrone, shareable } = useIsochroneQuery({
+  plot: handleIsochroneSubmit,
+  plotted: () => isochroneData.value !== null && isochroneError.value === null,
+  ready: () => publication.value !== null,
+})
+
 void loadGraph(props.slug)
 </script>
 
 <template>
   <main class="flex-1 p-(--page-padding)">
-    <p
+    <div class="mb-8">
+      <AllLinesLink />
+    </div>
+
+    <PageSkeleton
       v-if="loading"
-      class="font-body text-body text-ink-muted"
-    >
-      Loading service…
-    </p>
+      label="Loading service"
+      :cards="2"
+      data-testid="service-loading"
+    />
 
     <template v-else-if="graphNotFound">
       <h1 class="font-display text-display text-ink-true">
@@ -118,9 +134,14 @@ void loadGraph(props.slug)
         :services="services"
         :map-stations="mapStations"
         :map-routes="mapRoutes"
-        @submit="handleIsochroneSubmit"
+        :initial="linkedIsochrone"
+        @submit="submitIsochrone"
         @origin-change="onOriginChange"
-      />
+      >
+        <template #after-form>
+          <CopyLinkButton v-if="shareable" />
+        </template>
+      </ScenarioPreviewPanel>
 
       <div class="mt-8 grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] items-start gap-4">
         <section class="rounded-(--radius-box) border border-border bg-surface p-4">

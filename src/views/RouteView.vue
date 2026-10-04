@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import AllLinesLink from '../components/AllLinesLink.vue'
 import MapView from '../components/MapView.vue'
+import PageSkeleton from '../components/PageSkeleton.vue'
 import { fetchRoute } from '../api/authoring/routes'
 import type { Route } from '../api/authoring'
 import { useOwnedDetail } from '../composables/useOwnedDetail'
@@ -28,12 +30,15 @@ const mapRoutes = computed<ScenarioRoute[]>(() => {
 
 <template>
   <main class="flex-1 p-(--page-padding)">
-    <p
+    <div class="mb-8">
+      <AllLinesLink />
+    </div>
+
+    <PageSkeleton
       v-if="loading"
-      class="font-body text-body text-ink-muted"
-    >
-      Loading route…
-    </p>
+      label="Loading route"
+      data-testid="route-loading"
+    />
 
     <template v-else-if="notFound">
       <h1 class="font-display text-display text-ink-true">

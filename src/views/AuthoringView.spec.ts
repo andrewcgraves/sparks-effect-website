@@ -15,6 +15,7 @@ import AuthoringView from './AuthoringView.vue'
 import { fetchMyServices } from '../api/authoring/services'
 import { fetchMyScenarios } from '../api/authoring/scenarios'
 import { useAuthStore } from '../stores/auth'
+import { busyRegion, visibleText } from '../test/loading'
 
 const LoginStub = { template: '<div>login</div>' }
 
@@ -26,6 +27,7 @@ function makeRouter() {
       { path: '/authoring/services/:slug', name: 'service-detail', component: LoginStub },
       { path: '/authoring/scenarios/:slug', name: 'scenario-detail', component: LoginStub },
       { path: '/login', name: 'login', component: LoginStub },
+      { path: '/account', name: 'account', component: LoginStub },
     ],
   })
 }
@@ -75,6 +77,43 @@ describe('AuthoringView', () => {
     const { wrapper } = await mountAuthoring()
     await flushPromises()
     expect(wrapper.text()).toContain('a@example.com')
+  })
+
+  it('names the user by their display name once they have one', async () => {
+    vi.mocked(fetchMyServices).mockResolvedValue([])
+    vi.mocked(fetchMyScenarios).mockResolvedValue([])
+    const { wrapper, auth } = await mountAuthoring()
+    auth.user = { id: 'u1', email: 'a@example.com', name: 'Ada' }
+    await flushPromises()
+    expect(wrapper.text()).toContain('Signed in as Ada')
+  })
+
+  it('links to the account page', async () => {
+    vi.mocked(fetchMyServices).mockResolvedValue([])
+    vi.mocked(fetchMyScenarios).mockResolvedValue([])
+    const { wrapper } = await mountAuthoring()
+    await flushPromises()
+    expect(wrapper.get('[data-testid="account-link"]').attributes('href')).toBe('/account')
+  })
+
+  it.each([
+    ['services', 'services-loading'],
+    ['scenarios', 'scenarios-loading'],
+  ])('shows skeleton cards for %s while they load, with no loading copy', async (_, testId) => {
+    vi.mocked(fetchMyServices).mockReturnValue(new Promise(() => {}))
+    vi.mocked(fetchMyScenarios).mockReturnValue(new Promise(() => {}))
+    const { wrapper } = await mountAuthoring()
+    const region = busyRegion(wrapper, testId)
+    expect(region.findAll('[data-testid="list-card-skeleton"]').length).toBeGreaterThan(0)
+    expect(visibleText(region)).toBe('')
+  })
+
+  it('links back out to all lines', async () => {
+    vi.mocked(fetchMyServices).mockResolvedValue([])
+    vi.mocked(fetchMyScenarios).mockResolvedValue([])
+    const { wrapper } = await mountAuthoring()
+    await flushPromises()
+    expect(wrapper.get('[data-testid="back-to-lines"]').attributes('href')).toBe('/')
   })
 
   it('links to the new-service authoring form', async () => {

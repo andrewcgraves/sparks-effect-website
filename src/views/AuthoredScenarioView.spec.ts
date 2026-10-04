@@ -10,6 +10,8 @@ vi.mock('../api/authoring/scenarios', () => ({
   fetchScenarioGraph: vi.fn(),
   compileScenario: vi.fn(),
   fetchScenarioIsochrone: vi.fn(),
+  fetchMyScenarios: vi.fn(),
+  deleteScenario: vi.fn(),
 }))
 vi.mock('../api/authoring/services', () => ({
   fetchMyServices: vi.fn(),
@@ -21,14 +23,18 @@ vi.mock('../components/MapView.vue', () => ({
   },
 }))
 
+import { breadcrumbTrail } from '../test/breadcrumbs'
 import AuthoredScenarioView from './AuthoredScenarioView.vue'
 import {
   fetchScenario,
   fetchScenarioGraph,
   compileScenario,
   fetchScenarioIsochrone,
+  deleteScenario,
 } from '../api/authoring/scenarios'
+import { useConfirmHost } from '../composables/useConfirm'
 import { fetchMyServices } from '../api/authoring/services'
+import { busyRegion, visibleText } from '../test/loading'
 
 const Stub = { template: '<div>stub</div>' }
 
@@ -58,6 +64,7 @@ function mountView(slug = 'ca-hsr') {
     routes: [
       { path: '/authoring', name: 'authoring', component: Stub },
       { path: '/authoring/scenarios/:slug', name: 'scenario-detail', component: AuthoredScenarioView, props: true },
+      { path: '/authoring/scenarios/:slug/edit', name: 'edit-scenario', component: Stub },
     ],
   })
   return mount(AuthoredScenarioView, { props: { slug }, global: { plugins: [router] } })
@@ -73,6 +80,7 @@ describe('AuthoredScenarioView', () => {
       { id: 'svc2', slug: 'midtown-local', route_id: 'r1', name: 'Midtown Local', stops: [], vehicle: { max_speed_kmh: 100, acceleration_ms2: 1, deceleration_ms2: 1, dwell_s: 30 }, frequency_windows: [] },
     ])
     vi.mocked(fetchScenarioIsochrone).mockReset()
+    vi.mocked(deleteScenario).mockReset().mockResolvedValue()
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -83,6 +91,15 @@ describe('AuthoredScenarioView', () => {
   afterEach(() => {
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
+  })
+
+  it('shows a page skeleton in the shape of the loaded page, not loading copy, while it loads', () => {
+    vi.mocked(fetchScenario).mockReturnValue(new Promise(() => {}))
+    const wrapper = mountView()
+    const region = busyRegion(wrapper, 'scenario-loading')
+    expect(region.find('[data-testid="map-panel-skeleton"]').exists()).toBe(true)
+    expect(region.findAll('[data-testid="card-skeleton"]')).toHaveLength(1)
+    expect(visibleText(region)).toBe('')
   })
 
   it('names the tab after the scenario once it loads', async () => {
@@ -232,12 +249,12 @@ describe('AuthoredScenarioView', () => {
       .toEqual(['Los Angeles', 'Bakersfield', '2:20'])
   })
 
-  it('shows muted loading copy for run times while the graph is still being read', async () => {
+  it('shows a run-time skeleton while the graph is still being read', async () => {
     vi.mocked(fetchScenarioGraph).mockReturnValue(new Promise(() => {}))
     const wrapper = mountView()
     await flushPromises()
     // Not yet knowing the run times must not read as "there are none".
-    expect(wrapper.get('[data-testid="station-times-loading"]').classes()).toContain('text-ink-muted')
+    expect(wrapper.get('[data-testid="station-times-loading"]').attributes('aria-busy')).toBe('true')
     expect(wrapper.find('[data-testid="station-times-empty"]').exists()).toBe(false)
   })
 
@@ -255,10 +272,13 @@ describe('AuthoredScenarioView', () => {
     expect(wrapper.find('[data-testid="map"]').exists()).toBe(true)
   })
 
-  it('links back to the authoring page', async () => {
+  it('shows where it sits: the scenario, under My authoring', async () => {
     const wrapper = mountView()
     await flushPromises()
-    expect(wrapper.find('[data-testid="back-to-authoring"]').attributes('href')).toBe('/authoring')
+    expect(breadcrumbTrail(wrapper)).toEqual([
+      ['My authoring', '/authoring'],
+      ['CA HSR', null],
+    ])
   })
 
   it('shows a not-found state on a 404 rather than a blank page', async () => {
@@ -305,5 +325,45 @@ describe('AuthoredScenarioView', () => {
     const wrapper = mountView()
     await flushPromises()
     expect(wrapper.find('[data-testid="compile-error"]').exists()).toBe(true)
+  })
+
+  it('links to editing the scenario', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.get('[data-testid="edit-scenario"]').attributes('href'))
+      .toBe('/authoring/scenarios/ca-hsr/edit')
+  })
+
+  it('keeps Delete behind a secondary menu', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    const menu = wrapper.get('[data-testid="scenario-actions"]')
+    expect(menu.element.tagName).toBe('DETAILS')
+    expect(menu.find('[data-testid="delete-scenario"]').exists()).toBe(true)
+  })
+
+  it('asks before deleting, and deletes nothing when declined', async () => {
+    const { pending, settle } = useConfirmHost()
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.get('[data-testid="delete-scenario"]').trigger('click')
+    await flushPromises()
+    expect(pending.value?.title).toBe("Delete 'CA HSR'?")
+    settle(false)
+    await flushPromises()
+    expect(deleteScenario).not.toHaveBeenCalled()
+  })
+
+  it('deletes once confirmed and goes to My authoring', async () => {
+    const { settle } = useConfirmHost()
+    const wrapper = mountView()
+    await wrapper.vm.$router.push('/authoring/scenarios/ca-hsr')
+    await flushPromises()
+    await wrapper.get('[data-testid="delete-scenario"]').trigger('click')
+    await flushPromises()
+    settle(true)
+    await flushPromises()
+    expect(deleteScenario).toHaveBeenCalledWith('ca-hsr')
+    expect(wrapper.vm.$router.currentRoute.value.path).toBe('/authoring')
   })
 })

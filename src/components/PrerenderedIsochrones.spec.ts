@@ -191,7 +191,7 @@ describe('PrerenderedIsochrones', () => {
       const error = wrapper.get('[data-testid="prerendered-detail-error"]')
       expect(error.text()).toContain('Downtown SF')
       expect(error.attributes('role')).toBe('alert')
-      expect(error.classes()).toContain('text-coral')
+      expect(error.classes()).toContain('text-error')
       expect(wrapper.emitted('select')).toBeUndefined()
       expect(wrapper.findAll('[data-testid="prerendered-entry"]')).toHaveLength(1)
       expect(wrapper.findAll('[data-testid="prerendered-entry"]')[0].attributes('disabled'))

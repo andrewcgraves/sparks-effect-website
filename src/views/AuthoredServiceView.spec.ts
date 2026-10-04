@@ -10,6 +10,11 @@ vi.mock('../api/authoring/services', () => ({
   fetchServiceGraph: vi.fn(),
   compileService: vi.fn(),
   fetchServiceIsochrone: vi.fn(),
+  deleteService: vi.fn(),
+}))
+vi.mock('../api/authoring/scenarios', () => ({
+  fetchMyScenarios: vi.fn(),
+  deleteScenario: vi.fn(),
 }))
 vi.mock('../api/publications', () => ({
   fetchServicePublication: vi.fn(),
@@ -23,10 +28,20 @@ vi.mock('../components/MapView.vue', () => ({
   },
 }))
 
+import { breadcrumbTrail } from '../test/breadcrumbs'
 import AuthoredServiceView from './AuthoredServiceView.vue'
-import { compileService, fetchService, fetchServiceGraph, fetchServiceIsochrone } from '../api/authoring/services'
-import { fetchServicePublication, publishService } from '../api/publications'
+import {
+  compileService,
+  deleteService,
+  fetchService,
+  fetchServiceGraph,
+  fetchServiceIsochrone,
+} from '../api/authoring/services'
+import { fetchMyScenarios } from '../api/authoring/scenarios'
+import { useConfirmHost } from '../composables/useConfirm'
+import { fetchServicePublication, publishService, type ServicePublication } from '../api/publications'
 import { PUBLISH_COMPILE_FAILED } from '../composables/usePublication'
+import { busyRegion, visibleText } from '../test/loading'
 
 const Stub = { template: '<div>stub</div>' }
 
@@ -84,6 +99,8 @@ describe('AuthoredServiceView', () => {
     vi.mocked(fetchServiceIsochrone).mockReset()
     vi.mocked(fetchServicePublication).mockReset().mockRejectedValue(new ApiError('not found', 404))
     vi.mocked(publishService).mockReset()
+    vi.mocked(deleteService).mockReset().mockResolvedValue()
+    vi.mocked(fetchMyScenarios).mockReset().mockResolvedValue([])
     // useCompileJob polls the job endpoint through the jobs store.
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
@@ -95,6 +112,15 @@ describe('AuthoredServiceView', () => {
   afterEach(() => {
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
+  })
+
+  it('shows a page skeleton in the shape of the loaded page, not loading copy, while it loads', () => {
+    vi.mocked(fetchService).mockReturnValue(new Promise(() => {}))
+    const wrapper = mountView()
+    const region = busyRegion(wrapper, 'service-loading')
+    expect(region.find('[data-testid="map-panel-skeleton"]').exists()).toBe(true)
+    expect(region.findAll('[data-testid="card-skeleton"]')).toHaveLength(3)
+    expect(visibleText(region)).toBe('')
   })
 
   it('fetches the service named by the slug prop', async () => {
@@ -181,11 +207,14 @@ describe('AuthoredServiceView', () => {
     expect(wrapper.findAll('[data-testid="service-window-row"]')).toHaveLength(1)
   })
 
-  it('links back to the authoring page', async () => {
+  it('shows where it sits: the service, under My authoring', async () => {
     vi.mocked(fetchService).mockResolvedValue(stubService)
     const wrapper = mountView()
     await flushPromises()
-    expect(wrapper.find('[data-testid="back-to-authoring"]').attributes('href')).toBe('/authoring')
+    expect(breadcrumbTrail(wrapper)).toEqual([
+      ['My authoring', '/authoring'],
+      ['Northbound Express', null],
+    ])
   })
 
   it('links to editing the service', async () => {
@@ -433,4 +462,51 @@ describe('AuthoredServiceView', () => {
     expect(wrapper.get('[data-testid="fetch-error"]').text()).toBe('Something went wrong. Please try again.')
   })
 
+  it('keeps Delete behind a secondary menu', async () => {
+    vi.mocked(fetchService).mockResolvedValue(stubService)
+    const wrapper = mountView()
+    await flushPromises()
+    const menu = wrapper.get('[data-testid="service-actions"]')
+    expect(menu.element.tagName).toBe('DETAILS')
+    expect(menu.find('[data-testid="delete-service"]').exists()).toBe(true)
+  })
+
+  it('asks before deleting, and deletes nothing when declined', async () => {
+    vi.mocked(fetchService).mockResolvedValue(stubService)
+    const { pending, settle } = useConfirmHost()
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.get('[data-testid="delete-service"]').trigger('click')
+    await flushPromises()
+    expect(pending.value?.title).toBe("Delete 'Northbound Express'?")
+    settle(false)
+    await flushPromises()
+    expect(deleteService).not.toHaveBeenCalled()
+  })
+
+  it('warns that a published service\'s public page will stop working', async () => {
+    vi.mocked(fetchService).mockResolvedValue(stubService)
+    vi.mocked(fetchServicePublication).mockResolvedValue({ published_at: '2026-09-01T00:00:00Z' } as ServicePublication)
+    const { pending, settle } = useConfirmHost()
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.get('[data-testid="delete-service"]').trigger('click')
+    await flushPromises()
+    expect(pending.value?.body).toContain('Its public page will stop working.')
+    settle(false)
+  })
+
+  it('deletes once confirmed and goes to My authoring', async () => {
+    vi.mocked(fetchService).mockResolvedValue(stubService)
+    const { settle } = useConfirmHost()
+    const wrapper = mountView()
+    await wrapper.vm.$router.push('/authoring/services/northbound-express')
+    await flushPromises()
+    await wrapper.get('[data-testid="delete-service"]').trigger('click')
+    await flushPromises()
+    settle(true)
+    await flushPromises()
+    expect(deleteService).toHaveBeenCalledWith('northbound-express')
+    expect(wrapper.vm.$router.currentRoute.value.path).toBe('/authoring')
+  })
 })

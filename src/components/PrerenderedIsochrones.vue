@@ -97,7 +97,7 @@ function summarise(entry: PrerenderedIsochroneSummary): string {
 
     <p
       v-if="detailError"
-      class="font-body text-caption mt-3 text-coral"
+      class="font-body text-caption mt-3 text-error"
       role="alert"
       data-testid="prerendered-detail-error"
     >

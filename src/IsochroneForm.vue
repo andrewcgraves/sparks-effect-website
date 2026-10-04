@@ -9,6 +9,7 @@ import { reverseGeocode } from './api/geocoding'
 import { getCurrentPosition } from './api/geolocation'
 import { trackModeToggle } from './analytics/index'
 import { TRAVEL_MODES, type TravelMode } from './api/authoring/types'
+import { DEFAULT_DURATION, DEFAULT_MODE, DURATION_OPTIONS, type IsochronePayload } from './isochroneQuery'
 
 const MODE_LABELS: Record<TravelMode, string> = {
   walk: 'Walk',
@@ -22,8 +23,6 @@ const MODE_OPTIONS: { value: TravelMode; label: string }[] = TRAVEL_MODES.map((v
   label: MODE_LABELS[value],
 }))
 
-const DURATION_OPTIONS = [45, 60, 75, 120, 180, 240]
-
 function formatDuration(value: number): string {
   return `${value} min`
 }
@@ -32,23 +31,26 @@ const props = withDefaults(
   defineProps<{
     error?: string | null
     loading?: boolean
+    initial?: Partial<IsochronePayload>
   }>(),
-  { error: null, loading: false },
+  { error: null, loading: false, initial: () => ({}) },
 )
 
 const emit = defineEmits<{
-  submit: [payload: { lat: number; lng: number; duration: number; mode: TravelMode }]
+  submit: [payload: IsochronePayload]
   'origin-change': [origin: { lat: number; lng: number } | null]
   'pick-armed': [armed: boolean]
 }>()
 
-const lat = ref('')
-const lng = ref('')
-const duration = ref(60)
+// Read once: the form is the user's from the moment it appears.
+const { initial } = props
+const lat = ref(initial.lat === undefined ? '' : String(initial.lat))
+const lng = ref(initial.lng === undefined ? '' : String(initial.lng))
+const duration = ref(initial.duration ?? DEFAULT_DURATION)
 const selectedLabel = ref('')
 const locationError = ref('')
 const locating = ref(false)
-const mode = ref<TravelMode>('walk')
+const mode = ref<TravelMode>(initial.mode ?? DEFAULT_MODE)
 const pickArmed = ref(false)
 const addressAutocompleteRef = ref<InstanceType<typeof AddressAutocomplete> | null>(null)
 let locationRequestId = 0
@@ -198,7 +200,7 @@ function handleSubmit() {
       </button>
       <p
         v-if="locationError"
-        class="font-body text-caption text-coral italic"
+        class="font-body text-caption text-error italic"
         data-testid="location-error"
       >
         {{ locationError }}
@@ -280,7 +282,7 @@ function handleSubmit() {
 
     <p
       v-if="showError"
-      class="font-body text-caption text-coral"
+      class="font-body text-caption text-error"
       role="alert"
       data-testid="fetch-error"
     >

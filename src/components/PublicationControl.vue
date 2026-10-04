@@ -113,7 +113,7 @@ async function confirmUnpublish(): Promise<void> {
 
     <p
       v-else-if="state === 'unknown'"
-      class="font-body text-caption mt-3 text-coral"
+      class="font-body text-caption mt-3 text-error"
       role="alert"
       data-testid="publication-check-error"
     >
@@ -135,7 +135,7 @@ async function confirmUnpublish(): Promise<void> {
           </template>
           <strong
             v-else
-            class="font-normal text-coral"
+            class="font-normal text-error"
             data-testid="publication-unpublished-changes"
           >
             You've edited this service since. Visitors still see the version you published, and won't see
@@ -198,7 +198,7 @@ async function confirmUnpublish(): Promise<void> {
 
       <p
         v-if="error"
-        class="font-body text-caption mt-3 text-coral"
+        class="font-body text-caption mt-3 text-error"
         role="alert"
         data-testid="publication-error"
       >

@@ -514,4 +514,26 @@ describe('IsochroneForm', () => {
       expect((wrapper.find('input[data-testid="lat"]').element as HTMLInputElement).value).toBe('')
     })
   })
+
+  describe('starting from a shared link', () => {
+    it('starts from the origin, mode and budget it is given', async () => {
+      const wrapper = mount(IsochroneForm, {
+        props: { initial: { lat: 37.33821, lng: -121.88635, mode: 'transit', duration: 120 } },
+      })
+      expect((wrapper.get('input[data-testid="lat"]').element as HTMLInputElement).value).toBe('37.33821')
+      expect((wrapper.get('input[data-testid="lng"]').element as HTMLInputElement).value).toBe('-121.88635')
+      expect((wrapper.get('input[data-testid="mode-transit"]').element as HTMLInputElement).checked).toBe(true)
+      expect((wrapper.get('input[data-testid="duration-slider-option-120"]').element as HTMLInputElement).checked).toBe(true)
+
+      await wrapper.get('form').trigger('submit')
+      expect(wrapper.emitted('submit')?.[0]).toEqual([{ lat: 37.33821, lng: -121.88635, duration: 120, mode: 'transit' }])
+    })
+
+    it('keeps its own defaults for whatever it is not given', () => {
+      const wrapper = mount(IsochroneForm, { props: { initial: { mode: 'bike' } } })
+      expect((wrapper.get('input[data-testid="lat"]').element as HTMLInputElement).value).toBe('')
+      expect((wrapper.get('input[data-testid="mode-bike"]').element as HTMLInputElement).checked).toBe(true)
+      expect((wrapper.get('input[data-testid="duration-slider-option-60"]').element as HTMLInputElement).checked).toBe(true)
+    })
+  })
 })

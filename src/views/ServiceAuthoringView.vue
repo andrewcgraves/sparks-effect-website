@@ -6,7 +6,12 @@ import { usePageTitle } from '../composables/usePageTitle'
 import { useServiceDraft } from '../composables/useServiceDraft'
 import { useToast } from '../composables/useToast'
 import { MAX_DESCRIPTION_CHARS, MAX_SUBTEXT_CHARS, type SnapCoord as LatLng } from '../api/authoring'
+import BreadcrumbTrail from '../components/BreadcrumbTrail.vue'
+import { AUTHORING_CRUMB, type Crumb } from '../components/crumbs'
 import MapView from '../components/MapView.vue'
+import FieldSkeleton from '../components/FieldSkeleton.vue'
+import LoadingRegion from '../components/LoadingRegion.vue'
+import SkeletonShape from '../components/SkeletonShape.vue'
 import { PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS, TOGGLE_BUTTON_CLASS } from '../components/buttonStyles'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
 import { ACTION_LINK_CLASS } from '../components/linkStyles'
@@ -75,6 +80,13 @@ const {
 usePageTitle(() => (editing.value ? `Edit ${editing.value.name}` : null))
 
 const servicePath = computed(() => `/authoring/services/${props.slug}`)
+
+const trail = computed<Crumb[]>(() => [
+  AUTHORING_CRUMB,
+  ...(props.slug
+    ? [{ label: editing.value?.name ?? 'Service', to: servicePath.value }, { label: 'Edit' }]
+    : [{ label: 'New service' }]),
+])
 
 const submitLabel = computed(() => {
   if (props.slug) return submitting.value ? 'Saving…' : 'Save changes'
@@ -185,18 +197,8 @@ watch(createdSlug, (created) => {
 
 <template>
   <main class="flex-1 p-(--page-padding)">
-    <router-link
-      v-if="slug"
-      :to="servicePath"
-      :class="ACTION_LINK_CLASS"
-      data-testid="back-to-service"
-    >
-      ← {{ editing?.name ?? 'Service' }}
-    </router-link>
-    <h1
-      class="font-display text-display text-ink-true"
-      :class="{ 'mt-8': slug }"
-    >
+    <BreadcrumbTrail :items="trail" />
+    <h1 class="mt-8 font-display text-display text-ink-true">
       {{ slug ? 'Edit service' : 'New service' }}
     </h1>
 
@@ -216,13 +218,31 @@ watch(createdSlug, (created) => {
       Failed to load this service. Please try again.
     </p>
 
-    <p
+    <LoadingRegion
       v-else-if="!submitted && !ready"
-      class="font-body text-body mt-8 text-ink-muted"
+      :label="slug ? 'Loading service' : 'Loading'"
+      class="mt-8 grid grid-cols-1 items-start gap-8 lg:grid-cols-[1fr_1fr]"
       data-testid="draft-loading"
     >
-      {{ slug ? 'Loading service…' : 'Loading…' }}
-    </p>
+      <div class="flex flex-col gap-6">
+        <SkeletonShape
+          shape="card"
+          :lines="1"
+        />
+        <SkeletonShape
+          shape="card"
+          :lines="4"
+        />
+        <FieldSkeleton />
+        <FieldSkeleton />
+        <FieldSkeleton :rows="5" />
+      </div>
+      <SkeletonShape
+        shape="block"
+        class="h-[70vh] min-h-[70vh]"
+        data-testid="map-panel-skeleton"
+      />
+    </LoadingRegion>
 
     <template v-else-if="!submitted">
       <div class="mt-8 grid grid-cols-1 items-start gap-8 lg:grid-cols-[1fr_1fr]">
@@ -234,15 +254,17 @@ watch(createdSlug, (created) => {
             <h2 class="font-display text-h3 text-ink-true">
               Route
             </h2>
-            <p
+            <LoadingRegion
               v-if="routesLoading"
-              class="font-body text-caption mt-2 text-ink-muted italic"
+              label="Loading routes"
+              class="mt-2"
+              data-testid="routes-loading"
             >
-              Loading routes…
-            </p>
+              <FieldSkeleton />
+            </LoadingRegion>
             <p
               v-else-if="routesError"
-              class="font-body text-caption mt-2 text-coral"
+              class="font-body text-caption mt-2 text-error"
               role="alert"
               data-testid="routes-error"
             >
@@ -276,7 +298,7 @@ watch(createdSlug, (created) => {
             </label>
             <p
               v-if="routeMissing"
-              class="font-body text-caption mt-2 text-coral"
+              class="font-body text-caption mt-2 text-error"
               role="alert"
               data-testid="route-missing"
             >
@@ -340,14 +362,14 @@ watch(createdSlug, (created) => {
                   >
                   <span
                     v-if="preview?.stops[index]?.off_route"
-                    class="text-coral"
+                    class="text-error"
                     data-testid="stop-off-route"
                   >
                     {{ Math.round(preview!.stops[index].offset_m) }}m off the route
                   </span>
                   <span
                     v-if="faultedStops.has(stop.seq)"
-                    class="text-coral"
+                    class="text-error"
                     data-testid="stop-submit-error"
                   >
                     {{ stopFaultMessage(faultedStops.get(stop.seq)!) }}
@@ -393,7 +415,7 @@ watch(createdSlug, (created) => {
             </p>
             <p
               v-if="previewError"
-              class="font-body text-caption mt-2 text-coral"
+              class="font-body text-caption mt-2 text-error"
               role="alert"
               data-testid="preview-error"
             >
@@ -401,7 +423,7 @@ watch(createdSlug, (created) => {
             </p>
             <p
               v-if="orderWarning"
-              class="font-body text-caption mt-2 text-coral"
+              class="font-body text-caption mt-2 text-error"
               role="alert"
               data-testid="order-warning"
             >
@@ -621,7 +643,7 @@ watch(createdSlug, (created) => {
 
           <p
             v-if="submitError"
-            class="font-body text-caption text-coral"
+            class="font-body text-caption text-error"
             role="alert"
             data-testid="submit-error"
           >
@@ -658,7 +680,7 @@ watch(createdSlug, (created) => {
         </p>
         <p
           v-else-if="compileError"
-          class="font-body text-caption text-coral"
+          class="font-body text-caption text-error"
           role="alert"
           data-testid="compile-error"
         >

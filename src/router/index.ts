@@ -1,8 +1,9 @@
-import { createRouter, createWebHistory, type Router } from 'vue-router'
+import { createRouter, createWebHistory, START_LOCATION, type Router } from 'vue-router'
 import CoverPage from '../views/CoverPage.vue'
 import ScenarioView from '../views/ScenarioView.vue'
 import LoginView from '../views/LoginView.vue'
 import AuthoringView from '../views/AuthoringView.vue'
+import AccountView from '../views/AccountView.vue'
 import ServiceAuthoringView from '../views/ServiceAuthoringView.vue'
 import ScenarioBuilderView from '../views/ScenarioBuilderView.vue'
 import AuthoredServiceView from '../views/AuthoredServiceView.vue'
@@ -10,13 +11,17 @@ import AuthoredScenarioView from '../views/AuthoredScenarioView.vue'
 import RouteView from '../views/RouteView.vue'
 import PublishedServiceView from '../views/PublishedServiceView.vue'
 import NotFoundView from '../views/NotFoundView.vue'
+import AdminView from '../views/AdminView.vue'
+import WelcomeView from '../views/WelcomeView.vue'
 import { trackPageView } from '../analytics/index'
+import { redactPath } from '../analytics/redact'
 import { formatPageTitle } from '../composables/usePageTitle'
 import { useAuthStore } from '../stores/auth'
 
 declare module 'vue-router' {
   interface RouteMeta {
     requiresAuth?: boolean
+    requiresAdmin?: boolean
     title?: string
   }
 }
@@ -42,11 +47,36 @@ export const router = createRouter({
       component: LoginView,
       meta: { title: 'Sign in' },
     },
+    // An invite or reset link. Open to a signed-in user too: the page itself
+    // sends them away if the link is for someone else.
+    {
+      path: '/welcome/:token',
+      name: 'welcome',
+      component: WelcomeView,
+      props: true,
+      meta: { title: 'Set your password' },
+    },
+    // The form of link sparks-effect-api issues (SPA-387).
+    {
+      path: '/set-password',
+      redirect: (to) => {
+        const token = to.query.token
+        return typeof token === 'string' && token
+          ? { name: 'welcome', params: { token }, query: {} }
+          : { path: '/login', query: {} }
+      },
+    },
     {
       path: '/authoring',
       name: 'authoring',
       component: AuthoringView,
       meta: { requiresAuth: true, title: 'My authoring' },
+    },
+    {
+      path: '/account',
+      name: 'account',
+      component: AccountView,
+      meta: { requiresAuth: true, title: 'Account' },
     },
     {
       path: '/authoring/services/new',
@@ -68,6 +98,13 @@ export const router = createRouter({
       meta: { requiresAuth: true, title: 'Edit service' },
     },
     {
+      path: '/authoring/scenarios/:slug/edit',
+      name: 'edit-scenario',
+      component: ScenarioBuilderView,
+      props: true,
+      meta: { requiresAuth: true, title: 'Edit scenario' },
+    },
+    {
       path: '/authoring/services/:slug',
       name: 'service-detail',
       component: AuthoredServiceView,
@@ -80,6 +117,12 @@ export const router = createRouter({
       component: AuthoredScenarioView,
       props: true,
       meta: { requiresAuth: true, title: 'My scenario' },
+    },
+    {
+      path: '/admin',
+      name: 'admin',
+      component: AdminView,
+      meta: { requiresAuth: true, requiresAdmin: true, title: 'Admin' },
     },
     // A publication, which anyone may read. The owner's draft stays behind
     // sign-in at /authoring/services/:slug (ADR-0005 in sparks-effect-api).
@@ -106,11 +149,19 @@ export const router = createRouter({
   ],
 })
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   const auth = useAuthStore()
 
   if (to.meta.requiresAuth && !auth.isAuthenticated) {
     return { path: '/login', query: { redirect: to.fullPath } }
+  }
+
+  // Only a convenience: the API refuses a non-admin on every admin endpoint.
+  // After a reload the token is back before /api/auth/me has said whose it is,
+  // so this waits for that rather than turning an admin away.
+  if (to.meta.requiresAdmin) {
+    if (!auth.user) await auth.restoreSession()
+    if (!auth.user?.is_admin) return { path: '/' }
   }
 
   if (to.name === 'login' && auth.isAuthenticated) {
@@ -128,7 +179,11 @@ export async function redirectAfterSessionExpiry(target: Router): Promise<void> 
   await target.push({ path: '/login', query: { redirect: current.fullPath } })
 }
 
-router.afterEach((to) => {
+router.afterEach((to, from) => {
+  // A query change on the same page — a plotted isochrone written to the URL —
+  // is not a new page: it would reset the title the page named itself, and
+  // count a page view per plot. The first navigation's `from` is also '/'.
+  if (from !== START_LOCATION && to.path === from.path) return
   document.title = formatPageTitle(to.meta.title)
-  trackPageView(to.path)
+  trackPageView(redactPath(to.path))
 })
