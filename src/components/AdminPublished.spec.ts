@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { RouterLinkStub, flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 
-vi.mock('../api/publications', () => ({
+vi.mock('../api/publishedIndex', () => ({
   listPublishedServices: vi.fn(),
+}))
+vi.mock('../api/publications', () => ({
   unpublishService: vi.fn(),
 }))
 
@@ -12,7 +14,8 @@ const toast = vi.fn()
 vi.mock('../composables/useToast', () => ({ useToast: () => ({ show: toast }) }))
 
 import AdminPublished from './AdminPublished.vue'
-import { listPublishedServices, unpublishService } from '../api/publications'
+import { listPublishedServices } from '../api/publishedIndex'
+import { unpublishService } from '../api/publications'
 import { ApiError } from '../api/authoring/client'
 
 const coast = { slug: 'coast-line', name: 'Coast Line' }

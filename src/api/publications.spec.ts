@@ -2,13 +2,8 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, setAuthTokenProvider } from './authoring/client'
-import {
-  fetchServicePublication,
-  listPublishedServices,
-  publishService,
-  unpublishService,
-  type PublishedServicePage,
-} from './publications'
+import { fetchServicePublication, publishService, unpublishService } from './publications'
+import { listPublishedServices, type PublishedServicePage } from './publishedIndex'
 
 const published: PublishedServicePage = {
   items: [
