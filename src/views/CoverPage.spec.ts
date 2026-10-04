@@ -9,6 +9,7 @@ vi.mock('../api/coverIndex', () => ({
 
 import CoverPage from './CoverPage.vue'
 import { fetchCoverIndex } from '../api/coverIndex'
+import { busyRegion, visibleText } from '../test/loading'
 
 const Stub = { template: '<div>page</div>' }
 
@@ -65,10 +66,12 @@ describe('CoverPage', () => {
     expect(wrapper.get('h1').text()).toBe('Sparks Effect')
   })
 
-  it('shows a loading state before the fetch resolves', async () => {
+  it('shows skeleton route cards, not loading copy, before the fetch resolves', async () => {
     vi.mocked(fetchCoverIndex).mockReturnValue(new Promise(() => {}))
     const { wrapper } = await mountCover()
-    expect(wrapper.find('[data-testid="scenarios-loading"]').exists()).toBe(true)
+    const region = busyRegion(wrapper, 'scenarios-loading')
+    expect(region.findAll('[data-testid="list-card-skeleton"]').length).toBeGreaterThan(0)
+    expect(visibleText(region)).toBe('')
   })
 
   it('links a curated scenario to its scenario page', async () => {

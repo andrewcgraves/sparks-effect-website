@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
 vi.mock('../analytics/index', () => ({
@@ -16,10 +16,12 @@ vi.mock('../views/AuthoredServiceView.vue', () => ({ default: { props: ['slug'],
 vi.mock('../views/AuthoredScenarioView.vue', () => ({ default: { props: ['slug'], template: '<div />' } }))
 vi.mock('../views/PublishedServiceView.vue', () => ({ default: { props: ['slug'], template: '<div />' } }))
 vi.mock('../views/NotFoundView.vue', () => ({ default: { template: '<div />' } }))
+vi.mock('../views/AdminView.vue', () => ({ default: { template: '<div />' } }))
+vi.mock('../views/WelcomeView.vue', () => ({ default: { props: ['token'], template: '<div />' } }))
 
 import { router, redirectAfterSessionExpiry } from './index'
 import { trackPageView } from '../analytics/index'
-import { useAuthStore } from '../stores/auth'
+import { AUTH_STORAGE_KEY, useAuthStore } from '../stores/auth'
 
 describe('router', () => {
   it('loads cover and not-found eagerly and every other named route on demand', () => {
@@ -54,6 +56,47 @@ describe('router', () => {
   it('tracks a page view for unmatched paths using the actual route path', async () => {
     await router.push('/nope')
     expect(trackPageView).toHaveBeenCalledWith('/nope')
+  })
+
+  it('does not count a query change on the same page as another page view', async () => {
+    await router.push('/scenario/ca-hsr')
+    vi.mocked(trackPageView).mockClear()
+    await router.replace({ query: { at: '37.3,-121.8', mode: 'walk', mins: '60' } })
+    expect(trackPageView).not.toHaveBeenCalled()
+  })
+
+  describe('set-password links', () => {
+    it('opens the set-password page for a /welcome/:token link', async () => {
+      await router.push('/welcome/secret-token')
+      expect(router.currentRoute.value.name).toBe('welcome')
+      expect(router.currentRoute.value.params.token).toBe('secret-token')
+    })
+
+    it('records the page view as /welcome, keeping the token out of analytics', async () => {
+      await router.push('/')
+      await router.push('/welcome/secret-token')
+      expect(trackPageView).toHaveBeenCalledWith('/welcome')
+      expect(JSON.stringify(vi.mocked(trackPageView).mock.calls)).not.toContain('secret-token')
+    })
+
+    it('forwards the link the API issues, /set-password?token=, to the same page', async () => {
+      await router.push('/set-password?token=secret-token')
+      expect(router.currentRoute.value.name).toBe('welcome')
+      expect(router.currentRoute.value.params.token).toBe('secret-token')
+      expect(router.currentRoute.value.query).toEqual({})
+      expect(JSON.stringify(vi.mocked(trackPageView).mock.calls)).not.toContain('secret-token')
+    })
+
+    it('sends a /set-password link with no token to sign in', async () => {
+      await router.push('/set-password')
+      expect(router.currentRoute.value.path).toBe('/login')
+    })
+
+    it('lets a signed-in user open a link, so the page can check whose it is', async () => {
+      useAuthStore().signIn('tok-1', { id: 'u1', email: 'a@example.com' })
+      await router.push('/welcome/secret-token')
+      expect(router.currentRoute.value.name).toBe('welcome')
+    })
   })
 
   describe('auth gating', () => {
@@ -104,6 +147,66 @@ describe('router', () => {
       await router.push('/services/northbound-express')
       expect(router.currentRoute.value.name).toBe('published-service')
       expect(router.currentRoute.value.params.slug).toBe('northbound-express')
+    })
+  })
+
+  describe('admin gating', () => {
+    // The router is shared, and a push to the route it is already on skips the
+    // guard; start every case from elsewhere.
+    beforeEach(async () => {
+      await router.push('/')
+    })
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    it('sends a signed-out visitor to sign in first', async () => {
+      await router.push('/admin')
+      expect(router.currentRoute.value.path).toBe('/login')
+      expect(router.currentRoute.value.query.redirect).toBe('/admin')
+    })
+
+    it('sends a signed-in non-admin home', async () => {
+      useAuthStore().signIn('tok-1', { id: 'u1', email: 'a@example.com', is_admin: false })
+      await router.push('/admin')
+      expect(router.currentRoute.value.path).toBe('/')
+    })
+
+    it('lets an admin in', async () => {
+      useAuthStore().signIn('tok-1', { id: 'u1', email: 'a@example.com', is_admin: true })
+      await router.push('/admin')
+      expect(router.currentRoute.value.path).toBe('/admin')
+    })
+
+    it('waits for a restored session to say who the user is before deciding', async () => {
+      // A reload: the token comes back from storage but the user record is
+      // still on its way from /api/auth/me.
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ id: 'u1', email: 'a@example.com', is_admin: true }),
+      } as Response))
+      window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: 'tok-1', userId: 'u1' }))
+      setActivePinia(createPinia())
+
+      await router.push('/admin')
+
+      expect(router.currentRoute.value.path).toBe('/admin')
+    })
+
+    it('sends a restored non-admin home once /api/auth/me answers', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ id: 'u1', email: 'a@example.com', is_admin: false }),
+      } as Response))
+      window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: 'tok-1', userId: 'u1' }))
+      setActivePinia(createPinia())
+
+      await router.push('/admin')
+
+      expect(router.currentRoute.value.path).toBe('/')
     })
   })
 
@@ -186,6 +289,13 @@ describe('router', () => {
     it('names an unmatched path as not found', async () => {
       await router.push('/no-such-page')
       expect(document.title).toBe('Page not found · Sparks Effect')
+    })
+
+    it('keeps the page\'s own title when only the query changes', async () => {
+      await router.push('/scenario/ca-hsr')
+      document.title = 'California HSR · Sparks Effect'
+      await router.replace({ query: { at: '37.3,-121.8', mode: 'walk', mins: '60' } })
+      expect(document.title).toBe('California HSR · Sparks Effect')
     })
 
     it('restores the bare site name on returning to /', async () => {

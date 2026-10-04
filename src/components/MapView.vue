@@ -19,6 +19,8 @@ import { resolveMapStyleUrl } from '../mapStyle'
 import { readThemeToken } from '../themeTokens'
 import type { Route, Station } from '../api/scenarios'
 import type { SnapCoord as LatLng } from '../api/authoring/types'
+import LoadingRegion from './LoadingRegion.vue'
+import SkeletonShape from './SkeletonShape.vue'
 
 // maplibre-gl 6 finds its worker beside its own module via import.meta.url,
 // which a Vite bundle breaks: the worker is never emitted and no tiles load.
@@ -71,7 +73,7 @@ let map: Map | null = null
 let resizeObserver: ResizeObserver | null = null
 let hasFittedToSegments = false
 let hasFittedToRoutes = false
-let isMapLoaded = false
+const isMapLoaded = ref(false)
 let lastClickedPoint: LatLng | null = null
 
 const MAP_FIT_PADDING = { top: 56, bottom: 112, left: 56, right: 56 }
@@ -169,7 +171,7 @@ const modules = mapModules([
 ])
 
 function syncModules(): void {
-  if (map) modules.sync(map, isMapLoaded)
+  if (map) modules.sync(map, isMapLoaded.value)
 }
 
 function handleMapClick(event: MapMouseEvent): void {
@@ -196,7 +198,7 @@ watch(() => props.placementArmed, applyPlacementMode)
 watch(
   () => props.isochroneData,
   (data) => {
-    if (!data || !isMapLoaded) return
+    if (!data || !isMapLoaded.value) return
     fitMapToIsochrone(data)
   },
 )
@@ -204,7 +206,7 @@ watch(
 watch(
   () => props.origin,
   (coords) => {
-    if (!coords || !isMapLoaded) return
+    if (!coords || !isMapLoaded.value) return
     const wasJustClicked = lastClickedPoint?.lat === coords.lat && lastClickedPoint?.lng === coords.lng
     lastClickedPoint = null
     if (wasJustClicked) return
@@ -215,7 +217,7 @@ watch(
 watch(
   () => props.routes,
   (routes) => {
-    if (!isMapLoaded || props.isochroneData || props.origin || hasFittedToRoutes) return
+    if (!isMapLoaded.value || props.isochroneData || props.origin || hasFittedToRoutes) return
     if (routes.length > 0) fitMapToRoutes()
   },
 )
@@ -246,7 +248,7 @@ onMounted(() => {
 
   map.on('load', () => {
     if (!map) return
-    isMapLoaded = true
+    isMapLoaded.value = true
 
     syncModules()
     applyPlacementMode()
@@ -289,6 +291,17 @@ onUnmounted(() => {
       ref="mapContainer"
       class="h-full min-h-[70vh] w-full"
     />
+    <LoadingRegion
+      v-if="!isMapLoaded"
+      label="Loading map"
+      class="pointer-events-none absolute inset-0 z-1"
+      data-testid="map-skeleton"
+    >
+      <SkeletonShape
+        shape="block"
+        class="size-full"
+      />
+    </LoadingRegion>
     <div
       v-if="loading"
       class="font-body pointer-events-none absolute inset-0 z-2 flex items-center justify-center gap-2.5 bg-white/65 text-[15px] text-ink"

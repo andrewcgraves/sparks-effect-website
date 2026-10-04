@@ -152,4 +152,70 @@ describe('ConfirmDialog', () => {
     await host.get('[data-testid="confirm-dialog-confirm"]').trigger('click')
     await expect(second).resolves.toBe(true)
   })
+
+  describe('with a note', () => {
+    const UNPUBLISH = { ...DESTRUCTIVE, title: 'Unpublish Coast Line?', confirmLabel: 'Unpublish', noteLabel: 'Reason' }
+
+    async function askWithNote(): Promise<{ answer: Promise<string | null> }> {
+      const answer = useConfirm().confirmWithNote(UNPUBLISH)
+      await flushPromises()
+      return { answer }
+    }
+
+    function note() {
+      return host.get('[data-testid="confirm-dialog-note"]')
+    }
+
+    it('shows no note field for a plain confirm', async () => {
+      await ask()
+      expect(host.find('[data-testid="confirm-dialog-note"]').exists()).toBe(false)
+    })
+
+    it('labels the note field with the caller\'s label, and focuses it on open', async () => {
+      await askWithNote()
+      const field = note().element as HTMLTextAreaElement
+      expect(field.labels?.[0]?.textContent).toContain('Reason')
+      expect(document.activeElement).toBe(field)
+    })
+
+    it('resolves with the trimmed note when confirmed', async () => {
+      const { answer } = await askWithNote()
+      await note().setValue('  Reported as spam  ')
+      await host.get('[data-testid="confirm-dialog-confirm"]').trigger('click')
+      await expect(answer).resolves.toBe('Reported as spam')
+    })
+
+    it('resolves with an empty note when confirmed without one', async () => {
+      const { answer } = await askWithNote()
+      await host.get('[data-testid="confirm-dialog-confirm"]').trigger('click')
+      await expect(answer).resolves.toBe('')
+    })
+
+    it('resolves null when cancelled', async () => {
+      const { answer } = await askWithNote()
+      await note().setValue('never mind')
+      await host.get('[data-testid="confirm-dialog-cancel"]').trigger('click')
+      await expect(answer).resolves.toBeNull()
+    })
+
+    it('starts each ask with an empty note', async () => {
+      const { answer } = await askWithNote()
+      await note().setValue('first')
+      await host.get('[data-testid="confirm-dialog-cancel"]').trigger('click')
+      await answer
+      await askWithNote()
+      expect((note().element as HTMLTextAreaElement).value).toBe('')
+    })
+
+    it('keeps the note field inside the Tab cycle', async () => {
+      await askWithNote()
+      const field = note().element
+      const buttons = [...dialog().querySelectorAll('button')]
+      buttons[buttons.length - 1].focus()
+      expect(key('Tab').defaultPrevented).toBe(true)
+      expect(document.activeElement).toBe(field)
+      expect(key('Tab', true).defaultPrevented).toBe(true)
+      expect(document.activeElement).toBe(buttons[buttons.length - 1])
+    })
+  })
 })

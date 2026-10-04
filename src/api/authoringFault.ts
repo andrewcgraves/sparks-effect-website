@@ -177,7 +177,7 @@ function stopPlacementSentence(fault: StopPlacementFault | null): string {
   return "Some stops don't sit on the route. Check the flagged stops and save again."
 }
 
-function retryAfterSentence(seconds: number | undefined): string {
+export function retryAfterSentence(seconds: number | undefined): string {
   if (seconds === undefined) return "You're going a little fast. Wait a moment, then try again."
   const wait = seconds === 1 ? '1 second' : `${seconds} seconds`
   return `You're going a little fast. Try again in ${wait}.`

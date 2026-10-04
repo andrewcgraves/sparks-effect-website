@@ -1,6 +1,17 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { ApiError, fetchCurrentUser, login as loginRequest, logout as logoutRequest, type CurrentUser } from '../api/authoring'
+import {
+  ApiError,
+  changePassword as changePasswordRequest,
+  fetchCurrentUser,
+  login as loginRequest,
+  logout as logoutRequest,
+  revokeAllSessions,
+  SessionExpiredError,
+  updateMe,
+  WrongCurrentPasswordError,
+  type CurrentUser,
+} from '../api/authoring'
 import { readJson, removeKey, writeJson } from './storage'
 
 export const AUTH_STORAGE_KEY = 'sparks-effect.auth'
@@ -36,6 +47,9 @@ export const useAuthStore = defineStore('auth', () => {
   const sessionExpired = ref(false)
 
   const isAuthenticated = computed(() => Boolean(token.value))
+
+  // The display name, once one is set; until then the email stands in.
+  const displayName = computed(() => user.value?.name || user.value?.email || null)
 
   // Persistence is best-effort: a full or disabled store must not break sign-in.
   function persist(): void {
@@ -91,10 +105,47 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  // Other devices are only signed out once the API confirms it, so a failed
+  // revoke leaves this one signed in too rather than pretending it worked.
+  async function logoutEverywhere(): Promise<void> {
+    await revokeAllSessions()
+    signOut()
+  }
+
+  async function updateName(name: string): Promise<void> {
+    user.value = await updateMe(name)
+  }
+
+  async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    const sessionToken = token.value
+    if (!sessionToken) throw new SessionExpiredError('no session to change the password of')
+    try {
+      await changePasswordRequest(currentPassword, newPassword, sessionToken)
+    } catch (err: unknown) {
+      if (!(err instanceof ApiError) || err.status !== 401) throw err
+      // The API gives a wrong current password and a dead session the same
+      // 401. Asking who we are on the ambient session tells them apart: if the
+      // session is gone, that request expires it through the usual path and
+      // its error propagates from here instead.
+      await fetchCurrentUser()
+      throw new WrongCurrentPasswordError()
+    }
+  }
+
   // A 401 means the session was revoked or expired, so the stored token is
   // dead and we sign out. Any other failure (offline, API down) is treated as
   // transient: the token is kept so a later call can still succeed.
-  async function restoreSession(): Promise<void> {
+  //
+  // Callers that ask while a restore is in flight share it: the router waits on
+  // the one started at boot before deciding whether an admin page may open.
+  let restoring: Promise<void> | null = null
+
+  function restoreSession(): Promise<void> {
+    restoring ??= fetchSession().finally(() => { restoring = null })
+    return restoring
+  }
+
+  async function fetchSession(): Promise<void> {
     if (!token.value) return
     try {
       const me = await fetchCurrentUser()
@@ -115,12 +166,16 @@ export const useAuthStore = defineStore('auth', () => {
     userId,
     user,
     isAuthenticated,
+    displayName,
     sessionExpired,
     signIn,
     signOut,
     expireSession,
     login,
     logout,
+    logoutEverywhere,
+    updateName,
+    changePassword,
     restoreSession,
   }
 })
