@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useConfirm } from '../composables/useConfirm'
 import { usePageTitle } from '../composables/usePageTitle'
 import { useServiceDraft } from '../composables/useServiceDraft'
@@ -16,6 +16,11 @@ import { PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS, TOGGLE_BUTTON_CLASS } fro
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
 import { ACTION_LINK_CLASS } from '../components/linkStyles'
 import { STOP_PLACEMENT_CUE } from '../components/placementCues'
+import PrototypeSwitcher from '../components/PrototypeSwitcher.vue'
+import PrototypeLayoutTwoRails from './serviceEditorPrototype/PrototypeLayoutTwoRails.vue'
+import PrototypeLayoutMapCanvas from './serviceEditorPrototype/PrototypeLayoutMapCanvas.vue'
+import PrototypeLayoutOutline from './serviceEditorPrototype/PrototypeLayoutOutline.vue'
+import type { EditorSection, SaveStatus } from './serviceEditorPrototype/types'
 
 // One view for both writes. The form, the map, the snap preview and fault
 // attribution are the same whichever way a draft is headed; only the edges
@@ -175,6 +180,16 @@ function handleStopDragEnd(pairId: string, coord: LatLng): void {
 // Discarded before leaving, because leaving first would stop the gate the
 // discard is checked against.
 async function handleDiscard(): Promise<void> {
+  if (hasChanges.value) {
+    const confirmed = await confirm({
+      title: 'Discard your changes?',
+      body: 'Your edits to this service are thrown away and the saved version stays as it was.',
+      confirmLabel: 'Discard changes',
+      cancelLabel: 'Keep editing',
+      destructive: true,
+    })
+    if (!confirmed) return
+  }
   discardEdit()
   await router.push(servicePath.value)
 }
@@ -184,14 +199,104 @@ async function handleDiscard(): Promise<void> {
 // arriving any sooner would show the graph from before the edit. Replaced
 // rather than pushed, so going back does not reopen a finished edit.
 watch(compiledGraph, (graph) => {
-  if (graph && props.slug) void router.replace(servicePath.value)
+  if (!graph || !props.slug) return
+  toast('Changes saved')
+  void router.replace(servicePath.value)
 })
 
 // A create ends on the new service's page straight away, which compiles it on
 // arrival. Replaced for the same reason as an edit: going back should not
 // reopen a form whose draft has already become a service.
 watch(createdSlug, (created) => {
-  if (created) void router.replace(`/authoring/services/${created}`)
+  if (!created) return
+  toast('Service created')
+  void router.replace(`/authoring/services/${created}`)
+})
+
+// PROTOTYPE (SPA-399): everything below feeds the layout variants.
+const route = useRoute()
+
+const VARIANTS = [
+  { key: 'A', name: 'Two rails', layout: PrototypeLayoutTwoRails },
+  { key: 'B', name: 'Map canvas', layout: PrototypeLayoutMapCanvas },
+  { key: 'C', name: 'Outline + command bar', layout: PrototypeLayoutOutline },
+]
+
+const variantLayout = computed(
+  () => (VARIANTS.find((v) => v.key === route?.query.variant) ?? VARIANTS[0]).layout,
+)
+
+function snapshot(): string {
+  return JSON.stringify({
+    routeSlug: routeSlug.value,
+    name: name.value,
+    subtext: subtext.value,
+    description: description.value,
+    stops: stops.value.map((s) => [s.name, s.lat, s.lng]),
+    vehicle: [maxSpeedKmh.value, accelerationMs2.value, decelerationMs2.value, dwellS.value],
+    windows: frequencyWindows.value.map((w) => [w.start_time, w.end_time, w.headway_s]),
+  })
+}
+
+const baseline = ref<string | null>(null)
+watch(ready, (isReady) => {
+  if (isReady && props.slug) baseline.value = snapshot()
+}, { immediate: true })
+
+const hasChanges = computed(() => {
+  if (!ready.value) return false
+  if (props.slug) return baseline.value !== null && snapshot() !== baseline.value
+  return Boolean(name.value.trim() || routeSlug.value || stops.value.length)
+})
+
+const locked = computed(() => submitting.value || compiling.value)
+
+const saveStatus = computed<SaveStatus>(() => {
+  if (submitError.value) return { label: "Couldn't save", tone: 'error', note: 'Your draft is still kept in this browser.' }
+  if (compileError.value) return { label: 'Saved, but compiling failed', tone: 'error', note: compileError.value }
+  if (compiling.value) return { label: 'Compiling…', tone: 'busy', note: null }
+  if (submitting.value) return { label: props.slug ? 'Saving…' : 'Creating…', tone: 'busy', note: null }
+  if (!props.slug) {
+    return hasChanges.value
+      ? { label: 'Not created yet', tone: 'dirty', note: 'Draft kept in this browser' }
+      : { label: 'Nothing here yet', tone: 'quiet', note: null }
+  }
+  return hasChanges.value
+    ? { label: 'Unsaved changes', tone: 'dirty', note: 'Draft kept in this browser' }
+    : { label: 'No changes', tone: 'quiet', note: null }
+})
+
+const sections = computed<EditorSection[]>(() => {
+  const offRoute = preview.value?.stops.some((s) => s.off_route) ?? false
+  const routeReady = Boolean(routeSlug.value) && stops.value.length >= 2 && !offRoute && !orderWarning.value
+  const vehicleReady = [maxSpeedKmh.value, accelerationMs2.value, decelerationMs2.value].every((v) => v > 0)
+  const opsReady = vehicleReady && frequencyWindows.value.length > 0
+  return [
+    {
+      key: 'identity',
+      title: 'Identity',
+      state: name.value.trim() ? 'ready' : 'todo',
+      hint: name.value.trim() || 'Name it first',
+    },
+    {
+      key: 'routeStops',
+      title: 'Route & stops',
+      state: routeReady ? 'ready' : 'todo',
+      hint: stops.value.length ? `${stops.value.length} stops${offRoute ? ', some off the route' : ''}` : 'A route and two or more stops',
+    },
+    {
+      key: 'operations',
+      title: 'Operations',
+      state: opsReady ? 'ready' : 'todo',
+      hint: frequencyWindows.value.length ? `${frequencyWindows.value.length} frequency windows` : 'Vehicle and when it runs',
+    },
+    {
+      key: 'description',
+      title: 'Description',
+      state: 'optional',
+      hint: 'Optional, shown on the service page',
+    },
+  ]
 })
 </script>
 
@@ -244,27 +349,56 @@ watch(createdSlug, (created) => {
       />
     </LoadingRegion>
 
-    <template v-else-if="!submitted">
-      <div class="mt-8 grid grid-cols-1 items-start gap-8 lg:grid-cols-[1fr_1fr]">
-        <form
-          class="flex flex-col gap-6"
-          @submit.prevent="submit"
+    <form
+      v-else-if="!submitted || slug"
+      @submit.prevent="submit"
+    >
+      <fieldset
+        :disabled="locked"
+        class="contents"
+      >
+        <component
+          :is="variantLayout"
+          :sections="sections"
+          :status="saveStatus"
         >
-          <section class="rounded-(--radius-box) border border-border bg-surface p-4">
-            <h2 class="font-display text-h3 text-ink-true">
-              Route
-            </h2>
+          <template #identity>
+            <div class="flex flex-col gap-4">
+              <label :class="FIELD_LABEL_CLASS">
+                Service name
+                <input
+                  v-model="name"
+                  :class="FIELD_INPUT_CLASS"
+                  data-testid="service-name"
+                  type="text"
+                >
+              </label>
+
+              <label :class="FIELD_LABEL_CLASS">
+                Subtext (optional)
+                <input
+                  v-model="subtext"
+                  :class="FIELD_INPUT_CLASS"
+                  data-testid="service-subtext"
+                  type="text"
+                  :maxlength="MAX_SUBTEXT_CHARS"
+                  placeholder="Electrified · High-speed rail · Greenfield"
+                >
+              </label>
+            </div>
+          </template>
+
+          <template #routeStops>
             <LoadingRegion
               v-if="routesLoading"
               label="Loading routes"
-              class="mt-2"
               data-testid="routes-loading"
             >
               <FieldSkeleton />
             </LoadingRegion>
             <p
               v-else-if="routesError"
-              class="font-body text-caption mt-2 text-error"
+              class="font-body text-caption text-error"
               role="alert"
               data-testid="routes-error"
             >
@@ -272,9 +406,9 @@ watch(createdSlug, (created) => {
             </p>
             <label
               v-else
-              :class="[FIELD_LABEL_CLASS, 'mt-2']"
+              :class="FIELD_LABEL_CLASS"
             >
-              Pick a route
+              Route
               <select
                 :value="routeSlug"
                 :class="FIELD_INPUT_CLASS"
@@ -304,178 +438,177 @@ watch(createdSlug, (created) => {
             >
               Couldn't recover this service's route. Pick it again to save.
             </p>
-          </section>
 
-          <section
-            ref="stopsSection"
-            class="rounded-(--radius-box) border border-border bg-surface p-4"
-          >
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <h2 class="font-display text-h3 text-ink-true">
-                Stops
-              </h2>
-              <button
-                type="button"
-                :class="TOGGLE_BUTTON_CLASS"
-                data-testid="toggle-place-stops"
-                :aria-pressed="placingStops"
-                @click="placingStops = !placingStops"
-              >
-                {{ placingStops ? 'Done adding' : 'Add stops by clicking' }}
-              </button>
-            </div>
-
-            <ul
-              v-if="stops.length"
-              class="mt-3 flex flex-col gap-2"
-              data-testid="stops-list"
+            <div
+              ref="stopsSection"
+              class="mt-5"
             >
-              <li
-                v-for="(stop, index) in stops"
-                :key="stop.id"
-                class="font-body text-caption flex items-center justify-between gap-2 rounded-(--radius-field) border border-border bg-white px-3 py-2 text-ink"
-                data-testid="stop-row"
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <h3 class="font-display text-btn text-ink uppercase">
+                  Stops
+                </h3>
+                <button
+                  type="button"
+                  :class="TOGGLE_BUTTON_CLASS"
+                  data-testid="toggle-place-stops"
+                  :aria-pressed="placingStops"
+                  @click="placingStops = !placingStops"
+                >
+                  {{ placingStops ? 'Done adding' : 'Add stops by clicking' }}
+                </button>
+              </div>
+
+              <ul
+                v-if="stops.length"
+                class="mt-3 flex flex-col gap-2"
+                data-testid="stops-list"
               >
-                <div class="flex flex-wrap items-center gap-2">
+                <li
+                  v-for="(stop, index) in stops"
+                  :key="stop.id"
+                  class="font-body text-caption flex items-center justify-between gap-2 rounded-(--radius-field) border border-border bg-white px-3 py-2 text-ink"
+                  data-testid="stop-row"
+                >
+                  <div class="flex flex-wrap items-center gap-2">
+                    <input
+                      :value="stop.name"
+                      class="w-28 border-b border-transparent bg-transparent font-medium not-italic normal-case hover:border-border focus:border-border focus:outline-none"
+                      :data-testid="`stop-edit-name-${index}`"
+                      type="text"
+                      @change="updateStop(index, { name: ($event.target as HTMLInputElement).value })"
+                    >
+                    <input
+                      :value="stop.lat"
+                      class="w-20 border-b border-transparent bg-transparent text-ink-muted not-italic normal-case hover:border-border focus:border-border focus:outline-none"
+                      :data-testid="`stop-edit-lat-${index}`"
+                      type="number"
+                      step="any"
+                      @change="updateStop(index, { lat: Number(($event.target as HTMLInputElement).value) })"
+                    >
+                    <input
+                      :value="stop.lng"
+                      class="w-20 border-b border-transparent bg-transparent text-ink-muted not-italic normal-case hover:border-border focus:border-border focus:outline-none"
+                      :data-testid="`stop-edit-lng-${index}`"
+                      type="number"
+                      step="any"
+                      @change="updateStop(index, { lng: Number(($event.target as HTMLInputElement).value) })"
+                    >
+                    <span
+                      v-if="preview?.stops[index]?.off_route"
+                      class="text-error"
+                      data-testid="stop-off-route"
+                    >
+                      {{ Math.round(preview!.stops[index].offset_m) }}m off the route
+                    </span>
+                    <span
+                      v-if="faultedStops.has(stop.seq)"
+                      class="text-error"
+                      data-testid="stop-submit-error"
+                    >
+                      {{ stopFaultMessage(faultedStops.get(stop.seq)!) }}
+                    </span>
+                  </div>
+                  <div class="flex shrink-0 gap-1">
+                    <button
+                      type="button"
+                      class="cursor-pointer px-1 text-ink-muted hover:text-ink"
+                      :data-testid="`stop-up-${index}`"
+                      :disabled="index === 0"
+                      @click="moveStop(index, -1)"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      class="cursor-pointer px-1 text-ink-muted hover:text-ink"
+                      :data-testid="`stop-down-${index}`"
+                      :disabled="index === stops.length - 1"
+                      @click="moveStop(index, 1)"
+                    >
+                      ↓
+                    </button>
+                    <button
+                      type="button"
+                      class="cursor-pointer px-1 text-ink-muted hover:text-coral"
+                      :data-testid="`stop-remove-${index}`"
+                      @click="handleRemoveStop(index)"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </li>
+              </ul>
+
+              <p
+                v-if="previewLoading"
+                class="font-body text-caption mt-2 text-ink-muted italic"
+                data-testid="preview-loading"
+              >
+                Checking against the route…
+              </p>
+              <p
+                v-if="previewError"
+                class="font-body text-caption mt-2 text-error"
+                role="alert"
+                data-testid="preview-error"
+              >
+                Couldn't preview the snap. You can still add stops.
+              </p>
+              <p
+                v-if="orderWarning"
+                class="font-body text-caption mt-2 text-error"
+                role="alert"
+                data-testid="order-warning"
+              >
+                {{ orderWarning }}
+              </p>
+
+              <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-[2fr_1fr_1fr_auto]">
+                <label :class="[FIELD_LABEL_CLASS, 'col-span-2 sm:col-span-1']">
+                  Name
                   <input
-                    :value="stop.name"
-                    class="w-28 border-b border-transparent bg-transparent font-medium not-italic normal-case hover:border-border focus:border-border focus:outline-none"
-                    :data-testid="`stop-edit-name-${index}`"
+                    v-model="newStopName"
+                    :class="FIELD_INPUT_CLASS"
+                    data-testid="stop-name"
                     type="text"
-                    @change="updateStop(index, { name: ($event.target as HTMLInputElement).value })"
                   >
+                </label>
+                <label :class="FIELD_LABEL_CLASS">
+                  Lat
                   <input
-                    :value="stop.lat"
-                    class="w-20 border-b border-transparent bg-transparent text-ink-muted not-italic normal-case hover:border-border focus:border-border focus:outline-none"
-                    :data-testid="`stop-edit-lat-${index}`"
+                    v-model.number="newStopLat"
+                    :class="FIELD_INPUT_CLASS"
+                    data-testid="stop-lat"
                     type="number"
                     step="any"
-                    @change="updateStop(index, { lat: Number(($event.target as HTMLInputElement).value) })"
                   >
+                </label>
+                <label :class="FIELD_LABEL_CLASS">
+                  Lng
                   <input
-                    :value="stop.lng"
-                    class="w-20 border-b border-transparent bg-transparent text-ink-muted not-italic normal-case hover:border-border focus:border-border focus:outline-none"
-                    :data-testid="`stop-edit-lng-${index}`"
+                    v-model.number="newStopLng"
+                    :class="FIELD_INPUT_CLASS"
+                    data-testid="stop-lng"
                     type="number"
                     step="any"
-                    @change="updateStop(index, { lng: Number(($event.target as HTMLInputElement).value) })"
                   >
-                  <span
-                    v-if="preview?.stops[index]?.off_route"
-                    class="text-error"
-                    data-testid="stop-off-route"
-                  >
-                    {{ Math.round(preview!.stops[index].offset_m) }}m off the route
-                  </span>
-                  <span
-                    v-if="faultedStops.has(stop.seq)"
-                    class="text-error"
-                    data-testid="stop-submit-error"
-                  >
-                    {{ stopFaultMessage(faultedStops.get(stop.seq)!) }}
-                  </span>
-                </div>
-                <div class="flex shrink-0 gap-1">
-                  <button
-                    type="button"
-                    class="cursor-pointer px-1 text-ink-muted hover:text-ink"
-                    :data-testid="`stop-up-${index}`"
-                    :disabled="index === 0"
-                    @click="moveStop(index, -1)"
-                  >
-                    ↑
-                  </button>
-                  <button
-                    type="button"
-                    class="cursor-pointer px-1 text-ink-muted hover:text-ink"
-                    :data-testid="`stop-down-${index}`"
-                    :disabled="index === stops.length - 1"
-                    @click="moveStop(index, 1)"
-                  >
-                    ↓
-                  </button>
-                  <button
-                    type="button"
-                    class="cursor-pointer px-1 text-ink-muted hover:text-coral"
-                    :data-testid="`stop-remove-${index}`"
-                    @click="handleRemoveStop(index)"
-                  >
-                    ✕
-                  </button>
-                </div>
-              </li>
-            </ul>
-
-            <p
-              v-if="previewLoading"
-              class="font-body text-caption mt-2 text-ink-muted italic"
-              data-testid="preview-loading"
-            >
-              Checking against the route…
-            </p>
-            <p
-              v-if="previewError"
-              class="font-body text-caption mt-2 text-error"
-              role="alert"
-              data-testid="preview-error"
-            >
-              Couldn't preview the snap. You can still add stops.
-            </p>
-            <p
-              v-if="orderWarning"
-              class="font-body text-caption mt-2 text-error"
-              role="alert"
-              data-testid="order-warning"
-            >
-              {{ orderWarning }}
-            </p>
-
-            
-            <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-[2fr_1fr_1fr_auto]">
-              <label :class="[FIELD_LABEL_CLASS, 'col-span-2 sm:col-span-1']">
-                Name
-                <input
-                  v-model="newStopName"
-                  :class="FIELD_INPUT_CLASS"
-                  data-testid="stop-name"
-                  type="text"
+                </label>
+                <button
+                  type="button"
+                  :class="[SECONDARY_BUTTON_CLASS, 'col-span-2 mt-2 sm:col-span-1 sm:mt-auto']"
+                  data-testid="add-stop"
+                  @click="handleAddStop"
                 >
-              </label>
-              <label :class="FIELD_LABEL_CLASS">
-                Lat
-                <input
-                  v-model.number="newStopLat"
-                  :class="FIELD_INPUT_CLASS"
-                  data-testid="stop-lat"
-                  type="number"
-                  step="any"
-                >
-              </label>
-              <label :class="FIELD_LABEL_CLASS">
-                Lng
-                <input
-                  v-model.number="newStopLng"
-                  :class="FIELD_INPUT_CLASS"
-                  data-testid="stop-lng"
-                  type="number"
-                  step="any"
-                >
-              </label>
-              <button
-                type="button"
-                :class="[SECONDARY_BUTTON_CLASS, 'col-span-2 mt-2 sm:col-span-1 sm:mt-auto']"
-                data-testid="add-stop"
-                @click="handleAddStop"
-              >
-                Add
-              </button>
+                  Add
+                </button>
+              </div>
             </div>
-          </section>
+          </template>
 
-          <section class="rounded-(--radius-box) border border-border bg-surface p-4">
-            <h2 class="font-display text-h3 text-ink-true">
+          <template #operations>
+            <h3 class="font-display text-btn text-ink uppercase">
               Vehicle
-            </h2>
+            </h3>
             <div class="mt-2 grid grid-cols-2 gap-3">
               <label :class="FIELD_LABEL_CLASS">
                 Max speed (km/h)
@@ -520,12 +653,10 @@ watch(createdSlug, (created) => {
                 >
               </label>
             </div>
-          </section>
 
-          <section class="rounded-(--radius-box) border border-border bg-surface p-4">
-            <h2 class="font-display text-h3 text-ink-true">
+            <h3 class="font-display text-btn mt-6 text-ink uppercase">
               Frequency windows
-            </h2>
+            </h3>
             <ul
               v-if="frequencyWindows.length"
               class="mt-3 flex flex-col gap-2"
@@ -586,88 +717,71 @@ watch(createdSlug, (created) => {
                 Add
               </button>
             </div>
-          </section>
+          </template>
 
-          <label :class="FIELD_LABEL_CLASS">
-            Service name
-            <input
-              v-model="name"
-              :class="FIELD_INPUT_CLASS"
-              data-testid="service-name"
-              type="text"
+          <template #description>
+            <label :class="FIELD_LABEL_CLASS">
+              <span class="sr-only">Description</span>
+              <textarea
+                v-model="description"
+                :class="FIELD_INPUT_CLASS"
+                data-testid="service-description"
+                rows="5"
+                :maxlength="MAX_DESCRIPTION_CHARS"
+              />
+            </label>
+          </template>
+
+          <template #actions>
+            <button
+              v-if="slug"
+              type="button"
+              :class="ACTION_LINK_CLASS"
+              data-testid="discard-edit"
+              :disabled="locked"
+              @click="handleDiscard"
             >
-          </label>
-
-          <label :class="FIELD_LABEL_CLASS">
-            Subtext (optional)
-            <input
-              v-model="subtext"
-              :class="FIELD_INPUT_CLASS"
-              data-testid="service-subtext"
-              type="text"
-              :maxlength="MAX_SUBTEXT_CHARS"
-              placeholder="Electrified · High-speed rail · Greenfield"
+              Discard
+            </button>
+            <button
+              type="submit"
+              :class="PRIMARY_BUTTON_CLASS"
+              data-testid="submit"
+              :disabled="!canSubmit || (Boolean(slug) && !hasChanges)"
             >
-          </label>
+              {{ submitLabel }}
+            </button>
+          </template>
 
-          <label :class="FIELD_LABEL_CLASS">
-            Description (optional)
-            <textarea
-              v-model="description"
-              :class="FIELD_INPUT_CLASS"
-              data-testid="service-description"
-              rows="5"
-              :maxlength="MAX_DESCRIPTION_CHARS"
+          <template #map>
+            <MapView
+              :loading="false"
+              :isochrone-data="null"
+              :routes="mapRoutes"
+              :stations="[]"
+              :stop-preview-pairs="stopPreviewPairs"
+              :placement-armed="placingStops"
+              :placement-cue="STOP_PLACEMENT_CUE"
+              hide-isochrone-legend
+              @map-click="addStopAt"
+              @stop-drag="handleStopDrag"
+              @stop-drag-end="handleStopDragEnd"
             />
-          </label>
+          </template>
+        </component>
+      </fieldset>
 
-          <button
-            type="submit"
-            :class="PRIMARY_BUTTON_CLASS"
-            data-testid="submit"
-            :disabled="!canSubmit"
-          >
-            {{ submitLabel }}
-          </button>
+      <p
+        v-if="submitError"
+        class="font-body text-caption mt-3 text-error"
+        role="alert"
+        data-testid="submit-error"
+      >
+        {{ submitError }}
+      </p>
 
-          <button
-            v-if="slug"
-            type="button"
-            :class="[ACTION_LINK_CLASS, 'self-start']"
-            data-testid="discard-edit"
-            :disabled="submitting"
-            @click="handleDiscard"
-          >
-            Discard changes
-          </button>
-
-          <p
-            v-if="submitError"
-            class="font-body text-caption text-error"
-            role="alert"
-            data-testid="submit-error"
-          >
-            {{ submitError }}
-          </p>
-        </form>
-
-        <div class="h-[70vh]">
-          <MapView
-            :loading="false"
-            :isochrone-data="null"
-            :routes="mapRoutes"
-            :stations="[]"
-            :stop-preview-pairs="stopPreviewPairs"
-            :placement-armed="placingStops"
-            :placement-cue="STOP_PLACEMENT_CUE"
-            hide-isochrone-legend
-            @map-click="addStopAt"
-            @stop-drag="handleStopDrag"
-            @stop-drag-end="handleStopDragEnd"
-          />
-        </div>
-      </div>
-    </template>
+      <PrototypeSwitcher :variants="VARIANTS" />
+    </form>
 
     <template v-else>
       <div class="mt-8 max-w-[560px] rounded-(--radius-box) border border-border bg-surface p-4">
