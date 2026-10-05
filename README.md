@@ -69,5 +69,5 @@ posting to an endpoint that will not keep them; page views are unaffected.
 ## Project structure
 
 - `src/` — Vue application source
-- `.github/workflows/ci.yml` — CI: lint + test on every push/PR, then build and upload the `dist`
+- `.github/workflows/ci.yml` — CI: a production-dependency `npm audit`, lint + test on every push/PR, then build and upload the `dist`
   artifact
