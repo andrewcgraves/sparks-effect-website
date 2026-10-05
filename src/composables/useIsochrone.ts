@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import { fetchIsochrone, type IsochroneRequest } from '../api/isochrone'
+import type { IsochroneProgress } from '../api/routingJobs'
 import { isochroneFault, isochroneRangeRefusal, isochroneRequested } from '../api/isochroneFault'
 import type { Station } from '../api/scenarios'
 import type { ChainResponse } from '../fixtures/isochrone'
@@ -9,6 +10,7 @@ export function useIsochrone(getStations: () => Station[] = () => []) {
   const data = ref<ChainResponse | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
+  const progress = ref<IsochroneProgress | null>(null)
   // A late answer to a question already re-asked — or already answered by
   // show() — writes nothing; requests cannot be recalled, only ignored.
   const attempts = latestAttempt()
@@ -34,9 +36,12 @@ export function useIsochrone(getStations: () => Station[] = () => []) {
 
     loading.value = true
     error.value = null
+    progress.value = null
     isochroneRequested(request.mode, request.budget_mins)
     try {
-      const result = await fetchIsochrone(request)
+      const result = await fetchIsochrone(request, (latest) => {
+        if (attempts.isCurrent(attempt)) progress.value = latest
+      })
       if (attempts.isCurrent(attempt)) data.value = result
     } catch (e) {
       console.error(e)
@@ -58,5 +63,5 @@ export function useIsochrone(getStations: () => Station[] = () => []) {
     loading.value = false
   }
 
-  return { data, loading, error, generate, show }
+  return { data, loading, error, progress, generate, show }
 }

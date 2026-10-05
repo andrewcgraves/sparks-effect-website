@@ -7,6 +7,7 @@ import {
   enqueueIsochrone,
   fetchRoutingJob,
   ISOCHRONE_DEADLINE_MS,
+  isochroneWaitMessage,
   type IsochroneParams,
   type RoutingJob,
 } from './routingJobs'
@@ -224,6 +225,32 @@ describe('enqueueIsochrone', () => {
     expect(new Set(ids).size).toBe(1)
   })
 
+  // SPA-467: the wait is told to the visitor as it happens, so every poll's
+  // place in the queue reaches the caller — including a queued poll that
+  // carries no position, which the API sends when it could not count.
+  it('reports the status and queue position of every poll to onProgress', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(enqueued())
+      .mockResolvedValueOnce(polled({ status: 'queued', queue_position: 2 }))
+      .mockResolvedValueOnce(polled({ status: 'queued', queue_position: 1 }))
+      .mockResolvedValueOnce(polled({ status: 'queued' }))
+      .mockResolvedValueOnce(polled({ status: 'running' }))
+      .mockResolvedValueOnce(polled({ status: 'succeeded', result: stubChain }))
+    const onProgress = vi.fn()
+
+    const promise = enqueueIsochrone('/api/isochrone', params, onProgress)
+    for (let i = 0; i < 5; i++) await vi.advanceTimersByTimeAsync(1000)
+    await promise
+
+    expect(onProgress.mock.calls.map(([progress]) => progress)).toEqual([
+      { status: 'queued', queue_position: 2 },
+      { status: 'queued', queue_position: 1 },
+      { status: 'queued' },
+      { status: 'running' },
+      { status: 'succeeded' },
+    ])
+  })
+
   it('mints a different X-Trace-Id for each enqueued job', async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(enqueued())
@@ -240,6 +267,25 @@ describe('enqueueIsochrone', () => {
   })
 })
 
+// SPA-467: queue_position counts the in-flight jobs created before this one,
+// so 0 means next; it is absent once running, and absent while queued when the
+// API could not count — which reads as a plain wait rather than a guess.
+describe('isochroneWaitMessage', () => {
+  it.each([
+    [{ status: 'queued', queue_position: 2 }, 'Waiting — 2 ahead of you'],
+    [{ status: 'queued', queue_position: 1 }, 'Waiting — 1 ahead of you'],
+    [{ status: 'queued', queue_position: 0 }, "You're next…"],
+    [{ status: 'queued' }, 'Waiting…'],
+    [{ status: 'running' }, 'Plotting…'],
+  ] as const)('words %o as %s', (progress, message) => {
+    expect(isochroneWaitMessage(progress)).toBe(message)
+  })
+
+  it('says Waiting… before the first poll has answered', () => {
+    expect(isochroneWaitMessage(null)).toBe('Waiting…')
+  })
+})
+
 describe('backlogFullError', () => {
   it('reads a refused enqueue and returns a message saying to try again', () => {
     const err = new ApiError('POST /api/isochrone failed: 429', 429, BACKLOG_FULL_CODE)
@@ -248,6 +294,28 @@ describe('backlogFullError', () => {
 
     expect(message).toMatch(/busy/i)
     expect(message).toMatch(/again/i)
+  })
+
+  // SPA-467: the API says how long the backlog will take to clear, so a refused
+  // visitor is told when to come back rather than "in a few moments".
+  it('quotes the Retry-After seconds when the refusal carries them', () => {
+    const refused = (retryAfterS: number) =>
+      new ApiError('POST /api/isochrone failed: 429', 429, BACKLOG_FULL_CODE, undefined, retryAfterS)
+
+    expect(backlogFullError(refused(30))).toBe(
+      'The isochrone service is busy right now. Please try again in 30 seconds.',
+    )
+    expect(backlogFullError(refused(1))).toBe(
+      'The isochrone service is busy right now. Please try again in 1 second.',
+    )
+  })
+
+  it('keeps the unquantified copy when the refusal carries no Retry-After', () => {
+    const err = new ApiError('POST /api/isochrone failed: 429', 429, BACKLOG_FULL_CODE)
+
+    expect(backlogFullError(err)).toBe(
+      'The isochrone service is busy right now. Please try again in a few moments.',
+    )
   })
 
   it('returns null for anything else, so a caller can chain it', () => {

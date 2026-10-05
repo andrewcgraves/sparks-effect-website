@@ -5,6 +5,7 @@ import type { AuthoringNoun } from '../api/authoringFault'
 import { isochroneFault, isochroneRangeRefusal, isochroneRequested } from '../api/isochroneFault'
 import type { ChainResponse } from '../fixtures/isochrone'
 import type { IsochronePayload } from '../isochroneQuery'
+import type { IsochroneProgress } from '../api/routingJobs'
 import { useCompileJob } from './useCompileJob'
 import { latestAttempt } from './latestAttempt'
 import { graphRoutes, graphStations } from './scenarioGraphMap'
@@ -13,7 +14,11 @@ export const MAX_STALE_GRAPH_RETRIES = 3
 
 export interface PinnedGraphTarget<G extends TransitGraph = TransitGraph> {
   fetchGraph: (slug: string) => Promise<G>
-  isochrone: (slug: string, request: AuthoredIsochroneRequest) => Promise<ChainResponse>
+  isochrone: (
+    slug: string,
+    request: AuthoredIsochroneRequest,
+    onProgress?: (progress: IsochroneProgress) => void,
+  ) => Promise<ChainResponse>
 }
 
 export interface AuthoredGraphTarget<G extends TransitGraph = TransitGraph> extends PinnedGraphTarget<G> {
@@ -63,6 +68,7 @@ export function useAuthoredGraph<G extends TransitGraph = TransitGraph>(
   const isochroneData = ref<ChainResponse | null>(null)
   const isochroneLoading = ref(false)
   const isochroneError = ref<string | null>(null)
+  const isochroneProgress = ref<IsochroneProgress | null>(null)
 
   const merge = computed(() => graph.value?.merge)
   const nearMisses = computed(() => merge.value?.near_misses ?? [])
@@ -129,12 +135,15 @@ export function useAuthoredGraph<G extends TransitGraph = TransitGraph>(
   async function plot(slug: string, payload: IsochronePayload, attempt: number, staleRetries: number): Promise<void> {
     isochroneLoading.value = true
     isochroneError.value = null
+    isochroneProgress.value = null
     try {
       const data = await target.isochrone(slug, {
         lat: payload.lat,
         lng: payload.lng,
         budget_mins: payload.duration,
         mode: payload.mode,
+      }, (latest) => {
+        if (plots.isCurrent(attempt)) isochroneProgress.value = latest
       })
       if (!plots.isCurrent(attempt)) return
       isochroneData.value = data
@@ -199,6 +208,7 @@ export function useAuthoredGraph<G extends TransitGraph = TransitGraph>(
     isochroneData.value = null
     isochroneLoading.value = false
     isochroneError.value = null
+    isochroneProgress.value = null
   }
 
   return {
@@ -214,6 +224,7 @@ export function useAuthoredGraph<G extends TransitGraph = TransitGraph>(
     isochroneData,
     isochroneLoading,
     isochroneError,
+    isochroneProgress,
     isochroneFormLoading,
     nearMisses,
     realisedClusters,

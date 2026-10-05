@@ -217,6 +217,23 @@ describe('ScenarioView', () => {
     expect(mapView.props('loading')).toBe(false)
   })
 
+  // SPA-467: a visitor waiting on a queued plot is told where they stand.
+  it('tells a waiting visitor how many plots are ahead of theirs', async () => {
+    vi.mocked(fetchIsochrone).mockImplementation((_request, onProgress) => {
+      onProgress?.({ status: 'queued', queue_position: 2 })
+      return new Promise(() => {})
+    })
+    const wrapper = mountScenarioView('ca-hsr')
+    await wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('submit', {
+      ...NEARBY_ORIGIN,
+      duration: 30,
+      mode: 'walk',
+    })
+    await flushPromises()
+
+    expect(wrapper.findComponent({ name: 'MapView' }).props('loadingMessage')).toBe('Waiting — 2 ahead of you')
+  })
+
   it('calls fetchIsochrone with the form payload and route slug on submit', async () => {
     vi.mocked(fetchIsochrone).mockResolvedValue(stubIsochrone)
     const wrapper = mountScenarioView('ca-hsr')
@@ -231,7 +248,7 @@ describe('ScenarioView', () => {
       budget_mins: 30,
       mode: 'walk',
       scenario_slug: 'ca-hsr',
-    })
+    }, expect.any(Function))
   })
 
   it('forwards the selected mode from the form payload to fetchIsochrone', async () => {
@@ -244,6 +261,7 @@ describe('ScenarioView', () => {
     })
     expect(fetchIsochrone).toHaveBeenCalledWith(
       expect.objectContaining({ mode: 'bike' }),
+      expect.any(Function),
     )
   })
 
@@ -257,6 +275,7 @@ describe('ScenarioView', () => {
     })
     expect(fetchIsochrone).toHaveBeenCalledWith(
       expect.objectContaining({ mode: 'transit' }),
+      expect.any(Function),
     )
   })
 
@@ -1121,7 +1140,7 @@ describe('ScenarioView', () => {
         budget_mins: 120,
         mode: 'transit',
         scenario_slug: 'ca-hsr',
-      })
+      }, expect.any(Function))
       expect((wrapper.get('input[data-testid="lat"]').element as HTMLInputElement).value).toBe('37.71')
       expect((wrapper.get('input[data-testid="mode-transit"]').element as HTMLInputElement).checked).toBe(true)
       expect(wrapper.findComponent({ name: 'MapView' }).props('isochroneData')).toEqual(stubIsochrone)

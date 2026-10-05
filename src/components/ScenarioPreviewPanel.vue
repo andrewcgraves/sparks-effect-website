@@ -15,6 +15,7 @@ const props = defineProps<{
   origin: { lat: number; lng: number } | null
   isochroneData: ChainResponse | null
   loading: boolean
+  loadingMessage?: string
   error: string | null
   nearMisses: NearMiss[]
   realisedClusters: StopCluster[]
@@ -68,6 +69,7 @@ function formatMeters(total: number): string {
         :origin="props.origin"
         :isochrone-data="props.isochroneData"
         :loading="props.loading"
+        :loading-message="props.loadingMessage"
         :routes="props.mapRoutes ?? []"
         :stations="props.mapStations ?? []"
         :placement-armed="pickArmed"

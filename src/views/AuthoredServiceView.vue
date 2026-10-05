@@ -3,6 +3,7 @@ import { computed, watch } from 'vue'
 import { compileService, fetchService, fetchServiceGraph, fetchServiceIsochrone } from '../api/authoring/services'
 import type { Service } from '../api/authoring/types'
 import { useOwnedDetail } from '../composables/useOwnedDetail'
+import { isochroneWaitMessage } from '../api/routingJobs'
 import { useAuthoredGraph } from '../composables/useAuthoredGraph'
 import { usePageTitle } from '../composables/usePageTitle'
 import { useServiceDeletion } from '../composables/useDeletion'
@@ -34,6 +35,7 @@ const {
   origin,
   isochroneData,
   isochroneError,
+  isochroneProgress,
   isochroneFormLoading,
   nearMisses,
   realisedClusters,
@@ -184,6 +186,7 @@ watch(service, (loaded) => {
         :origin="origin"
         :isochrone-data="isochroneData"
         :loading="isochroneFormLoading"
+        :loading-message="isochroneWaitMessage(isochroneProgress)"
         :error="isochroneError || compileError || null"
         :near-misses="nearMisses"
         :realised-clusters="realisedClusters"
