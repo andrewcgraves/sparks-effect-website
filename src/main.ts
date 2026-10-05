@@ -3,8 +3,7 @@ import './style.css'
 import App from './App.vue'
 import { redirectAfterSessionExpiry, router } from './router'
 import { installStores } from './stores/install'
-import { AUTH_STORAGE_KEY } from './stores/auth'
-import { readJson } from './stores/storage'
+import { persistedSessionToken } from './stores/auth'
 import { configureSink } from './analytics/index'
 import { vercelSink } from './analytics/sinks'
 import { startErrorReporting } from './errorReporting/faro'
@@ -20,10 +19,7 @@ if (import.meta.env.PROD && faroUrl) {
   startErrorReporting(app, router, {
     collectorUrl: faroUrl,
     release: __BUILD_VERSION__,
-    sessionToken: () => {
-      const token = readJson<{ token: string }>(AUTH_STORAGE_KEY)?.token
-      return typeof token === 'string' ? token : null
-    },
+    sessionToken: persistedSessionToken,
   })
 }
 

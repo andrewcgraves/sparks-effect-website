@@ -89,8 +89,8 @@ and `www.sparks-effect.app`, `staging` anywhere else.
 
 Nothing leaves without passing `scrubItem` (`src/errorReporting/scrub.ts`), the
 `beforeSend` hook. It walks every string in the item and removes bearer tokens,
-the session token held in `sparks-effect.auth`, `token=` query values and
-`/welcome/<token>` links. It also blanks any field whose name contains
+the session token held in `sparks-effect.auth`, `token=` query values,
+`/welcome/<token>` links and the `/api/auth/tokens/<token>` path. It also blanks any field whose name contains
 `password`, `token`, `authorization`, `cookie` or `secret`. Console capture and
 performance timings are off.
 

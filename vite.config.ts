@@ -43,11 +43,6 @@ function preconnectPlugin(apiBaseUrl: string | undefined, stadiaApiKey: string |
   }
 }
 
-// Source maps exist only to be uploaded to Grafana Cloud, so a stack trace from
-// a visitor's browser reads as source. They are built 'hidden' (no
-// sourceMappingURL comment) and the uploader deletes them from dist/ once sent,
-// so none is ever served. With no upload credentials, none is built at all.
-// The FARO_SOURCEMAP_* names have no VITE_ prefix, so they never reach the bundle.
 // The uploader deletes what it sent, but keeps every map when the upload fails
 // (a bad key, Grafana down), and Vercel would then serve them. closeBundle runs
 // after every plugin's writeBundle, the uploader's included.
@@ -67,6 +62,11 @@ function deleteSourceMaps(): Plugin {
   }
 }
 
+// Source maps exist only to be uploaded to Grafana Cloud, so a stack trace from
+// a visitor's browser reads as source. They are built 'hidden' (no
+// sourceMappingURL comment) and the uploader deletes them from dist/ once sent,
+// so none is ever served. With no upload credentials, none is built at all.
+// The FARO_SOURCEMAP_* names have no VITE_ prefix, so they never reach the bundle.
 function sourceMapUpload(): Plugin[] {
   const { FARO_SOURCEMAP_ENDPOINT, FARO_SOURCEMAP_API_KEY, FARO_APP_ID, FARO_STACK_ID } = process.env
   if (!FARO_SOURCEMAP_ENDPOINT || !FARO_SOURCEMAP_API_KEY || !FARO_APP_ID || !FARO_STACK_ID) return []
@@ -87,10 +87,11 @@ export default defineConfig(({ mode }) => {
   const apiBaseUrl = process.env.VITE_API_BASE_URL ?? env.VITE_API_BASE_URL
   const stadiaApiKey = process.env.VITE_STADIA_API_KEY ?? env.VITE_STADIA_API_KEY
   const upload = sourceMapUpload()
+  const uploadingSourceMaps = upload.length > 0
   return {
     plugins: [vue(), tailwindcss(), preconnectPlugin(apiBaseUrl, stadiaApiKey), ...upload],
     build: {
-      sourcemap: upload.length > 0 ? 'hidden' : false,
+      sourcemap: uploadingSourceMaps ? 'hidden' : false,
     },
     define: {
       // Vercel sets the commit SHA at build time; local builds show "dev".

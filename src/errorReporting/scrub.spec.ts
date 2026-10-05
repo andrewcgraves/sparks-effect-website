@@ -52,6 +52,15 @@ describe('scrubItem', () => {
     expect(serialised(scrubItem(issued, []))).not.toContain('one-time-xyz')
   })
 
+  it('drops the account-setup token from the API path that redeems it', () => {
+    const item = exceptionItem('POST /api/auth/tokens/live-setup-abc failed: 500: internal error', {
+      path: '/api/auth/tokens/live-setup-abc',
+    })
+    const text = serialised(scrubItem(item, []))
+    expect(text).not.toContain('live-setup-abc')
+    expect(text).toContain('/api/auth/tokens/[redacted]')
+  })
+
   it('leaves what makes the report useful alone', () => {
     const item = scrubItem(exceptionItem('Cannot read properties of undefined'), [SESSION_TOKEN])
     expect(item.payload.value).toBe('Cannot read properties of undefined')

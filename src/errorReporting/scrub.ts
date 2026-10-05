@@ -11,6 +11,9 @@ const BEARER = /(bearer\s+)[^\s"',;]+/gi
 const TOKEN_PARAM = /([?&]token=)[^&#\s"']+/gi
 // A set-password link (`/welcome/<token>`) inside a URL or a message.
 const WELCOME_PATH = /\/welcome\/[^\s"'?#]+/g
+// The API path that reads and redeems that same token (`/api/auth/tokens/<token>`),
+// which an API 5xx report names in its message and its `path`.
+const TOKENS_PATH = /(\/tokens\/)[^\s"'?#/]+/g
 
 function scrubString(value: string, secrets: readonly string[]): string {
   let out = value
@@ -21,6 +24,7 @@ function scrubString(value: string, secrets: readonly string[]): string {
     .replace(BEARER, `$1${REDACTED}`)
     .replace(TOKEN_PARAM, `$1${REDACTED}`)
     .replace(WELCOME_PATH, (path) => redactPath(path))
+    .replace(TOKENS_PATH, `$1${REDACTED}`)
 }
 
 function scrub(value: unknown, secrets: readonly string[]): unknown {
