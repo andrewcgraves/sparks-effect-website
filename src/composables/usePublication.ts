@@ -6,8 +6,8 @@ import { latestAttempt } from './latestAttempt'
 
 export type PublicationState = 'checking' | 'unknown' | 'unpublished' | 'current' | 'changed'
 
-export const PUBLISH_COMPILE_FAILED = "Not published: this service didn't compile. The reason is shown with the map below."
-export const PUBLISH_RACED_EDIT = 'Not published: this service changed while it was compiling. Try again.'
+export const PUBLISH_COMPILE_FAILED = "Not published: this line didn't compile. The reason is shown with the map below."
+export const PUBLISH_RACED_EDIT = 'Not published: this line changed while it was compiling. Try again.'
 
 // Go and Postgres write sub-millisecond digits, which Date.parse is not
 // required to accept. Milliseconds are plenty: a compile always sits between an

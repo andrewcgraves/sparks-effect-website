@@ -36,12 +36,12 @@ describe('BreadcrumbTrail', () => {
   it('marks the last crumb as the current page, and only that one', () => {
     const wrapper = mountCrumbs([
       { label: 'My authoring', to: '/authoring' },
-      { label: 'New service' },
+      { label: 'New line' },
     ])
     const current = wrapper.findAll('[aria-current]')
     expect(current).toHaveLength(1)
     expect(current[0]!.attributes('aria-current')).toBe('page')
-    expect(current[0]!.text()).toBe('New service')
+    expect(current[0]!.text()).toBe('New line')
   })
 
   it('does not link the current page even when it is given a destination', () => {

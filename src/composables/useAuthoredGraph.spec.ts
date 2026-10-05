@@ -185,7 +185,7 @@ describe('useAuthoredGraph', () => {
 
       await triggerCompile('ca-hsr')
 
-      expect(compileError.value).toBe("This service couldn't be compiled. Check its stops and timetable, then try again.")
+      expect(compileError.value).toBe("This line couldn't be compiled. Check its stops and timetable, then try again.")
       expect(graph.value).toBeNull()
     })
 
@@ -202,7 +202,7 @@ describe('useAuthoredGraph', () => {
       await triggerCompile('ca-hsr')
 
       expect(compileError.value).toBe(
-        "This scenario couldn't be compiled. Check its services and interchanges, then try again.",
+        "This network couldn't be compiled. Check its lines and interchanges, then try again.",
       )
     })
 
@@ -215,7 +215,7 @@ describe('useAuthoredGraph', () => {
       await triggerCompile('ca-hsr')
 
       expect(compile).toHaveBeenCalledTimes(1)
-      expect(compileError.value).toBe('This service changed since it was last compiled. Compile it again, then retry.')
+      expect(compileError.value).toBe('This line changed since it was last compiled. Compile it again, then retry.')
     })
 
     it('reports the form as loading while a compile is in flight', async () => {

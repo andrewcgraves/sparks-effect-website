@@ -121,7 +121,7 @@ const canSubmit = computed(() => {
 
 const submitLabel = computed(() => {
   if (submitting.value) return 'Saving…'
-  return props.slug ? 'Save changes' : 'Save scenario'
+  return props.slug ? 'Save changes' : 'Save network'
 })
 
 const {
@@ -142,8 +142,8 @@ usePageTitle(() => (editName.value ? `Edit ${editName.value}` : null))
 const trail = computed<Crumb[]>(() => [
   AUTHORING_CRUMB,
   ...(props.slug
-    ? [{ label: editName.value || 'Scenario', to: scenarioPath.value }, { label: 'Edit' }]
-    : [{ label: 'New scenario' }]),
+    ? [{ label: editName.value || 'Network', to: scenarioPath.value }, { label: 'Edit' }]
+    : [{ label: 'New network' }]),
 ])
 
 // The scenario's page reads the last compile that succeeded, which predates
@@ -181,7 +181,7 @@ async function handleSave(): Promise<void> {
   <main class="flex-1 p-(--page-padding)">
     <BreadcrumbTrail :items="trail" />
     <h1 class="mt-8 font-display text-display text-ink-true">
-      {{ slug ? 'Edit scenario' : 'New scenario' }}
+      {{ slug ? 'Edit network' : 'New network' }}
     </h1>
 
     <p
@@ -189,7 +189,7 @@ async function handleSave(): Promise<void> {
       class="font-body text-body mt-3 text-ink-muted"
       data-testid="scenario-not-found"
     >
-      No scenario of yours matches "{{ slug }}".
+      No network of yours matches "{{ slug }}".
     </p>
     <p
       v-else-if="editLoadFailed"
@@ -197,11 +197,11 @@ async function handleSave(): Promise<void> {
       role="alert"
       data-testid="scenario-error"
     >
-      Failed to load this scenario. Please try again.
+      Failed to load this network. Please try again.
     </p>
     <LoadingRegion
       v-else-if="editLoading"
-      label="Loading scenario"
+      label="Loading network"
       class="mt-8 flex max-w-[560px] flex-col gap-6"
       data-testid="draft-loading"
     >
@@ -219,7 +219,7 @@ async function handleSave(): Promise<void> {
         class="font-body text-caption text-ink-muted italic"
         data-testid="compiling-status"
       >
-        Saved. Compiling this scenario…
+        Saved. Compiling this network…
       </p>
       <p
         v-else-if="compileError"
@@ -234,7 +234,7 @@ async function handleSave(): Promise<void> {
         :class="ACTION_LINK_CLASS"
         data-testid="go-to-scenario"
       >
-        Go to the scenario
+        Go to the network
       </router-link>
     </section>
 
@@ -244,7 +244,7 @@ async function handleSave(): Promise<void> {
       @submit.prevent="handleSave"
     >
       <label :class="FIELD_LABEL_CLASS">
-        Scenario name
+        Network name
         <input
           v-model="name"
           :class="FIELD_INPUT_CLASS"
@@ -265,11 +265,11 @@ async function handleSave(): Promise<void> {
 
       <section class="rounded-(--radius-box) border border-border bg-surface p-4">
         <h2 class="font-display text-h3 text-ink-true">
-          Services
+          Lines
         </h2>
         <ListSkeleton
           v-if="servicesLoading"
-          label="Loading your services"
+          label="Loading your lines"
           :caption="false"
           background="white"
           class="mt-3"
@@ -281,14 +281,14 @@ async function handleSave(): Promise<void> {
           role="alert"
           data-testid="services-error"
         >
-          Couldn't load your services.
+          Couldn't load your lines.
         </p>
         <p
           v-else-if="services.length === 0"
           class="font-body text-caption mt-2 text-ink-muted italic"
           data-testid="services-empty"
         >
-          You haven't created any services yet.
+          You haven't created any lines yet.
         </p>
         <ul
           v-else

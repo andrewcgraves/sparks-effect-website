@@ -321,7 +321,7 @@ describe('useServiceDraft', () => {
 
       await draft.submit()
 
-      expect(draft.submitError.value).toBe("Some of this service's details weren't accepted. Check them and try again.")
+      expect(draft.submitError.value).toBe("Some of this line's details weren't accepted. Check them and try again.")
       expect(draft.hasChanges.value).toBe(true)
       expect(useDraftsStore().editingServiceId).toBe('svc1')
     })
@@ -884,7 +884,7 @@ describe('useServiceDraft', () => {
 
       await draft.submit()
 
-      expect(draft.submitError.value).toBe("Some of this service's details weren't accepted. Check them and try again.")
+      expect(draft.submitError.value).toBe("Some of this line's details weren't accepted. Check them and try again.")
       expect(draft.createdSlug.value).toBeNull()
       expect(draft.stops.value).toHaveLength(2)
       expect(compileService).not.toHaveBeenCalled()
@@ -943,7 +943,7 @@ describe('useServiceDraft', () => {
 
       expect(draft.faultedStops.value.size).toBe(0)
       // The banner is the record of what happened, so it stays.
-      expect(draft.submitError.value).toBe('Stop "B" is too far from the route. Move it onto the line and save again.')
+      expect(draft.submitError.value).toBe('Stop "B" is too far from the route. Move it onto the route and save again.')
     })
 
     it('leaves no stop flagged when the refusal is not one it recognizes', async () => {

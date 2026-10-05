@@ -356,7 +356,7 @@ describe('AuthoredScenarioView', () => {
     await flushPromises()
     const menu = wrapper.get('[data-testid="scenario-actions"]')
     expect(menu.element.tagName).toBe('DETAILS')
-    expect(menu.find('[data-testid="delete-scenario"]').exists()).toBe(true)
+    expect(menu.get('[data-testid="delete-scenario"]').text()).toBe('Delete network')
   })
 
   it('asks before deleting, and deletes nothing when declined', async () => {

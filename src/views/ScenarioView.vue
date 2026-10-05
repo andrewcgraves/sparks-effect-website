@@ -121,7 +121,7 @@ function onPrerenderedSelect(result: ChainResponse) {
     <AllLinesLink />
     <LoadingRegion
       v-if="scenarioLoading"
-      label="Loading scenario"
+      label="Loading network"
       class="mt-8 max-w-[720px] font-display text-display"
       data-testid="scenario-title-loading"
     >

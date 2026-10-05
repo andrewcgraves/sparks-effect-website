@@ -81,7 +81,7 @@ async function publishAndToast(): Promise<void> {
 // second, deliberate click.
 async function confirmUnpublish(): Promise<void> {
   const confirmed = await confirm({
-    title: 'Unpublish this service?',
+    title: 'Unpublish this line?',
     body: "Its public link will stop working for anyone you've shared it with, and stays broken until you publish again.",
     confirmLabel: 'Unpublish',
     cancelLabel: 'Keep published',
@@ -108,7 +108,7 @@ async function confirmUnpublish(): Promise<void> {
       v-if="state === 'checking'"
       class="font-body text-caption mt-3 text-ink-muted italic"
     >
-      Checking whether this service is published…
+      Checking whether this line is published…
     </p>
 
     <p
@@ -117,7 +117,7 @@ async function confirmUnpublish(): Promise<void> {
       role="alert"
       data-testid="publication-check-error"
     >
-      Couldn't check whether this service is published. Reload to try again.
+      Couldn't check whether this line is published. Reload to try again.
     </p>
 
     <template v-else>
@@ -126,19 +126,19 @@ async function confirmUnpublish(): Promise<void> {
         data-testid="publication-status"
       >
         <template v-if="state === 'unpublished'">
-          Not published. Only you can see this service.
+          Not published. Only you can see this line.
         </template>
         <template v-else>
           Published <time :datetime="publishedAt ?? undefined">{{ publishedWhen }}</time>.
           <template v-if="state === 'current'">
-            Visitors see this service as it is now.
+            Visitors see this line as it is now.
           </template>
           <strong
             v-else
             class="font-normal text-error"
             data-testid="publication-unpublished-changes"
           >
-            You've edited this service since. Visitors still see the version you published, and won't see
+            You've edited this line since. Visitors still see the version you published, and won't see
             your changes until you republish.
           </strong>
         </template>

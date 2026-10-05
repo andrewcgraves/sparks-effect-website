@@ -5,8 +5,8 @@ import { LIST_CARD_LINK_CLASS } from '../components/linkStyles'
 import ListSkeleton from '../components/ListSkeleton.vue'
 
 const UNAVAILABLE_COPY: Record<CoverSource, string> = {
-  scenario: "Couldn't load the curated scenarios.",
-  service: "Couldn't load the published services.",
+  scenario: "Couldn't load the curated networks.",
+  service: "Couldn't load the published lines.",
 }
 
 const cards = ref<CoverCard[]>([])
@@ -32,17 +32,17 @@ fetchCoverIndex()
 
       <p class="font-body text-body mt-6 max-w-[560px] text-ink-muted">
         Sparks Effect maps the "splash zone" reachable by walking, biking, transit, and driving
-        from a hypothetical transit route. This is a temporary landing page — pick a route below
+        from a hypothetical transit line. This is a temporary landing page — pick a network or line below
         to explore its isochrones.
       </p>
 
       <section class="mt-12">
         <h2 class="font-display text-h2 text-ink-true">
-          Published routes
+          Published networks and lines
         </h2>
         <ListSkeleton
           v-if="loading"
-          label="Loading published routes"
+          label="Loading published networks and lines"
           class="mt-3 max-w-[420px]"
           data-testid="scenarios-loading"
         />
@@ -52,7 +52,7 @@ fetchCoverIndex()
           role="alert"
           data-testid="scenarios-error"
         >
-          Couldn't load the published routes.
+          Couldn't load the published networks and lines.
         </p>
         <template v-else>
           <p
@@ -71,7 +71,7 @@ fetchCoverIndex()
             class="font-body text-caption mt-3 text-ink-muted italic"
             data-testid="scenarios-empty"
           >
-            No published routes yet.
+            No published networks or lines yet.
           </p>
           <ul
             v-if="cards.length > 0"

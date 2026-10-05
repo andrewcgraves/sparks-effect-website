@@ -246,7 +246,7 @@ export function useServiceDraft(serviceSlug?: string) {
     const alongLine = preview.value.chainage_order
       .map((i) => stops.value[i]?.name)
       .filter((stopName): stopName is string => !!stopName)
-    return `Authored order doesn't match the route's direction. Along the line: ${alongLine.join(' → ')}.`
+    return `Authored order doesn't match the route's direction. Along the route: ${alongLine.join(' → ')}.`
   })
 
   // Preview is advisory, so a preview that has not run does not block a submit;

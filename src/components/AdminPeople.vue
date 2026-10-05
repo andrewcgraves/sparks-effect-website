@@ -88,7 +88,7 @@ async function toggleDisabled(user: AdminUser): Promise<void> {
   const ok = await confirm(disabling
     ? {
         title: `Disable ${user.email}?`,
-        body: 'They are signed out everywhere and can’t sign in again until re-enabled. Their services and published pages stay up.',
+        body: 'They are signed out everywhere and can’t sign in again until re-enabled. Their lines and published pages stay up.',
         confirmLabel: 'Disable',
         destructive: true,
       }
@@ -282,7 +282,7 @@ async function sendInvite(): Promise<void> {
               Created
             </th>
             <th class="py-2 pr-4 text-right font-normal">
-              Services
+              Lines
             </th>
             <th class="py-2 pr-4 text-right font-normal">
               Published
