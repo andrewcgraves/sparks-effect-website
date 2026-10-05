@@ -7,7 +7,6 @@ import {
   enqueueIsochrone,
   fetchRoutingJob,
   ISOCHRONE_DEADLINE_MS,
-  isochroneWaitMessage,
   type IsochroneParams,
   type RoutingJob,
 } from './routingJobs'
@@ -264,25 +263,6 @@ describe('enqueueIsochrone', () => {
     const first = new Headers(vi.mocked(fetch).mock.calls[0][1]?.headers).get('X-Trace-Id')
     const second = new Headers(vi.mocked(fetch).mock.calls[2][1]?.headers).get('X-Trace-Id')
     expect(first).not.toBe(second)
-  })
-})
-
-// SPA-467: queue_position counts the in-flight jobs created before this one,
-// so 0 means next; it is absent once running, and absent while queued when the
-// API could not count — which reads as a plain wait rather than a guess.
-describe('isochroneWaitMessage', () => {
-  it.each([
-    [{ status: 'queued', queue_position: 2 }, 'Waiting — 2 ahead of you'],
-    [{ status: 'queued', queue_position: 1 }, 'Waiting — 1 ahead of you'],
-    [{ status: 'queued', queue_position: 0 }, "You're next…"],
-    [{ status: 'queued' }, 'Waiting…'],
-    [{ status: 'running' }, 'Plotting…'],
-  ] as const)('words %o as %s', (progress, message) => {
-    expect(isochroneWaitMessage(progress)).toBe(message)
-  })
-
-  it('says Waiting… before the first poll has answered', () => {
-    expect(isochroneWaitMessage(null)).toBe('Waiting…')
   })
 })
 

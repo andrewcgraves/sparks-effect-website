@@ -5,7 +5,7 @@ import type { AuthoringNoun } from '../api/authoringFault'
 import { isochroneFault, isochroneRangeRefusal, isochroneRequested } from '../api/isochroneFault'
 import type { ChainResponse } from '../fixtures/isochrone'
 import type { IsochronePayload } from '../isochroneQuery'
-import type { IsochroneProgress } from '../api/routingJobs'
+import type { IsochroneProgress, IsochroneProgressListener } from '../api/routingJobs'
 import { useCompileJob } from './useCompileJob'
 import { latestAttempt } from './latestAttempt'
 import { graphRoutes, graphStations } from './scenarioGraphMap'
@@ -17,7 +17,7 @@ export interface PinnedGraphTarget<G extends TransitGraph = TransitGraph> {
   isochrone: (
     slug: string,
     request: AuthoredIsochroneRequest,
-    onProgress?: (progress: IsochroneProgress) => void,
+    onProgress?: IsochroneProgressListener,
   ) => Promise<ChainResponse>
 }
 
@@ -165,7 +165,10 @@ export function useAuthoredGraph<G extends TransitGraph = TransitGraph>(
     } finally {
       // Left alone when superseded: the attempt that replaced this one set it,
       // and owns clearing it.
-      if (plots.isCurrent(attempt)) isochroneLoading.value = false
+      if (plots.isCurrent(attempt)) {
+        isochroneLoading.value = false
+        isochroneProgress.value = null
+      }
     }
   }
 

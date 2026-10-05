@@ -1,4 +1,5 @@
 import { ApiError, apiRequest } from './authoring/client'
+import { secondsPhrase } from './authoringFault'
 import type { TravelMode } from './authoring/types'
 import { pollUntilSucceeded, type JobStatus } from './polling'
 import { newTraceId, traceHeaders } from './traceId'
@@ -25,6 +26,8 @@ export interface RoutingJob extends IsochroneParams {
 
 export type IsochroneProgress = Pick<RoutingJob, 'status' | 'queue_position'>
 
+export type IsochroneProgressListener = (progress: IsochroneProgress) => void
+
 const POLL_INTERVAL_MS = 1000
 
 export const ISOCHRONE_DEADLINE_MS = 120_000
@@ -33,18 +36,8 @@ export const BACKLOG_FULL_CODE = 'backlog_full'
 
 export function backlogFullError(err: unknown): string | null {
   if (!(err instanceof ApiError) || err.code !== BACKLOG_FULL_CODE) return null
-  const seconds = err.retryAfterS
-  const wait = seconds === undefined ? 'a few moments' : seconds === 1 ? '1 second' : `${seconds} seconds`
+  const wait = err.retryAfterS === undefined ? 'a few moments' : secondsPhrase(err.retryAfterS)
   return `The isochrone service is busy right now. Please try again in ${wait}.`
-}
-
-export function isochroneWaitMessage(progress: IsochroneProgress | null): string {
-  if (progress === null) return 'Waiting…'
-  if (progress.status !== 'queued') return 'Plotting…'
-  const ahead = progress.queue_position
-  if (ahead === undefined) return 'Waiting…'
-  if (ahead === 0) return "You're next…"
-  return `Waiting — ${ahead} ahead of you`
 }
 
 export function fetchRoutingJob(id: string, init?: RequestInit): Promise<RoutingJob> {
@@ -54,7 +47,7 @@ export function fetchRoutingJob(id: string, init?: RequestInit): Promise<Routing
 export async function enqueueIsochrone(
   path: string,
   request: IsochroneParams,
-  onProgress?: (progress: IsochroneProgress) => void,
+  onProgress?: IsochroneProgressListener,
 ): Promise<ChainResponse> {
   const startedAt = Date.now()
   // One id for the enqueue and every poll of this job — grepping logs for it
@@ -72,7 +65,7 @@ async function awaitIsochrone(
   jobId: string,
   startedAt: number,
   traceId: string,
-  onProgress?: (progress: IsochroneProgress) => void,
+  onProgress?: IsochroneProgressListener,
 ): Promise<ChainResponse> {
   const succeeded = await pollUntilSucceeded(
     jobId,

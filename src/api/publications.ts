@@ -1,5 +1,5 @@
 import { apiRequest } from './authoring/client'
-import { enqueueIsochrone, type IsochroneProgress } from './routingJobs'
+import { enqueueIsochrone, type IsochroneProgressListener } from './routingJobs'
 import type { ChainResponse } from '../fixtures/isochrone'
 import type { AuthoredIsochroneRequest, Route, TransitGraph } from './authoring/types'
 
@@ -31,7 +31,7 @@ export async function fetchServicePublication(slug: string): Promise<ServicePubl
 export function fetchPublicationIsochrone(
   slug: string,
   request: AuthoredIsochroneRequest,
-  onProgress?: (progress: IsochroneProgress) => void,
+  onProgress?: IsochroneProgressListener,
 ): Promise<ChainResponse> {
   return enqueueIsochrone(`/api/services/${slug}/publication/isochrone`, request, onProgress)
 }

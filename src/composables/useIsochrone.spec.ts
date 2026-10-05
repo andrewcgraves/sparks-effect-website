@@ -386,6 +386,18 @@ describe('useIsochrone', () => {
       expect(progress.value).toEqual({ status: 'queued', queue_position: 3 })
     })
 
+    // The last poll of a finished plot says succeeded; left standing, it would
+    // word the next wait before that wait has said anything.
+    it('clears once the plot it describes has ended', async () => {
+      vi.mocked(fetchIsochrone).mockImplementationOnce(async (_request, onProgress) => {
+        onProgress?.({ status: 'succeeded' })
+        return stubResponse
+      })
+      const { progress, generate } = useIsochrone()
+      await generate(request)
+      expect(progress.value).toBeNull()
+    })
+
     it('ignores polls from a plot already superseded', () => {
       let reportOlder: ((p: { status: 'running' }) => void) | undefined
       vi.mocked(fetchIsochrone)

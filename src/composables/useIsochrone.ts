@@ -47,7 +47,10 @@ export function useIsochrone(getStations: () => Station[] = () => []) {
       console.error(e)
       if (attempts.isCurrent(attempt)) error.value = isochroneFault(e, request.mode, request.budget_mins)
     } finally {
-      if (attempts.isCurrent(attempt)) loading.value = false
+      if (attempts.isCurrent(attempt)) {
+        loading.value = false
+        progress.value = null
+      }
     }
   }
 

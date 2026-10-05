@@ -632,6 +632,20 @@ describe('useAuthoredGraph', () => {
       expect(isochroneProgress.value).toBeNull()
     })
 
+    // The last poll of a finished plot says succeeded; left standing, it would
+    // word a later compile's wait as a plot.
+    it('clears once the plot it describes has ended', async () => {
+      isochrone.mockImplementationOnce(async (_slug, _request, onProgress) => {
+        onProgress?.({ status: 'succeeded' })
+        return chain
+      })
+      const { handleIsochroneSubmit, isochroneProgress } = subject()
+
+      await handleIsochroneSubmit(payload)
+
+      expect(isochroneProgress.value).toBeNull()
+    })
+
     it('is cleared by reset', async () => {
       isochrone.mockImplementationOnce((_slug, _request, onProgress) => {
         onProgress?.({ status: 'queued', queue_position: 0 })
