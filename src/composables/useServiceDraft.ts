@@ -85,7 +85,7 @@ function serviceInputFromDraft(draft: ServiceDraft): ServiceInput {
 // itself: row ids, seq and the stop-number counter move without the service
 // moving, so they are left out of the comparison that decides whether a draft
 // differs from what is saved.
-function comparable(draft: ServiceDraft): string {
+function fingerprint(draft: ServiceDraft): string {
   return JSON.stringify([
     draft.route_slug,
     draft.name,
@@ -141,9 +141,7 @@ export function useServiceDraft(serviceSlug?: string) {
   const editNotFound = ref(false)
   const editLoadFailed = ref(false)
 
-  // The saved service as comparable(), which is what an edit's changes are
-  // measured against. Null for a create, which has no saved service.
-  const baseline = ref<string | null>(null)
+  const savedFingerprint = ref<string | null>(null)
 
   const createdSlug = ref<string | null>(null)
   const submitting = ref(false)
@@ -273,13 +271,12 @@ export function useServiceDraft(serviceSlug?: string) {
     return true
   })
 
-  // An edit has changes when it differs from the saved service; a create, once
-  // the author has started on it at all.
   const hasChanges = computed(() => {
     const current = draft.value
     if (!current) return false
-    if (baseline.value === null) return !!(current.name.trim() || current.route_slug || current.stops.length)
-    return comparable(current) !== baseline.value
+    // A create has nothing saved to differ from, so it counts once started.
+    if (savedFingerprint.value === null) return !!(current.name.trim() || current.route_slug || current.stops.length)
+    return fingerprint(current) !== savedFingerprint.value
   })
 
   // Saving an unchanged edit would recompile the service for nothing.
@@ -363,7 +360,7 @@ export function useServiceDraft(serviceSlug?: string) {
     // last had, not what is saved, and the changes are measured against the
     // saved route.
     const saved = serviceInputFrom(service, await routeSlugOf(service))
-    baseline.value = comparable(saved)
+    savedFingerprint.value = fingerprint(saved)
     editing.value = service
     // Resumed rather than reseeded when the slot already holds this very edit,
     // which is what carries unsaved changes across a reload.
@@ -491,7 +488,7 @@ export function useServiceDraft(serviceSlug?: string) {
       // what is saved, so the draft stays and reads as unchanged; dispose ends
       // it once the page is left.
       editing.value = saved
-      baseline.value = comparable(current)
+      savedFingerprint.value = fingerprint(current)
       // The save is done; from here the wait is the compile's, which takes
       // over the busy state in the same tick.
       submitting.value = false

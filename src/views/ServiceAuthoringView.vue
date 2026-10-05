@@ -295,8 +295,13 @@ watch(createdSlug, (created) => {
       v-else
       class="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-[1fr_1fr]"
     >
+      <!--
+        Below lg the form dissolves into the grid so the save bar can go last,
+        after the map, and stay stuck for the whole page rather than only while
+        the form is in view.
+      -->
       <form
-        class="flex flex-col gap-6"
+        class="flex flex-col gap-6 max-lg:contents"
         @submit.prevent="submit"
       >
         <fieldset
@@ -688,7 +693,7 @@ watch(createdSlug, (created) => {
         </fieldset>
 
         <div
-          class="sticky bottom-0 z-20 flex flex-col gap-2 rounded-t-(--radius-box) border border-b-0 border-border bg-white/95 px-4 py-3 shadow-[0_-4px_12px_rgb(0_0_0/6%)] backdrop-blur"
+          class="sticky bottom-0 z-20 flex max-lg:order-last flex-col gap-2 rounded-t-(--radius-box) border border-b-0 border-border bg-white/95 px-4 py-3 shadow-[0_-4px_12px_rgb(0_0_0/6%)] backdrop-blur"
           data-testid="save-bar"
         >
           <div class="flex flex-wrap items-center justify-between gap-3">
