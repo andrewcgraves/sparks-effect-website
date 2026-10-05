@@ -914,6 +914,50 @@ describe('ScenarioView', () => {
       expect(access()).toEqual(['to San Jose, 20m'])
     })
 
+    it('reads Walk, not Transit, where a transit access leg walked the whole way', async () => {
+      const metadata = boardedApartIsochrone.metadata
+      const wrapper = await plot({
+        ...boardedApartIsochrone,
+        metadata: {
+          ...metadata,
+          mode: 'transit',
+          reachable_stations: metadata.reachable_stations.map((station) => ({
+            ...station,
+            access_rode_transit: (station.legs?.[0]?.from ?? station.station_slug) === 'sj',
+          })),
+        },
+      })
+      const origin = () => wrapper.findAll('[data-testid="time-remaining-row"]')[0]
+
+      expect(origin().find('[data-testid="time-remaining-flag"]').text()).toBe('Walk')
+      expect(origin().find('[data-testid="time-remaining-access"]').text()).toBe('to San Francisco, 5m')
+      await wrapper.find('[data-testid="time-remaining-service-option-1"]').setValue()
+      expect(origin().find('[data-testid="time-remaining-flag"]').text()).toBe('Transit')
+      expect(origin().find('[data-testid="time-remaining-access"]').text()).toBe('to San Jose, 20m')
+    })
+
+    it('says how each access leg was covered when one line was reached both ways', async () => {
+      const metadata = boardedApartIsochrone.metadata
+      const wrapper = await plot({
+        ...boardedApartIsochrone,
+        metadata: {
+          ...metadata,
+          mode: 'transit',
+          reachable_stations: metadata.reachable_stations.map((station) => ({
+            ...station,
+            legs: station.legs?.map((leg) => ({ ...leg, service_id: 'svc-trunk' })),
+            access_rode_transit: (station.legs?.[0]?.from ?? station.station_slug) === 'sj',
+          })),
+        },
+      })
+
+      expect(wrapper.find('[data-testid="time-remaining-flag"]').text()).toBe('Transit')
+      expect(wrapper.findAll('[data-testid="time-remaining-access"]').map((a) => a.text())).toEqual([
+        'Walk to San Francisco, 5m',
+        'Transit to San Jose, 20m',
+      ])
+    })
+
     it('cuts to the line a station hovered on the map is on', async () => {
       const wrapper = await plot(twoServiceIsochrone)
       expect(wrapper.findAll('[data-testid="time-remaining-row"]').map((r) => r.text())

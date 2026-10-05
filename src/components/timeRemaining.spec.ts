@@ -631,6 +631,71 @@ describe('buildTimeRemainingGraph access legs', () => {
   })
 })
 
+// SPA-336: Valhalla walks the whole way when it finds no transit service, and
+// the worker says so per station. Every station carries the answer for the
+// access leg its journey started with.
+describe('buildTimeRemainingGraph transit access legs that walked', () => {
+  const originOf = (view: TimeRemainingView) => view.rows[0]
+  const inTransit = (stations: ReachableStation[], starter?: string) =>
+    buildTimeRemainingGraph(
+      {
+        ...metadata(stations),
+        mode: 'transit',
+        ...(starter ? { starter_walk: { station_slug: starter, geometry: { type: 'LineString', coordinates: [] } } } : {}),
+      },
+      { stationName: (slug) => slug, serviceName: (id) => SERVICES[id] ?? id, mode: 'transit' },
+    )
+  const viewOf = (graph: ReturnType<typeof inTransit>, key: string) => graph.views.find((v) => v.key === key)!
+  const rode = (north: boolean, south: boolean, stations = TWO_ACCESS_STATIONS): ReachableStation[] =>
+    stations.map((station) => ({
+      ...station,
+      access_rode_transit: (station.legs?.[0]?.from ?? station.station_slug) === 'north' ? north : south,
+    }))
+
+  it('flags the starting location Walk where the access leg it names walked', () => {
+    const graph = inTransit(rode(false, true))
+
+    expect(originOf(viewOf(graph, 'trunk')).flag).toBe('Walk')
+    expect(originOf(viewOf(graph, 'trunk')).detail.access).toEqual([{ to: 'north', secs: 1620 }])
+  })
+
+  it('keeps Transit where the access leg it names rode', () => {
+    const graph = inTransit(rode(false, true))
+
+    expect(originOf(viewOf(graph, 'spur')).flag).toBe('Transit')
+    expect(originOf(viewOf(graph, 'spur')).detail.access).toEqual([{ to: 'south', secs: 1860 }])
+  })
+
+  it('flags a trip that boards nothing by the one station its starting location names', () => {
+    const nothingRidden = rode(false, true, TWO_ACCESS_STATIONS.slice(0, 2))
+
+    expect(originOf(inTransit(nothingRidden).views[0]).flag).toBe('Walk')
+    expect(originOf(inTransit(nothingRidden, 'south').views[0]).flag).toBe('Transit')
+  })
+
+  it('says how each leg was covered when a line was reached from stations that disagree', () => {
+    const bothOnTrunk = TWO_ACCESS_STATIONS.map((station) =>
+      station.station_slug === 'hills'
+        ? { ...station, legs: [{ from: 'south', to: 'hills', service_id: 'trunk', secs: 1140 }] }
+        : station,
+    )
+    const trunk = viewOf(inTransit(rode(false, true, bothOnTrunk)), 'trunk')
+
+    expect(originOf(trunk).flag).toBe('Transit')
+    expect(originOf(trunk).detail.access).toEqual([
+      { to: 'north', secs: 1620, flag: 'Walk' },
+      { to: 'south', secs: 1860, flag: 'Transit' },
+    ])
+  })
+
+  it('keeps Transit on a result plotted before the worker said whether the leg rode', () => {
+    const graph = inTransit(TWO_ACCESS_STATIONS)
+
+    expect(graph.views.map((view) => originOf(view).flag)).toEqual(['Transit', 'Transit'])
+    expect(originOf(viewOf(graph, 'trunk')).detail.access).toEqual([{ to: 'north', secs: 1620 }])
+  })
+})
+
 describe('formatTimeRemaining', () => {
   it('drops the hours below an hour', () => {
     expect(formatTimeRemaining(1800)).toBe('30m')

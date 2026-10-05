@@ -68,7 +68,11 @@ where. Four words carry the whole layout.
 Three related row facts, all per-view:
 
 - **Flag** — the service a rider departs a row on. If they stay aboard what they
-  arrived on, that; otherwise the first onward branch.
+  arrived on, that; otherwise the first onward branch. On the starting location
+  it is the mode the plot asked for, except that a transit access leg Valhalla
+  walked the whole way (`access_rode_transit: false`) reads "Walk": when every
+  access line in the view walked, the flag does; when they disagree, the flag
+  stays the mode and each access line is prefixed with its own (SPA-336).
 - **Transfer from** — set only when they do *not* stay aboard, naming the
   service they arrived on. This is the frontend's own presentation of a change of
   train; there is no transfer edge in the graph it is reading.
