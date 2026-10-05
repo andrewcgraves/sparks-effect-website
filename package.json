@@ -17,6 +17,7 @@
   "dependencies": {
     "@fontsource-variable/inter": "^5.2.8",
     "@fontsource-variable/open-sans": "^5.2.7",
+    "@grafana/faro-web-sdk": "^2.12.1",
     "@vercel/analytics": "^2.0.1",
     "maplibre-gl": "^6.11.2",
     "pinia": "^4.0.2",
@@ -25,6 +26,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@grafana/faro-rollup-plugin": "^0.13.0",
     "@tailwindcss/vite": "^4.3.2",
     "@types/node": "^24.13.2",
     "@vitejs/plugin-vue": "^6.0.7",
