@@ -122,7 +122,7 @@ describe('CoverPage', () => {
     const { wrapper } = await mountCover()
     await flushPromises()
     expect(wrapper.find('[data-testid="scenario-link"]').exists()).toBe(true)
-    expect(wrapper.get('[data-testid="scenarios-partial"]').text()).toBe("Couldn't load the published services.")
+    expect(wrapper.get('[data-testid="scenarios-partial"]').text()).toBe("Couldn't load the published lines.")
     expect(wrapper.find('[data-testid="scenarios-error"]').exists()).toBe(false)
   })
 
@@ -130,7 +130,7 @@ describe('CoverPage', () => {
     vi.mocked(fetchCoverIndex).mockResolvedValue(index([], ['scenario']))
     const { wrapper } = await mountCover()
     await flushPromises()
-    expect(wrapper.get('[data-testid="scenarios-partial"]').text()).toBe("Couldn't load the curated scenarios.")
+    expect(wrapper.get('[data-testid="scenarios-partial"]').text()).toBe("Couldn't load the curated networks.")
     expect(wrapper.find('[data-testid="scenarios-empty"]').exists()).toBe(false)
   })
 })

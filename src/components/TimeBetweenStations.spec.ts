@@ -129,7 +129,7 @@ describe('TimeBetweenStations', () => {
 
   it('shows muted empty copy when the scenario has no run times', () => {
     const empty = mountSection([]).get('[data-testid="station-times-empty"]')
-    expect(empty.text()).toBe('No run times for this scenario yet.')
+    expect(empty.text()).toBe('No run times yet.')
     expect(empty.classes()).toContain('text-ink-muted')
   })
 

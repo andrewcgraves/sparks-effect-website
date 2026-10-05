@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { AuthoringNoun } from '../api/authoringFault'
+import { AUTHORING_NOUN_WORDS, type AuthoringNoun } from '../api/authoringFault'
 import { DESTRUCTIVE_BUTTON_CLASS } from './buttonStyles'
 import { ACTION_LINK_CLASS } from './linkStyles'
 
@@ -24,7 +24,7 @@ defineEmits<{ delete: [] }>()
         :disabled="deleting"
         @click="$emit('delete')"
       >
-        {{ deleting ? 'Deleting…' : `Delete ${noun}` }}
+        {{ deleting ? 'Deleting…' : `Delete ${AUTHORING_NOUN_WORDS[noun]}` }}
       </button>
     </div>
   </details>

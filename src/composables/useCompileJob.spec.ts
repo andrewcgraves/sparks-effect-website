@@ -76,7 +76,7 @@ describe('useCompileJob', () => {
     await trigger('ca-hsr')
 
     expect(compile).toHaveBeenCalledTimes(1)
-    expect(compileError.value).toBe('This service changed since it was last compiled. Compile it again, then retry.')
+    expect(compileError.value).toBe('This line changed since it was last compiled. Compile it again, then retry.')
   })
 
   it('ignores an attempt that a later trigger has superseded', async () => {

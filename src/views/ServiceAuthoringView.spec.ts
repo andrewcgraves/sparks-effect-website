@@ -461,7 +461,7 @@ describe('ServiceAuthoringView', () => {
       )
       expect(flaggedRows(wrapper)).toEqual([])
       expect(wrapper.find('[data-testid="submit-error"]').text()).toBe(
-        "Some of this service's details weren't accepted. Check them and try again.",
+        "Some of this line's details weren't accepted. Check them and try again.",
       )
     })
   })
@@ -554,7 +554,7 @@ describe('ServiceAuthoringView', () => {
 
       expect(breadcrumbTrail(wrapper)).toEqual([
         ['My authoring', '/authoring'],
-        ['New service', null],
+        ['New line', null],
       ])
     })
 
@@ -581,7 +581,7 @@ describe('ServiceAuthoringView', () => {
 
       creating.resolve(stubService)
       await flushPromises()
-      expect(hosts.toasts()).toEqual(['Service created'])
+      expect(hosts.toasts()).toEqual(['Line created'])
       expect(router.currentRoute.value.path).toBe('/authoring/services/northbound-express')
       expect(wrapper.find('[data-testid="compiling-status"]').exists()).toBe(false)
     })
@@ -640,7 +640,7 @@ describe('ServiceAuthoringView', () => {
 
       expect(router.currentRoute.value.path).toBe('/authoring/services/new')
       expect(wrapper.find('[data-testid="submit-error"]').text()).toBe(
-        'Stop "B" is too far from the route. Move it onto the line and save again.',
+        'Stop "B" is too far from the route. Move it onto the route and save again.',
       )
       expect(wrapper.findAll('[data-testid="stop-row"]').map(stopRowName)).toEqual(['A', 'B'])
       expect(wrapper.find('[data-testid="service-name"]').element).toHaveProperty('value', 'Northbound Express')
@@ -677,7 +677,7 @@ describe('ServiceAuthoringView', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-testid="submit-error"]').text()).toBe(
-      "Some of this service's details weren't accepted. Check them and try again.",
+      "Some of this line's details weren't accepted. Check them and try again.",
     )
     expect(compileService).not.toHaveBeenCalled()
   })
@@ -986,7 +986,7 @@ describe('ServiceAuthoringView', () => {
     it('arrives with the service\'s stops, vehicle, windows and prose filled in', async () => {
       const { wrapper } = await mountEdit()
 
-      expect(wrapper.find('h1').text()).toBe('Edit service')
+      expect(wrapper.find('h1').text()).toBe('Edit line')
       expect(fieldValue(wrapper, 'route-select')).toBe('main-line')
       expect(fieldValue(wrapper, 'service-name')).toBe('Northbound Express')
       expect(fieldValue(wrapper, 'service-subtext')).toBe('Electrified · High-speed rail')

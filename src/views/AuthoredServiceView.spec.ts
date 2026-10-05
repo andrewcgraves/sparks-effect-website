@@ -486,7 +486,7 @@ describe('AuthoredServiceView', () => {
     await flushPromises()
     const menu = wrapper.get('[data-testid="service-actions"]')
     expect(menu.element.tagName).toBe('DETAILS')
-    expect(menu.find('[data-testid="delete-service"]').exists()).toBe(true)
+    expect(menu.get('[data-testid="delete-service"]').text()).toBe('Delete line')
   })
 
   it('asks before deleting, and deletes nothing when declined', async () => {

@@ -4,13 +4,20 @@ import { JobFailedError } from './polling'
 
 export type AuthoringNoun = 'service' | 'scenario'
 
+// The product word an author reads for each noun (CONTEXT.md, "Product
+// vocabulary"): the code keeps the domain's names, the copy does not.
+export const AUTHORING_NOUN_WORDS: Record<AuthoringNoun, string> = {
+  service: 'line',
+  scenario: 'network',
+}
+
 export const GENERIC_AUTHORING_FAULT = 'Something went wrong. Please try again.'
 export const SESSION_EXPIRED_FAULT = 'Your session expired. Sign in to continue.'
 export const UNREACHABLE_FAULT = "Couldn't reach the server. Your draft is saved; try again."
 
 const COMPILE_ADVICE: Record<AuthoringNoun, string> = {
   service: 'Check its stops and timetable, then try again.',
-  scenario: 'Check its services and interchanges, then try again.',
+  scenario: 'Check its lines and interchanges, then try again.',
 }
 
 const VALIDATION_ERROR_CODE = 'validation'
@@ -27,7 +34,7 @@ const ENTRY_NOUNS: Record<string, string> = {
   stops: 'Stop',
   segments: 'Segment',
   coordinates: 'Point',
-  service_ids: 'Service',
+  service_ids: 'Line',
   interchange_pairs: 'Interchange',
 }
 
@@ -39,11 +46,11 @@ const WHOLE_FIELDS: Record<string, string> = {
   route_id: 'Route',
   mode: 'Mode',
   type: 'Geometry type',
-  coordinates: 'The alignment',
+  coordinates: 'The route',
   segments: 'Segments',
   stops: 'Stops',
   frequency_windows: 'Frequency windows',
-  service_ids: 'Services',
+  service_ids: 'Lines',
   interchange_pairs: 'Interchanges',
   'vehicle.max_speed_kmh': 'Top speed',
   'vehicle.acceleration_ms2': 'Acceleration',
@@ -61,8 +68,8 @@ const MEMBER_WORDS: Record<string, string> = {
   grade_pct: 'grade',
   curve_radius_m: 'curve radius',
   cant_mm: 'cant',
-  a: 'first service',
-  b: 'second service',
+  a: 'first line',
+  b: 'second line',
 }
 
 const RULE_PHRASES: Record<string, string> = {
@@ -78,8 +85,8 @@ const RULE_PHRASES: Record<string, string> = {
   format: "isn't in the right format",
   type: 'is the wrong kind',
   zero_length: 'has no length',
-  same_service: 'joins a service to itself',
-  not_member: "isn't part of this scenario",
+  same_service: 'joins a line to itself',
+  not_member: "isn't part of this network",
 }
 
 const PLURAL_FIELDS = new Set([
@@ -91,8 +98,8 @@ const PLURAL_FIELDS = new Set([
 ])
 
 const WHOLE_SENTENCES: Record<string, string> = {
-  'stops:min_count': 'A service needs at least two stops.',
-  'coordinates:min_count': 'The alignment needs at least two points.',
+  'stops:min_count': 'A line needs at least two stops.',
+  'coordinates:min_count': 'The route needs at least two points.',
 }
 
 const PLURAL_VERBS: Record<string, string> = {
@@ -169,7 +176,7 @@ function stopPlacementSentence(fault: StopPlacementFault | null): string {
   // The rows already carry the per-stop detail; this is the line above them.
   const [first, second] = fault?.stops ?? []
   if (fault?.fault === 'off_route' && first) {
-    return `Stop "${first.name}" is too far from the route. Move it onto the line and save again.`
+    return `Stop "${first.name}" is too far from the route. Move it onto the route and save again.`
   }
   if (fault?.fault === 'chainage_order' && first && second) {
     return `Stops "${first.name}" and "${second.name}" are out of order along the route. Reorder them and save again.`
@@ -187,10 +194,11 @@ export function retryAfterSentence(seconds: number | undefined): string {
 }
 
 function apiFault(err: ApiError, noun: AuthoringNoun): string {
+  const word = AUTHORING_NOUN_WORDS[noun]
   if (err.status === 401) return SESSION_EXPIRED_FAULT
-  if (err.status === 403 || err.status === 404) return `This ${noun} no longer exists or isn't yours.`
+  if (err.status === 403 || err.status === 404) return `This ${word} no longer exists or isn't yours.`
   if (err.status === 409 && err.code === STALE_GRAPH_CODE) {
-    return `This ${noun} changed since it was last compiled. Compile it again, then retry.`
+    return `This ${word} changed since it was last compiled. Compile it again, then retry.`
   }
   if (err.status === 422 && err.code === STOP_PLACEMENT_ERROR_CODE) {
     return stopPlacementSentence(stopPlacementFault(err))
@@ -198,7 +206,7 @@ function apiFault(err: ApiError, noun: AuthoringNoun): string {
   if (err.status === 422) {
     return (
       (err.code === VALIDATION_ERROR_CODE ? validationSentence(err.detail) : null) ??
-      `Some of this ${noun}'s details weren't accepted. Check them and try again.`
+      `Some of this ${word}'s details weren't accepted. Check them and try again.`
     )
   }
   if (err.status === 429) return retryAfterSentence(err.retryAfterS)
@@ -215,7 +223,7 @@ function report(err: unknown): void {
 export function authoringFault(err: unknown, noun: AuthoringNoun = 'service'): string {
   report(err)
   if (err instanceof ApiError) return apiFault(err, noun)
-  if (err instanceof JobFailedError) return `This ${noun} couldn't be compiled. ${COMPILE_ADVICE[noun]}`
+  if (err instanceof JobFailedError) return `This ${AUTHORING_NOUN_WORDS[noun]} couldn't be compiled. ${COMPILE_ADVICE[noun]}`
   // fetch rejects with a TypeError when the request never got an answer.
   if (err instanceof TypeError) return UNREACHABLE_FAULT
   return GENERIC_AUTHORING_FAULT

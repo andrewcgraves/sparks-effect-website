@@ -24,7 +24,7 @@ const detailError = ref<string | null>(null)
 const attempt = latestAttempt()
 
 const OUTDATED_HINT =
-  'Plotted before the scenario’s current routes and services, so it may be out of date.'
+  'Plotted before the network’s current routes and lines, so it may be out of date.'
 
 async function choose(entry: PrerenderedIsochroneSummary): Promise<void> {
   const mine = attempt.begin()

@@ -81,7 +81,7 @@ describe('ScenarioBuilderView', () => {
   it('shows where it sits: a new scenario, under My authoring', async () => {
     const wrapper = mountView()
     await flushPromises()
-    expect(breadcrumbTrail(wrapper).map(([label]) => label)).toEqual(['My authoring', 'New scenario'])
+    expect(breadcrumbTrail(wrapper).map(([label]) => label)).toEqual(['My authoring', 'New network'])
     expect(wrapper.getComponent(RouterLinkStub).props('to')).toBe('/authoring')
   })
 
@@ -167,7 +167,7 @@ describe('ScenarioBuilderView', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-testid="submit-error"]').text()).toBe(
-      "Some of this scenario's details weren't accepted. Check them and try again.",
+      "Some of this network's details weren't accepted. Check them and try again.",
     )
     expect(push).not.toHaveBeenCalled()
   })
@@ -242,7 +242,7 @@ describe('ScenarioBuilderView editing an existing scenario', () => {
     const wrapper = mountEdit()
     await flushPromises()
     expect(fetchScenario).toHaveBeenCalledWith('ca-hsr')
-    expect(wrapper.get('h1').text()).toBe('Edit scenario')
+    expect(wrapper.get('h1').text()).toBe('Edit network')
     expect((wrapper.get('[data-testid="scenario-name"]').element as HTMLInputElement).value).toBe('CA HSR')
     expect((wrapper.get('[data-testid="scenario-description"]').element as HTMLTextAreaElement).value)
       .toBe('California High-Speed Rail')
@@ -361,7 +361,7 @@ describe('ScenarioBuilderView editing an existing scenario', () => {
     await wrapper.get('form').trigger('submit')
     await flushPromises()
     expect(wrapper.get('[data-testid="submit-error"]').text()).toBe(
-      "Some of this scenario's details weren't accepted. Check them and try again.",
+      "Some of this network's details weren't accepted. Check them and try again.",
     )
     expect(compileScenario).not.toHaveBeenCalled()
     expect(replace).not.toHaveBeenCalled()

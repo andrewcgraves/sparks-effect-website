@@ -161,9 +161,9 @@ describe('ScenarioView', () => {
       stations: ref(stubStations),
       services: ref([]),
     })
-    document.title = 'Scenario · Sparks Effect'
+    document.title = 'Network · Sparks Effect'
     mountScenarioView()
-    expect(document.title).toBe('Scenario · Sparks Effect')
+    expect(document.title).toBe('Network · Sparks Effect')
 
     name.value = 'CA HSR'
     await flushPromises()

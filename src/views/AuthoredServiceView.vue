@@ -72,11 +72,11 @@ watch(service, (loaded) => {
 
 <template>
   <main class="flex-1 p-(--page-padding)">
-    <BreadcrumbTrail :items="[AUTHORING_CRUMB, { label: service?.name ?? 'Service' }]" />
+    <BreadcrumbTrail :items="[AUTHORING_CRUMB, { label: service?.name ?? 'Line' }]" />
 
     <PageSkeleton
       v-if="loading"
-      label="Loading service"
+      label="Loading line"
       subtitle
       :cards="3"
       class="mt-8"
@@ -85,13 +85,13 @@ watch(service, (loaded) => {
 
     <template v-else-if="notFound">
       <h1 class="font-display text-display mt-8 text-ink-true">
-        Service not found
+        Line not found
       </h1>
       <p
         class="font-body text-body mt-3 text-ink-muted"
         data-testid="service-not-found"
       >
-        No service of yours matches "{{ props.slug }}".
+        No line of yours matches "{{ props.slug }}".
       </p>
     </template>
 
@@ -104,7 +104,7 @@ watch(service, (loaded) => {
         role="alert"
         data-testid="service-error"
       >
-        Failed to load this service. Please try again.
+        Failed to load this line. Please try again.
       </p>
     </template>
 
@@ -161,7 +161,7 @@ watch(service, (loaded) => {
         class="font-body text-caption mt-8 text-ink-muted italic"
         data-testid="compiling-status"
       >
-        Compiling this service…
+        Compiling this line…
       </p>
       <p
         v-else-if="graphFailed"
@@ -169,7 +169,7 @@ watch(service, (loaded) => {
         role="alert"
         data-testid="graph-error"
       >
-        Couldn't load this service's compiled graph.
+        Couldn't load this line's compiled graph.
       </p>
       
       <p
@@ -193,7 +193,7 @@ watch(service, (loaded) => {
         :services="services"
         :map-stations="mapStations"
         :map-routes="mapRoutes"
-        :status-note="compiling ? 'This service changed — recompiling…' : null"
+        :status-note="compiling ? 'This line changed — recompiling…' : null"
         @submit="handleIsochroneSubmit"
         @origin-change="onOriginChange"
       />
@@ -209,7 +209,7 @@ watch(service, (loaded) => {
             class="font-body text-caption mt-3 text-ink-muted italic"
             data-testid="service-stops-empty"
           >
-            This service has no stops yet.
+            This line has no stops yet.
           </p>
           <ol
             v-else

@@ -84,13 +84,13 @@ const servicePath = computed(() => `/authoring/services/${props.slug}`)
 const trail = computed<Crumb[]>(() => [
   AUTHORING_CRUMB,
   ...(props.slug
-    ? [{ label: editing.value?.name ?? 'Service', to: servicePath.value }, { label: 'Edit' }]
-    : [{ label: 'New service' }]),
+    ? [{ label: editing.value?.name ?? 'Line', to: servicePath.value }, { label: 'Edit' }]
+    : [{ label: 'New line' }]),
 ])
 
 const SUBHEADING_CLASS = 'font-body text-caption font-bold text-ink'
 
-const submitLabel = computed(() => (props.slug ? 'Save changes' : 'Create service'))
+const submitLabel = computed(() => (props.slug ? 'Save changes' : 'Create line'))
 
 // Held from the save until the page is left, including the moment between a
 // recompile landing and the navigation it starts.
@@ -207,7 +207,7 @@ async function handleDiscard(): Promise<void> {
   if (hasChanges.value) {
     const confirmed = await confirm({
       title: 'Discard your changes?',
-      body: 'The service stays as it was last saved, and this can\'t be undone.',
+      body: 'The line stays as it was last saved, and this can\'t be undone.',
       confirmLabel: 'Discard changes',
       cancelLabel: 'Keep editing',
       destructive: true,
@@ -233,7 +233,7 @@ watch(compiledGraph, (graph) => {
 // reopen a form whose draft has already become a service.
 watch(createdSlug, (created) => {
   if (!created) return
-  toast('Service created')
+  toast('Line created')
   void router.replace(`/authoring/services/${created}`)
 })
 </script>
@@ -242,7 +242,7 @@ watch(createdSlug, (created) => {
   <main class="flex-1 p-(--page-padding)">
     <BreadcrumbTrail :items="trail" />
     <h1 class="mt-8 font-display text-display text-ink-true">
-      {{ slug ? 'Edit service' : 'New service' }}
+      {{ slug ? 'Edit line' : 'New line' }}
     </h1>
 
     <p
@@ -250,7 +250,7 @@ watch(createdSlug, (created) => {
       class="font-body text-body mt-3 text-ink-muted"
       data-testid="service-not-found"
     >
-      No service of yours matches "{{ slug }}".
+      No line of yours matches "{{ slug }}".
     </p>
     <p
       v-else-if="editLoadFailed"
@@ -258,12 +258,12 @@ watch(createdSlug, (created) => {
       role="alert"
       data-testid="service-error"
     >
-      Failed to load this service. Please try again.
+      Failed to load this line. Please try again.
     </p>
 
     <LoadingRegion
       v-else-if="!ready"
-      :label="slug ? 'Loading service' : 'Loading'"
+      :label="slug ? 'Loading line' : 'Loading'"
       class="mt-8 grid grid-cols-1 items-start gap-8 lg:grid-cols-[1fr_1fr]"
       data-testid="draft-loading"
     >
@@ -315,7 +315,7 @@ watch(createdSlug, (created) => {
             </h2>
             <div class="mt-3 flex flex-col gap-3">
               <label :class="FIELD_LABEL_CLASS">
-                Service name
+                Line name
                 <input
                   v-model="name"
                   :class="FIELD_INPUT_CLASS"
@@ -392,7 +392,7 @@ watch(createdSlug, (created) => {
               role="alert"
               data-testid="route-missing"
             >
-              Couldn't recover this service's route. Pick it again to save.
+              Couldn't recover this line's route. Pick it again to save.
             </p>
 
             <div class="mt-4 flex flex-wrap items-center justify-between gap-2">
@@ -717,7 +717,7 @@ watch(createdSlug, (created) => {
                 :class="ACTION_LINK_CLASS"
                 data-testid="view-service"
               >
-                View service
+                View line
               </router-link>
             </div>
             <p

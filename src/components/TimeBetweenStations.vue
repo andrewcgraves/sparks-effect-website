@@ -54,7 +54,7 @@ function choose(group: StationTimeGroup, index: number): void {
       class="font-body text-caption mt-2 text-ink-muted italic"
       data-testid="station-times-empty"
     >
-      No run times for this scenario yet.
+      No run times yet.
     </p>
 
     <template v-else>

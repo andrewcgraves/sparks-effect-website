@@ -41,19 +41,19 @@ describe('authoringFault', () => {
 
   it.each([403, 404])('says a %i service no longer exists or is not yours', (status) => {
     expect(authoringFault(new ApiError('PUT failed', status))).toBe(
-      "This service no longer exists or isn't yours.",
+      "This line no longer exists or isn't yours.",
     )
   })
 
   it('names a scenario when the page is about one', () => {
     expect(authoringFault(new ApiError('PUT failed', 404), 'scenario')).toBe(
-      "This scenario no longer exists or isn't yours.",
+      "This network no longer exists or isn't yours.",
     )
   })
 
   it('tells the author to recompile on stale_graph', () => {
     expect(authoringFault(new ApiError('PUT failed: 409: stale', 409, 'stale_graph'))).toBe(
-      'This service changed since it was last compiled. Compile it again, then retry.',
+      'This line changed since it was last compiled. Compile it again, then retry.',
     )
   })
 
@@ -97,7 +97,7 @@ describe('authoringFault', () => {
     it('says a service needs at least two stops', () => {
       expect(
         authoringFault(validation([{ field: 'stops', rule: 'min_count', message: 'a service needs at least two stops' }])),
-      ).toBe('A service needs at least two stops.')
+      ).toBe('A line needs at least two stops.')
     })
 
     it('agrees the verb with a whole list', () => {
@@ -114,7 +114,7 @@ describe('authoringFault', () => {
 
     it('falls back to a summary when the faults are missing', () => {
       expect(authoringFault(new ApiError('POST failed: 422: bad', 422, 'validation'))).toBe(
-        "Some of this service's details weren't accepted. Check them and try again.",
+        "Some of this line's details weren't accepted. Check them and try again.",
       )
     })
   })
@@ -129,7 +129,7 @@ describe('authoringFault', () => {
 
     it('keeps a summary line naming the off-route stop', () => {
       expect(authoringFault(placement({ fault: 'off_route', route_slug: 'main', threshold_m: 500, stops: [b] }))).toBe(
-        'Stop "B" is too far from the route. Move it onto the line and save again.',
+        'Stop "B" is too far from the route. Move it onto the route and save again.',
       )
     })
 
@@ -170,12 +170,12 @@ describe('authoringFault', () => {
 
   it('says a failed compile job could not be compiled, without its raw reason', () => {
     const message = authoringFault(new JobFailedError('3f2', 'compile: loading routes: boom'))
-    expect(message).toBe("This service couldn't be compiled. Check its stops and timetable, then try again.")
+    expect(message).toBe("This line couldn't be compiled. Check its stops and timetable, then try again.")
   })
 
   it('advises on a scenario compile in scenario terms', () => {
     expect(authoringFault(new JobFailedError('3f2', 'boom'), 'scenario')).toBe(
-      "This scenario couldn't be compiled. Check its services and interchanges, then try again.",
+      "This network couldn't be compiled. Check its lines and interchanges, then try again.",
     )
   })
 
