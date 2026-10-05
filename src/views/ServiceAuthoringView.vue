@@ -59,9 +59,9 @@ const {
   previewError,
   stopPreviewPairs,
   orderWarning,
-  canSubmit,
+  hasChanges,
+  canSave,
   submitting,
-  submitted,
   createdSlug,
   submitError,
   faultedStops,
@@ -88,10 +88,39 @@ const trail = computed<Crumb[]>(() => [
     : [{ label: 'New service' }]),
 ])
 
-const submitLabel = computed(() => {
-  if (props.slug) return submitting.value ? 'Saving…' : 'Save changes'
-  return submitting.value ? 'Creating…' : 'Create service'
+const SUBHEADING_CLASS = 'font-body text-caption font-bold text-ink'
+
+const submitLabel = computed(() => (props.slug ? 'Save changes' : 'Create service'))
+
+// Held from the save until the page is left, including the moment between a
+// recompile landing and the navigation it starts.
+const locked = computed(() => submitting.value || compiling.value || !!compiledGraph.value)
+
+type SaveTone = 'quiet' | 'dirty' | 'busy' | 'error'
+
+const TONE_DOT_CLASS: Record<SaveTone, string> = {
+  quiet: 'bg-ink-faint',
+  dirty: 'bg-apricot',
+  busy: 'animate-pulse bg-coral',
+  error: 'bg-error',
+}
+
+// Described against the saved service, never against the copy in the browser,
+// which is kept on every keystroke and so is never behind. A failed recompile
+// is shown on its own, with the way back, until the author changes something.
+const saveStatus = computed<{ label: string; note?: string; tone: SaveTone }>(() => {
+  if (submitting.value) return { label: props.slug ? 'Saving…' : 'Creating…', tone: 'busy' }
+  if (compiling.value || compiledGraph.value) return { label: 'Compiling…', tone: 'busy' }
+  if (submitError.value) {
+    return { label: "Couldn't save", note: 'Your draft is still kept in this browser', tone: 'error' }
+  }
+  if (hasChanges.value) {
+    return { label: props.slug ? 'Unsaved changes' : 'Not created yet', note: 'Draft kept in this browser', tone: 'dirty' }
+  }
+  return { label: props.slug ? 'No changes' : 'Nothing here yet', tone: 'quiet' }
 })
+
+const compileFailed = computed(() => !!compileError.value && !submitting.value && !compiling.value && !hasChanges.value)
 
 const newStopName = ref('')
 const newStopLat = ref<number | null>(null)
@@ -175,6 +204,16 @@ function handleStopDragEnd(pairId: string, coord: LatLng): void {
 // Discarded before leaving, because leaving first would stop the gate the
 // discard is checked against.
 async function handleDiscard(): Promise<void> {
+  if (hasChanges.value) {
+    const confirmed = await confirm({
+      title: 'Discard your changes?',
+      body: 'The service stays as it was last saved, and this can\'t be undone.',
+      confirmLabel: 'Discard changes',
+      cancelLabel: 'Keep editing',
+      destructive: true,
+    })
+    if (!confirmed) return
+  }
   discardEdit()
   await router.push(servicePath.value)
 }
@@ -184,14 +223,18 @@ async function handleDiscard(): Promise<void> {
 // arriving any sooner would show the graph from before the edit. Replaced
 // rather than pushed, so going back does not reopen a finished edit.
 watch(compiledGraph, (graph) => {
-  if (graph && props.slug) void router.replace(servicePath.value)
+  if (!graph || !props.slug) return
+  toast('Changes saved')
+  void router.replace(servicePath.value)
 })
 
 // A create ends on the new service's page straight away, which compiles it on
 // arrival. Replaced for the same reason as an edit: going back should not
 // reopen a form whose draft has already become a service.
 watch(createdSlug, (created) => {
-  if (created) void router.replace(`/authoring/services/${created}`)
+  if (!created) return
+  toast('Service created')
+  void router.replace(`/authoring/services/${created}`)
 })
 </script>
 
@@ -219,7 +262,7 @@ watch(createdSlug, (created) => {
     </p>
 
     <LoadingRegion
-      v-else-if="!submitted && !ready"
+      v-else-if="!ready"
       :label="slug ? 'Loading service' : 'Loading'"
       class="mt-8 grid grid-cols-1 items-start gap-8 lg:grid-cols-[1fr_1fr]"
       data-testid="draft-loading"
@@ -227,7 +270,7 @@ watch(createdSlug, (created) => {
       <div class="flex flex-col gap-6">
         <SkeletonShape
           shape="card"
-          :lines="1"
+          :lines="2"
         />
         <SkeletonShape
           shape="card"
@@ -244,27 +287,69 @@ watch(createdSlug, (created) => {
       />
     </LoadingRegion>
 
-    <template v-else-if="!submitted">
-      <div class="mt-8 grid grid-cols-1 items-start gap-8 lg:grid-cols-[1fr_1fr]">
-        <form
-          class="flex flex-col gap-6"
-          @submit.prevent="submit"
+    <!--
+      Not items-start: the map column has to stretch to the row's height for
+      the map inside it to have anywhere to stick.
+    -->
+    <div
+      v-else
+      class="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-[1fr_1fr]"
+    >
+      <form
+        class="flex flex-col gap-6"
+        @submit.prevent="submit"
+      >
+        <fieldset
+          class="flex min-w-0 flex-col gap-6"
+          :disabled="locked"
+          data-testid="form-body"
         >
           <section class="rounded-(--radius-box) border border-border bg-surface p-4">
             <h2 class="font-display text-h3 text-ink-true">
-              Route
+              Identity
+            </h2>
+            <div class="mt-3 flex flex-col gap-3">
+              <label :class="FIELD_LABEL_CLASS">
+                Service name
+                <input
+                  v-model="name"
+                  :class="FIELD_INPUT_CLASS"
+                  data-testid="service-name"
+                  type="text"
+                >
+              </label>
+              <label :class="FIELD_LABEL_CLASS">
+                Subtext (optional)
+                <input
+                  v-model="subtext"
+                  :class="FIELD_INPUT_CLASS"
+                  data-testid="service-subtext"
+                  type="text"
+                  :maxlength="MAX_SUBTEXT_CHARS"
+                  placeholder="Electrified · High-speed rail · Greenfield"
+                >
+              </label>
+            </div>
+          </section>
+
+          <section
+            ref="stopsSection"
+            class="rounded-(--radius-box) border border-border bg-surface p-4"
+          >
+            <h2 class="font-display text-h3 text-ink-true">
+              Route &amp; stops
             </h2>
             <LoadingRegion
               v-if="routesLoading"
               label="Loading routes"
-              class="mt-2"
+              class="mt-3"
               data-testid="routes-loading"
             >
               <FieldSkeleton />
             </LoadingRegion>
             <p
               v-else-if="routesError"
-              class="font-body text-caption mt-2 text-error"
+              class="font-body text-caption mt-3 text-error"
               role="alert"
               data-testid="routes-error"
             >
@@ -272,7 +357,7 @@ watch(createdSlug, (created) => {
             </p>
             <label
               v-else
-              :class="[FIELD_LABEL_CLASS, 'mt-2']"
+              :class="[FIELD_LABEL_CLASS, 'mt-3']"
             >
               Pick a route
               <select
@@ -304,16 +389,11 @@ watch(createdSlug, (created) => {
             >
               Couldn't recover this service's route. Pick it again to save.
             </p>
-          </section>
 
-          <section
-            ref="stopsSection"
-            class="rounded-(--radius-box) border border-border bg-surface p-4"
-          >
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <h2 class="font-display text-h3 text-ink-true">
+            <div class="mt-4 flex flex-wrap items-center justify-between gap-2">
+              <p :class="FIELD_LABEL_CLASS">
                 Stops
-              </h2>
+              </p>
               <button
                 type="button"
                 :class="TOGGLE_BUTTON_CLASS"
@@ -430,7 +510,6 @@ watch(createdSlug, (created) => {
               {{ orderWarning }}
             </p>
 
-            
             <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-[2fr_1fr_1fr_auto]">
               <label :class="[FIELD_LABEL_CLASS, 'col-span-2 sm:col-span-1']">
                 Name
@@ -474,8 +553,12 @@ watch(createdSlug, (created) => {
 
           <section class="rounded-(--radius-box) border border-border bg-surface p-4">
             <h2 class="font-display text-h3 text-ink-true">
-              Vehicle
+              Operations
             </h2>
+
+            <h3 :class="[SUBHEADING_CLASS, 'mt-3']">
+              Vehicle
+            </h3>
             <div class="mt-2 grid grid-cols-2 gap-3">
               <label :class="FIELD_LABEL_CLASS">
                 Max speed (km/h)
@@ -520,15 +603,13 @@ watch(createdSlug, (created) => {
                 >
               </label>
             </div>
-          </section>
 
-          <section class="rounded-(--radius-box) border border-border bg-surface p-4">
-            <h2 class="font-display text-h3 text-ink-true">
+            <h3 :class="[SUBHEADING_CLASS, 'mt-5']">
               Frequency windows
-            </h2>
+            </h3>
             <ul
               v-if="frequencyWindows.length"
-              class="mt-3 flex flex-col gap-2"
+              class="mt-2 flex flex-col gap-2"
               data-testid="frequency-list"
             >
               <li
@@ -588,58 +669,90 @@ watch(createdSlug, (created) => {
             </div>
           </section>
 
-          <label :class="FIELD_LABEL_CLASS">
-            Service name
-            <input
-              v-model="name"
-              :class="FIELD_INPUT_CLASS"
-              data-testid="service-name"
-              type="text"
+          <section class="rounded-(--radius-box) border border-border bg-surface p-4">
+            <h2 class="font-display text-h3 text-ink-true">
+              Description
+              <span class="font-body text-caption font-normal text-ink-muted">optional</span>
+            </h2>
+            <label :class="[FIELD_LABEL_CLASS, 'mt-3']">
+              <span class="sr-only">Description</span>
+              <textarea
+                v-model="description"
+                :class="FIELD_INPUT_CLASS"
+                data-testid="service-description"
+                rows="5"
+                :maxlength="MAX_DESCRIPTION_CHARS"
+              />
+            </label>
+          </section>
+        </fieldset>
+
+        <div
+          class="sticky bottom-0 z-20 flex flex-col gap-2 rounded-t-(--radius-box) border border-b-0 border-border bg-white/95 px-4 py-3 shadow-[0_-4px_12px_rgb(0_0_0/6%)] backdrop-blur"
+          data-testid="save-bar"
+        >
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div
+              v-if="compileFailed"
+              class="flex flex-wrap items-center gap-x-3 gap-y-1"
             >
-          </label>
-
-          <label :class="FIELD_LABEL_CLASS">
-            Subtext (optional)
-            <input
-              v-model="subtext"
-              :class="FIELD_INPUT_CLASS"
-              data-testid="service-subtext"
-              type="text"
-              :maxlength="MAX_SUBTEXT_CHARS"
-              placeholder="Electrified · High-speed rail · Greenfield"
+              <p
+                class="font-body text-caption flex items-center gap-2 text-error"
+                role="alert"
+                data-testid="compile-error"
+              >
+                <span
+                  class="size-2 shrink-0 rounded-full bg-error"
+                  aria-hidden="true"
+                />
+                Saved, but compiling failed: {{ compileError }}
+              </p>
+              <router-link
+                :to="servicePath"
+                :class="ACTION_LINK_CLASS"
+                data-testid="view-service"
+              >
+                View service
+              </router-link>
+            </div>
+            <p
+              v-else
+              class="font-body text-caption flex items-center gap-2 text-ink"
+              role="status"
+              data-testid="save-status"
             >
-          </label>
+              <span
+                class="size-2 shrink-0 rounded-full"
+                :class="TONE_DOT_CLASS[saveStatus.tone]"
+                aria-hidden="true"
+              />
+              {{ saveStatus.label }}<span
+                v-if="saveStatus.note"
+                class="text-ink-muted"
+              > · {{ saveStatus.note }}</span>
+            </p>
 
-          <label :class="FIELD_LABEL_CLASS">
-            Description (optional)
-            <textarea
-              v-model="description"
-              :class="FIELD_INPUT_CLASS"
-              data-testid="service-description"
-              rows="5"
-              :maxlength="MAX_DESCRIPTION_CHARS"
-            />
-          </label>
-
-          <button
-            type="submit"
-            :class="PRIMARY_BUTTON_CLASS"
-            data-testid="submit"
-            :disabled="!canSubmit"
-          >
-            {{ submitLabel }}
-          </button>
-
-          <button
-            v-if="slug"
-            type="button"
-            :class="[ACTION_LINK_CLASS, 'self-start']"
-            data-testid="discard-edit"
-            :disabled="submitting"
-            @click="handleDiscard"
-          >
-            Discard changes
-          </button>
+            <div class="ml-auto flex items-center gap-4">
+              <button
+                v-if="slug"
+                type="button"
+                :class="ACTION_LINK_CLASS"
+                data-testid="discard-edit"
+                :disabled="locked"
+                @click="handleDiscard"
+              >
+                Discard changes
+              </button>
+              <button
+                type="submit"
+                :class="PRIMARY_BUTTON_CLASS"
+                data-testid="submit"
+                :disabled="!canSave || locked"
+              >
+                {{ submitLabel }}
+              </button>
+            </div>
+          </div>
 
           <p
             v-if="submitError"
@@ -649,9 +762,12 @@ watch(createdSlug, (created) => {
           >
             {{ submitError }}
           </p>
-        </form>
+        </div>
+      </form>
 
-        <div class="h-[70vh]">
+      <!-- Below lg the map simply follows the form; its mobile layout is M5's. -->
+      <div class="h-[70vh] lg:h-auto">
+        <div class="h-full lg:sticky lg:top-4 lg:h-[calc(100svh-2rem)]">
           <MapView
             :loading="false"
             :isochrone-data="null"
@@ -667,34 +783,6 @@ watch(createdSlug, (created) => {
           />
         </div>
       </div>
-    </template>
-
-    <template v-else>
-      <div class="mt-8 max-w-[560px] rounded-(--radius-box) border border-border bg-surface p-4">
-        <p
-          v-if="compiling"
-          class="font-body text-caption text-ink-muted italic"
-          data-testid="compiling-status"
-        >
-          Changes saved. Compiling…
-        </p>
-        <p
-          v-else-if="compileError"
-          class="font-body text-caption text-error"
-          role="alert"
-          data-testid="compile-error"
-        >
-          {{ compileError }}
-        </p>
-
-        <router-link
-          :to="servicePath"
-          :class="[SECONDARY_BUTTON_CLASS, 'mt-4 inline-block']"
-          data-testid="view-service"
-        >
-          View service
-        </router-link>
-      </div>
-    </template>
+    </div>
   </main>
 </template>

@@ -310,24 +310,25 @@ describe('useServiceDraft', () => {
       }))
       expect(createService).not.toHaveBeenCalled()
       expect(compileService).toHaveBeenCalledWith('northbound-express', expect.any(Object))
-      expect(draft.submitted.value).toBe(true)
       expect(draft.createdSlug.value).toBeNull()
-      expect(useDraftsStore().hasServiceDraft).toBe(false)
     })
 
     it('keeps the edit and says why when the save is refused', async () => {
       vi.mocked(updateService).mockRejectedValue(new ApiError('PUT /api/services/northbound-express failed: 422: nope', 422))
       const draft = useServiceDraft('northbound-express')
       await draft.start()
+      draft.name.value = 'Renamed'
 
       await draft.submit()
 
       expect(draft.submitError.value).toBe("Some of this service's details weren't accepted. Check them and try again.")
-      expect(draft.submitted.value).toBe(false)
+      expect(draft.hasChanges.value).toBe(true)
       expect(useDraftsStore().editingServiceId).toBe('svc1')
     })
 
-    it('sets aside a create draft in progress and hands it back once the edit is saved', async () => {
+    // The saved edit stays on the form until the page is left, so the recompile
+    // can be waited on, or fail, in front of it.
+    it('sets aside a create draft in progress and hands it back once the edit is saved and left', async () => {
       const drafts = useDraftsStore()
       drafts.startServiceDraft()
       drafts.addStop({ name: 'Half-authored', lat: 1, lng: 2, seq: 0 })
@@ -335,8 +336,11 @@ describe('useServiceDraft', () => {
       const draft = useServiceDraft('northbound-express')
       await draft.start()
       expect(draft.stops.value.map((s) => s.name)).toEqual(['A', 'B'])
+      draft.name.value = 'Renamed'
 
       await draft.submit()
+      expect(drafts.editingServiceId).toBe('svc1')
+      draft.dispose()
 
       expect(drafts.editingServiceId).toBeNull()
       expect(drafts.serviceDraft?.stops.map((s) => s.name)).toEqual(['Half-authored'])
@@ -375,7 +379,6 @@ describe('useServiceDraft', () => {
       await second.start()
 
       expect(second.name.value).toBe('Renamed')
-      expect(fetchServiceGraph).toHaveBeenCalledTimes(1)
     })
 
     it('replaces an edit of another service that was left open', async () => {
@@ -443,6 +446,147 @@ describe('useServiceDraft', () => {
       draft.discardEdit()
 
       expect(drafts.serviceDraft?.stops.map((s) => s.name)).toEqual(['Half-authored'])
+    })
+  })
+
+  describe('telling whether the draft has changes', () => {
+    async function openedEdit(): Promise<Draft> {
+      const draft = useServiceDraft('northbound-express')
+      await draft.start()
+      await vi.advanceTimersByTimeAsync(PREVIEW_DEBOUNCE_MS)
+      await flushPromises()
+      return draft
+    }
+
+    it('reads an untouched edit as unchanged, and will not save it', async () => {
+      const draft = await openedEdit()
+
+      expect(draft.hasChanges.value).toBe(false)
+      expect(draft.canSubmit.value).toBe(true)
+      expect(draft.canSave.value).toBe(false)
+    })
+
+    it('reads a changed field as a change, and a reverted one as none', async () => {
+      const draft = await openedEdit()
+
+      draft.name.value = 'Southbound Express'
+      expect(draft.hasChanges.value).toBe(true)
+      expect(draft.canSave.value).toBe(true)
+
+      draft.name.value = 'Northbound Express'
+      expect(draft.hasChanges.value).toBe(false)
+    })
+
+    it.each([
+      ['the route', (d: Draft) => { d.routeSlug.value = 'branch-line' }],
+      ['the subtext', (d: Draft) => { d.subtext.value = 'Diesel' }],
+      ['the description', (d: Draft) => { d.description.value = 'Runs the branch.' }],
+      ['a stop name', (d: Draft) => d.updateStop(0, { name: 'Aye' })],
+      ['a stop latitude', (d: Draft) => d.updateStop(0, { lat: 37.7 })],
+      ['a stop longitude', (d: Draft) => d.updateStop(1, { lng: -121.8 })],
+      ['the stop order', (d: Draft) => d.moveStop(0, 1)],
+      ['the vehicle', (d: Draft) => { d.dwellS.value = 60 }],
+      ['a frequency window', (d: Draft) => d.addFrequencyWindow({ start_time: '22:00', end_time: '23:00', headway_s: 1800 })],
+    ])('counts a change to %s', async (_, change) => {
+      const draft = await openedEdit()
+
+      change(draft)
+
+      expect(draft.hasChanges.value).toBe(true)
+    })
+
+    it('ignores row ids, seq and the stop-number counter', async () => {
+      const draft = await openedEdit()
+
+      draft.moveStop(0, 1)
+      draft.moveStop(1, -1)
+      draft.addStopAt({ lat: 37.5, lng: -122 })
+      draft.removeStop(2)
+
+      expect(draft.hasChanges.value).toBe(false)
+    })
+
+    it('compares a resumed edit with the saved service, not with what was resumed', async () => {
+      const first = await openedEdit()
+      first.name.value = 'Renamed'
+      first.dispose()
+
+      const second = await openedEdit()
+
+      expect(second.hasChanges.value).toBe(true)
+      second.name.value = 'Northbound Express'
+      expect(second.hasChanges.value).toBe(false)
+    })
+
+    it('reads a create as changed once a name, route or stop is set, and not before', async () => {
+      const draft = useServiceDraft()
+      await draft.start()
+      expect(draft.hasChanges.value).toBe(false)
+
+      draft.addFrequencyWindow({ start_time: '06:00', end_time: '22:00', headway_s: 900 })
+      expect(draft.hasChanges.value).toBe(false)
+
+      draft.name.value = 'Northbound Express'
+      expect(draft.hasChanges.value).toBe(true)
+      draft.name.value = ''
+
+      await draft.selectRoute('main-line')
+      expect(draft.hasChanges.value).toBe(true)
+      draft.routeSlug.value = ''
+
+      draft.addStop({ name: 'A', lat: 1, lng: 1 })
+      expect(draft.hasChanges.value).toBe(true)
+    })
+
+    it('saves a create without any further gate than readiness', async () => {
+      const draft = useServiceDraft()
+      await submittable(draft)
+
+      expect(draft.canSave.value).toBe(true)
+    })
+
+    it('does not save an untouched edit', async () => {
+      const draft = await openedEdit()
+
+      await draft.submit()
+
+      expect(updateService).not.toHaveBeenCalled()
+    })
+
+    it('keeps the saved edit on the form, unchanged, when the recompile fails', async () => {
+      vi.mocked(compileService).mockRejectedValue(new Error('compile exploded'))
+      const draft = await openedEdit()
+      draft.description.value = 'Runs the whole spine.'
+
+      await draft.submit()
+
+      expect(draft.compileError.value).not.toBe('')
+      expect(draft.ready.value).toBe(true)
+      expect(draft.description.value).toBe('Runs the whole spine.')
+      expect(draft.hasChanges.value).toBe(false)
+      expect(draft.canSave.value).toBe(false)
+    })
+
+    it('ends an edit with no changes left when the page is left', async () => {
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft()
+      drafts.addStop({ name: 'Half-authored', lat: 1, lng: 2, seq: 0 })
+      const draft = await openedEdit()
+
+      draft.dispose()
+
+      expect(drafts.editingServiceId).toBeNull()
+      expect(drafts.serviceDraft?.stops.map((s) => s.name)).toEqual(['Half-authored'])
+    })
+
+    it('keeps an edit with changes when the page is left', async () => {
+      const draft = await openedEdit()
+      draft.name.value = 'Renamed'
+
+      draft.dispose()
+
+      expect(useDraftsStore().editingServiceId).toBe('svc1')
+      expect(useDraftsStore().serviceDraft?.name).toBe('Renamed')
     })
   })
 
@@ -707,7 +851,6 @@ describe('useServiceDraft', () => {
       })
       expect(compileService).not.toHaveBeenCalled()
       expect(draft.createdSlug.value).toBe('northbound-express')
-      expect(draft.submitted.value).toBe(false)
       expect(useDraftsStore().serviceDraft).toBeNull()
     })
 
@@ -742,7 +885,6 @@ describe('useServiceDraft', () => {
       await draft.submit()
 
       expect(draft.submitError.value).toBe("Some of this service's details weren't accepted. Check them and try again.")
-      expect(draft.submitted.value).toBe(false)
       expect(draft.createdSlug.value).toBeNull()
       expect(draft.stops.value).toHaveLength(2)
       expect(compileService).not.toHaveBeenCalled()
@@ -756,7 +898,6 @@ describe('useServiceDraft', () => {
       await draft.submit()
 
       expect(draft.submitError.value).toBe(SESSION_EXPIRED_FAULT)
-      expect(draft.submitted.value).toBe(false)
       expect(draft.stops.value).toHaveLength(2)
     })
 

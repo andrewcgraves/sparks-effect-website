@@ -81,6 +81,27 @@ function serviceInputFromDraft(draft: ServiceDraft): ServiceInput {
   }
 }
 
+// What the author can see and change, and nothing the editor keeps for
+// itself: row ids, seq and the stop-number counter move without the service
+// moving, so they are left out of the comparison that decides whether a draft
+// differs from what is saved.
+function comparable(draft: ServiceDraft): string {
+  return JSON.stringify([
+    draft.route_slug,
+    draft.name,
+    draft.subtext ?? '',
+    draft.description ?? '',
+    draft.stops.map(({ name, lat, lng }) => [name, lat, lng]),
+    [
+      draft.vehicle.max_speed_kmh,
+      draft.vehicle.acceleration_ms2,
+      draft.vehicle.deceleration_ms2,
+      draft.vehicle.dwell_s,
+    ],
+    draft.frequency_windows.map(({ start_time, end_time, headway_s }) => [start_time, end_time, headway_s]),
+  ])
+}
+
 // A service reads its route back by id but is written by route slug, and no
 // route listing carries ids. The compiled graph read is the one that carries
 // the service's route whole, loaded by id at read time rather than frozen into
@@ -120,7 +141,10 @@ export function useServiceDraft(serviceSlug?: string) {
   const editNotFound = ref(false)
   const editLoadFailed = ref(false)
 
-  const submitted = ref(false)
+  // The saved service as comparable(), which is what an edit's changes are
+  // measured against. Null for a create, which has no saved service.
+  const baseline = ref<string | null>(null)
+
   const createdSlug = ref<string | null>(null)
   const submitting = ref(false)
   const submitError = ref('')
@@ -249,6 +273,18 @@ export function useServiceDraft(serviceSlug?: string) {
     return true
   })
 
+  // An edit has changes when it differs from the saved service; a create, once
+  // the author has started on it at all.
+  const hasChanges = computed(() => {
+    const current = draft.value
+    if (!current) return false
+    if (baseline.value === null) return !!(current.name.trim() || current.route_slug || current.stops.length)
+    return comparable(current) !== baseline.value
+  })
+
+  // Saving an unchanged edit would recompile the service for nothing.
+  const canSave = computed(() => canSubmit.value && (!serviceSlug || hasChanges.value))
+
   // The write-time 422 is the backstop behind live preview — preview already
   // catches off-route and order problems before submit, so this only fires when
   // the route changed underneath the draft or preview hasn't run yet.
@@ -323,12 +359,15 @@ export function useServiceDraft(serviceSlug?: string) {
       else editLoadFailed.value = true
       return false
     }
+    // Asked even when resuming, because a resumed draft says what the author
+    // last had, not what is saved, and the changes are measured against the
+    // saved route.
+    const saved = serviceInputFrom(service, await routeSlugOf(service))
+    baseline.value = comparable(saved)
     editing.value = service
     // Resumed rather than reseeded when the slot already holds this very edit,
     // which is what carries unsaved changes across a reload.
-    if (drafts.editingServiceId !== service.id) {
-      drafts.startServiceDraft(serviceInputFrom(service, await routeSlugOf(service)), service.id)
-    }
+    if (drafts.editingServiceId !== service.id) drafts.startServiceDraft(saved, service.id)
     return true
   }
 
@@ -362,12 +401,16 @@ export function useServiceDraft(serviceSlug?: string) {
     routesLoading.value = false
   }
 
-  // The draft itself is persisted, so it survives.
+  // The draft itself is persisted, so it survives — unless it is an edit with
+  // nothing left in it that the service doesn't already say, which is how a
+  // saved edit ends, and how an edit opened and left untouched hands the slot
+  // back to any create draft it set aside.
   function dispose(): void {
     if (previewTimer) clearTimeout(previewTimer)
     previewTimer = null
     unwatchDraft?.()
     unwatchDraft = null
+    if (editing.value && ready.value && !hasChanges.value) drafts.clearServiceDraft()
   }
 
   async function selectRoute(slug: string): Promise<void> {
@@ -422,7 +465,7 @@ export function useServiceDraft(serviceSlug?: string) {
 
   async function submit(): Promise<void> {
     const current = draft.value
-    if (!current || !canSubmit.value) return
+    if (!current || !canSave.value) return
     submitting.value = true
     submitError.value = ''
     submitFault.value = null
@@ -435,16 +478,23 @@ export function useServiceDraft(serviceSlug?: string) {
       const saved = isEdit
         ? await updateService(editing.value!.slug, serviceInputFromDraft(current))
         : await createService(serviceInputFromDraft(current))
-      drafts.clearServiceDraft()
       // A new service has never compiled, and its own page compiles it when
       // the graph read 404s, so a create is finished the moment it is stored.
-      // An edit is not: that page reads the last compile that succeeded, which
-      // predates the edit, so the recompile has to happen here.
       if (!isEdit) {
+        drafts.clearServiceDraft()
         createdSlug.value = saved.slug
         return
       }
-      submitted.value = true
+      // An edit is not: that page reads the last compile that succeeded, which
+      // predates the edit, so the recompile has to happen here, with the form
+      // still in front of the author in case it fails. What was sent is now
+      // what is saved, so the draft stays and reads as unchanged; dispose ends
+      // it once the page is left.
+      editing.value = saved
+      baseline.value = comparable(current)
+      // The save is done; from here the wait is the compile's, which takes
+      // over the busy state in the same tick.
+      submitting.value = false
       await triggerCompile(saved.slug)
     } catch (err) {
       submitError.value = authoringFault(err)
@@ -500,8 +550,9 @@ export function useServiceDraft(serviceSlug?: string) {
     stopPreviewPairs,
     orderWarning,
     canSubmit,
+    hasChanges,
+    canSave,
     submitting,
-    submitted,
     createdSlug,
     submitError,
     faultedStops,
