@@ -9,6 +9,7 @@ import TimeRemaining from '../components/TimeRemaining.vue'
 import { segmentStationTimeGroups } from '../components/stationTimes'
 import { buildTimeRemainingGraph, remainingSecsBySlug, shortLineName } from '../components/timeRemaining'
 import { ORIGIN_PICK_CUE } from '../components/placementCues'
+import { isochroneWaitMessage } from '../api/isochroneFault'
 import { useScenario } from '../composables/useScenario'
 import { useScenarioTravelTimes } from '../composables/useScenarioTravelTimes'
 import { useIsochrone } from '../composables/useIsochrone'
@@ -43,6 +44,7 @@ const {
   data: isochroneData,
   loading: isLoading,
   error: fetchError,
+  progress: isochroneProgress,
   generate,
   show: showIsochrone,
 } = useIsochrone(() => stations.value)
@@ -138,6 +140,7 @@ function onPrerenderedSelect(result: ChainResponse) {
           :origin="origin"
           :isochrone-data="isochroneData"
           :loading="isLoading"
+          :loading-message="isochroneWaitMessage(isochroneProgress)"
           :routes="routes"
           :stations="stations"
           :placement-armed="pickArmed"

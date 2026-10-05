@@ -5,6 +5,7 @@ import { fetchMyServices } from '../api/authoring/services'
 import type { Scenario } from '../api/authoring/types'
 import { useOwnedDetail } from '../composables/useOwnedDetail'
 import { useOwnedList } from '../composables/useOwnedList'
+import { isochroneWaitMessage } from '../api/isochroneFault'
 import { useAuthoredGraph } from '../composables/useAuthoredGraph'
 import { usePageTitle } from '../composables/usePageTitle'
 import { useScenarioDeletion } from '../composables/useDeletion'
@@ -32,6 +33,7 @@ const {
   origin,
   isochroneData,
   isochroneError,
+  isochroneProgress,
   isochroneFormLoading,
   nearMisses,
   realisedClusters,
@@ -159,6 +161,7 @@ watch(scenario, (loaded) => {
         :origin="origin"
         :isochrone-data="isochroneData"
         :loading="isochroneFormLoading"
+        :loading-message="isochroneWaitMessage(isochroneProgress)"
         :error="isochroneError || compileError || null"
         :near-misses="nearMisses"
         :realised-clusters="realisedClusters"

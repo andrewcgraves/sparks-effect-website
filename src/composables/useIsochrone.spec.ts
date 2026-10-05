@@ -344,4 +344,73 @@ describe('useIsochrone', () => {
       expect(loading.value).toBe(false)
     })
   })
+
+  // SPA-467: the overlay tells the visitor where they are in the queue, so the
+  // latest poll has to reach the page — and only the current plot's polls.
+  describe('progress', () => {
+    function pending() {
+      return new Promise<ChainResponse>(() => {})
+    }
+
+    it('starts at null, meaning no poll has answered yet', () => {
+      expect(useIsochrone().progress.value).toBeNull()
+    })
+
+    it('holds the latest poll of the plot in flight', () => {
+      vi.mocked(fetchIsochrone).mockImplementationOnce((_request, onProgress) => {
+        onProgress?.({ status: 'queued', queue_position: 2 })
+        onProgress?.({ status: 'queued', queue_position: 1 })
+        return pending()
+      })
+      const { progress, generate } = useIsochrone()
+      void generate(request)
+      expect(progress.value).toEqual({ status: 'queued', queue_position: 1 })
+    })
+
+    it('starts the next plot from null rather than where the last plot stood', () => {
+      let report: ((p: { status: 'queued'; queue_position: number }) => void) | undefined
+      vi.mocked(fetchIsochrone)
+        .mockImplementationOnce((_request, onProgress) => {
+          onProgress?.({ status: 'running' })
+          return pending()
+        })
+        .mockImplementationOnce((_request, onProgress) => {
+          report = onProgress
+          return pending()
+        })
+      const { progress, generate } = useIsochrone()
+      void generate(request)
+      void generate({ ...request, mode: 'bike' })
+      expect(progress.value).toBeNull()
+      report?.({ status: 'queued', queue_position: 3 })
+      expect(progress.value).toEqual({ status: 'queued', queue_position: 3 })
+    })
+
+    // The last poll of a finished plot says succeeded; left standing, it would
+    // word the next wait before that wait has said anything.
+    it('clears once the plot it describes has ended', async () => {
+      vi.mocked(fetchIsochrone).mockImplementationOnce(async (_request, onProgress) => {
+        onProgress?.({ status: 'succeeded' })
+        return stubResponse
+      })
+      const { progress, generate } = useIsochrone()
+      await generate(request)
+      expect(progress.value).toBeNull()
+    })
+
+    it('ignores polls from a plot already superseded', () => {
+      let reportOlder: ((p: { status: 'running' }) => void) | undefined
+      vi.mocked(fetchIsochrone)
+        .mockImplementationOnce((_request, onProgress) => {
+          reportOlder = onProgress
+          return pending()
+        })
+        .mockImplementationOnce(() => pending())
+      const { progress, generate } = useIsochrone()
+      void generate(request)
+      void generate({ ...request, mode: 'bike' })
+      reportOlder?.({ status: 'running' })
+      expect(progress.value).toBeNull()
+    })
+  })
 })

@@ -11,7 +11,7 @@ vi.mock('../analytics/index', () => ({
 }))
 
 import { trackIsochroneError, trackIsochroneRequest } from '../analytics/index'
-import { isochroneFault, isochroneRangeRefusal, isochroneRequested } from './isochroneFault'
+import { isochroneFault, isochroneRangeRefusal, isochroneRequested, isochroneWaitMessage } from './isochroneFault'
 
 const ORIGIN = { lat: 37.3382, lng: -121.8863 }
 
@@ -124,5 +124,24 @@ describe('isochroneRequested', () => {
   it('counts the attempt with mode and budget', () => {
     isochroneRequested('bike', 20)
     expect(trackIsochroneRequest).toHaveBeenCalledWith('bike', 20)
+  })
+})
+
+// SPA-467: queue_position counts the in-flight jobs created before this one,
+// so 0 means next; it is absent once running, and absent while queued when the
+// API could not count — which reads as a plain wait rather than a guess.
+describe('isochroneWaitMessage', () => {
+  it.each([
+    [{ status: 'queued', queue_position: 2 }, 'Waiting — 2 ahead of you'],
+    [{ status: 'queued', queue_position: 1 }, 'Waiting — 1 ahead of you'],
+    [{ status: 'queued', queue_position: 0 }, "You're next…"],
+    [{ status: 'queued' }, 'Waiting…'],
+    [{ status: 'running' }, 'Plotting…'],
+  ] as const)('words %o as %s', (progress, message) => {
+    expect(isochroneWaitMessage(progress)).toBe(message)
+  })
+
+  it('says Waiting… before the first poll has answered', () => {
+    expect(isochroneWaitMessage(null)).toBe('Waiting…')
   })
 })

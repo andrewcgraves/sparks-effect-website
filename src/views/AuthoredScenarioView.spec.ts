@@ -18,8 +18,8 @@ vi.mock('../api/authoring/services', () => ({
 }))
 vi.mock('../components/MapView.vue', () => ({
   default: {
-    props: ['origin', 'isochroneData', 'loading', 'routes', 'stations'],
-    template: '<div data-testid="map" :data-stations="stations.length" :data-routes="routes.length" />',
+    props: ['origin', 'isochroneData', 'loading', 'loadingMessage', 'routes', 'stations'],
+    template: '<div data-testid="map" :data-stations="stations.length" :data-routes="routes.length" :data-loading-message="loadingMessage" />',
   },
 }))
 
@@ -146,7 +146,24 @@ describe('AuthoredScenarioView', () => {
 
     expect(fetchScenarioIsochrone).toHaveBeenCalledWith('ca-hsr', {
       lat: 37.7, lng: -122.4, budget_mins: 30, mode: 'walk',
+    }, expect.any(Function))
+  })
+
+  // SPA-467: a visitor waiting on a queued plot is told where they stand.
+  it('tells a waiting visitor how many plots are ahead of theirs', async () => {
+    vi.mocked(fetchScenarioIsochrone).mockImplementation((_slug, _request, onProgress) => {
+      onProgress?.({ status: 'queued', queue_position: 2 })
+      return new Promise(() => {})
     })
+    const wrapper = mountView()
+    await flushPromises()
+
+    wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('submit', {
+      lat: 37.7, lng: -122.4, duration: 30, mode: 'walk',
+    })
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="map"]').attributes('data-loading-message')).toBe('Waiting — 2 ahead of you')
   })
 
   it('forwards transit mode when plotting an isochrone', async () => {
@@ -161,7 +178,7 @@ describe('AuthoredScenarioView', () => {
 
     expect(fetchScenarioIsochrone).toHaveBeenCalledWith('ca-hsr', {
       lat: 37.7, lng: -122.4, budget_mins: 30, mode: 'transit',
-    })
+    }, expect.any(Function))
   })
 
   it('hands the compiled graph to the map as station and route layers', async () => {

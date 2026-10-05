@@ -31,6 +31,7 @@ setWorkerUrl(maplibreWorkerUrl)
 const props = defineProps<{
   isochroneData: ChainResponse | null
   loading: boolean
+  loadingMessage?: string
   origin?: { lat: number; lng: number } | null
   routes: Route[]
   stations: Station[]
@@ -307,10 +308,13 @@ onUnmounted(() => {
       class="font-body pointer-events-none absolute inset-0 z-2 flex items-center justify-center gap-2.5 bg-white/65 text-[15px] text-ink"
       data-testid="map-loading"
       aria-live="polite"
-      aria-label="Generating isochrone"
+      aria-atomic="true"
     >
-      <span class="size-5 shrink-0 animate-spin rounded-full border-3 border-border border-t-coral" />
-      <span>Generating isochrone…</span>
+      <span
+        class="size-5 shrink-0 animate-spin rounded-full border-3 border-border border-t-coral"
+        aria-hidden="true"
+      />
+      <span>{{ loadingMessage ?? 'Waiting…' }}</span>
     </div>
     
     <p
