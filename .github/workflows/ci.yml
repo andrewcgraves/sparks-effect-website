@@ -29,7 +29,7 @@ jobs:
       - run: npm run test
       # `build` is `vue-tsc -b && vite build`, so this covers the typecheck too.
       - run: npm run build
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist
