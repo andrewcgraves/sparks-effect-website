@@ -25,7 +25,7 @@
     },
     {
       "source": "/(.*)",
-      "missing": [{ "type": "host", "value": "sparks-effect.app" }],
+      "missing": [{ "type": "host", "value": "(www\\.)?sparks-effect\\.app" }],
       "headers": [
         { "key": "X-Robots-Tag", "value": "noindex" }
       ]

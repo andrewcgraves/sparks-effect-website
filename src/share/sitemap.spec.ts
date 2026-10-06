@@ -25,6 +25,11 @@ function api(answers: Record<string, unknown>): { read: ApiRead; reads: string[]
 }
 
 const FIRST_SERVICES_PAGE = '/api/published-services?cursor=&limit=100'
+const NO_DEADLINE = new AbortController().signal
+
+function servicesPage(cursor: string): string {
+  return `/api/published-services?cursor=${cursor}&limit=100`
+}
 
 function parse(xml: string): Document {
   return new DOMParser().parseFromString(xml, 'application/xml')
@@ -45,7 +50,7 @@ describe('renderSitemap', () => {
       [FIRST_SERVICES_PAGE]: SERVICES,
     })
 
-    const { xml, complete } = await renderSitemap('https://sparks-effect.app', read)
+    const { xml, complete } = await renderSitemap('https://sparks-effect.app', read, NO_DEADLINE)
 
     expect(complete).toBe(true)
     expect(reads.sort()).toEqual(['/api/published-services?cursor=&limit=100', '/api/routes', '/api/scenarios'])
@@ -61,7 +66,7 @@ describe('renderSitemap', () => {
 
   it('names whichever host asked, so a build promoted from staging names production', async () => {
     const { read } = api({ '/api/scenarios': SCENARIOS, '/api/routes': [], [FIRST_SERVICES_PAGE]: SERVICES })
-    const { xml } = await renderSitemap('https://dev.sparks-effect.app', read)
+    const { xml } = await renderSitemap('https://dev.sparks-effect.app', read, NO_DEADLINE)
     for (const { loc } of entries(xml)) expect(loc.startsWith('https://dev.sparks-effect.app/')).toBe(true)
   })
 
@@ -73,7 +78,7 @@ describe('renderSitemap', () => {
       '/api/published-services?cursor=abc&limit=100': { items: [SERVICES.items[1]], next_cursor: null },
     })
 
-    const { xml, complete } = await renderSitemap('https://sparks-effect.app', read)
+    const { xml, complete } = await renderSitemap('https://sparks-effect.app', read, NO_DEADLINE)
 
     expect(complete).toBe(true)
     expect(reads).toContain('/api/published-services?cursor=abc&limit=100')
@@ -91,21 +96,21 @@ describe('renderSitemap', () => {
       [FIRST_SERVICES_PAGE]: { items: [SERVICES.items[0]], next_cursor: 'abc' },
       '/api/published-services?cursor=abc&limit=100': { items: [SERVICES.items[1]], next_cursor: 'abc' },
     })
-    const { xml } = await renderSitemap('https://sparks-effect.app', read)
+    const { xml } = await renderSitemap('https://sparks-effect.app', read, NO_DEADLINE)
     expect(reads.filter((path) => path.startsWith('/api/published-services'))).toHaveLength(2)
     expect(entries(xml)).toHaveLength(3)
   })
 
   it('reads the bare array an API older than SPA-434 answers as the whole list', async () => {
     const { read } = api({ '/api/scenarios': [], '/api/routes': [], [FIRST_SERVICES_PAGE]: SERVICES.items })
-    const { xml, complete } = await renderSitemap('https://sparks-effect.app', read)
+    const { xml, complete } = await renderSitemap('https://sparks-effect.app', read, NO_DEADLINE)
     expect(complete).toBe(true)
     expect(entries(xml).map(({ loc }) => loc)).toContain('https://sparks-effect.app/services/harbour-loop')
   })
 
   it('falls back to the cover page alone when the API cannot be read at all', async () => {
     const { read } = api({})
-    const { xml, complete } = await renderSitemap('https://sparks-effect.app', read)
+    const { xml, complete } = await renderSitemap('https://sparks-effect.app', read, NO_DEADLINE)
     expect(complete).toBe(false)
     expect(entries(xml)).toEqual([{ loc: 'https://sparks-effect.app/', lastmod: null }])
     expect(parse(xml).getElementsByTagName('parsererror')).toHaveLength(0)
@@ -114,7 +119,7 @@ describe('renderSitemap', () => {
   it('keeps the lists that were read when one fails, and says it is incomplete', async () => {
     const timedOut = new DOMException('timed out', 'TimeoutError')
     const { read } = api({ '/api/scenarios': SCENARIOS, '/api/routes': ROUTES, [FIRST_SERVICES_PAGE]: timedOut })
-    const { xml, complete } = await renderSitemap('https://sparks-effect.app', read)
+    const { xml, complete } = await renderSitemap('https://sparks-effect.app', read, NO_DEADLINE)
     expect(complete).toBe(false)
     expect(entries(xml).map(({ loc }) => loc)).toEqual([
       'https://sparks-effect.app/',
@@ -125,7 +130,7 @@ describe('renderSitemap', () => {
 
   it('treats an answer of the wrong shape as a failed read', async () => {
     const { read } = api({ '/api/scenarios': { error: 'nope' }, '/api/routes': ROUTES, [FIRST_SERVICES_PAGE]: { items: null } })
-    const { xml, complete } = await renderSitemap('https://sparks-effect.app', read)
+    const { xml, complete } = await renderSitemap('https://sparks-effect.app', read, NO_DEADLINE)
     expect(complete).toBe(false)
     expect(entries(xml).map(({ loc }) => loc)).toEqual(['https://sparks-effect.app/', 'https://sparks-effect.app/routes/main-line'])
   })
@@ -136,7 +141,7 @@ describe('renderSitemap', () => {
       '/api/routes': [],
       [FIRST_SERVICES_PAGE]: { items: [{ slug: 'undated', published_at: 'yesterday' }, { slug: 'bare' }], next_cursor: null },
     })
-    const { xml } = await renderSitemap('https://sparks-effect.app', read)
+    const { xml } = await renderSitemap('https://sparks-effect.app', read, NO_DEADLINE)
     expect(entries(xml)).toEqual([
       { loc: 'https://sparks-effect.app/', lastmod: null },
       { loc: 'https://sparks-effect.app/services/undated', lastmod: null },
@@ -150,12 +155,94 @@ describe('renderSitemap', () => {
       '/api/routes': [],
       [FIRST_SERVICES_PAGE]: { items: [], next_cursor: null },
     })
-    const { xml } = await renderSitemap(`https://x.example.app`, read)
+    const { xml } = await renderSitemap(`https://x.example.app`, read, NO_DEADLINE)
 
     expect(parse(xml).getElementsByTagName('parsererror')).toHaveLength(0)
     expect(entries(xml)[1].loc).toBe(`https://x.example.app/scenario/${encodeURIComponent(`a&b<c>"d'/e`)}`)
     expect(xml).toContain('<loc>https://x.example.app/scenario/a%26b%3Cc%3E%22d&#39;%2Fe</loc>')
     expect(xml).not.toMatch(/<loc>[^<]*[<>"][^<]*<\/loc>/)
   })
+})
 
+describe('renderSitemap paging', () => {
+  it('keeps the services already read when a later page fails, and says it is incomplete', async () => {
+    const { read } = api({
+      '/api/scenarios': [],
+      '/api/routes': [],
+      [FIRST_SERVICES_PAGE]: { items: [SERVICES.items[0]], next_cursor: 'abc' },
+      [servicesPage('abc')]: new Error('503'),
+    })
+    const { xml, complete } = await renderSitemap('https://sparks-effect.app', read, NO_DEADLINE)
+    expect(complete).toBe(false)
+    expect(entries(xml).map(({ loc }) => loc)).toEqual([
+      'https://sparks-effect.app/',
+      'https://sparks-effect.app/services/northbound-express',
+    ])
+  })
+
+  it('says it is incomplete when the page cap is reached with a next page still to read', async () => {
+    const reads: string[] = []
+    const read: ApiRead = async (path) => {
+      reads.push(path)
+      if (!path.startsWith('/api/published-services')) return []
+      const n = reads.length
+      return { items: [{ slug: `service-${n}` }], next_cursor: `c${n}` }
+    }
+    const { xml, complete } = await renderSitemap('https://sparks-effect.app', read, NO_DEADLINE)
+    expect(complete).toBe(false)
+    expect(reads.filter((path) => path.startsWith('/api/published-services'))).toHaveLength(100)
+    expect(entries(xml)).toHaveLength(101)
+  })
+})
+
+describe('renderSitemap deadline', () => {
+  function hangingAfter(answers: Record<string, unknown>): ApiRead {
+    return (path) => (path in answers ? Promise.resolve(answers[path]) : new Promise(() => {}))
+  }
+
+  it('answers with the cover page alone when nothing is read by the deadline', async () => {
+    const deadline = new AbortController()
+    const sitemap = renderSitemap('https://sparks-effect.app', hangingAfter({}), deadline.signal)
+    deadline.abort(new DOMException('timed out', 'TimeoutError'))
+    const { xml, complete } = await sitemap
+    expect(complete).toBe(false)
+    expect(entries(xml)).toEqual([{ loc: 'https://sparks-effect.app/', lastmod: null }])
+  })
+
+  it('holds paging to the same deadline, keeping the pages read before it', async () => {
+    const deadline = new AbortController()
+    const reads: string[] = []
+    const answers: Record<string, unknown> = {
+      '/api/scenarios': SCENARIOS,
+      '/api/routes': ROUTES,
+      [FIRST_SERVICES_PAGE]: { items: [SERVICES.items[0]], next_cursor: 'abc' },
+    }
+    const read: ApiRead = (path) => {
+      reads.push(path)
+      if (path === servicesPage('abc')) deadline.abort(new DOMException('timed out', 'TimeoutError'))
+      return hangingAfter(answers)(path)
+    }
+
+    const { xml, complete } = await renderSitemap('https://sparks-effect.app', read, deadline.signal)
+
+    expect(complete).toBe(false)
+    expect(reads).toContain(servicesPage('abc'))
+    expect(entries(xml).map(({ loc }) => loc)).toEqual([
+      'https://sparks-effect.app/',
+      'https://sparks-effect.app/scenario/ca-hsr',
+      'https://sparks-effect.app/routes/main-line',
+      'https://sparks-effect.app/services/northbound-express',
+    ])
+  })
+
+  it('reads nothing once the deadline has passed', async () => {
+    const reads: string[] = []
+    const read: ApiRead = async (path) => {
+      reads.push(path)
+      return []
+    }
+    const { complete } = await renderSitemap('https://sparks-effect.app', read, AbortSignal.abort())
+    expect(complete).toBe(false)
+    expect(reads).toEqual([])
+  })
 })

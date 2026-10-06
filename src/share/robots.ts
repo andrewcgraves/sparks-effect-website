@@ -1,7 +1,8 @@
 // Every private page in src/router/index.ts sits under one of these prefixes.
 // /set-password is the form of /welcome link the API issues (SPA-387), and
-// carries the same one-time token.
-export const DISALLOWED_PATHS = ['/authoring', '/login', '/account', '/admin', '/welcome', '/set-password']
+// carries the same one-time token. /api/ holds the functions behind
+// /robots.txt and /sitemap.xml, which would otherwise be crawled as duplicates.
+export const DISALLOWED_PATHS = ['/authoring', '/login', '/account', '/admin', '/welcome', '/set-password', '/api/']
 
 // The Sitemap line has to be absolute, which is why this is served per request
 // (api/robots.ts) rather than as a static file: the build cannot know which

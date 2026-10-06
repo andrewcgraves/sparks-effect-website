@@ -24,6 +24,7 @@ describe('robotsTxt', () => {
         'Disallow: /admin',
         'Disallow: /welcome',
         'Disallow: /set-password',
+        'Disallow: /api/',
         '',
         'Sitemap: https://sparks-effect.app/sitemap.xml',
         '',
@@ -46,8 +47,12 @@ describe('robotsTxt', () => {
     }
   })
 
+  it('keeps crawlers off the functions behind /robots.txt and /sitemap.xml, which would be duplicates', () => {
+    for (const path of ['/api/robots', '/api/sitemap']) expect(disallowed(path), path).toBe(true)
+  })
+
   it('leaves every public page crawlable', () => {
-    for (const path of ['/', '/scenario/ca-hsr', '/services/northbound-express', '/routes/main-line', '/sitemap.xml']) {
+    for (const path of ['/', '/scenario/ca-hsr', '/services/northbound-express', '/routes/main-line', '/robots.txt', '/sitemap.xml']) {
       expect(disallowed(path), path).toBe(false)
     }
   })

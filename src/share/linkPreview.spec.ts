@@ -195,15 +195,25 @@ describe('renderPreview canonical URL', () => {
     expect(canonical(doc)).toBe('https://sparks-effect.app/')
   })
 
-  it('still names the page when its read fails, so an unpublished service reads like any unknown slug', async () => {
-    const doc = parse(await renderPreview(new URL('https://sparks-effect.app/services/draft'), Promise.resolve(SHELL), () => Promise.reject(new Error('404'))))
-    expect(canonical(doc)).toBe('https://sparks-effect.app/services/draft')
+  it('names no canonical for a page that did not resolve, whatever the reason, and keeps og:url', async () => {
+    const shell = SHELL.replace('</head>', '<link rel="canonical" href="https://elsewhere.example/" />\n  </head>')
+    const reads: Record<string, () => Promise<unknown>> = {
+      'an unknown or unpublished slug': () => Promise.reject(new Error('404')),
+      'a read that timed out': () => Promise.reject(new DOMException('timed out', 'TimeoutError')),
+      'an answer with no name': async () => ({ description: 'x' }),
+    }
+    for (const [why, read] of Object.entries(reads)) {
+      const doc = parse(await renderPreview(new URL('https://sparks-effect.app/services/draft'), Promise.resolve(shell), read))
+      expect(doc.querySelectorAll('link[rel="canonical"]'), why).toHaveLength(0)
+      expect(meta(doc, 'og:url'), why).toBe('https://sparks-effect.app/services/draft')
+    }
   })
 
-  it('escapes the URL it writes into the attribute', async () => {
-    const html = await renderPreview(new URL("https://sparks-effect.app/routes/a&b'c"), Promise.resolve(SHELL), async () => ({}))
-    expect(html).toContain('<link rel="canonical" href="https://sparks-effect.app/routes/a&amp;b&#39;c" />')
-    expect(canonical(parse(html))).toBe("https://sparks-effect.app/routes/a&b'c")
+  it('names no canonical for a path that is no public page, and escapes the og:url it writes', async () => {
+    const html = await renderPreview(new URL("https://sparks-effect.app/routes/a&b'c"), Promise.resolve(SHELL), async () => ({ name: 'X' }))
+    expect(canonical(parse(html))).toBeNull()
+    expect(html).toContain('<meta property="og:url" content="https://sparks-effect.app/routes/a&amp;b&#39;c" />')
+    expect(meta(parse(html), 'og:url')).toBe("https://sparks-effect.app/routes/a&b'c")
   })
 
   it('replaces a canonical the shell already carries rather than adding a second', async () => {

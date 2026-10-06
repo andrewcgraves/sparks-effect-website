@@ -10,3 +10,6 @@ export function GET(request: Request): Response {
     },
   })
 }
+
+// Unexported methods answer 405, and crawlers and uptime checks send HEAD.
+export const HEAD = GET
