@@ -7,7 +7,7 @@ import type { Station } from '../api/scenarios'
 
 vi.mock('../api/routingStatus', () => ({ fetchRoutingStatus: vi.fn() }))
 
-import { fetchRoutingStatus } from '../api/routingStatus'
+import { fetchRoutingStatus, type RoutingStatus } from '../api/routingStatus'
 
 enableAutoUnmount(afterEach)
 
@@ -151,7 +151,7 @@ describe('ScenarioPreviewPanel', () => {
   })
 
   describe('when live routing is down', () => {
-    async function mountWithStatus(status: 'ok' | 'degraded' | 'offline') {
+    async function mountWithStatus(status: RoutingStatus) {
       vi.mocked(fetchRoutingStatus).mockResolvedValue(status)
       const wrapper = mount(ScenarioPreviewPanel, {
         props: { ...defaultProps, initial: { lat: 37.7, lng: -122.4 } },

@@ -1,6 +1,6 @@
 import { apiRequest } from './authoring/client'
 
-export const ROUTING_STATUSES = ['ok', 'degraded', 'offline'] as const
+const ROUTING_STATUSES = ['ok', 'degraded', 'offline'] as const
 
 export type RoutingStatus = (typeof ROUTING_STATUSES)[number]
 

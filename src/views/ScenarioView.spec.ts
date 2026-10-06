@@ -1216,6 +1216,20 @@ describe('ScenarioView', () => {
       expect(examples.compareDocumentPosition(form) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     })
 
+    it('neither promises nor rules out examples until the list has answered', async () => {
+      vi.mocked(fetchRoutingStatus).mockResolvedValue('offline')
+      let answerList: (list: PrerenderedIsochrone[]) => void = () => {}
+      vi.mocked(listPrerenderedIsochrones).mockReturnValue(new Promise((resolve) => (answerList = resolve)))
+
+      const wrapper = await mountWithOrigin()
+      expect(wrapper.get('[data-testid="routing-status"]').text()).toBe('Live routing is offline right now.')
+
+      answerList([saved])
+      await flushPromises()
+      expect(wrapper.get('[data-testid="routing-status"]').text())
+        .toBe('Live routing is offline right now. Here are some saved examples.')
+    })
+
     it('only explains, without promising examples, for a network that ships none', async () => {
       vi.mocked(fetchRoutingStatus).mockResolvedValue('offline')
 

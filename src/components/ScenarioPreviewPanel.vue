@@ -34,7 +34,7 @@ defineEmits<{
 }>()
 
 const { pickArmed, onMapClick } = useOriginPick()
-const { status: routingStatus } = useRoutingStatus()
+const { status: routingStatus, offline: routingOffline } = useRoutingStatus()
 
 const timeRemaining = computed(() =>
   buildTimeRemainingGraph(props.isochroneData?.metadata ?? null, {
@@ -90,7 +90,7 @@ function formatMeters(total: number): string {
         ref="isochroneForm"
         :error="props.error"
         :loading="props.loading"
-        :offline="routingStatus === 'offline'"
+        :offline="routingOffline"
         :initial="props.initial"
         @submit="$emit('submit', $event)"
         @origin-change="$emit('origin-change', $event)"

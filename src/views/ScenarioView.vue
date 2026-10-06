@@ -28,9 +28,8 @@ const props = defineProps<{ slug: string }>()
 
 const origin = ref<{ lat: number; lng: number } | null>(null)
 const { pickArmed, onMapClick } = useOriginPick()
-const { status: routingStatus } = useRoutingStatus()
-const offline = computed(() => routingStatus.value === 'offline')
-const hasExamples = ref(false)
+const { status: routingStatus, offline } = useRoutingStatus()
+const hasExamples = ref<boolean | null>(null)
 
 const { name, description, routes, stations, services, loading: scenarioLoading } = useScenario(props.slug)
 
@@ -160,7 +159,7 @@ function onPrerenderedSelect(result: ChainResponse) {
       <div class="flex flex-col gap-4">
         <RoutingStatusBanner
           :status="routingStatus"
-          :examples="hasExamples"
+          :has-examples="hasExamples"
         />
         <!-- With live routing offline the saved examples are the page's answer,
              so they come ahead of a form that cannot plot — in the DOM, not

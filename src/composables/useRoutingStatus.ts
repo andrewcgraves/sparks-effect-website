@@ -1,4 +1,4 @@
-import { onScopeDispose, readonly, ref } from 'vue'
+import { computed, onScopeDispose, readonly, ref } from 'vue'
 import { fetchRoutingStatus, type RoutingStatus } from '../api/routingStatus'
 
 export const ROUTING_STATUS_POLL_MS = 60_000
@@ -10,11 +10,9 @@ const status = ref<RoutingStatus>('ok')
 let subscribers = 0
 let timer: ReturnType<typeof setInterval> | undefined
 let generation = 0
-// The generation whose request is out, if any; a request from pages that have
-// since gone does not hold up the next page's first question.
 let inFlight: number | null = null
 
-function withDeadline(): Promise<RoutingStatus> {
+function fetchWithDeadline(): Promise<RoutingStatus> {
   const controller = new AbortController()
   let deadline: ReturnType<typeof setTimeout> | undefined
   const expired = new Promise<never>((_, reject) => {
@@ -29,13 +27,14 @@ function withDeadline(): Promise<RoutingStatus> {
 
 async function poll(): Promise<void> {
   // A focus landing while the minute's request is still out would only ask the
-  // same question twice.
+  // same question twice. Keyed by generation, so a request from pages that have
+  // since gone does not hold up the next page's first question.
   const mine = generation
   if (inFlight === mine) return
   inFlight = mine
   let next: RoutingStatus
   try {
-    next = await withDeadline()
+    next = await fetchWithDeadline()
   } catch {
     // Not knowing — a failure, or an answer too slow to wait for — is not a
     // reason to warn anyone: the page behaves as it did before there was a
@@ -72,5 +71,5 @@ export function useRoutingStatus() {
   onScopeDispose(() => {
     if (--subscribers === 0) stop()
   })
-  return { status: readonly(status) }
+  return { status: readonly(status), offline: computed(() => status.value === 'offline') }
 }

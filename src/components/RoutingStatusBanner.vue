@@ -2,14 +2,21 @@
 import { computed } from 'vue'
 import type { RoutingStatus } from '../api/routingStatus'
 
-const props = withDefaults(defineProps<{ status: RoutingStatus; examples?: boolean }>(), { examples: false })
-
-// Where there are no saved examples to offer, the banner can only explain.
-const offlineMessage = computed(() =>
-  props.examples
-    ? 'Live routing is offline right now. Here are some saved examples.'
-    : 'Live routing is offline right now. New splash zones can’t be plotted until it’s back.',
+const props = withDefaults(
+  defineProps<{ status: RoutingStatus; hasExamples?: boolean | null }>(),
+  { hasExamples: false },
 )
+
+const OFFLINE = 'Live routing is offline right now.'
+
+const offlineMessage = computed(() => {
+  // Until the examples have answered, the banner neither promises them nor
+  // says there is nothing to offer: either could be contradicted a moment later.
+  if (props.hasExamples === null) return OFFLINE
+  return props.hasExamples
+    ? `${OFFLINE} Here are some saved examples.`
+    : `${OFFLINE} New splash zones can’t be plotted until it’s back.`
+})
 </script>
 
 <template>
