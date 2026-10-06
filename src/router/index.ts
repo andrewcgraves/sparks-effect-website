@@ -3,7 +3,7 @@ import CoverPage from '../views/CoverPage.vue'
 import NotFoundView from '../views/NotFoundView.vue'
 import { trackPageView } from '../analytics/index'
 import { redactPath } from '../analytics/redact'
-import { formatPageTitle } from '../composables/usePageTitle'
+import { formatPageTitle } from '../share/pageTitle'
 import { useAuthStore } from '../stores/auth'
 
 declare module 'vue-router' {
