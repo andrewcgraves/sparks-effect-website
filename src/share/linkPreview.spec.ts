@@ -11,8 +11,8 @@ const SHELL = `<!doctype html>
   <body><div id="app"></div></body>
 </html>`
 
-function head(html: string): Document {
-  return new DOMParser().parseFromString(html, 'text/html')
+function parse(html: string | null): Document {
+  return new DOMParser().parseFromString(html ?? '', 'text/html')
 }
 
 function meta(doc: Document, key: string): string | null {
@@ -22,11 +22,11 @@ function meta(doc: Document, key: string): string | null {
 
 describe('renderPreview', () => {
   it('describes the cover page with the site name and an absolute URL on the requesting host', async () => {
-    const html = await renderPreview(new URL('https://staging.example.app/'), SHELL, () => {
+    const html = await renderPreview(new URL('https://staging.example.app/'), Promise.resolve(SHELL), () => {
       throw new Error('the cover page reads nothing')
     })
 
-    const doc = head(html)
+    const doc = parse(html)
     expect(doc.title).toBe('Sparks Effect')
     expect(meta(doc, 'og:title')).toBe('Sparks Effect')
     expect(meta(doc, 'og:site_name')).toBe('Sparks Effect')
@@ -42,12 +42,12 @@ describe('renderPreview', () => {
 
   it('describes a published service by its own name and description', async () => {
     const reads: string[] = []
-    const html = await renderPreview(new URL('https://www.example.app/services/northbound-express?at=1,2'), SHELL, async (path) => {
+    const html = await renderPreview(new URL('https://www.example.app/services/northbound-express?at=1,2'), Promise.resolve(SHELL), async (path) => {
       reads.push(path)
       return { name: 'Northbound Express', subtext: 'Rail · 12 stops', description: 'A fast line up the coast.' }
     })
 
-    const doc = head(html)
+    const doc = parse(html)
     expect(reads).toEqual(['/api/services/northbound-express/publication'])
     expect(doc.title).toBe('Northbound Express · Sparks Effect')
     expect(meta(doc, 'og:title')).toBe('Northbound Express')
@@ -59,11 +59,11 @@ describe('renderPreview', () => {
 
   it('gives a service whose read fails the site-wide card, whatever the failure', async () => {
     const url = new URL('https://www.example.app/services/draft-line')
-    const notFound = await renderPreview(url, SHELL, () => Promise.reject(new Error('404')))
-    const timedOut = await renderPreview(url, SHELL, () => Promise.reject(new DOMException('timed out', 'TimeoutError')))
-    const malformed = await renderPreview(url, SHELL, async () => ({ name: 42 }))
+    const notFound = await renderPreview(url, Promise.resolve(SHELL), () => Promise.reject(new Error('404')))
+    const timedOut = await renderPreview(url, Promise.resolve(SHELL), () => Promise.reject(new DOMException('timed out', 'TimeoutError')))
+    const malformed = await renderPreview(url, Promise.resolve(SHELL), async () => ({ name: 42 }))
 
-    const doc = head(notFound)
+    const doc = parse(notFound)
     expect(doc.title).toBe('Sparks Effect')
     expect(meta(doc, 'og:title')).toBe('Sparks Effect')
     expect(meta(doc, 'og:url')).toBe('https://www.example.app/services/draft-line')
@@ -73,12 +73,12 @@ describe('renderPreview', () => {
 
   it('writes author text literally, never as markup', async () => {
     const hostile = `"><script>alert(1)</script>`
-    const html = await renderPreview(new URL('https://www.example.app/services/x'), SHELL, async () => ({
+    const html = await renderPreview(new URL('https://www.example.app/services/x'), Promise.resolve(SHELL), async () => ({
       name: hostile,
       description: `It's <b>fast</b> & "new"`,
     }))
 
-    const doc = head(html)
+    const doc = parse(html)
     expect(doc.querySelectorAll('script')).toHaveLength(1)
     expect(doc.title).toBe(`${hostile} · Sparks Effect`)
     expect(meta(doc, 'og:title')).toBe(hostile)
@@ -91,33 +91,33 @@ describe('renderPreview', () => {
   it('cuts a long description at a word boundary near 200 characters', async () => {
     // Four 45-character sentences, then a fifth that crosses 200 mid-"jumps".
     const description = 'The quick brown fox jumps over the lazy dog. '.repeat(5)
-    const html = await renderPreview(new URL('https://www.example.app/services/x'), SHELL, async () => ({
+    const html = await renderPreview(new URL('https://www.example.app/services/x'), Promise.resolve(SHELL), async () => ({
       name: 'Long Line',
       description,
     }))
 
-    const cut = meta(head(html), 'og:description')!
+    const cut = meta(parse(html), 'og:description')!
     expect(cut).toBe(`${'The quick brown fox jumps over the lazy dog. '.repeat(4)}The quick brown fox…`)
     expect(cut.length).toBeLessThanOrEqual(201)
   })
 
   it('leaves a description of 200 characters or fewer whole', async () => {
     const description = 'x'.repeat(200)
-    const html = await renderPreview(new URL('https://www.example.app/services/x'), SHELL, async () => ({
+    const html = await renderPreview(new URL('https://www.example.app/services/x'), Promise.resolve(SHELL), async () => ({
       name: 'Short Line',
       description,
     }))
-    expect(meta(head(html), 'og:description')).toBe(description)
+    expect(meta(parse(html), 'og:description')).toBe(description)
   })
 
   it('describes a curated scenario by its name and description', async () => {
     const reads: string[] = []
-    const html = await renderPreview(new URL('https://www.example.app/scenario/ca-hsr'), SHELL, async (path) => {
+    const html = await renderPreview(new URL('https://www.example.app/scenario/ca-hsr'), Promise.resolve(SHELL), async (path) => {
       reads.push(path)
       return { name: 'California HSR', description: 'San Francisco to Los Angeles in under three hours.' }
     })
 
-    const doc = head(html)
+    const doc = parse(html)
     expect(reads).toEqual(['/api/scenarios/ca-hsr'])
     expect(doc.title).toBe('California HSR · Sparks Effect')
     expect(meta(doc, 'og:title')).toBe('California HSR')
@@ -125,18 +125,18 @@ describe('renderPreview', () => {
     expect(meta(doc, 'og:url')).toBe('https://www.example.app/scenario/ca-hsr')
   })
 
-  it('describes a curated route by its name and mode', async () => {
+  it('describes a curated route by its name', async () => {
     const reads: string[] = []
-    const html = await renderPreview(new URL('https://www.example.app/routes/main-line'), SHELL, async (path) => {
+    const html = await renderPreview(new URL('https://www.example.app/routes/main-line'), Promise.resolve(SHELL), async (path) => {
       reads.push(path)
       return { name: 'Main Line', mode: 'rail' }
     })
 
-    const doc = head(html)
+    const doc = parse(html)
     expect(reads).toEqual(['/api/routes/main-line'])
     expect(doc.title).toBe('Main Line · Sparks Effect')
     expect(meta(doc, 'og:title')).toBe('Main Line')
-    expect(meta(doc, 'og:description')).toBe('A rail route on Sparks Effect. See the splash zone reachable from it.')
+    expect(meta(doc, 'og:description')).toBe('A route on Sparks Effect that lines can run along.')
     expect(meta(doc, 'og:url')).toBe('https://www.example.app/routes/main-line')
   })
 
@@ -147,7 +147,7 @@ describe('renderPreview', () => {
       return { name: 'Secret Draft' }
     }
     for (const path of ['/authoring/services/secret-draft', '/authoring', '/login', '/services/a/b', '/services/%22x']) {
-      const doc = head(await renderPreview(new URL(`https://www.example.app${path}`), SHELL, read))
+      const doc = parse(await renderPreview(new URL(`https://www.example.app${path}`), Promise.resolve(SHELL), read))
       expect(doc.title).toBe('Sparks Effect')
       expect(meta(doc, 'og:title')).toBe('Sparks Effect')
     }
@@ -155,9 +155,26 @@ describe('renderPreview', () => {
   })
 })
 
+describe('renderPreview without a shell', () => {
+  it('answers null, leaving the page to be served as built', async () => {
+    const html = await renderPreview(new URL('https://www.example.app/'), Promise.resolve(null), async () => ({}))
+    expect(html).toBeNull()
+  })
+
+  it('reads the API while the shell is still on its way, not after', async () => {
+    let arrive: (shell: string) => void = () => {}
+    const shell = new Promise<string>((resolve) => { arrive = resolve })
+    const html = await renderPreview(new URL('https://www.example.app/routes/main-line'), shell, async () => {
+      arrive(SHELL)
+      return { name: 'Main Line', mode: 'rail' }
+    })
+    expect(meta(parse(html!), 'og:title')).toBe('Main Line')
+  })
+})
+
 describe('withDefaultPreview', () => {
   it('gives the built shell the site-wide card, with no URL baked in', () => {
-    const doc = head(withDefaultPreview(SHELL))
+    const doc = parse(withDefaultPreview(SHELL))
     expect(doc.title).toBe('Sparks Effect')
     expect(doc.querySelectorAll('title')).toHaveLength(1)
     expect(meta(doc, 'og:title')).toBe('Sparks Effect')
@@ -167,11 +184,11 @@ describe('withDefaultPreview', () => {
   })
 
   it('is replaced, not duplicated, when a page preview is spliced over it', async () => {
-    const html = await renderPreview(new URL('https://www.example.app/routes/main-line'), withDefaultPreview(SHELL), async () => ({
+    const html = await renderPreview(new URL('https://www.example.app/routes/main-line'), Promise.resolve(withDefaultPreview(SHELL)), async () => ({
       name: 'Main Line',
       mode: 'rail',
     }))
-    const doc = head(html)
+    const doc = parse(html)
     expect(doc.querySelectorAll('title')).toHaveLength(1)
     expect(doc.querySelectorAll('meta[property="og:title"]')).toHaveLength(1)
     expect(doc.querySelectorAll('meta[name="description"]')).toHaveLength(1)

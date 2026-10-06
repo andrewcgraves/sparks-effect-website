@@ -1,6 +1,6 @@
 import { SITE_NAME, formatPageTitle } from './pageTitle.js'
 
-export const SITE_DESCRIPTION =
+const SITE_DESCRIPTION =
   'Sparks Effect maps the "splash zone" reachable by walking, biking, transit, and driving from a hypothetical transit line.'
 
 interface PageMeta {
@@ -11,7 +11,8 @@ interface PageMeta {
 
 const SITE_DEFAULT: PageMeta = { name: null, description: SITE_DESCRIPTION }
 
-function escapeAttribute(value: string): string {
+// Safe both inside an attribute value and as the <title> element's text.
+function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -20,20 +21,25 @@ function escapeAttribute(value: string): string {
     .replace(/'/g, '&#39;')
 }
 
+interface MetaTag {
+  attr: 'name' | 'property'
+  key: string
+  content: string
+}
+
 function metaTags(page: PageMeta): string {
-  const title = formatPageTitle(page.name)
-  const tags: [string, string, string][] = [
-    ['name', 'description', page.description],
-    ['property', 'og:type', 'website'],
-    ['property', 'og:site_name', SITE_NAME],
-    ['property', 'og:title', page.name ?? SITE_NAME],
-    ['property', 'og:description', page.description],
+  const tags: MetaTag[] = [
+    { attr: 'name', key: 'description', content: page.description },
+    { attr: 'property', key: 'og:type', content: 'website' },
+    { attr: 'property', key: 'og:site_name', content: SITE_NAME },
+    { attr: 'property', key: 'og:title', content: page.name ?? SITE_NAME },
+    { attr: 'property', key: 'og:description', content: page.description },
   ]
-  if (page.url) tags.push(['property', 'og:url', page.url])
-  tags.push(['name', 'twitter:card', 'summary'])
+  if (page.url) tags.push({ attr: 'property', key: 'og:url', content: page.url })
+  tags.push({ attr: 'name', key: 'twitter:card', content: 'summary' })
   return [
-    `<title>${escapeAttribute(title)}</title>`,
-    ...tags.map(([attr, key, value]) => `<meta ${attr}="${key}" content="${escapeAttribute(value)}" />`),
+    `<title>${escapeHtml(formatPageTitle(page.name))}</title>`,
+    ...tags.map(({ attr, key, content }) => `<meta ${attr}="${key}" content="${escapeHtml(content)}" />`),
   ].join('\n    ')
 }
 
@@ -49,7 +55,7 @@ export type ApiRead = (path: string) => Promise<unknown>
 
 const DESCRIPTION_MAX = 200
 
-function text(value: unknown): string | null {
+function nonEmptyText(value: unknown): string | null {
   if (typeof value !== 'string') return null
   const flat = value.replace(/\s+/g, ' ').trim()
   return flat || null
@@ -64,48 +70,56 @@ function truncate(value: string): string {
 }
 
 interface PublicPage {
-  read: (slug: string) => string
+  endpoint: (slug: string) => string
   describe: (body: Record<string, unknown>) => string | null
 }
 
-// Keyed by the route's first path segment (src/router/index.ts). Each reads
-// the public endpoint that names the page, so nothing an owner keeps private
-// can reach this HTML: an owned route 404s to an anonymous read.
+// Keyed by the route's first path segment (src/router/index.ts; middleware.ts
+// matches the same pages). Each reads the public endpoint that names the page,
+// so nothing an owner keeps private can reach this HTML: an owned route 404s
+// to an anonymous read.
 const PUBLIC_PAGES = new Map<string, PublicPage>([
   ['scenario', {
-    read: (slug) => `/api/scenarios/${slug}`,
-    describe: (body) => text(body.description),
+    endpoint: (slug) => `/api/scenarios/${slug}`,
+    describe: (body) => nonEmptyText(body.description),
   }],
   ['services', {
-    read: (slug) => `/api/services/${slug}/publication`,
-    describe: (body) => text(body.description),
+    endpoint: (slug) => `/api/services/${slug}/publication`,
+    describe: (body) => nonEmptyText(body.description),
   }],
   ['routes', {
-    read: (slug) => `/api/routes/${slug}`,
-    describe: (body) => {
-      const mode = text(body.mode)
-      return mode ? `A ${mode} route on Sparks Effect. See the splash zone reachable from it.` : null
-    },
+    endpoint: (slug) => `/api/routes/${slug}`,
+    describe: () => `A route on ${SITE_NAME} that lines can run along.`,
   }],
 ])
 
 const PUBLIC_PATH = /^\/([a-z]+)\/([A-Za-z0-9_-]+)$/
 
-async function pageMeta(pathname: string, read: ApiRead): Promise<PageMeta> {
+async function readPageMeta(pathname: string, read: ApiRead): Promise<PageMeta> {
   const match = pathname.match(PUBLIC_PATH)
   const page = match && PUBLIC_PAGES.get(match[1])
   if (!match || !page) return SITE_DEFAULT
-  const body = (await read(page.read(match[2]))) as Record<string, unknown>
-  const name = text(body.name)
+  const body = (await read(page.endpoint(match[2]))) as Record<string, unknown>
+  const name = nonEmptyText(body.name)
   if (!name) return SITE_DEFAULT
   return { name, description: truncate(page.describe(body) ?? SITE_DESCRIPTION) }
 }
 
-export async function renderPreview(requestUrl: URL, shell: string, read: ApiRead): Promise<string> {
+// Null when there is no shell to splice into. The shell arrives as a promise so
+// its fetch and the API read overlap: neither waits on the other's timeout.
+export async function renderPreview(
+  requestUrl: URL,
+  shell: Promise<string | null>,
+  read: ApiRead,
+): Promise<string | null> {
   // A failed read, whatever failed, is the same card an unknown slug gets: an
   // unpublished service must look exactly like one that never existed.
-  const page = await pageMeta(requestUrl.pathname, read).catch(() => SITE_DEFAULT)
-  return spliceHead(shell, metaTags({ ...page, url: `${requestUrl.origin}${requestUrl.pathname}` }))
+  const [html, page] = await Promise.all([
+    shell,
+    readPageMeta(requestUrl.pathname, read).catch(() => SITE_DEFAULT),
+  ])
+  if (html === null) return null
+  return spliceHead(html, metaTags({ ...page, url: `${requestUrl.origin}${requestUrl.pathname}` }))
 }
 
 // The build's own index.html: what every page the middleware does not answer
