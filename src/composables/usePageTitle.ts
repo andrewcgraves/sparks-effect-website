@@ -1,10 +1,5 @@
 import { watchEffect } from 'vue'
-
-export const SITE_NAME = 'Sparks Effect'
-
-export function formatPageTitle(name?: string | null): string {
-  return name ? `${name} · ${SITE_NAME}` : SITE_NAME
-}
+import { formatPageTitle } from '../share/pageTitle'
 
 // The router sets each route's `meta.title` on every navigation; this replaces
 // it once the page's own data names it. Until then — and if the name never

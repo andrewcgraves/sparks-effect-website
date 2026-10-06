@@ -298,6 +298,19 @@ describe('router', () => {
       expect(document.title).toBe('California HSR · Sparks Effect')
     })
 
+    it('drops one public page\'s own title on navigating to the next, and back to /', async () => {
+      await router.push('/scenario/ca-hsr')
+      document.title = 'California HSR · Sparks Effect'
+      await router.push('/services/northbound-express')
+      expect(document.title).toBe('Line · Sparks Effect')
+      document.title = 'Northbound Express · Sparks Effect'
+      await router.push('/routes/main-line')
+      expect(document.title).toBe('Route · Sparks Effect')
+      document.title = 'Main Line · Sparks Effect'
+      await router.push('/')
+      expect(document.title).toBe('Sparks Effect')
+    })
+
     it('restores the bare site name on returning to /', async () => {
       await router.push('/login')
       await router.push('/')

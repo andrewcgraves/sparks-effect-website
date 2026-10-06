@@ -66,8 +66,30 @@ Custom events (`track()`) are a Pro/Enterprise feature. On a Hobby project, set
 `VITE_VERCEL_CUSTOM_EVENTS=off` so `vercelSink` stops them locally instead of
 posting to an endpoint that will not keep them; page views are unaffected.
 
+## Link previews
+
+Link-unfurl crawlers (Slackbot, Discordbot, iMessage, …) run no JavaScript, so a
+shared link's title and description have to be in the HTML. `middleware.ts` is
+Vercel Routing Middleware for the public pages only — `/`, `/scenario/:slug`,
+`/services/:slug`, `/routes/:slug`. It fetches the deployment's own
+`/index.html` and the page's public read (both within 1.5 s, side by side), and
+splices that page's `<title>`, `description`, `og:*` and `twitter:card` tags
+into the head. The tag building lives in `src/share/linkPreview.ts`.
+
+- `og:url` comes from the request's host, never the build, so a build promoted
+  from staging names production.
+- A failed or slow read, a 404 and an unpublished service all give the
+  site-wide card, the same one the built `index.html` carries for every other
+  page. Nothing tells "unpublished" apart from "never existed".
+- The middleware reads `VITE_API_BASE_URL` at runtime, so the variable must be
+  set for the deployment's runtime as well as its build.
+- On a deployment behind Deployment Protection the shell fetch gets a 401 and
+  the middleware steps aside: the page loads as built, with the default card.
+  Check a real unfurl on staging, not on a pull-request preview.
+
 ## Project structure
 
+- `middleware.ts` — Vercel Routing Middleware for link previews (above)
 - `src/` — Vue application source
 - `.github/workflows/ci.yml` — CI: a production-dependency `npm audit`, lint + test on every push/PR, then build and upload the `dist`
   artifact

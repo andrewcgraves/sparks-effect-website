@@ -16,7 +16,7 @@
       ]
     },
     {
-      "source": "/((?!assets/|index\\.html$).*)",
+      "source": "/((?!assets/|index\\.html$|$|scenario/|services/|routes/).*)",
       "headers": [
         { "key": "Cache-Control", "value": "no-cache" }
       ]
