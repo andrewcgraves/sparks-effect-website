@@ -1,5 +1,5 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
+import { enableAutoUnmount, mount, flushPromises } from '@vue/test-utils'
 import ScenarioView from './ScenarioView.vue'
 import { ref } from 'vue'
 import type { Router } from 'vue-router'
@@ -31,7 +31,10 @@ vi.mock('../api/prerenderedIsochrones', () => ({
   fetchPrerenderedIsochrone: vi.fn(),
 }))
 
+vi.mock('../api/routingStatus', () => ({ fetchRoutingStatus: vi.fn() }))
+
 import { fetchIsochrone } from '../api/isochrone'
+import { fetchRoutingStatus } from '../api/routingStatus'
 import { fetchScenarioTravelTimes } from '../api/scenarios'
 import {
   fetchPrerenderedIsochrone,
@@ -112,8 +115,11 @@ async function mountScenarioViewAt(path: string, stubs: Record<string, boolean> 
   return { wrapper, router }
 }
 
+enableAutoUnmount(afterEach)
+
 describe('ScenarioView', () => {
   beforeEach(() => {
+    vi.mocked(fetchRoutingStatus).mockReset().mockResolvedValue('ok')
     vi.mocked(fetchIsochrone).mockClear()
     vi.mocked(fetchScenarioTravelTimes).mockReset().mockResolvedValue(stubTravelTimes)
     // Most of this page's cases are about the generate form; a scenario with no
@@ -1168,6 +1174,70 @@ describe('ScenarioView', () => {
       expect(wrapper.findComponent({ name: 'IsochroneForm' }).props('error')).toBeNull()
       expect(wrapper.findComponent({ name: 'MapView' }).props('isochroneData'))
         .toEqual(prerendered.result)
+    })
+  })
+
+  describe('when live routing is offline', () => {
+    const saved: PrerenderedIsochrone = {
+      id: 'pre-1',
+      label: 'Downtown SF, 30 min walk',
+      lat: 37.7749,
+      lng: -122.4194,
+      budget_mins: 30,
+      mode: 'walk',
+      outdated: false,
+      created_at: '2026-08-01T12:00:00Z',
+      result: stubIsochrone,
+    }
+
+    async function mountWithOrigin() {
+      const wrapper = mountScenarioView('ca-hsr', { MapView: true })
+      await flushPromises()
+      await wrapper.get('[data-testid="lat"]').setValue(String(NEARBY_ORIGIN.lat))
+      await wrapper.get('[data-testid="lng"]').setValue(String(NEARBY_ORIGIN.lng))
+      return wrapper
+    }
+
+    function plotButton(wrapper: Awaited<ReturnType<typeof mountWithOrigin>>) {
+      return wrapper.get('button[type="submit"]').element as HTMLButtonElement
+    }
+
+    it('says so, disables Plot, and puts the saved examples ahead of the form', async () => {
+      vi.mocked(fetchRoutingStatus).mockResolvedValue('offline')
+      vi.mocked(listPrerenderedIsochrones).mockResolvedValue([saved])
+
+      const wrapper = await mountWithOrigin()
+
+      expect(wrapper.get('[data-testid="routing-status"]').text())
+        .toBe('Live routing is offline right now. Here are some saved examples.')
+      expect(plotButton(wrapper).disabled).toBe(true)
+      const examples = wrapper.get('[data-testid="prerendered-isochrones"]').element
+      const form = wrapper.get('form').element
+      expect(examples.compareDocumentPosition(form) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    })
+
+    it('only explains, without promising examples, for a network that ships none', async () => {
+      vi.mocked(fetchRoutingStatus).mockResolvedValue('offline')
+
+      const wrapper = await mountWithOrigin()
+
+      const banner = wrapper.get('[data-testid="routing-status"]').text()
+      expect(banner).toContain('Live routing is offline right now.')
+      expect(banner).not.toContain('saved examples')
+      expect(plotButton(wrapper).disabled).toBe(true)
+    })
+
+    it('behaves as if routing were fine when the status cannot be read', async () => {
+      vi.mocked(fetchRoutingStatus).mockRejectedValue(new Error('network down'))
+      vi.mocked(listPrerenderedIsochrones).mockResolvedValue([saved])
+
+      const wrapper = await mountWithOrigin()
+
+      expect(wrapper.find('[data-testid="routing-status"]').exists()).toBe(false)
+      expect(plotButton(wrapper).disabled).toBe(false)
+      const examples = wrapper.get('[data-testid="prerendered-isochrones"]').element
+      const form = wrapper.get('form').element
+      expect(examples.compareDocumentPosition(form) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy()
     })
   })
 

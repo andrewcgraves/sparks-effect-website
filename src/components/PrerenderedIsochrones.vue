@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useOwnedList } from '../composables/useOwnedList'
 import { latestAttempt } from '../composables/latestAttempt'
 import {
@@ -14,9 +14,16 @@ const props = defineProps<{ slug: string; selectedId: string | null }>()
 const emit = defineEmits<{
   select: [result: ChainResponse]
   'update:selectedId': [id: string | null]
+  available: [hasAny: boolean]
 }>()
 
-const { items } = useOwnedList(() => listPrerenderedIsochrones(props.slug))
+const { items, loading } = useOwnedList(() => listPrerenderedIsochrones(props.slug))
+
+// Reported once the list has answered, not while it is still empty for want of
+// an answer: the page promises examples only when there are some to show.
+watch(loading, (stillLoading) => {
+  if (!stillLoading) emit('available', items.value.length > 0)
+})
 
 const pendingId = ref<string | null>(null)
 const detailError = ref<string | null>(null)

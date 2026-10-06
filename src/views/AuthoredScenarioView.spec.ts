@@ -5,6 +5,8 @@ import { createRouter, createMemoryHistory } from 'vue-router'
 import type { Scenario, TransitGraph } from '../api/authoring/types'
 import { ApiError } from '../api/authoring/client'
 
+vi.mock('../api/routingStatus', () => ({ fetchRoutingStatus: vi.fn().mockResolvedValue('ok') }))
+
 vi.mock('../api/authoring/scenarios', () => ({
   fetchScenario: vi.fn(),
   fetchScenarioGraph: vi.fn(),
