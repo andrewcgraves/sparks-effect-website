@@ -33,7 +33,20 @@ describe('HowItWorksView', () => {
     expect(diagram.attributes('role')).toBe('img')
     const [titleId, descId] = diagram.attributes('aria-labelledby')!.split(' ')
     expect(diagram.get(`title#${titleId}`).text()).toBe('One trip through a splash zone')
-    expect(diagram.get(`desc#${descId}`).text()).toMatch(/access leg.*line.*egress leg/s)
+    const desc = diagram.get(`desc#${descId}`).text()
+    expect(desc).toMatch(/station.*ride the line.*head\s+out/s)
+    // The same names the map's key gives the two areas.
+    expect(desc).toContain('Origin reach')
+    expect(desc).toContain('From station')
+  })
+
+  it('labels the diagram in the words the prose and the map key use', async () => {
+    const labels = (await mountView()).findAll('[data-testid="how-it-works-diagram"] text').map((t) => t.text())
+    expect(labels).toEqual(expect.arrayContaining(['Start', 'Origin reach', 'From station', 'the line', 'Head out']))
+  })
+
+  it('links back to the list of lines', async () => {
+    expect((await mountView()).get('[data-testid="back-to-lines"]').attributes('href')).toBe('/')
   })
 
   it('names the three states the map draws a line in', async () => {
@@ -45,17 +58,42 @@ describe('HowItWorksView', () => {
     ])
   })
 
-  it('states the weekday-morning departure and the door-to-door minutes', async () => {
+  it('states the clock Transit runs to, and that the other modes ignore it', async () => {
     const text = (await mountView()).text()
-    expect(text).toContain('8 a.m. Pacific time on a weekday')
+    expect(text).toMatch(/Transit trip leaves .* 8 a\.m\. Pacific time on a weekday/)
+    expect(text).toMatch(/Walk, Bike and Drive .* whatever the hour/)
+    expect(text).toMatch(/Traffic\./)
+  })
+
+  it('counts door-to-door minutes, with the wait for local transit', async () => {
+    const text = (await mountView()).text()
     expect(text).toContain('door to door')
-    expect(text).toContain('waiting for a local bus or train')
+    expect(text).toMatch(/waiting for a local bus\s+or train/)
+    expect(text).toMatch(/by the same mode/)
+  })
+
+  it('does not claim every line\'s times are worked out from its vehicles', async () => {
+    expect((await mountView()).text()).toMatch(/Curated networks .* published plans/s)
   })
 
   it('uses the product words, not the domain ones', async () => {
-    const text = (await mountView()).text().toLowerCase()
-    for (const word of ['scenario', 'service', 'isochrone', 'costing', 'alignment', 'track']) {
-      expect(text).not.toContain(word)
+    const wrapper = await mountView()
+    const visible = [
+      wrapper.text(),
+      wrapper.get('desc').text(),
+    ].join(' ')
+    // Whole words only: "self-service" or "racetrack" is not the domain word.
+    for (const word of [
+      'scenarios?',
+      'services?',
+      'isochrones?',
+      'costing',
+      'alignments?',
+      'tracks?',
+      'access legs?',
+      'egress legs?',
+    ].map((w) => new RegExp(`(?<![\\w-])${w}(?![\\w-])`, 'i'))) {
+      expect(visible).not.toMatch(word)
     }
   })
 

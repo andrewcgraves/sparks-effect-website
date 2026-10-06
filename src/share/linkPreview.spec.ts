@@ -66,6 +66,8 @@ describe('renderPreview', () => {
     expect(doc.title).toBe('How it works · Sparks Effect')
     expect(meta(doc, 'og:title')).toBe('How it works')
     expect(meta(doc, 'og:description')).toMatch(/splash zone/)
+    // The clock is Transit's alone; walking, biking and driving ignore it.
+    expect(meta(doc, 'og:description')).toMatch(/8 a\.m\. weekday start for transit/)
     expect(meta(doc, 'og:description')!.length).toBeLessThanOrEqual(200)
     expect(meta(doc, 'description')).toBe(meta(doc, 'og:description'))
     expect(meta(doc, 'og:url')).toBe('https://www.example.app/how-it-works')

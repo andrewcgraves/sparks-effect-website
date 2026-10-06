@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
+import AllLinesLink from '../components/AllLinesLink.vue'
 import { FOOTER_LINK_CLASS } from '../components/linkStyles'
 
 const LINE_STATES = [
@@ -14,13 +15,13 @@ const LINE_STATES = [
     state: 'unridden',
     name: 'Unridden',
     look: 'light grey',
-    meaning: 'the rest of the network, which no trip in this splash zone needed.',
+    meaning: 'the rest of the network, which no trip here rides from one station to the next.',
   },
   {
     state: 'unfinished',
     name: 'Unfinished',
     look: 'black dashes ending in a dot',
-    meaning: 'a ride the time ran out partway through. The dot is where it ran out, not a station.',
+    meaning: 'a ride the time ran out partway through. The dot, “Budget ran out here” on the map, is where, not a station.',
   },
 ] as const
 
@@ -33,10 +34,15 @@ const hasAttribution = computed(() => router.getRoutes().some((route) => route.p
 const SECTION_HEADING_CLASS = 'font-display text-h2 text-ink-true'
 const PROSE_CLASS = 'font-body text-body mt-3 text-ink-muted'
 const PROSE_LINK_CLASS = `${FOOTER_LINK_CLASS} text-ink`
+const LIST_CLASS = 'font-body text-body mt-3 flex list-disc flex-col gap-1 pl-6 text-ink-muted'
 </script>
 
 <template>
   <main class="flex-1 p-(--page-padding)">
+    <div class="mb-8">
+      <AllLinesLink />
+    </div>
+
     <article class="max-w-[720px]">
       <h1 class="font-display text-display text-ink-true">
         How it works
@@ -48,77 +54,81 @@ const PROSE_LINK_CLASS = `${FOOTER_LINK_CLASS} text-ink`
       </p>
 
       <figure class="mt-10">
+        <!-- Sized so the smallest label still renders at 12px or more on a
+             375px-wide phone: the viewBox is no wider than the column there. -->
         <svg
-          class="block h-auto w-full max-w-[520px] text-ink"
-          viewBox="0 0 360 170"
+          class="block h-auto w-full max-w-[440px] text-ink"
+          viewBox="0 0 332 186"
           role="img"
           aria-labelledby="how-it-works-diagram-title how-it-works-diagram-desc"
           data-testid="how-it-works-diagram"
         >
           <title id="how-it-works-diagram-title">One trip through a splash zone</title>
           <desc id="how-it-works-diagram-desc">
-            From the starting point, an access leg reaches a station by walking, biking, driving or
-            local transit. The hypothetical line carries the trip to another station. From there,
-            an egress leg uses the minutes left, and the area it covers is the reach from that station.
+            From the starting point, you get to a station by walking, biking, driving or local
+            transit. The blue area, Origin reach, is everywhere you could get without boarding the
+            line, and that station sits inside it. You ride the line to another station, then head
+            out from it the same way with the minutes left. The orange area, From station, is
+            everywhere you could get from there.
           </desc>
           <ellipse
-            cx="34"
-            cy="92"
-            rx="30"
-            ry="26"
+            cx="78"
+            cy="112"
+            rx="66"
+            ry="46"
             class="fill-data-origin"
-            fill-opacity="0.18"
+            fill-opacity="0.16"
           />
           <ellipse
-            cx="282"
-            cy="96"
-            rx="70"
-            ry="40"
+            cx="266"
+            cy="112"
+            rx="58"
+            ry="46"
             class="fill-data-egress"
-            fill-opacity="0.3"
+            fill-opacity="0.22"
           />
           <line
-            x1="40"
-            y1="92"
-            x2="118"
-            y2="92"
+            x1="42"
+            y1="112"
+            x2="113"
+            y2="112"
             class="stroke-data-origin"
             stroke-width="2.5"
             stroke-linecap="round"
             stroke-dasharray="2 5"
           />
           <line
-            x1="126"
-            y1="92"
-            x2="234"
-            y2="92"
+            x1="120"
+            y1="112"
+            x2="248"
+            y2="112"
             stroke="currentColor"
             stroke-width="3"
             stroke-linecap="round"
           />
           <g
-            class="stroke-data-egress"
+            stroke="currentColor"
             stroke-width="2.5"
             stroke-linecap="round"
             stroke-dasharray="2 5"
             fill="none"
           >
             <line
-              x1="241"
-              y1="88"
-              x2="322"
-              y2="66"
+              x1="254"
+              y1="107"
+              x2="306"
+              y2="86"
             />
             <line
-              x1="241"
-              y1="96"
-              x2="318"
-              y2="120"
+              x1="254"
+              y1="117"
+              x2="302"
+              y2="140"
             />
           </g>
           <circle
-            cx="34"
-            cy="92"
+            cx="36"
+            cy="112"
             r="5.5"
             class="fill-coral"
           />
@@ -128,70 +138,73 @@ const PROSE_LINK_CLASS = `${FOOTER_LINK_CLASS} text-ink`
             stroke-width="2"
           >
             <circle
-              cx="122"
-              cy="92"
+              cx="120"
+              cy="112"
               r="5"
             />
             <circle
-              cx="180"
-              cy="92"
+              cx="184"
+              cy="112"
               r="5"
             />
             <circle
-              cx="238"
-              cy="92"
+              cx="248"
+              cy="112"
               r="5"
             />
           </g>
           <g
             fill="currentColor"
-            font-size="12"
+            font-size="14"
             font-weight="700"
             text-anchor="middle"
           >
             <text
               x="78"
-              y="34"
-            >Access leg</text>
+              y="22"
+            >Get to</text>
             <text
-              x="180"
-              y="34"
-            >The line</text>
+              x="78"
+              y="40"
+            >a station</text>
             <text
-              x="290"
-              y="34"
-            >Egress leg</text>
+              x="184"
+              y="22"
+            >Ride</text>
             <text
-              x="34"
-              y="158"
-            >Start</text>
+              x="184"
+              y="40"
+            >the line</text>
             <text
-              x="282"
-              y="158"
-            >Reach</text>
+              x="286"
+              y="22"
+            >Head out</text>
+            <text
+              x="286"
+              y="40"
+            >from it</text>
           </g>
           <g
-            class="fill-ink-muted"
-            font-size="10"
+            fill="currentColor"
+            font-size="13"
             text-anchor="middle"
           >
             <text
+              x="36"
+              y="136"
+            >Start</text>
+            <text
               x="78"
-              y="50"
-            >your mode</text>
+              y="177"
+            >Origin reach</text>
             <text
-              x="180"
-              y="50"
-            >ride and stops</text>
-            <text
-              x="290"
-              y="50"
-            >minutes left</text>
+              x="266"
+              y="177"
+            >From station</text>
           </g>
         </svg>
         <figcaption class="font-body text-caption mt-3 text-ink-muted">
-          One trip: get to a station, ride the line, then spend the minutes left getting away from
-          where you step off.
+          One trip, and the two areas it shades on the map.
         </figcaption>
       </figure>
 
@@ -247,13 +260,15 @@ const PROSE_LINK_CLASS = `${FOOTER_LINK_CLASS} text-ink`
           What time of day
         </h2>
         <p :class="PROSE_CLASS">
-          Every splash zone leaves the starting point at 8 a.m. Pacific time on a weekday: today, if
-          today is a weekday, otherwise the coming Monday. You can't pick another time. It answers
-          “what does this network reach on a typical weekday morning?”, not “when should I leave?”
+          A Transit trip leaves the starting point at 8 a.m. Pacific time on a weekday: today if
+          today is a weekday, even once 8 a.m. has passed, otherwise the coming Monday. You can't
+          pick another time. It answers “what does this network reach on a typical weekday
+          morning?”, not “when should I leave?” Onward local transit runs to the timetable for when
+          you would actually reach the station.
         </p>
         <p :class="PROSE_CLASS">
-          The clock matters for local buses and trains, which run to timetables. Onward local transit
-          from a station is timetabled for the hour you would actually arrive there, not for 8 a.m.
+          Walk, Bike and Drive take the same time whatever the hour. Saved splash zones on a
+          network's page keep the weekday they were plotted on, not today.
         </p>
       </section>
 
@@ -263,21 +278,21 @@ const PROSE_LINK_CLASS = `${FOOTER_LINK_CLASS} text-ink`
         </h2>
         <p :class="PROSE_CLASS">
           The travel time is door to door: from leaving the starting point to arriving, counting
-          minutes spent waiting as well as moving. A place is inside the splash zone only if you
-          could really be there that soon. A trip that rides the line counts:
+          minutes spent waiting for local transit as well as moving. A trip that rides the line
+          counts:
         </p>
-        <ul class="font-body text-body mt-3 flex list-disc flex-col gap-1 pl-6 text-ink-muted">
+        <ul :class="LIST_CLASS">
           <li>
             getting to a station by your mode. With Transit, that includes waiting for a local bus
-            or train, and if walking is quicker, the trip may walk the whole way;
+            or train. If walking is quicker, or nothing runs, the trip walks the whole way, and
+            <em>Time remaining</em> says Walk;
           </li>
-          <li>riding the line, including the time spent standing at each station;</li>
-          <li>getting away from the station you step off at, with the minutes left.</li>
+          <li>riding the line, including the time spent stopped at each station;</li>
+          <li>heading out from the station you step off at, by the same mode, with the minutes left.</li>
         </ul>
         <p :class="PROSE_CLASS">
-          By default, no wait to board the hypothetical line is added: it has no timetable, so a
-          vehicle is assumed to be waiting when you reach the station. Where a line is set up with
-          a wait, it is counted once, when you first board.
+          By default, no wait to board the hypothetical line is added, since it has no timetable. If
+          a line or network has a wait set, it is added once, when you first board.
         </p>
       </section>
 
@@ -286,7 +301,7 @@ const PROSE_LINK_CLASS = `${FOOTER_LINK_CLASS} text-ink`
           Where the numbers come from
         </h2>
         <p :class="PROSE_CLASS">
-          Walking, biking and driving follow the streets and paths in <a
+          Walking, biking and driving follow the streets and paths of California and Nevada in <a
             :class="PROSE_LINK_CLASS"
             href="https://www.openstreetmap.org/copyright"
             target="_blank"
@@ -299,20 +314,22 @@ const PROSE_LINK_CLASS = `${FOOTER_LINK_CLASS} text-ink`
           >Valhalla</a>, an open-source routing engine.
         </p>
         <p :class="PROSE_CLASS">
-          Local transit follows the published timetables of agencies in California and Nevada,
-          gathered from the <a
+          Local transit follows the published timetables of most public agencies in California and
+          Nevada, gathered from the <a
             :class="PROSE_LINK_CLASS"
             href="https://mobilitydatabase.org"
             target="_blank"
             rel="noopener noreferrer"
-          >Mobility Database</a> and other open-data publishers. A fresh set is gathered every week
-          and switched in once it has been checked.
+          >Mobility Database</a> and other open-data publishers. A new set is built every week but
+          switched in by hand once checked, so the timetables in use can be a few weeks old.
         </p>
         <p :class="PROSE_CLASS">
-          The hypothetical line's own times are worked out from the route it is drawn along and the
-          vehicles that run on it: the distance between stations, their top speed, how quickly they
-          speed up and slow down, slower running through tight curves and down steep grades where
-          the route records them, and how long they stand at each station.
+          Lines drawn on this site get their times from the path each is drawn along and the
+          vehicles that run on it: the distance between stations, top speed, acceleration and
+          braking, slower running through tight curves and down steep grades where
+          recorded, and how long they stand at each station. Curated networks such as California
+          High-Speed Rail instead use run times taken from published plans, or estimated where a
+          plan gives none, plus a stop at each station.
         </p>
         <!-- A custom slot, so the link's text sits flush against the sentence
              around it without a stray underlined space. -->
@@ -339,20 +356,29 @@ const PROSE_LINK_CLASS = `${FOOTER_LINK_CLASS} text-ink`
         <h2 :class="SECTION_HEADING_CLASS">
           What it doesn't model
         </h2>
-        <ul class="font-body text-body mt-3 flex list-disc flex-col gap-1 pl-6 text-ink-muted">
+        <ul :class="LIST_CLASS">
           <li><strong class="text-ink">Fares.</strong> What a trip costs plays no part.</li>
           <li><strong class="text-ink">Crowding.</strong> There is always room on board.</li>
           <li>
-            <strong class="text-ink">Weekends and evenings.</strong> Every splash zone starts on a
-            weekday morning.
+            <strong class="text-ink">How often the line runs.</strong> Unless a wait is set, a
+            vehicle is always waiting.
           </li>
           <li>
-            <strong class="text-ink">Transfer penalties.</strong> Changing between lines of the
-            network where they share a station adds no time.
+            <strong class="text-ink">Weekends and evenings.</strong> Transit trips start on a weekday
+            morning. A public holiday counts as a weekday, on that day's local timetable.
           </li>
           <li>
-            <strong class="text-ink">Delays.</strong> Local transit runs exactly as timetabled, with
-            no live delays or cancellations.
+            <strong class="text-ink">Transfer penalties.</strong> Changing between the network's own
+            lines at a shared station adds no time, even a short walk between platforms. Changes
+            between local buses and trains include the wait.
+          </li>
+          <li>
+            <strong class="text-ink">Parking and bikes on board.</strong> Drive assumes a car waits
+            where you step off; Bike, that your bike rides the line with you.
+          </li>
+          <li><strong class="text-ink">Traffic.</strong> Driving assumes free-flowing roads at any hour.</li>
+          <li>
+            <strong class="text-ink">Delays.</strong> Local transit runs exactly to timetable.
           </li>
         </ul>
       </section>

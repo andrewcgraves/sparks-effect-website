@@ -16,6 +16,14 @@ declare module 'vue-router' {
 
 export const router = createRouter({
   history: createWebHistory(),
+  scrollBehavior(to, from, savedPosition) {
+    if (savedPosition) return savedPosition
+    if (to.hash) return { el: to.hash }
+    // A plot writes its query to the URL on the same path; jumping to the top
+    // there would scroll the map away from under the visitor.
+    if (to.path !== from.path) return { top: 0 }
+    return false
+  },
   routes: [
     {
       path: '/',
