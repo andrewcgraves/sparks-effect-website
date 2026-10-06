@@ -87,6 +87,42 @@ into the head. The tag building lives in `src/share/linkPreview.ts`.
   the middleware steps aside: the page loads as built, with the default card.
   Check a real unfurl on staging, not on a pull-request preview.
 
+## Security headers
+
+`vercel.json` sends these on every path (`/(.*)`), beside the `Cache-Control`
+rules — different keys, so the rules compose rather than compete:
+
+- `Content-Security-Policy-Report-Only` — scripts only from this origin, no
+  inline or `eval`; styles may be inline (Tailwind, Vue `:style`, MapLibre);
+  `connect-src` names the API (staging and production Railway hosts), the tile
+  hosts (OpenFreeMap, and Stadia when `VITE_STADIA_API_KEY` is set) and the
+  geocoder (Nominatim); `worker-src 'self'` for MapLibre's worker, which
+  `MapView.vue` loads from `/assets/`; `img-src data: blob:` for MapLibre's
+  control icons and images.
+- `Strict-Transport-Security`, `X-Content-Type-Options: nosniff`,
+  `Referrer-Policy: strict-origin-when-cross-origin`, and
+  `Permissions-Policy` — geolocation for this origin only ("use my location"),
+  no camera or microphone.
+- `X-Frame-Options: DENY`. `frame-ancestors 'none'` is in the CSP too, but a
+  Report-Only policy ignores it, so this is what stops framing today.
+
+The CSP only reports for now. Watch staging (`dev.sparks-effect.app`) for a
+week: open DevTools' console on the map, a service page, authoring and
+sign-in, and look for `[Report Only]` violations. `curl -sI
+https://dev.sparks-effect.app/` and a `/scenario/<slug>` page (served by
+`middleware.ts`) should both show the headers. There is no error tracker yet,
+so no `report-uri`. Violations naming `vercel.live` on staging are the Vercel
+Toolbar on a preview deployment, not the site.
+
+After a clean week, enforce it: rename the key to `Content-Security-Policy` in
+`vercel.json` and in `src/securityHeaders.spec.ts`. That spec fails CI when a
+tile host or the geocoder changes without the CSP following; the API hosts come
+from Vercel's `VITE_API_BASE_URL` and are not checked, so change them by hand.
+Hosts still to add when they land: the geocoder that replaces Nominatim
+(SPA-370) and the error tracker's ingest host, plus its `report-uri`
+(SPA-380). An embeddable map for other sites (SPA-462) will need its own
+carve-out from `frame-ancestors` and `X-Frame-Options`.
+
 ## Project structure
 
 - `middleware.ts` — Vercel Routing Middleware for link previews (above)
