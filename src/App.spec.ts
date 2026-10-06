@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
+import type { DefineComponent } from 'vue'
 import { Analytics, type BeforeSend } from '@vercel/analytics/vue'
 import App from './App.vue'
 import { router } from './router'
@@ -103,7 +104,10 @@ describe('App routing', () => {
   it('keeps a set-password token out of the page views Vercel Analytics reports', async () => {
     const wrapper = mount(App, { global: { plugins: [router] } })
     await flushPromises()
-    const beforeSend = wrapper.findComponent(Analytics).props('beforeSend') as BeforeSend
+    // @vercel/analytics/vue types `Analytics` as `any`, which @vue/test-utils
+    // 2.5 resolves to its DOM-selector overload; name it as the component it is.
+    const AnalyticsComponent = Analytics as DefineComponent<{ beforeSend: BeforeSend }>
+    const beforeSend = wrapper.findComponent(AnalyticsComponent).props('beforeSend')
 
     expect(beforeSend({ type: 'pageview', url: 'https://sparks.example/welcome/secret-token' }))
       .toEqual({ type: 'pageview', url: 'https://sparks.example/welcome' })
