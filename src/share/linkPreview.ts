@@ -1,3 +1,4 @@
+import type { ApiRead } from './apiRead.js'
 import { SITE_NAME, formatPageTitle } from './pageTitle.js'
 
 const SITE_DESCRIPTION =
@@ -11,8 +12,9 @@ interface PageMeta {
 
 const SITE_DEFAULT: PageMeta = { name: null, description: SITE_DESCRIPTION }
 
-// Safe both inside an attribute value and as the <title> element's text.
-function escapeHtml(value: string): string {
+// Safe both inside an attribute value and as the <title> element's text, in
+// HTML and in XML alike: all five are XML's own entities too.
+export function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -40,18 +42,17 @@ function metaTags(page: PageMeta): string {
   return [
     `<title>${escapeHtml(formatPageTitle(page.name))}</title>`,
     ...tags.map(({ attr, key, content }) => `<meta ${attr}="${key}" content="${escapeHtml(content)}" />`),
+    ...(page.url ? [`<link rel="canonical" href="${escapeHtml(page.url)}" />`] : []),
   ].join('\n    ')
 }
 
 // Whatever preview the shell already carries — the build's defaults — goes, so
 // a page never ends up with two og:titles for a crawler to choose between.
-const PREVIEW_TAG = /\s*(<title>[\s\S]*?<\/title>|<meta\s+(?:name="(?:description|twitter:[^"]*)"|property="og:[^"]*")[^>]*>)/g
+const PREVIEW_TAG = /\s*(<title>[\s\S]*?<\/title>|<meta\s+(?:name="(?:description|twitter:[^"]*)"|property="og:[^"]*")[^>]*>|<link\s+rel="canonical"[^>]*>)/g
 
 function spliceHead(shell: string, tags: string): string {
   return shell.replace(PREVIEW_TAG, '').replace('</head>', `  ${tags}\n  </head>`)
 }
-
-export type ApiRead = (path: string) => Promise<unknown>
 
 const DESCRIPTION_MAX = 200
 
@@ -105,6 +106,13 @@ async function readPageMeta(pathname: string, read: ApiRead): Promise<PageMeta> 
   return { name, description: truncate(page.describe(body) ?? SITE_DESCRIPTION) }
 }
 
+// One URL per page, on the host that was asked: no query (a plotted isochrone
+// lives there) and no trailing slash, so every way of reaching a page names it
+// the same. The host is the request's, never the build's (docs/releases.md).
+function canonicalUrl(requestUrl: URL): string {
+  return `${requestUrl.origin}${requestUrl.pathname.replace(/\/+$/, '') || '/'}`
+}
+
 // Null when there is no shell to splice into. The shell arrives as a promise so
 // its fetch and the API read overlap: neither waits on the other's timeout.
 export async function renderPreview(
@@ -119,7 +127,7 @@ export async function renderPreview(
     readPageMeta(requestUrl.pathname, read).catch(() => SITE_DEFAULT),
   ])
   if (html === null) return null
-  return spliceHead(html, metaTags({ ...page, url: `${requestUrl.origin}${requestUrl.pathname}` }))
+  return spliceHead(html, metaTags({ ...page, url: canonicalUrl(requestUrl) }))
 }
 
 // The build's own index.html: what every page the middleware does not answer

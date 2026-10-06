@@ -87,9 +87,40 @@ into the head. The tag building lives in `src/share/linkPreview.ts`.
   the middleware steps aside: the page loads as built, with the default card.
   Check a real unfurl on staging, not on a pull-request preview.
 
+## Search engines
+
+- `/robots.txt` lets crawlers in, keeps them out of `/authoring`, `/login`,
+  `/account`, `/admin`, `/welcome` and `/set-password`, and names the sitemap.
+  Its `Sitemap:` line must be absolute, and a build cannot know its host, so it
+  is served by a function (`api/robots.ts`) rather than a file in `public/`.
+- `/sitemap.xml` (`api/sitemap.ts`) lists `/`, every curated scenario
+  (`/scenario/:slug`) and curated route (`/routes/:slug`), and every published
+  service (`/services/:slug`, with `lastmod` from `published_at`), read from the
+  API's public lists. The CDN keeps it for an hour. A list the API cannot answer
+  is left out and the rest is kept for five minutes instead; with nothing read
+  it is `/` alone. Like the middleware, it needs `VITE_API_BASE_URL` at runtime.
+- Every public page the middleware answers carries
+  `<link rel="canonical">` on the requesting host, with no query string or
+  trailing slash.
+- Every response from any host but `sparks-effect.app` carries
+  `X-Robots-Tag: noindex` — staging, previews, and the `vercel.app` alias of
+  production alike. It is a host rule in `vercel.json`, not `VERCEL_ENV`:
+  production and staging can be the very same deployment (a promotion moves
+  domains, it does not rebuild — `docs/releases.md`), so the host is the only
+  thing that tells them apart. Vercel adds the header to `*.vercel.app`
+  previews itself, but not to a custom domain on a non-production branch, which
+  is what staging is. If production's domain changes, change it there.
+- Both rewrites sit ahead of the SPA catch-all in `vercel.json`, which also
+  excludes the two paths, so neither can be answered with the shell.
+
+Once production serves this, submit `https://sparks-effect.app/sitemap.xml` in
+Google Search Console (and Bing Webmaster Tools, if wanted). That is a manual,
+one-time step; nothing here does it.
+
 ## Project structure
 
 - `middleware.ts` — Vercel Routing Middleware for link previews (above)
+- `api/` — Vercel Functions for `/robots.txt` and `/sitemap.xml` (above)
 - `src/` — Vue application source
 - `.github/workflows/ci.yml` — CI: a production-dependency `npm audit`, lint + test on every push/PR, then build and upload the `dist`
   artifact
