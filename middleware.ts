@@ -6,7 +6,7 @@ import { renderPreview } from './src/share/linkPreview.js'
 // public page's preview has to be in the HTML itself. Only the public pages
 // match; /index.html must not, or the shell fetch below would recurse.
 export const config = {
-  matcher: ['/', '/scenario/:slug', '/services/:slug', '/routes/:slug'],
+  matcher: ['/', '/how-it-works', '/scenario/:slug', '/services/:slug', '/routes/:slug'],
   runtime: 'nodejs',
 }
 

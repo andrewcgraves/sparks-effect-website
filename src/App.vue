@@ -14,7 +14,14 @@ const redactAnalyticsEvent: BeforeSend = (event) => ({ ...event, url: redactUrl(
 
 <template>
   <div class="flex min-h-svh flex-col">
-    <header class="flex justify-end gap-4 p-(--page-padding) pb-0">
+    <header class="flex flex-wrap justify-end gap-x-4 gap-y-2 p-(--page-padding) pb-0">
+      <RouterLink
+        to="/how-it-works"
+        :class="ACTION_LINK_CLASS"
+        data-testid="nav-how-it-works"
+      >
+        How it works
+      </RouterLink>
       <RouterLink
         v-if="auth.isAuthenticated && auth.user?.is_admin"
         to="/admin"

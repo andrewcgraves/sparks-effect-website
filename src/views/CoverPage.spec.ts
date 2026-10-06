@@ -66,6 +66,12 @@ describe('CoverPage', () => {
     expect(wrapper.get('h1').text()).toBe('Sparks Effect')
   })
 
+  it('links the How it works page', async () => {
+    vi.mocked(fetchCoverIndex).mockResolvedValue(index([]))
+    const { wrapper } = await mountCover()
+    expect(wrapper.get('[data-testid="cover-how-it-works"]').attributes('href')).toBe('/how-it-works')
+  })
+
   it('shows skeleton route cards, not loading copy, before the fetch resolves', async () => {
     vi.mocked(fetchCoverIndex).mockReturnValue(new Promise(() => {}))
     const { wrapper } = await mountCover()

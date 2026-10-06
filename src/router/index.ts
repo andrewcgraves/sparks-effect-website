@@ -30,6 +30,12 @@ export const router = createRouter({
       meta: { title: 'Network' },
     },
     {
+      path: '/how-it-works',
+      name: 'how-it-works',
+      component: () => import('../views/HowItWorksView.vue'),
+      meta: { title: 'How it works' },
+    },
+    {
       path: '/login',
       name: 'login',
       component: () => import('../views/LoginView.vue'),

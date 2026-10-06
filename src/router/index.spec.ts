@@ -18,6 +18,7 @@ vi.mock('../views/PublishedServiceView.vue', () => ({ default: { props: ['slug']
 vi.mock('../views/NotFoundView.vue', () => ({ default: { template: '<div />' } }))
 vi.mock('../views/AdminView.vue', () => ({ default: { template: '<div />' } }))
 vi.mock('../views/WelcomeView.vue', () => ({ default: { props: ['token'], template: '<div />' } }))
+vi.mock('../views/HowItWorksView.vue', () => ({ default: { template: '<div />' } }))
 
 import { router, redirectAfterSessionExpiry } from './index'
 import { trackPageView } from '../analytics/index'
@@ -51,6 +52,12 @@ describe('router', () => {
   it('tracks a page view for /routes/:slug using the actual route path', async () => {
     await router.push('/routes/main-line')
     expect(trackPageView).toHaveBeenCalledWith('/routes/main-line')
+  })
+
+  it('opens the How it works page to a signed-out visitor', async () => {
+    await router.push('/how-it-works')
+    expect(router.currentRoute.value.name).toBe('how-it-works')
+    expect(trackPageView).toHaveBeenCalledWith('/how-it-works')
   })
 
   it('tracks a page view for unmatched paths using the actual route path', async () => {
@@ -254,6 +261,8 @@ describe('router', () => {
     it('names a static page, suffixed with the site name', async () => {
       await router.push('/login')
       expect(document.title).toBe('Sign in · Sparks Effect')
+      await router.push('/how-it-works')
+      expect(document.title).toBe('How it works · Sparks Effect')
     })
 
     it('names the signed-in pages', async () => {

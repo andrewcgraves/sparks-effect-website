@@ -93,9 +93,21 @@ const PUBLIC_PAGES = new Map<string, PublicPage>([
   }],
 ])
 
+// Pages whose preview is fixed copy, so they read nothing. The name matches the
+// route's meta title (src/router/index.ts).
+const STATIC_PAGES = new Map<string, PageMeta>([
+  ['/how-it-works', {
+    name: 'How it works',
+    description:
+      'What a splash zone assumes: an 8 a.m. weekday start, door-to-door minutes with the wait for local transit included, and where the walking, biking, driving and transit times come from.',
+  }],
+])
+
 const PUBLIC_PATH = /^\/([a-z]+)\/([A-Za-z0-9_-]+)$/
 
 async function readPageMeta(pathname: string, read: ApiRead): Promise<PageMeta> {
+  const fixed = STATIC_PAGES.get(pathname)
+  if (fixed) return fixed
   const match = pathname.match(PUBLIC_PATH)
   const page = match && PUBLIC_PAGES.get(match[1])
   if (!match || !page) return SITE_DEFAULT
