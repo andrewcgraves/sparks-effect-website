@@ -5,14 +5,15 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { resolveTilePreconnectOrigin } from './tileHost'
 import { fetchSuggestions, reverseGeocode } from './api/geocoding'
-
-interface HeaderRule {
-  source: string
-  headers: { key: string; value: string }[]
-}
+import {
+  SECURITY_HEADER_KEYS,
+  apiOriginMissingFromCsp,
+  cspDirectives as parseCsp,
+  type VercelHeaderRule,
+} from './securityHeaders'
 
 const vercelConfig = JSON.parse(readFileSync(resolve(process.cwd(), 'vercel.json'), 'utf8')) as {
-  headers: HeaderRule[]
+  headers: VercelHeaderRule[]
 }
 
 const catchAll = vercelConfig.headers.find((rule) => rule.source === '/(.*)')
@@ -21,16 +22,14 @@ function header(key: string): string | undefined {
   return catchAll?.headers.find((h) => h.key.toLowerCase() === key.toLowerCase())?.value
 }
 
-// Report-Only until a clean week on staging; then the key loses its suffix.
-const CSP_KEY = 'Content-Security-Policy-Report-Only'
+// Report-Only until a clean week on staging; then this flips to true and
+// vercel.json's key loses its suffix.
+const ENFORCING = false
+const CSP_KEY = ENFORCING ? 'Content-Security-Policy' : 'Content-Security-Policy-Report-Only'
+const OTHER_CSP_KEY = ENFORCING ? 'Content-Security-Policy-Report-Only' : 'Content-Security-Policy'
 
 function cspDirectives(): Map<string, string[]> {
-  const directives = new Map<string, string[]>()
-  for (const part of (header(CSP_KEY) ?? '').split(';')) {
-    const [name, ...sources] = part.trim().split(/\s+/)
-    if (name) directives.set(name, sources)
-  }
-  return directives
+  return parseCsp(header(CSP_KEY) ?? '')
 }
 
 async function geocoderOrigins(): Promise<string[]> {
@@ -58,10 +57,17 @@ describe('vercel.json security headers', () => {
     ]) {
       expect(header(key), key).toBeTruthy()
     }
-    expect(header('Content-Security-Policy')).toBeUndefined()
+    expect(header(OTHER_CSP_KEY)).toBeUndefined()
   })
 
-  it('denies framing now, since frame-ancestors is ignored while the CSP only reports', () => {
+  it('names every catch-all header in the list the middleware copies onto its pages', () => {
+    const copied = SECURITY_HEADER_KEYS.map((key) => key.toLowerCase())
+    for (const { key } of catchAll?.headers ?? []) {
+      expect(copied, key).toContain(key.toLowerCase())
+    }
+  })
+
+  it('denies framing in both the CSP and X-Frame-Options', () => {
     expect(cspDirectives().get('frame-ancestors')).toEqual(["'none'"])
     expect(header('X-Frame-Options')).toBe('DENY')
   })
@@ -81,7 +87,7 @@ describe('vercel.json security headers', () => {
     expect(cspDirectives().get('worker-src')).toContain("'self'")
   })
 
-  it('allows every tile host the map style can come from', () => {
+  it('allows the origin of every map style URL the map can load', () => {
     const directives = cspDirectives()
     for (const origin of [resolveTilePreconnectOrigin(undefined), resolveTilePreconnectOrigin('a-stadia-key')]) {
       expect(directives.get('connect-src'), origin).toContain(origin)
@@ -95,5 +101,41 @@ describe('vercel.json security headers', () => {
     for (const origin of origins) {
       expect(cspDirectives().get('connect-src'), origin).toContain(origin)
     }
+  })
+})
+
+describe('apiOriginMissingFromCsp', () => {
+  const rules = (key: string, policy: string): VercelHeaderRule[] => [
+    { source: '/assets/(.*)', headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }] },
+    { source: '/(.*)', headers: [{ key, value: policy }] },
+  ]
+
+  it('passes both API hosts vercel.json names', () => {
+    for (const base of [
+      'https://sparks-effect-api-production.up.railway.app',
+      'https://sparks-effect-api-staging.up.railway.app/',
+    ]) {
+      expect(apiOriginMissingFromCsp(vercelConfig.headers, base), base).toBeNull()
+    }
+  })
+
+  it('names a host connect-src does not list, path and all ignored', () => {
+    const problem = apiOriginMissingFromCsp(vercelConfig.headers, 'https://api.elsewhere.example/v1')
+    expect(problem).toContain('https://api.elsewhere.example ')
+    expect(problem).toContain('connect-src')
+  })
+
+  it('reads either CSP key, and default-src when there is no connect-src', () => {
+    const base = 'https://api.example.com'
+    expect(apiOriginMissingFromCsp(rules('Content-Security-Policy', `connect-src 'self' ${base}`), base)).toBeNull()
+    expect(apiOriginMissingFromCsp(rules('Content-Security-Policy', `default-src 'self' ${base}`), base)).toBeNull()
+    expect(apiOriginMissingFromCsp(rules('Content-Security-Policy-Report-Only', "connect-src 'self'"), base)).not.toBeNull()
+  })
+
+  it('has nothing to check without a configured absolute API base or a CSP', () => {
+    expect(apiOriginMissingFromCsp(vercelConfig.headers, undefined)).toBeNull()
+    expect(apiOriginMissingFromCsp(vercelConfig.headers, '  ')).toBeNull()
+    expect(apiOriginMissingFromCsp(vercelConfig.headers, '/api')).toBeNull()
+    expect(apiOriginMissingFromCsp(rules('X-Frame-Options', 'DENY'), 'https://api.example.com')).toBeNull()
   })
 })
