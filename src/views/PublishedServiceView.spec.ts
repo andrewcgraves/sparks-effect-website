@@ -7,6 +7,8 @@ import { ApiError } from '../api/authoring/client'
 import type { ServicePublication } from '../api/publications'
 import type { ChainResponse } from '../fixtures/isochrone'
 
+vi.mock('../api/routingStatus', () => ({ fetchRoutingStatus: vi.fn().mockResolvedValue('ok') }))
+
 vi.mock('../api/publications', () => ({
   fetchServicePublication: vi.fn(),
   fetchPublicationIsochrone: vi.fn(),

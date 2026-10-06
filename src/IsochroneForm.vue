@@ -23,6 +23,8 @@ const MODE_OPTIONS: { value: TravelMode; label: string }[] = TRAVEL_MODES.map((v
   label: MODE_LABELS[value],
 }))
 
+const OFFLINE_REASON = 'Live routing is offline right now, so new splash zones can’t be plotted.'
+
 function formatDuration(value: number): string {
   return `${value} min`
 }
@@ -31,9 +33,10 @@ const props = withDefaults(
   defineProps<{
     error?: string | null
     loading?: boolean
+    offline?: boolean
     initial?: Partial<IsochronePayload>
   }>(),
-  { error: null, loading: false, initial: () => ({}) },
+  { error: null, loading: false, offline: false, initial: () => ({}) },
 )
 
 const emit = defineEmits<{
@@ -155,7 +158,7 @@ function onModeChange(newMode: TravelMode) {
 }
 
 function handleSubmit() {
-  if (lat.value === '' || lng.value === '') return
+  if (lat.value === '' || lng.value === '' || props.offline) return
 
   emit('submit', {
     lat: parseFloat(lat.value),
@@ -272,13 +275,21 @@ function handleSubmit() {
       </div>
     </fieldset>
 
-    <button
-      type="submit"
-      :class="[PRIMARY_BUTTON_CLASS, 'mt-1']"
-      :disabled="!isValid || loading"
+    <!-- The reason sits on a wrapper: a disabled button gets no pointer
+         events, so in some browsers its own title would never show. -->
+    <span
+      class="mt-1 flex flex-col"
+      :title="offline ? OFFLINE_REASON : undefined"
+      data-testid="plot-reason"
     >
-      {{ loading ? 'Generating…' : 'Generate isochrone' }}
-    </button>
+      <button
+        type="submit"
+        :class="PRIMARY_BUTTON_CLASS"
+        :disabled="!isValid || loading || offline"
+      >
+        {{ loading ? 'Generating…' : 'Generate isochrone' }}
+      </button>
+    </span>
 
     <p
       v-if="showError"

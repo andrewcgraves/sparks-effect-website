@@ -4,6 +4,7 @@ import IsochroneForm from '../IsochroneForm.vue'
 import CopyLinkButton from '../components/CopyLinkButton.vue'
 import MapView from '../components/MapView.vue'
 import PrerenderedIsochrones from '../components/PrerenderedIsochrones.vue'
+import RoutingStatusBanner from '../components/RoutingStatusBanner.vue'
 import TimeBetweenStations from '../components/TimeBetweenStations.vue'
 import TimeRemaining from '../components/TimeRemaining.vue'
 import { segmentStationTimeGroups } from '../components/stationTimes'
@@ -14,6 +15,7 @@ import { useScenario } from '../composables/useScenario'
 import { useScenarioTravelTimes } from '../composables/useScenarioTravelTimes'
 import { useIsochrone } from '../composables/useIsochrone'
 import { useOriginPick } from '../composables/useOriginPick'
+import { useRoutingStatus } from '../composables/useRoutingStatus'
 import { usePageTitle } from '../composables/usePageTitle'
 import AllLinesLink from '../components/AllLinesLink.vue'
 import { useIsochroneQuery } from '../composables/useIsochroneQuery'
@@ -26,6 +28,8 @@ const props = defineProps<{ slug: string }>()
 
 const origin = ref<{ lat: number; lng: number } | null>(null)
 const { pickArmed, onMapClick } = useOriginPick()
+const { status: routingStatus, offline } = useRoutingStatus()
+const hasExamples = ref<boolean | null>(null)
 
 const { name, description, routes, stations, services, loading: scenarioLoading } = useScenario(props.slug)
 
@@ -153,23 +157,38 @@ function onPrerenderedSelect(result: ChainResponse) {
       </div>
 
       <div class="flex flex-col gap-4">
+        <RoutingStatusBanner
+          :status="routingStatus"
+          :has-examples="hasExamples"
+        />
+        <!-- With live routing offline the saved examples are the page's answer,
+             so they come ahead of a form that cannot plot — in the DOM, not
+             just on screen, so keyboard and screen-reader order agree. -->
+        <PrerenderedIsochrones
+          v-if="offline"
+          v-model:selected-id="selectedPrerenderedId"
+          :slug="props.slug"
+          @select="onPrerenderedSelect"
+          @available="hasExamples = $event"
+        />
         <IsochroneForm
           ref="isochroneForm"
           :error="fetchError"
           :loading="isLoading"
+          :offline="offline"
           :initial="linkedIsochrone"
           @submit="submitIsochrone"
           @origin-change="onOriginChange"
           @pick-armed="pickArmed = $event"
         />
         <CopyLinkButton v-if="shareable" />
-        
         <PrerenderedIsochrones
+          v-if="!offline"
           v-model:selected-id="selectedPrerenderedId"
           :slug="props.slug"
           @select="onPrerenderedSelect"
+          @available="hasExamples = $event"
         />
-        
         <TimeRemaining
           v-if="timeRemaining.views.length"
           :views="timeRemaining.views"

@@ -2,10 +2,12 @@
 import { computed, ref } from 'vue'
 import IsochroneForm from '../IsochroneForm.vue'
 import MapView from './MapView.vue'
+import RoutingStatusBanner from './RoutingStatusBanner.vue'
 import TimeRemaining from './TimeRemaining.vue'
 import { ORIGIN_PICK_CUE } from './placementCues'
 import { buildTimeRemainingGraph, remainingSecsBySlug } from './timeRemaining'
 import { useOriginPick } from '../composables/useOriginPick'
+import { useRoutingStatus } from '../composables/useRoutingStatus'
 import type { NearMiss, Service, StopCluster } from '../api/authoring/types'
 import type { Route, Station } from '../api/scenarios'
 import type { ChainResponse } from '../fixtures/isochrone'
@@ -32,6 +34,7 @@ defineEmits<{
 }>()
 
 const { pickArmed, onMapClick } = useOriginPick()
+const { status: routingStatus, offline: routingOffline } = useRoutingStatus()
 
 const timeRemaining = computed(() =>
   buildTimeRemainingGraph(props.isochroneData?.metadata ?? null, {
@@ -82,10 +85,12 @@ function formatMeters(total: number): string {
     </div>
 
     <div class="flex flex-col gap-4">
+      <RoutingStatusBanner :status="routingStatus" />
       <IsochroneForm
         ref="isochroneForm"
         :error="props.error"
         :loading="props.loading"
+        :offline="routingOffline"
         :initial="props.initial"
         @submit="$emit('submit', $event)"
         @origin-change="$emit('origin-change', $event)"
