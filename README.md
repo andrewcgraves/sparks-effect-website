@@ -114,8 +114,8 @@ with as well. Values come from the app's page in Frontend Observability:
 | `FARO_SOURCEMAP_API_KEY` | build only: an access policy token with `sourcemaps:write` |
 | `FARO_APP_ID`, `FARO_STACK_ID` | build only: same page |
 
-The collector's host (`faro-collector-*.grafana.net`) is a new outbound
-destination for the Content Security Policy (SPA-425) to allow.
+The collector's host, `https://faro-collector-prod-us-west-0.grafana.net` for
+this stack, is in `connect-src` of `vercel.json`'s Content Security Policy.
 
 ## Link previews
 
