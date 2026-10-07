@@ -20,6 +20,10 @@ function meta(doc: Document, key: string): string | null {
   return el?.getAttribute('content') ?? null
 }
 
+function canonical(doc: Document): string | null {
+  return doc.querySelector('link[rel="canonical"]')?.getAttribute('href') ?? null
+}
+
 describe('renderPreview', () => {
   it('describes the cover page with the site name and an absolute URL on the requesting host', async () => {
     const html = await renderPreview(new URL('https://staging.example.app/'), Promise.resolve(SHELL), () => {
@@ -155,6 +159,71 @@ describe('renderPreview', () => {
   })
 })
 
+describe('renderPreview canonical URL', () => {
+  it('names the page once, on the requesting host, as og:url does', async () => {
+    const doc = parse(await renderPreview(new URL('https://sparks-effect.app/scenario/ca-hsr'), Promise.resolve(SHELL), async () => ({
+      name: 'California HSR',
+    })))
+    expect(doc.querySelectorAll('link[rel="canonical"]')).toHaveLength(1)
+    expect(canonical(doc)).toBe('https://sparks-effect.app/scenario/ca-hsr')
+    expect(meta(doc, 'og:url')).toBe(canonical(doc))
+  })
+
+  it('names the host that asked, so a build promoted from staging names production', async () => {
+    for (const origin of ['https://dev.sparks-effect.app', 'https://sparks-effect.app']) {
+      const doc = parse(await renderPreview(new URL(`${origin}/`), Promise.resolve(SHELL), async () => ({})))
+      expect(canonical(doc)).toBe(`${origin}/`)
+    }
+  })
+
+  it('drops the query, the fragment and a trailing slash, so every way of reaching a page names it the same', async () => {
+    const read = async () => ({ name: 'Northbound Express' })
+    const urls = [
+      'https://sparks-effect.app/services/northbound-express?origin=37.7,-122.4&budget=60',
+      'https://sparks-effect.app/services/northbound-express/',
+      'https://sparks-effect.app/services/northbound-express#map',
+      'https://SPARKS-EFFECT.app:443/services/northbound-express',
+    ]
+    for (const url of urls) {
+      const doc = parse(await renderPreview(new URL(url), Promise.resolve(SHELL), read))
+      expect(canonical(doc), url).toBe('https://sparks-effect.app/services/northbound-express')
+    }
+  })
+
+  it('keeps the cover page at the bare origin and a slash', async () => {
+    const doc = parse(await renderPreview(new URL('https://sparks-effect.app/?at=1,2'), Promise.resolve(SHELL), async () => ({})))
+    expect(canonical(doc)).toBe('https://sparks-effect.app/')
+  })
+
+  it('names no canonical for a page that did not resolve, whatever the reason, and keeps og:url', async () => {
+    const shell = SHELL.replace('</head>', '<link rel="canonical" href="https://elsewhere.example/" />\n  </head>')
+    const reads: Record<string, () => Promise<unknown>> = {
+      'an unknown or unpublished slug': () => Promise.reject(new Error('404')),
+      'a read that timed out': () => Promise.reject(new DOMException('timed out', 'TimeoutError')),
+      'an answer with no name': async () => ({ description: 'x' }),
+    }
+    for (const [why, read] of Object.entries(reads)) {
+      const doc = parse(await renderPreview(new URL('https://sparks-effect.app/services/draft'), Promise.resolve(shell), read))
+      expect(doc.querySelectorAll('link[rel="canonical"]'), why).toHaveLength(0)
+      expect(meta(doc, 'og:url'), why).toBe('https://sparks-effect.app/services/draft')
+    }
+  })
+
+  it('names no canonical for a path that is no public page, and escapes the og:url it writes', async () => {
+    const html = await renderPreview(new URL("https://sparks-effect.app/routes/a&b'c"), Promise.resolve(SHELL), async () => ({ name: 'X' }))
+    expect(canonical(parse(html))).toBeNull()
+    expect(html).toContain('<meta property="og:url" content="https://sparks-effect.app/routes/a&amp;b&#39;c" />')
+    expect(meta(parse(html), 'og:url')).toBe("https://sparks-effect.app/routes/a&b'c")
+  })
+
+  it('replaces a canonical the shell already carries rather than adding a second', async () => {
+    const shell = SHELL.replace('</head>', '<link rel="canonical" href="https://elsewhere.example/" />\n  </head>')
+    const doc = parse(await renderPreview(new URL('https://sparks-effect.app/'), Promise.resolve(shell), async () => ({})))
+    expect(doc.querySelectorAll('link[rel="canonical"]')).toHaveLength(1)
+    expect(canonical(doc)).toBe('https://sparks-effect.app/')
+  })
+})
+
 describe('renderPreview without a shell', () => {
   it('answers null, leaving the page to be served as built', async () => {
     const html = await renderPreview(new URL('https://www.example.app/'), Promise.resolve(null), async () => ({}))
@@ -181,6 +250,7 @@ describe('withDefaultPreview', () => {
     expect(meta(doc, 'og:description')).toMatch(/splash zone/)
     expect(meta(doc, 'twitter:card')).toBe('summary')
     expect(meta(doc, 'og:url')).toBeNull()
+    expect(canonical(doc)).toBeNull()
   })
 
   it('is replaced, not duplicated, when a page preview is spliced over it', async () => {
