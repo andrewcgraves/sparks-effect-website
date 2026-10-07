@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import type { InterchangePair, Service, StopIdentity } from '../api/authoring/types'
+import { computed, ref } from 'vue'
+import { interchangePairKey } from '../api/authoring/scenarioInput'
+import type { InterchangePair, Service } from '../api/authoring/types'
 import { SECONDARY_BUTTON_CLASS } from './buttonStyles'
+import { resolveStop } from './interchangeStops'
 
 const props = defineProps<{
   pairs: InterchangePair[]
@@ -13,26 +15,25 @@ const props = defineProps<{
 
 defineEmits<{ remove: [pair: InterchangePair] }>()
 
-// A pair names its stops by slug alone, so it outlives a stop deleted from its
-// line, and one set through the API can name a line this page has no record
-// of. It is still listed, by whatever is left of its name, so the author can
-// remove it — the compile refuses a pair naming a stop that is gone.
-function resolveStop(stop: StopIdentity): { label: string; missing: boolean } {
-  const service = props.services.find((candidate) => candidate.id === stop.service_id)
-  const named = service?.stops.find((candidate) => candidate.slug === stop.slug)
-  return {
-    label: `${named?.name ?? stop.slug} (${service?.name ?? stop.service_id})`,
-    missing: !props.memberIds.includes(stop.service_id) || Boolean(service && !named),
-  }
-}
-
 const rows = computed(() =>
   props.pairs.map((pair) => {
-    const a = resolveStop(pair.a)
-    const b = resolveStop(pair.b)
-    return { pair, a: a.label, b: b.label, missing: a.missing || b.missing }
+    const a = resolveStop(pair.a, props.memberIds, props.services)
+    const b = resolveStop(pair.b, props.memberIds, props.services)
+    return { pair, key: interchangePairKey(pair), a: a.label, b: b.label, missing: a.missing || b.missing }
   }),
 )
+
+const heading = ref<HTMLElement | null>(null)
+
+// Where focus goes once a join or removal has finished, since the button that
+// started it has usually gone with its row. False when there is no list left.
+function focusHeading(): boolean {
+  if (!heading.value) return false
+  heading.value.focus()
+  return true
+}
+
+defineExpose({ focusHeading })
 </script>
 
 <template>
@@ -49,13 +50,18 @@ const rows = computed(() =>
     class="rounded-(--radius-box) border border-border bg-surface p-4"
     data-testid="declared-interchanges"
   >
-    <h2 class="font-display text-h3 text-ink-true">
+    <h2
+      ref="heading"
+      tabindex="-1"
+      class="font-display text-h3 text-ink-true"
+      data-testid="declared-interchanges-heading"
+    >
       Declared interchanges
     </h2>
     <ul class="mt-3 flex flex-col gap-2">
       <li
-        v-for="(row, index) in rows"
-        :key="index"
+        v-for="row in rows"
+        :key="row.key"
         class="font-body text-caption flex items-start justify-between gap-3 text-ink"
         data-testid="declared-interchange-row"
       >
@@ -71,6 +77,7 @@ const rows = computed(() =>
           type="button"
           :class="SECONDARY_BUTTON_CLASS"
           :disabled="props.busy"
+          :aria-label="`Remove interchange ${row.a} and ${row.b}`"
           data-testid="remove-interchange"
           @click="$emit('remove', row.pair)"
         >

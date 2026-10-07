@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount, flushPromises, RouterLinkStub } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import type { Scenario, Service } from '../api/authoring/types'
+import type { Scenario, ScenarioInput, Service } from '../api/authoring/types'
 
 vi.mock('../api/authoring/services', () => ({
   fetchMyServices: vi.fn(),
@@ -361,9 +361,6 @@ describe('ScenarioBuilderView editing an existing scenario', () => {
       service_ids: ['svc1', 'svc2'],
       interchange_pairs: [{ a: union, b: midtown }],
       boarding_wait: { policy: 'fixed', secs: 120 },
-      boarding_wait_policy: 'fixed',
-      boarding_wait_secs: 120,
-      boarding_wait_source: 'scenario',
     }
 
     beforeEach(() => {
@@ -420,7 +417,9 @@ describe('ScenarioBuilderView editing an existing scenario', () => {
         .toContain('Charged once, when a trip first boards — not again at each change.')
     })
 
-    it('saves a fixed 300 s boarding wait and recompiles, so the graph\'s wait follows it', async () => {
+    // The graph's wait_secs is resolved by the API's compile; what the builder
+    // owns is sending the policy and asking for that compile.
+    it('PUTs a fixed 300 s boarding wait as {policy: fixed, secs: 300}, then recompiles', async () => {
       vi.mocked(fetchScenario).mockResolvedValue(existing)
       const wrapper = mountEdit()
       await flushPromises()
@@ -429,6 +428,8 @@ describe('ScenarioBuilderView editing an existing scenario', () => {
 
       expect((await save(wrapper)).boarding_wait).toEqual({ policy: 'fixed', secs: 300 })
       expect(compileScenario).toHaveBeenCalledWith('ca-hsr', expect.anything())
+      expect(vi.mocked(updateScenario).mock.invocationCallOrder[0])
+        .toBeLessThan(vi.mocked(compileScenario).mock.invocationCallOrder[0])
     })
 
     it('drops the seconds when leaving fixed for a headway policy', async () => {
@@ -447,7 +448,8 @@ describe('ScenarioBuilderView editing an existing scenario', () => {
       expect((await save(wrapper)).boarding_wait).toBeNull()
     })
 
-    it.each([['-5'], ['2.5'], ['']])('will not save a fixed wait of %j seconds', async (secs) => {
+    // 2147483647 is the top of the API's int4 column.
+    it.each([['-5'], ['2.5'], [''], ['2147483648']])('will not save a fixed wait of %j seconds', async (secs) => {
       const wrapper = mountEdit()
       await flushPromises()
       await wrapper.get('[data-testid="boarding-wait-secs"]').setValue(secs)
@@ -460,13 +462,52 @@ describe('ScenarioBuilderView editing an existing scenario', () => {
       expect(updateScenario).not.toHaveBeenCalled()
     })
 
-    it('accepts a fixed wait of zero', async () => {
+    it.each([[0], [2147483647]])('accepts a fixed wait of %j seconds', async (secs) => {
       const wrapper = mountEdit()
       await flushPromises()
-      await wrapper.get('[data-testid="boarding-wait-secs"]').setValue('0')
+      await wrapper.get('[data-testid="boarding-wait-secs"]').setValue(String(secs))
 
       expect(wrapper.find('[data-testid="boarding-wait-error"]').exists()).toBe(false)
-      expect((await save(wrapper)).boarding_wait).toEqual({ policy: 'fixed', secs: 0 })
+      expect((await save(wrapper)).boarding_wait).toEqual({ policy: 'fixed', secs })
+    })
+
+    it('holds Save, but not yet the alert, when Fixed is chosen with no seconds entered', async () => {
+      vi.mocked(fetchScenario).mockResolvedValue(existing)
+      const wrapper = mountEdit()
+      await flushPromises()
+      await wrapper.get('[data-testid="boarding-wait-policy"]').setValue('fixed')
+
+      expect(wrapper.get('[data-testid="save-scenario"]').attributes('disabled')).toBeDefined()
+      expect(wrapper.find('[data-testid="boarding-wait-error"]').exists()).toBe(false)
+      expect(wrapper.get('[data-testid="boarding-wait-secs"]').attributes('aria-invalid')).toBe('false')
+
+      await wrapper.get('[data-testid="boarding-wait-secs"]').trigger('blur')
+      expect(wrapper.get('[data-testid="boarding-wait-error"]').text()).toBe('Enter the wait in whole seconds, 0 or more.')
+    })
+
+    it('shows the seconds alert once a save is tried, and refuses it', async () => {
+      vi.mocked(fetchScenario).mockResolvedValue(existing)
+      const wrapper = mountEdit()
+      await flushPromises()
+      await wrapper.get('[data-testid="boarding-wait-policy"]').setValue('fixed')
+      await wrapper.get('form').trigger('submit')
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="boarding-wait-error"]').exists()).toBe(true)
+      expect(updateScenario).not.toHaveBeenCalled()
+    })
+
+    it('ties the hint to the policy and the alert to the seconds field', async () => {
+      const wrapper = mountEdit()
+      await flushPromises()
+      const hint = wrapper.get('[data-testid="boarding-wait-note"]')
+      expect(wrapper.get('[data-testid="boarding-wait-policy"]').attributes('aria-describedby')).toBe(hint.attributes('id'))
+
+      const secs = wrapper.get('[data-testid="boarding-wait-secs"]')
+      expect(secs.attributes('aria-describedby')).toBeUndefined()
+      await secs.setValue('-1')
+      expect(secs.attributes('aria-invalid')).toBe('true')
+      expect(secs.attributes('aria-describedby')).toBe(wrapper.get('[data-testid="boarding-wait-error"]').attributes('id'))
     })
 
     // The API refuses a pair naming a line outside the network (not_member).
@@ -482,6 +523,27 @@ describe('ScenarioBuilderView editing an existing scenario', () => {
       const input = await save(wrapper)
       expect(input.service_ids).toEqual(['svc1'])
       expect(input.interchange_pairs).toEqual([])
+    })
+
+    // The form is behind the saved notice by then, but the draft is the edit's
+    // state: it should hold what the network now is, not the pairs it dropped.
+    it('takes the saved scenario as the draft once saved, even when the recompile fails', async () => {
+      vi.mocked(compileScenario).mockRejectedValue(new ApiError('compile boom', 500))
+      const wrapper = mountEdit()
+      await flushPromises()
+      await wrapper.get('[data-testid="service-checkbox-svc2"]').setValue(false)
+      await save(wrapper)
+
+      expect(wrapper.find('[data-testid="compile-error"]').exists()).toBe(true)
+      const vm = wrapper.vm as unknown as {
+        editDraft: ScenarioInput
+        droppedPairCount: number
+        toggleService: (id: string) => void
+      }
+      expect(vm.editDraft.interchange_pairs).toEqual([])
+      expect(vm.droppedPairCount).toBe(0)
+      vm.toggleService('svc2')
+      expect(vm.editDraft.interchange_pairs).toEqual([])
     })
 
     it('keeps the pairs of a line taken out and put back', async () => {

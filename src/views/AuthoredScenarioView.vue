@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import {
   compileScenario,
   fetchScenario,
@@ -7,9 +7,15 @@ import {
   fetchScenarioIsochrone,
   updateScenario,
 } from '../api/authoring/scenarios'
-import { hasInterchangePair, nearMissPair, sameInterchangePair, scenarioInput } from '../api/authoring/scenarioInput'
+import {
+  hasInterchangePair,
+  namesMembers,
+  nearMissPair,
+  sameInterchangePair,
+  scenarioInput,
+} from '../api/authoring/scenarioInput'
 import { fetchMyServices } from '../api/authoring/services'
-import type { InterchangePair, NearMiss, Scenario } from '../api/authoring/types'
+import type { InterchangePair, NearMiss, Scenario, StopIdentity } from '../api/authoring/types'
 import { authoringFault } from '../api/authoringFault'
 import { useOwnedDetail } from '../composables/useOwnedDetail'
 import { useOwnedList } from '../composables/useOwnedList'
@@ -18,6 +24,7 @@ import { useAuthoredGraph } from '../composables/useAuthoredGraph'
 import { usePageTitle } from '../composables/usePageTitle'
 import { useScenarioDeletion } from '../composables/useDeletion'
 import DeclaredInterchanges from '../components/DeclaredInterchanges.vue'
+import { resolveStop } from '../components/interchangeStops'
 import ScenarioPreviewPanel from '../components/ScenarioPreviewPanel.vue'
 import TimeBetweenStations from '../components/TimeBetweenStations.vue'
 import { graphStationTimeGroups } from '../components/stationTimes'
@@ -79,44 +86,80 @@ const recompilingInterchanges = ref(false)
 const interchangeError = ref('')
 const interchangeBusy = computed(() => savingInterchanges.value || compiling.value)
 
+function stopMissing(stop: StopIdentity): boolean {
+  return resolveStop(stop, scenario.value?.service_ids ?? [], services.value).missing
+}
+
 const statusNote = computed(() => {
+  if (savingInterchanges.value) return 'Saving interchanges…'
   if (recompilingInterchanges.value) return 'Interchanges changed — recompiling…'
   return compiling.value ? 'A member line changed — recompiling…' : null
 })
 
-// Saved the way the builder saves, so the pairs go back whole with every
-// other field the page did not touch, then recompiled the way the builder
-// recompiles: the near miss only becomes a realised interchange in a graph
-// compiled with the pair.
-async function saveInterchangePairs(pairs: InterchangePair[]): Promise<void> {
-  const current = scenario.value
-  if (!current || interchangeBusy.value) return
+const declaredInterchanges = ref<InstanceType<typeof DeclaredInterchanges> | null>(null)
+const pageHeading = ref<HTMLElement | null>(null)
+
+// The button a join or removal started from has usually gone with its row by
+// the time it finishes, which drops a keyboard user's focus to the page. Left
+// alone if they have already moved on to something else.
+async function settleFocus(): Promise<void> {
+  await nextTick()
+  const active = document.activeElement
+  if (active instanceof HTMLElement && active !== document.body && active.isConnected
+    && !(active instanceof HTMLButtonElement && active.disabled)) return
+  if (!declaredInterchanges.value?.focusHeading()) pageHeading.value?.focus()
+}
+
+async function recompileInterchanges(slug: string): Promise<void> {
+  recompilingInterchanges.value = true
+  try {
+    await triggerCompile(slug)
+  } finally {
+    recompilingInterchanges.value = false
+  }
+}
+
+// The scenario is read again first: the copy loaded with the page can predate
+// an edit made since in another tab, and writing it back whole would revert
+// that edit. Only the pair change is applied to the fresh copy, then saved and
+// recompiled the way the builder does — the near miss only becomes a realised
+// interchange in a graph compiled with the pair. Pairs naming a line that has
+// since left the network go too, or the API refuses the whole save.
+async function saveInterchangePairs(change: (pairs: InterchangePair[]) => InterchangePair[]): Promise<void> {
+  const slug = scenario.value?.slug
+  if (!slug || interchangeBusy.value) return
   savingInterchanges.value = true
   interchangeError.value = ''
   try {
-    scenario.value = await updateScenario(current.slug, { ...scenarioInput(current), interchange_pairs: pairs })
+    const fresh = await fetchScenario(slug)
+    const input = scenarioInput(fresh)
+    input.interchange_pairs = change(input.interchange_pairs).filter((pair) => namesMembers(pair, input.service_ids))
+    scenario.value = await updateScenario(slug, input)
   } catch (err) {
     interchangeError.value = authoringFault(err, 'scenario')
     return
   } finally {
     savingInterchanges.value = false
   }
-  recompilingInterchanges.value = true
-  try {
-    await triggerCompile(current.slug)
-  } finally {
-    recompilingInterchanges.value = false
-  }
+  await recompileInterchanges(slug)
+  await settleFocus()
 }
 
 function joinNearMiss(nearMiss: NearMiss): void {
   const pair = nearMissPair(nearMiss)
   if (hasInterchangePair(interchangePairs.value, pair)) return
-  void saveInterchangePairs([...interchangePairs.value, pair])
+  void saveInterchangePairs((pairs) => (hasInterchangePair(pairs, pair) ? pairs : [...pairs, pair]))
 }
 
 function removeInterchangePair(pair: InterchangePair): void {
-  void saveInterchangePairs(interchangePairs.value.filter((declared) => !sameInterchangePair(declared, pair)))
+  void saveInterchangePairs((pairs) => pairs.filter((declared) => !sameInterchangePair(declared, pair)))
+}
+
+async function recompileForInterchanges(): Promise<void> {
+  const slug = scenario.value?.slug
+  if (!slug || interchangeBusy.value) return
+  await recompileInterchanges(slug)
+  await settleFocus()
 }
 </script>
 
@@ -161,7 +204,11 @@ function removeInterchangePair(pair: InterchangePair): void {
     <template v-else-if="scenario">
       <div class="mt-8 flex items-start justify-between gap-4">
         <hgroup class="flex flex-col gap-2">
-          <h1 class="font-display text-display text-ink-true">
+          <h1
+            ref="pageHeading"
+            tabindex="-1"
+            class="font-display text-display text-ink-true"
+          >
             {{ scenario.name }}
           </h1>
           <p class="font-body text-micro text-ink-muted uppercase">
@@ -218,6 +265,7 @@ function removeInterchangePair(pair: InterchangePair): void {
              graph to preview this is the only place left to remove it. -->
         <div class="mt-4 flex max-w-[560px] flex-col gap-4">
           <DeclaredInterchanges
+            ref="declaredInterchanges"
             :pairs="interchangePairs"
             :member-ids="scenario.service_ids"
             :services="services"
@@ -243,12 +291,26 @@ function removeInterchangePair(pair: InterchangePair): void {
         :status-note="statusNote"
         :interchange-pairs="interchangePairs"
         :interchange-busy="interchangeBusy"
+        :stop-missing="stopMissing"
         @submit="handleIsochroneSubmit"
         @origin-change="onOriginChange"
         @join="joinNearMiss"
+        @recompile="recompileForInterchanges"
       >
         <template #interchanges>
+          <!-- The form's own error can be dismissed, and is easy to miss from
+               here: a failed recompile is why a joined pair still reads as a
+               near miss. -->
+          <p
+            v-if="compileError"
+            class="font-body text-caption text-error"
+            role="alert"
+            data-testid="interchange-compile-error"
+          >
+            The preview is from the last compile that worked. {{ compileError }}
+          </p>
           <DeclaredInterchanges
+            ref="declaredInterchanges"
             :pairs="interchangePairs"
             :member-ids="scenario.service_ids"
             :services="services"

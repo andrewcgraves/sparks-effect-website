@@ -2,8 +2,9 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createMemoryHistory } from 'vue-router'
-import type { InterchangePair, Scenario, Service, TransitGraph } from '../api/authoring/types'
+import type { InterchangePair, Scenario, ScenarioInput, Service, TransitGraph } from '../api/authoring/types'
 import { ApiError } from '../api/authoring/client'
+import { sameInterchangePair } from '../api/authoring/scenarioInput'
 
 vi.mock('../api/routingStatus', () => ({ fetchRoutingStatus: vi.fn().mockResolvedValue('ok') }))
 
@@ -443,14 +444,45 @@ describe('AuthoredScenarioView joining near misses into interchanges', () => {
     } as Response))
   }
 
+  function lastSavedPairs(): InterchangePair[] {
+    return vi.mocked(updateScenario).mock.calls.at(-1)?.[1].interchange_pairs ?? []
+  }
+
+  // The compile can only realise the pair if the last save declared it.
+  function stubCompileFollowingSaves() {
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        id: 'job2',
+        kind: 'compile_user_scenario',
+        status: 'succeeded',
+        result: lastSavedPairs().some((pair) => sameInterchangePair(pair, joined)) ? joinedGraph : unjoinedGraph,
+      }),
+    } as Response)))
+  }
+
+  // The API's own member check: a pair naming a line outside the network is
+  // refused, the whole save with it.
+  async function apiUpdate(slug: string, input: ScenarioInput): Promise<Scenario> {
+    const outsider = input.interchange_pairs.findIndex((pair) =>
+      !input.service_ids.includes(pair.a.service_id) || !input.service_ids.includes(pair.b.service_id))
+    if (outsider >= 0) {
+      throw new ApiError('PUT failed: 422', 422, 'validation', {
+        faults: [{ field: 'interchange_pairs', index: outsider, rule: 'not_member' }],
+      })
+    }
+    return { ...network, ...input, slug }
+  }
+
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.mocked(fetchScenario).mockReset().mockResolvedValue(network)
     vi.mocked(fetchScenarioGraph).mockReset().mockResolvedValue(unjoinedGraph)
     vi.mocked(fetchMyServices).mockReset().mockResolvedValue(lines)
     vi.mocked(compileScenario).mockReset().mockResolvedValue({ id: 'job2', kind: 'compile_user_scenario', status: 'queued' })
-    vi.mocked(updateScenario).mockReset().mockImplementation(async (slug, input) => ({ ...network, ...input, slug }))
-    stubCompiledGraph(joinedGraph)
+    vi.mocked(updateScenario).mockReset().mockImplementation(apiUpdate)
+    stubCompileFollowingSaves()
   })
 
   afterEach(() => {
@@ -476,6 +508,8 @@ describe('AuthoredScenarioView joining near misses into interchanges', () => {
       boarding_wait: { policy: 'fixed', secs: 300 },
     })
     expect(compileScenario).toHaveBeenCalledWith('ca-hsr', expect.any(Object))
+    expect(vi.mocked(updateScenario).mock.invocationCallOrder[0])
+      .toBeLessThan(vi.mocked(compileScenario).mock.invocationCallOrder[0])
     expect(wrapper.find('[data-testid="near-miss-row"]').exists()).toBe(false)
     expect(wrapper.get('[data-testid="realised-cluster-row"]').text()).toBe('Union, Midtown')
     expect(wrapper.get('[data-testid="declared-interchange-row"]').text())
@@ -491,11 +525,12 @@ describe('AuthoredScenarioView joining near misses into interchanges', () => {
     await flushPromises()
 
     expect(wrapper.get('[data-testid="recompiling-status"]').text()).toBe('Interchanges changed — recompiling…')
-    expect(wrapper.get('[data-testid="join-interchange"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.find('[data-testid="join-interchange"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="recompile-interchange"]').attributes('disabled')).toBeDefined()
     expect(wrapper.get('[data-testid="remove-interchange"]').attributes('disabled')).toBeDefined()
   })
 
-  it('holds the button while the save is in flight, so a second click cannot declare the pair twice', async () => {
+  it('says it is saving, and holds the button while the save is in flight, so a second click cannot declare the pair twice', async () => {
     vi.mocked(updateScenario).mockReturnValue(new Promise(() => {}))
     const wrapper = mountView()
     await flushPromises()
@@ -504,20 +539,153 @@ describe('AuthoredScenarioView joining near misses into interchanges', () => {
     await wrapper.get('[data-testid="join-interchange"]').trigger('click')
     await flushPromises()
 
+    expect(wrapper.get('[data-testid="recompiling-status"]').text()).toBe('Saving interchanges…')
     expect(wrapper.get('[data-testid="join-interchange"]').attributes('disabled')).toBeDefined()
     expect(updateScenario).toHaveBeenCalledTimes(1)
   })
 
-  it('reads Joined, not Join, for a near miss already declared in either order', async () => {
+  it('offers Recompile, not Join, for a near miss already declared in either order', async () => {
     vi.mocked(fetchScenario).mockResolvedValue({ ...network, interchange_pairs: [{ a: midtown, b: union }] })
     const wrapper = mountView()
     await flushPromises()
 
-    const button = wrapper.get('[data-testid="join-interchange"]')
-    expect(button.text()).toBe('Joined')
-    expect(button.attributes('disabled')).toBeDefined()
-    await button.trigger('click')
+    expect(wrapper.find('[data-testid="join-interchange"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="near-miss-declared"]').text()).toBe('Declared — not in the compiled network yet')
+    expect(wrapper.text()).not.toContain('Joined')
+
+    await wrapper.get('[data-testid="recompile-interchange"]').trigger('click')
+    await flushPromises()
+
     expect(updateScenario).not.toHaveBeenCalled()
+    expect(compileScenario).toHaveBeenCalledWith('ca-hsr', expect.any(Object))
+  })
+
+  it('does not say Joined when the join saved but its recompile failed over an older graph: it says so beside the interchanges and offers Recompile', async () => {
+    vi.mocked(compileScenario).mockRejectedValueOnce(new ApiError('compile boom', 500))
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.get('[data-testid="join-interchange"]').trigger('click')
+    await flushPromises()
+
+    expect(updateScenario).toHaveBeenCalledWith('ca-hsr', expect.objectContaining({ interchange_pairs: [joined] }))
+    const alert = wrapper.get('[data-testid="interchange-compile-error"]')
+    expect(alert.attributes('role')).toBe('alert')
+    expect(alert.text()).toContain('The preview is from the last compile that worked.')
+    expect(wrapper.text()).not.toContain('Joined')
+    expect(wrapper.get('[data-testid="near-miss-declared"]').text()).toBe('Declared — not in the compiled network yet')
+    const recompile = wrapper.get('[data-testid="recompile-interchange"]')
+    expect(recompile.attributes('disabled')).toBeUndefined()
+
+    await recompile.trigger('click')
+    await flushPromises()
+
+    expect(updateScenario).toHaveBeenCalledTimes(1)
+    expect(wrapper.find('[data-testid="interchange-compile-error"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="near-miss-row"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="realised-cluster-row"]').text()).toBe('Union, Midtown')
+  })
+
+  // The page's copy predates any edit made since in another tab; writing it
+  // back whole would revert that edit.
+  it('applies the join to the scenario as it is now, not as the page loaded it', async () => {
+    const editedElsewhere: Scenario = {
+      ...network,
+      name: 'CA HSR Phase 2',
+      service_ids: ['svc1', 'svc2', 'svc3'],
+      boarding_wait: { policy: 'none' },
+    }
+    vi.mocked(fetchScenario).mockResolvedValueOnce(network).mockResolvedValue(editedElsewhere)
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.get('[data-testid="join-interchange"]').trigger('click')
+    await flushPromises()
+
+    expect(updateScenario).toHaveBeenCalledWith('ca-hsr', {
+      name: 'CA HSR Phase 2',
+      description: 'California High-Speed Rail',
+      service_ids: ['svc1', 'svc2', 'svc3'],
+      interchange_pairs: [joined],
+      boarding_wait: { policy: 'none' },
+    })
+    expect(wrapper.get('h1').text()).toBe('CA HSR Phase 2')
+  })
+
+  // Deleting a line drops its membership but leaves its pairs, which the API
+  // then refuses on every save (not_member) — so they could never be removed.
+  it('drops pairs naming a line no longer in the network, so Remove still saves', async () => {
+    const pier = { service_id: 'svc9', slug: 'pier' }
+    const pierUnion: InterchangePair = { a: pier, b: union }
+    const pierHarbour: InterchangePair = { a: pier, b: { service_id: 'svc2', slug: 'harbour' } }
+    vi.mocked(fetchScenario).mockResolvedValue({ ...network, interchange_pairs: [pierUnion, pierHarbour, joined] })
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.findAll('[data-testid="declared-interchange-row"]')).toHaveLength(3)
+
+    await wrapper.findAll('[data-testid="remove-interchange"]')[0].trigger('click')
+    await flushPromises()
+
+    expect(updateScenario).toHaveBeenCalledWith('ca-hsr', expect.objectContaining({ interchange_pairs: [joined] }))
+    await expect(vi.mocked(updateScenario).mock.results[0].value).resolves.toBeDefined()
+    expect(wrapper.find('[data-testid="interchange-error"]').exists()).toBe(false)
+    expect(wrapper.findAll('[data-testid="declared-interchange-row"]')).toHaveLength(1)
+  })
+
+  it.each([
+    ['a stop renamed since the graph compiled', { service_ids: ['svc1', 'svc2'] }, [
+      line('svc1', 'Coast Express', [['union', 'Union']]),
+      line('svc2', 'Midtown Local', [['midtown-central', 'Midtown Central']]),
+    ]],
+    ['a line taken out of the network since the graph compiled', { service_ids: ['svc1'] }, lines],
+  ])('will not join a near miss naming %s', async (_case, edit, current) => {
+    vi.mocked(fetchScenario).mockResolvedValue({ ...network, ...edit })
+    vi.mocked(fetchMyServices).mockResolvedValue(current)
+    const wrapper = mountView()
+    await flushPromises()
+
+    const button = wrapper.get('[data-testid="join-interchange"]')
+    expect(button.attributes('disabled')).toBeDefined()
+    expect(button.attributes('title')).toBe('Stop no longer in this network')
+    expect(wrapper.get('[data-testid="near-miss-gone"]').text()).toBe('A stop is no longer in this network')
+  })
+
+  it('names the pair on each button', async () => {
+    vi.mocked(fetchScenario).mockResolvedValue({
+      ...network,
+      interchange_pairs: [{ a: union, b: { service_id: 'svc2', slug: 'harbour' } }],
+    })
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="join-interchange"]').attributes('aria-label'))
+      .toBe('Join Union and Midtown as an interchange')
+    expect(wrapper.get('[data-testid="remove-interchange"]').attributes('aria-label'))
+      .toBe('Remove interchange Union (Coast Express) and Harbour (Midtown Local)')
+  })
+
+  const unionHarbour: InterchangePair = { a: union, b: { service_id: 'svc2', slug: 'harbour' } }
+
+  it.each([
+    ['a join, to the declared list', 'join-interchange', [unionHarbour], 'declared-interchanges-heading'],
+    ['a removal, to the declared list', 'remove-interchange', [unionHarbour, joined], 'declared-interchanges-heading'],
+    ['the last removal, to the page heading', 'remove-interchange', [unionHarbour], null],
+  ])('moves focus once %s, not to the page body', async (_case, button, pairs, target) => {
+    vi.mocked(fetchScenario).mockResolvedValue({ ...network, interchange_pairs: pairs })
+    const wrapper = mount(AuthoredScenarioView, {
+      props: { slug: 'ca-hsr' },
+      attachTo: document.body,
+      global: { plugins: [createRouter({ history: createMemoryHistory(), routes: [{ path: '/:p(.*)', component: Stub }] })] },
+    })
+    await flushPromises()
+
+    const clicked = wrapper.get(`[data-testid="${button}"]`)
+    ;(clicked.element as HTMLButtonElement).focus()
+    await clicked.trigger('click')
+    await flushPromises()
+
+    expect(document.activeElement).toBe(target ? wrapper.get(`[data-testid="${target}"]`).element : wrapper.get('h1').element)
+    wrapper.unmount()
   })
 
   it('says why the save was refused, does not recompile, and keeps the near miss', async () => {

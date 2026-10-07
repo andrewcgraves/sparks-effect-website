@@ -225,13 +225,45 @@ describe('ScenarioPreviewPanel', () => {
       expect(wrapper.get('[data-testid="join-interchange"]').attributes('disabled')).toBeDefined()
     })
 
-    it('reads Joined for a pair already declared, whichever way round', () => {
+    it('names the pair it would join for assistive technology', () => {
+      const wrapper = mountWithNearMiss({ interchangePairs: [] })
+      expect(wrapper.get('[data-testid="join-interchange"]').attributes('aria-label'))
+        .toBe('Join Union and Midtown as an interchange')
+    })
+
+    // Declared but still a near miss: the graph shown predates the pair, or
+    // the recompile that would realise it failed.
+    it('says a pair declared either way round is not in the compiled network yet, and offers Recompile instead of Join', async () => {
       const wrapper = mountWithNearMiss({
         interchangePairs: [{ a: { service_id: 'svc2', slug: 'midtown' }, b: { service_id: 'svc1', slug: 'union' } }],
       })
+      expect(wrapper.find('[data-testid="join-interchange"]').exists()).toBe(false)
+      expect(wrapper.text()).not.toContain('Joined')
+      expect(wrapper.get('[data-testid="near-miss-declared"]').text()).toBe('Declared — not in the compiled network yet')
+
+      await wrapper.get('[data-testid="recompile-interchange"]').trigger('click')
+      expect(wrapper.emitted('recompile')).toEqual([[]])
+    })
+
+    it('holds Recompile while the page is busy saving or compiling', () => {
+      const wrapper = mountWithNearMiss({
+        interchangePairs: [{ a: { service_id: 'svc1', slug: 'union' }, b: { service_id: 'svc2', slug: 'midtown' } }],
+        interchangeBusy: true,
+      })
+      expect(wrapper.get('[data-testid="recompile-interchange"]').attributes('disabled')).toBeDefined()
+    })
+
+    it('will not join a near miss naming a stop no longer in this network, and says why', async () => {
+      const wrapper = mountWithNearMiss({
+        interchangePairs: [],
+        stopMissing: (stop: { slug: string }) => stop.slug === 'midtown',
+      })
       const button = wrapper.get('[data-testid="join-interchange"]')
-      expect(button.text()).toBe('Joined')
       expect(button.attributes('disabled')).toBeDefined()
+      expect(button.attributes('title')).toBe('Stop no longer in this network')
+      expect(wrapper.get('[data-testid="near-miss-gone"]').text()).toBe('A stop is no longer in this network')
+      await button.trigger('click')
+      expect(wrapper.emitted('join')).toBeUndefined()
     })
   })
 })

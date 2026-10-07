@@ -6,8 +6,8 @@ import { authoringFault } from '../api/authoringFault'
 import { ApiError, isSessionExpiry } from '../api/authoring/client'
 import { fetchMyServices } from '../api/authoring/services'
 import { compileScenario, createScenario, fetchScenario, updateScenario } from '../api/authoring/scenarios'
-import { isValidBoardingWait, scenarioInput } from '../api/authoring/scenarioInput'
-import type { BoardingWaitPolicy, InterchangePair, ScenarioInput, Service } from '../api/authoring/types'
+import { MAX_BOARDING_WAIT_SECS, isValidBoardingWait, namesMembers, scenarioInput } from '../api/authoring/scenarioInput'
+import type { BoardingWaitPolicy, ScenarioInput, Service } from '../api/authoring/types'
 import { useCompileJob } from '../composables/useCompileJob'
 import { usePageTitle } from '../composables/usePageTitle'
 import BreadcrumbTrail from '../components/BreadcrumbTrail.vue'
@@ -118,12 +118,19 @@ const BOARDING_WAIT_OPTIONS: { value: BoardingWaitPolicy | 'default'; label: str
   { value: 'fixed', label: 'Fixed' },
 ]
 
+// Choosing Fixed starts the seconds blank, which is invalid but not yet a
+// mistake: Save waits for it, the alert waits for the field or a save attempt.
+const secsTouched = ref(false)
+const saveAttempted = ref(false)
+
 // Seconds belong to `fixed` alone, so leaving it drops them rather than
 // sending a value the API would ignore; returning to it starts blank.
 const boardingWaitPolicy = computed({
   get: () => draft.value?.boarding_wait?.policy ?? 'default',
-  set: (value: BoardingWaitPolicy | 'default') =>
-    patchDraft({ boarding_wait: value === 'default' ? null : { policy: value } }),
+  set: (value: BoardingWaitPolicy | 'default') => {
+    secsTouched.value = false
+    patchDraft({ boarding_wait: value === 'default' ? null : { policy: value } })
+  },
 })
 
 // A number input hands v-model '' when it is cleared, which is "not entered
@@ -136,9 +143,7 @@ const fixedSecs = computed({
 
 const boardingWaitValid = computed(() => isValidBoardingWait(draft.value?.boarding_wait ?? null))
 
-function namesMembers(pair: InterchangePair, members: string[]): boolean {
-  return members.includes(pair.a.service_id) && members.includes(pair.b.service_id)
-}
+const showBoardingWaitError = computed(() => !boardingWaitValid.value && (secsTouched.value || saveAttempted.value))
 
 // The API refuses a pair naming a line outside the network, so unticking a
 // line takes its pairs with it on save — said here rather than discovered as a
@@ -191,6 +196,7 @@ watch(compiledGraph, (graph) => {
 })
 
 async function handleSave(): Promise<void> {
+  saveAttempted.value = true
   const current = draft.value
   if (!current || !canSubmit.value) return
   submitting.value = true
@@ -202,6 +208,9 @@ async function handleSave(): Promise<void> {
   try {
     if (props.slug) {
       const saved = await updateScenario(props.slug, input)
+      // What was saved, not what was typed: the dropped pairs are gone now,
+      // and must not ride along again if the edit is picked back up.
+      editDraft.value = scenarioInput(saved)
       savedSlug.value = saved.slug
       submitting.value = false
       await triggerCompile(saved.slug)
@@ -367,6 +376,7 @@ async function handleSave(): Promise<void> {
             v-model="boardingWaitPolicy"
             :class="FIELD_INPUT_CLASS"
             data-testid="boarding-wait-policy"
+            aria-describedby="boarding-wait-hint"
           >
             <option
               v-for="option in BOARDING_WAIT_OPTIONS"
@@ -388,12 +398,17 @@ async function handleSave(): Promise<void> {
             data-testid="boarding-wait-secs"
             type="number"
             min="0"
+            :max="MAX_BOARDING_WAIT_SECS"
             step="1"
-            :aria-invalid="!boardingWaitValid"
+            :aria-invalid="showBoardingWaitError"
+            :aria-describedby="showBoardingWaitError ? 'boarding-wait-error' : undefined"
+            @input="secsTouched = true"
+            @blur="secsTouched = true"
           >
         </label>
         <p
-          v-if="!boardingWaitValid"
+          v-if="showBoardingWaitError"
+          id="boarding-wait-error"
           class="font-body text-caption text-error"
           role="alert"
           data-testid="boarding-wait-error"
@@ -401,6 +416,7 @@ async function handleSave(): Promise<void> {
           Enter the wait in whole seconds, 0 or more.
         </p>
         <p
+          id="boarding-wait-hint"
           class="font-body text-caption text-ink-muted italic"
           data-testid="boarding-wait-note"
         >

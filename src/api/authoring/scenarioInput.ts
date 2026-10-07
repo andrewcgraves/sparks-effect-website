@@ -33,6 +33,17 @@ export function hasInterchangePair(pairs: InterchangePair[], pair: InterchangePa
   return pairs.some((declared) => sameInterchangePair(declared, pair))
 }
 
+// The API refuses a pair naming a line outside the network (not_member), and
+// deleting a line drops its membership but leaves its pairs behind, so every
+// write keeps only the pairs whose lines are both still members.
+export function namesMembers(pair: InterchangePair, memberIds: string[]): boolean {
+  return memberIds.includes(pair.a.service_id) && memberIds.includes(pair.b.service_id)
+}
+
+export function interchangePairKey(pair: InterchangePair): string {
+  return `${pair.a.service_id}/${pair.a.slug}|${pair.b.service_id}/${pair.b.slug}`
+}
+
 export function nearMissPair(nearMiss: NearMiss): InterchangePair {
   return {
     a: { service_id: nearMiss.a.service_id, slug: nearMiss.a.slug },
@@ -42,8 +53,11 @@ export function nearMissPair(nearMiss: NearMiss): InterchangePair {
 
 // Mirrors ParseBoardingWaitPolicy in sparks-effect-api: only `fixed` carries
 // seconds, and it refuses a missing or negative value. JSON has no integer
-// type, so a fraction is refused here before the API's int field does.
+// type, so a fraction is refused here before the API's int field does, and the
+// column is an int4, so anything past its top is refused before Postgres does.
+export const MAX_BOARDING_WAIT_SECS = 2147483647
+
 export function isValidBoardingWait(wait: BoardingWaitOverride | null): boolean {
   if (wait?.policy !== 'fixed') return true
-  return wait.secs !== undefined && Number.isInteger(wait.secs) && wait.secs >= 0
+  return wait.secs !== undefined && Number.isInteger(wait.secs) && wait.secs >= 0 && wait.secs <= MAX_BOARDING_WAIT_SECS
 }

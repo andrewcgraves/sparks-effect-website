@@ -81,8 +81,6 @@ export interface BoardingWaitOverride {
   secs?: number
 }
 
-export type BoardingWaitSource = 'service' | 'scenario' | 'global'
-
 export interface StopIdentity {
   service_id: string
   slug: string
@@ -101,9 +99,6 @@ export interface Scenario {
   service_ids: string[]
   interchange_pairs?: InterchangePair[]
   boarding_wait?: BoardingWaitOverride | null
-  boarding_wait_policy?: BoardingWaitPolicy
-  boarding_wait_secs?: number
-  boarding_wait_source?: BoardingWaitSource
   owner_id?: string | null
   created_at?: string
   updated_at?: string
@@ -201,7 +196,6 @@ export interface ServiceGraph {
   service_id: string
   edges: GraphEdge[]
   wait_secs: number
-  wait_policy?: BoardingWaitPolicy
 }
 
 export interface GraphNode {
