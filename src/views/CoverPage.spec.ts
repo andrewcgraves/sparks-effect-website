@@ -73,6 +73,7 @@ describe('CoverPage', () => {
     expect(lede).toContain('splash zone')
     expect(lede).toContain('Pick a line or network below')
     expect(lede).not.toMatch(/temporary/i)
+    expect(lede).not.toMatch(/isochrone/i)
   })
 
   it('heads the list with what it contains', async () => {
@@ -87,6 +88,7 @@ describe('CoverPage', () => {
     const region = busyRegion(wrapper, 'scenarios-loading')
     expect(region.findAll('[data-testid="list-card-skeleton"]').length).toBeGreaterThan(0)
     expect(visibleText(region)).toBe('')
+    expect(region.text()).toContain('Loading lines and networks')
   })
 
   it('links a curated scenario to its scenario page', async () => {
