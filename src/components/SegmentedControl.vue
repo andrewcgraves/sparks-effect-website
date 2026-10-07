@@ -1,21 +1,21 @@
-<script setup lang="ts">
+<script setup lang="ts" generic="T extends string | number">
 withDefaults(
   defineProps<{
-    modelValue: number
-    options: number[]
-    formatOption?: (value: number) => string
+    modelValue: T
+    options: readonly T[]
+    formatOption?: (value: T) => string
     name?: string
     testid?: string
   }>(),
   {
-    formatOption: (value: number) => String(value),
+    formatOption: (value: T) => String(value),
     name: 'segmented-control',
     testid: 'segmented-control',
   },
 )
 
 const emit = defineEmits<{
-  'update:modelValue': [value: number]
+  'update:modelValue': [value: T]
 }>()
 </script>
 

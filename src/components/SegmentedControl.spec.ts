@@ -14,7 +14,7 @@ describe('SegmentedControl', () => {
 
   it('renders a label for every option, formatted with formatOption', () => {
     const wrapper = mount(SegmentedControl, {
-      props: { modelValue: 60, options, testid: 'duration-slider', formatOption: (v: number) => `${v} min` },
+      props: { modelValue: 60, options, testid: 'duration-slider', formatOption: (v: string | number) => `${v} min` },
     })
     for (const option of options) {
       expect(wrapper.find(`[data-testid="duration-slider-option-${option}"]`).element.parentElement?.textContent?.trim()).toBe(`${option} min`)
@@ -42,6 +42,15 @@ describe('SegmentedControl', () => {
     const wrapper = mount(SegmentedControl, { props: { modelValue: 60, options, testid: 'duration-slider' } })
     await wrapper.find('input[data-testid="duration-slider-option-240"]').setValue(true)
     expect(wrapper.emitted('update:modelValue')?.[0]).toEqual([240])
+  })
+
+  it('takes string options too, and emits the chosen string', async () => {
+    const wrapper = mount(SegmentedControl, {
+      props: { modelValue: 'kmh', options: ['kmh', 'mph'], testid: 'speed-unit' },
+    })
+    expect((wrapper.find('input[data-testid="speed-unit-option-kmh"]').element as HTMLInputElement).checked).toBe(true)
+    await wrapper.find('input[data-testid="speed-unit-option-mph"]').setValue(true)
+    expect(wrapper.emitted('update:modelValue')?.[0]).toEqual(['mph'])
   })
 
   it('groups the options under a single radio input name', () => {

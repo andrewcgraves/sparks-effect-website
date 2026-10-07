@@ -485,7 +485,7 @@ describe('useServiceDraft', () => {
       ['a stop latitude', (d: Draft) => d.updateStop(0, { lat: 37.7 })],
       ['a stop longitude', (d: Draft) => d.updateStop(1, { lng: -121.8 })],
       ['the stop order', (d: Draft) => d.moveStop(0, 1)],
-      ['the vehicle', (d: Draft) => { d.dwellS.value = 60 }],
+      ['the vehicle', (d: Draft) => { d.vehicle.value = { ...d.vehicle.value, dwell_s: 60 } }],
       ['a frequency window', (d: Draft) => d.addFrequencyWindow({ start_time: '22:00', end_time: '23:00', headway_s: 1800 })],
     ])('counts a change to %s', async (_, change) => {
       const draft = await openedEdit()
@@ -610,6 +610,23 @@ describe('useServiceDraft', () => {
 
       expect(draft.subtext.value).toBe('')
       expect(draft.description.value).toBe('')
+    })
+  })
+
+  describe('vehicle', () => {
+    it('writes the vehicle through to the stored draft whole', async () => {
+      const draft = useServiceDraft()
+      await draft.start()
+
+      draft.vehicle.value = { max_speed_kmh: 177, acceleration_ms2: 0.6, deceleration_ms2: 0.7, dwell_s: 45 }
+
+      expect(useDraftsStore().serviceDraft?.vehicle).toEqual({
+        max_speed_kmh: 177,
+        acceleration_ms2: 0.6,
+        deceleration_ms2: 0.7,
+        dwell_s: 45,
+      })
+      expect(draft.vehicle.value).toEqual(useDraftsStore().serviceDraft?.vehicle)
     })
   })
 
@@ -779,7 +796,8 @@ describe('useServiceDraft', () => {
       ['no name', (d: Draft) => { d.name.value = '  ' }],
       ['one stop', (d: Draft) => { d.removeStop(1) }],
       ['no route', (d: Draft) => { d.routeSlug.value = '' }],
-      ['an impossible vehicle', (d: Draft) => { d.maxSpeedKmh.value = 0 }],
+      ['an impossible vehicle', (d: Draft) => { d.vehicle.value = { ...d.vehicle.value, max_speed_kmh: 0 } }],
+      ['a negative dwell', (d: Draft) => { d.vehicle.value = { ...d.vehicle.value, dwell_s: -1 } }],
     ])('is not ready with %s', async (_label, break_) => {
       const draft = useServiceDraft()
       await submittable(draft)
