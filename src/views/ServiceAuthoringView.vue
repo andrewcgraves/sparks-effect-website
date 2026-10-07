@@ -14,6 +14,7 @@ import FieldSkeleton from '../components/FieldSkeleton.vue'
 import LoadingRegion from '../components/LoadingRegion.vue'
 import SkeletonShape from '../components/SkeletonShape.vue'
 import StopActionsMenu from '../components/StopActionsMenu.vue'
+import VehicleFields from '../components/VehicleFields.vue'
 import { PLACEMENT_TOGGLE_CLASS, PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS } from '../components/buttonStyles'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
 import { ACTION_LINK_CLASS } from '../components/linkStyles'
@@ -38,10 +39,7 @@ const {
   name,
   subtext,
   description,
-  maxSpeedKmh,
-  accelerationMs2,
-  decelerationMs2,
-  dwellS,
+  vehicle,
   routes,
   routesLoading,
   routesError,
@@ -486,44 +484,33 @@ watch(createdSlug, (created) => {
     <LoadingRegion
       v-else-if="!ready"
       :label="slug ? 'Loading line' : 'Loading'"
-      class="mt-8 grid grid-cols-1 items-start gap-8 lg:grid-cols-[1fr_1fr]"
+      class="mt-8 flex flex-col gap-6"
       data-testid="draft-loading"
     >
-      <div class="flex flex-col gap-6">
-        <SkeletonShape
-          shape="card"
-          :lines="2"
-        />
-        <SkeletonShape
-          shape="card"
-          :lines="4"
-        />
-        <FieldSkeleton />
-        <FieldSkeleton />
-        <FieldSkeleton :rows="5" />
-      </div>
+      <SkeletonShape
+        shape="card"
+        :lines="2"
+      />
+      <SkeletonShape
+        shape="card"
+        :lines="4"
+      />
       <SkeletonShape
         shape="block"
         class="h-[70vh] min-h-[70vh]"
         data-testid="map-panel-skeleton"
       />
+      <FieldSkeleton />
+      <FieldSkeleton />
+      <FieldSkeleton :rows="5" />
     </LoadingRegion>
 
-    <!--
-      Not items-start: the map column has to stretch to the row's height for
-      the map inside it to have anywhere to stick.
-    -->
     <div
       v-else
-      class="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-[1fr_1fr]"
+      class="mt-8"
     >
-      <!--
-        Below lg the form dissolves into the grid so the save bar can go last,
-        after the map, and stay stuck for the whole page rather than only while
-        the form is in view.
-      -->
       <form
-        class="flex flex-col gap-6 max-lg:contents"
+        class="flex flex-col gap-6"
         @submit.prevent="submit"
       >
         <fieldset
@@ -870,6 +857,31 @@ watch(createdSlug, (created) => {
             </p>
           </section>
 
+          <!--
+            Right under the stops it places, at every width, rather than in a
+            column of its own: the map is the stops section's other half.
+          -->
+          <div
+            class="h-[70vh]"
+            data-testid="map-panel"
+          >
+            <MapView
+              :loading="false"
+              :isochrone-data="null"
+              :routes="mapRoutes"
+              :stations="[]"
+              :stop-preview-pairs="mapStopPairs"
+              :placement-armed="placingStops"
+              :placement-cue="STOP_PLACEMENT_CUE"
+              :center-on="mapCenter"
+              hide-isochrone-legend
+              @map-click="addStopAt"
+              @stop-drag="handleStopDrag"
+              @stop-drag-end="handleStopDragEnd"
+              @stop-hover="handleMapStopHover"
+            />
+          </div>
+
           <section class="rounded-(--radius-box) border border-border bg-surface p-4">
             <h2 class="font-display text-h3 text-ink-true">
               Operations
@@ -878,50 +890,10 @@ watch(createdSlug, (created) => {
             <h3 :class="[SUBHEADING_CLASS, 'mt-3']">
               Vehicle
             </h3>
-            <div class="mt-2 grid grid-cols-2 gap-3">
-              <label :class="FIELD_LABEL_CLASS">
-                Max speed (km/h)
-                <input
-                  v-model.number="maxSpeedKmh"
-                  :class="FIELD_INPUT_CLASS"
-                  data-testid="vehicle-max-speed"
-                  type="number"
-                  min="0"
-                >
-              </label>
-              <label :class="FIELD_LABEL_CLASS">
-                Acceleration (m/s²)
-                <input
-                  v-model.number="accelerationMs2"
-                  :class="FIELD_INPUT_CLASS"
-                  data-testid="vehicle-acceleration"
-                  type="number"
-                  min="0"
-                  step="0.1"
-                >
-              </label>
-              <label :class="FIELD_LABEL_CLASS">
-                Deceleration (m/s²)
-                <input
-                  v-model.number="decelerationMs2"
-                  :class="FIELD_INPUT_CLASS"
-                  data-testid="vehicle-deceleration"
-                  type="number"
-                  min="0"
-                  step="0.1"
-                >
-              </label>
-              <label :class="FIELD_LABEL_CLASS">
-                Dwell (s)
-                <input
-                  v-model.number="dwellS"
-                  :class="FIELD_INPUT_CLASS"
-                  data-testid="vehicle-dwell"
-                  type="number"
-                  min="0"
-                >
-              </label>
-            </div>
+            <VehicleFields
+              v-model="vehicle"
+              class="mt-2"
+            />
 
             <h3 :class="[SUBHEADING_CLASS, 'mt-5']">
               Frequency windows
@@ -1007,7 +979,7 @@ watch(createdSlug, (created) => {
         </fieldset>
 
         <div
-          class="sticky bottom-0 z-20 flex max-lg:order-last flex-col gap-2 rounded-t-(--radius-box) border border-b-0 border-border bg-white/95 px-4 py-3 shadow-[0_-4px_12px_rgb(0_0_0/6%)] backdrop-blur"
+          class="sticky bottom-0 z-20 flex flex-col gap-2 rounded-t-(--radius-box) border border-b-0 border-border bg-white/95 px-4 py-3 shadow-[0_-4px_12px_rgb(0_0_0/6%)] backdrop-blur"
           data-testid="save-bar"
         >
           <div class="flex flex-wrap items-center justify-between gap-3">
@@ -1083,27 +1055,6 @@ watch(createdSlug, (created) => {
           </p>
         </div>
       </form>
-
-      <!-- Below lg the map simply follows the form; its mobile layout is M5's. -->
-      <div class="h-[70vh] lg:h-auto">
-        <div class="h-full lg:sticky lg:top-4 lg:h-[calc(100svh-2rem)]">
-          <MapView
-            :loading="false"
-            :isochrone-data="null"
-            :routes="mapRoutes"
-            :stations="[]"
-            :stop-preview-pairs="mapStopPairs"
-            :placement-armed="placingStops"
-            :placement-cue="STOP_PLACEMENT_CUE"
-            :center-on="mapCenter"
-            hide-isochrone-legend
-            @map-click="addStopAt"
-            @stop-drag="handleStopDrag"
-            @stop-drag-end="handleStopDragEnd"
-            @stop-hover="handleMapStopHover"
-          />
-        </div>
-      </div>
     </div>
   </main>
 </template>

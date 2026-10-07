@@ -1,6 +1,7 @@
 import { STOP_PLACEMENT_FAULT_KINDS } from './types'
 import type { FaultedStop, StopPlacementFault } from './types'
 import { TRACE_HEADER, newTraceId } from '../traceId'
+import { reportError } from '../../errorReporting'
 
 export function apiBase(): string {
   return import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
@@ -140,7 +141,13 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
       unauthorizedHandler?.(sessionToken)
       throw new SessionExpiredError(text, code, detail)
     }
-    throw new ApiError(text, res.status, code, detail, retryAfterSeconds(res))
+    const err = new ApiError(text, res.status, code, detail, retryAfterSeconds(res))
+    // A 5xx is the API's fault and the API has reported its side of it; this
+    // is the visitor's side, under the same trace id. A 4xx is an answer.
+    if (res.status >= 500) {
+      reportError(err, { trace_id: headers.get(TRACE_HEADER) ?? '', status: String(res.status), method, path })
+    }
+    throw err
   }
 
   if (res.status === 204) return undefined as T
