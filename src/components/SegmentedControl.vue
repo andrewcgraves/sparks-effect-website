@@ -1,7 +1,7 @@
 <script setup lang="ts" generic="T extends string | number">
 withDefaults(
   defineProps<{
-    modelValue: T | null
+    modelValue: T
     options: readonly T[]
     formatOption?: (value: T) => string
     name?: string

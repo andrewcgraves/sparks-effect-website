@@ -22,23 +22,31 @@ const emit = defineEmits<{
   'update:modelValue': [value: VehicleParams]
 }>()
 
-const PRESET_IDS = VEHICLE_PRESETS.map((preset) => preset.id)
-const PRESET_LABELS = Object.fromEntries(VEHICLE_PRESETS.map((preset) => [preset.id, preset.label])) as Record<
-  VehiclePresetId,
-  string
->
+// Custom is the fifth pill, not a preset: it is where the control lands when
+// the four values match no preset, and choosing it leaves the numbers alone,
+// so an author can never lose them by clicking it.
+type PresetChoice = VehiclePresetId | 'custom'
+
+const PRESET_CHOICES: readonly PresetChoice[] = [...VEHICLE_PRESETS.map((preset) => preset.id), 'custom']
+const PRESET_LABELS = {
+  ...Object.fromEntries(VEHICLE_PRESETS.map((preset) => [preset.id, preset.label])),
+  custom: 'Custom',
+} as Record<PresetChoice, string>
 
 // The chosen preset is never stored: it is read back off the four values, so a
 // saved service shows the preset it equals, and a single edited digit turns it
-// to Custom without anything having to be reset.
-const preset = computed({
-  get: () => matchingPreset(props.modelValue),
-  set: (id: VehiclePresetId | null) => {
-    if (id) emit('update:modelValue', presetVehicle(id))
+// to Custom without anything having to be reset. The one thing kept is a
+// Custom click made while the values still equal a preset — the radio group
+// has already moved, and the highlight has to agree with it.
+const customChosen = ref(false)
+
+const preset = computed<PresetChoice>({
+  get: () => (customChosen.value ? 'custom' : (matchingPreset(props.modelValue) ?? 'custom')),
+  set: (choice) => {
+    customChosen.value = choice === 'custom'
+    if (choice !== 'custom') emit('update:modelValue', presetVehicle(choice))
   },
 })
-
-const presetLabel = computed(() => (preset.value ? PRESET_LABELS[preset.value] : 'Custom'))
 
 function field(name: Exclude<keyof VehicleParams, 'max_speed_kmh'>) {
   return computed({
@@ -75,19 +83,14 @@ const speedInputId = useId()
 
 <template>
   <div class="flex flex-col gap-3">
-    <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-      <SegmentedControl
-        v-model="preset"
-        :options="PRESET_IDS"
-        :format-option="(id: VehiclePresetId) => PRESET_LABELS[id]"
-        name="vehicle-preset"
-        testid="vehicle-preset"
-      />
-      <span
-        class="font-body text-caption text-ink-muted"
-        data-testid="vehicle-preset-label"
-      >{{ presetLabel }}</span>
-    </div>
+    <SegmentedControl
+      v-model="preset"
+      :options="PRESET_CHOICES"
+      :format-option="(choice: PresetChoice) => PRESET_LABELS[choice]"
+      name="vehicle-preset"
+      testid="vehicle-preset"
+      class="self-start"
+    />
 
     <div class="grid grid-cols-2 gap-3">
       <div class="flex flex-col gap-1">

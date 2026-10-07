@@ -482,6 +482,17 @@ describe('ServiceAuthoringView', () => {
     expect(inputs[1].attributes('data-testid')).toBe('service-subtext')
   })
 
+  it('sits the map directly after Route & stops, between it and Operations', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    const blocks = [...wrapper.get('[data-testid="form-body"]').element.children].map(
+      (child) => child.querySelector('h2')?.textContent?.trim() ?? child.getAttribute('data-testid'),
+    )
+    expect(blocks).toEqual(['Identity', 'Route & stops', 'map-panel', 'Operations', 'Description optional'])
+    expect(wrapper.get('[data-testid="map-panel"]').findComponent({ name: 'MapView' }).exists()).toBe(true)
+  })
+
   it('ends the form column with a sticky save bar, and offers no discard on a create', async () => {
     const wrapper = mountView()
     await flushPromises()
@@ -1026,7 +1037,7 @@ describe('ServiceAuthoringView', () => {
     it('reads the saved vehicle as Custom when it equals no preset', async () => {
       const { wrapper } = await mountEdit()
 
-      expect(wrapper.get('[data-testid="vehicle-preset-label"]').text()).toBe('Custom')
+      expect((wrapper.get('[data-testid="vehicle-preset-option-custom"]').element as HTMLInputElement).checked).toBe(true)
     })
 
     it('reads the saved vehicle as its preset when it equals one', async () => {
@@ -1036,7 +1047,8 @@ describe('ServiceAuthoringView', () => {
       })
       const { wrapper } = await mountEdit()
 
-      expect(wrapper.get('[data-testid="vehicle-preset-label"]').text()).toBe('High-speed rail')
+      expect((wrapper.get('[data-testid="vehicle-preset-option-high_speed_rail"]').element as HTMLInputElement).checked).toBe(true)
+      expect((wrapper.get('[data-testid="vehicle-preset-option-custom"]').element as HTMLInputElement).checked).toBe(false)
       expect(fieldValue(wrapper, 'vehicle-max-speed')).toBe('320')
     })
 

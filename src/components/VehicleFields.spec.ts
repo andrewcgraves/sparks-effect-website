@@ -22,28 +22,42 @@ function fieldValue(wrapper: ReturnType<typeof mountFields>, testId: string): st
   return (wrapper.get(`[data-testid="${testId}"]`).element as HTMLInputElement).value
 }
 
-function presetLabel(wrapper: ReturnType<typeof mountFields>): string {
-  return wrapper.get('[data-testid="vehicle-preset-label"]').text()
-}
-
 function presetChecked(wrapper: ReturnType<typeof mountFields>, id: string): boolean {
   return (wrapper.get(`[data-testid="vehicle-preset-option-${id}"]`).element as HTMLInputElement).checked
 }
 
 describe('VehicleFields', () => {
   describe('presets', () => {
-    it('offers the four vehicle types above the fields, with none chosen for values that match no preset', () => {
+    it('offers the four vehicle types and Custom above the fields, with Custom chosen for values that match no preset', () => {
       const wrapper = mountFields(custom)
 
       const control = wrapper.get('[data-testid="vehicle-preset"]')
-      expect(control.text()).toContain('High-speed rail')
-      expect(control.text()).toContain('Regional rail')
-      expect(control.text()).toContain('Light rail')
-      expect(control.text()).toContain('BRT / bus')
-      expect(presetLabel(wrapper)).toBe('Custom')
+      expect(control.findAll('label').map((label) => label.text())).toEqual([
+        'High-speed rail',
+        'Regional rail',
+        'Light rail',
+        'BRT / bus',
+        'Custom',
+      ])
+      expect(presetChecked(wrapper, 'custom')).toBe(true)
       for (const id of ['high_speed_rail', 'regional_rail', 'light_rail', 'brt_bus']) {
         expect(presetChecked(wrapper, id)).toBe(false)
       }
+    })
+
+    it('leaves the values alone when Custom itself is chosen, and shows Custom until a preset is picked', async () => {
+      const wrapper = mountFields(regionalRail)
+
+      await wrapper.get('[data-testid="vehicle-preset-option-custom"]').setValue(true)
+
+      expect(wrapper.props('modelValue')).toEqual(regionalRail)
+      expect(presetChecked(wrapper, 'custom')).toBe(true)
+      expect(presetChecked(wrapper, 'regional_rail')).toBe(false)
+
+      await wrapper.get('[data-testid="vehicle-preset-option-regional_rail"]').setValue(true)
+
+      expect(presetChecked(wrapper, 'regional_rail')).toBe(true)
+      expect(presetChecked(wrapper, 'custom')).toBe(false)
     })
 
     it('fills all four fields when a preset is chosen', async () => {
@@ -61,15 +75,15 @@ describe('VehicleFields', () => {
       expect(fieldValue(wrapper, 'vehicle-acceleration')).toBe('1')
       expect(fieldValue(wrapper, 'vehicle-deceleration')).toBe('1.2')
       expect(fieldValue(wrapper, 'vehicle-dwell')).toBe('25')
-      expect(presetLabel(wrapper)).toBe('Light rail')
       expect(presetChecked(wrapper, 'light_rail')).toBe(true)
+      expect(presetChecked(wrapper, 'custom')).toBe(false)
     })
 
     it('recognises a vehicle whose values equal a preset, as a saved service arrives', () => {
       const wrapper = mountFields(regionalRail)
 
-      expect(presetLabel(wrapper)).toBe('Regional rail')
       expect(presetChecked(wrapper, 'regional_rail')).toBe(true)
+      expect(presetChecked(wrapper, 'custom')).toBe(false)
     })
 
     it('reads Custom as soon as any field is edited away from the preset', async () => {
@@ -77,7 +91,7 @@ describe('VehicleFields', () => {
 
       await wrapper.get('[data-testid="vehicle-dwell"]').setValue(50)
 
-      expect(presetLabel(wrapper)).toBe('Custom')
+      expect(presetChecked(wrapper, 'custom')).toBe(true)
       expect(presetChecked(wrapper, 'regional_rail')).toBe(false)
       expect(wrapper.props('modelValue')).toEqual({ ...regionalRail, dwell_s: 50 })
     })
@@ -160,7 +174,7 @@ describe('VehicleFields', () => {
       await wrapper.get('[data-testid="vehicle-preset-option-regional_rail"]').setValue(true)
 
       expect(fieldValue(wrapper, 'vehicle-max-speed')).toBe('110')
-      expect(presetLabel(wrapper)).toBe('Regional rail')
+      expect(presetChecked(wrapper, 'regional_rail')).toBe(true)
       expect(wrapper.props('modelValue').max_speed_kmh).toBe(177)
     })
 

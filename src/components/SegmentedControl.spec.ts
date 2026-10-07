@@ -53,14 +53,6 @@ describe('SegmentedControl', () => {
     expect(wrapper.emitted('update:modelValue')?.[0]).toEqual(['mph'])
   })
 
-  it('selects nothing when modelValue is null', () => {
-    const wrapper = mount(SegmentedControl, { props: { modelValue: null, options, testid: 'duration-slider' } })
-    for (const option of options) {
-      expect((wrapper.find(`input[data-testid="duration-slider-option-${option}"]`).element as HTMLInputElement).checked).toBe(false)
-      expect(wrapper.find(`input[data-testid="duration-slider-option-${option}"]`).element.parentElement?.className).not.toContain('bg-coral')
-    }
-  })
-
   it('groups the options under a single radio input name', () => {
     const wrapper = mount(SegmentedControl, { props: { modelValue: 60, options, testid: 'duration-slider', name: 'duration' } })
     for (const option of options) {
