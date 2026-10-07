@@ -7,6 +7,7 @@ export interface StopDragCallbacks {
   onDrag: (id: string, coord: LatLng) => void
   onDragEnd: (id: string, coord: LatLng) => void
   idleCursor: () => string
+  onHover?: (id: string | null) => void
 }
 
 function coordOf(event: { lngLat: { lat: number; lng: number } }): LatLng {
@@ -20,6 +21,7 @@ export function useStopDrag(map: Map, callbacks: StopDragCallbacks): { release: 
   // Where the pin was last seen. The drag can end on an event that carries no
   // position (see endFromWindow), and this is the honest answer for that case.
   let lastCoord: LatLng | null = null
+  let hoveredId: string | null = null
 
   function setCursor(cursor: string): void {
     canvas.style.cursor = cursor
@@ -87,9 +89,23 @@ export function useStopDrag(map: Map, callbacks: StopDragCallbacks): { release: 
     window.addEventListener('touchcancel', endFromWindow)
   }
 
-  map.on('mouseenter', RAW_STOP_LAYER_ID, () => setCursor('grab'))
+  function setHovered(id: string | null): void {
+    if (id === hoveredId) return
+    hoveredId = id
+    callbacks.onHover?.(id)
+  }
+
+  map.on('mouseenter', RAW_STOP_LAYER_ID, (event) => {
+    setCursor('grab')
+    setHovered(stopIdOf(event))
+  })
+  // Pins can sit close enough to touch, and sliding from one straight onto the
+  // next fires no second mouseenter, so the pin under the pointer is re-read
+  // as it moves.
+  map.on('mousemove', RAW_STOP_LAYER_ID, (event) => setHovered(stopIdOf(event)))
   map.on('mouseleave', RAW_STOP_LAYER_ID, () => {
     if (!draggingId) setCursor(callbacks.idleCursor())
+    setHovered(null)
   })
 
   map.on('mousedown', RAW_STOP_LAYER_ID, (event) => beginDrag(event, 'mousemove', 'mouseup'))

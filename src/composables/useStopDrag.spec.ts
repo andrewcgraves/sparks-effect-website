@@ -83,6 +83,19 @@ describe('useStopDrag', () => {
     expect(canvas.style.cursor).toBe('crosshair')
   })
 
+  it('reports which pin the pointer is over, once per change, and when it leaves', () => {
+    const onHover = vi.fn()
+    const { map, fire } = makeMockMap()
+    useStopDrag(map as unknown as Map, { onDrag: vi.fn(), onDragEnd: vi.fn(), idleCursor: () => '', onHover })
+
+    fire('mouseenter', RAW_STOP_LAYER_ID, pinEvent('0', 37.77, -122.41))
+    fire('mousemove', RAW_STOP_LAYER_ID, pinEvent('0', 37.77, -122.41))
+    fire('mousemove', RAW_STOP_LAYER_ID, pinEvent('1', 37.33, -121.88))
+    fire('mouseleave', RAW_STOP_LAYER_ID)
+
+    expect(onHover.mock.calls).toEqual([['0'], ['1'], [null]])
+  })
+
   it('claims the gesture on mousedown so the map does not pan underneath the pin', () => {
     const { fire, handlers } = setup()
     const down = pinEvent('0', 37.77, -122.41)

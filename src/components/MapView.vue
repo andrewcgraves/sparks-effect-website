@@ -39,6 +39,7 @@ const props = defineProps<{
   stopPreviewPairs?: StopPreviewPair[]
   placementArmed?: boolean
   placementCue?: string
+  centerOn?: LatLng | null
   activeStation?: string | null
   remainingSecs?: (slug: string) => number | null
 }>()
@@ -47,10 +48,12 @@ const emit = defineEmits<{
   'map-click': [coord: LatLng]
   'stop-drag': [id: string, coord: LatLng]
   'stop-drag-end': [id: string, coord: LatLng]
+  'stop-hover': [id: string | null]
   'station-hover': [slug: string | null]
 }>()
 
 const ORIGIN_SNAP_ZOOM = 9
+const STOP_FOCUS_ZOOM = 12
 
 const isochroneColors = resolveIsochroneColors()
 // The line swatches are drawn with the same ends the map draws them with: the
@@ -157,6 +160,7 @@ const stopPreview = stopPreviewModule(stopPreviewPairs)
 const stopDrag = stopDragModule(stopPreviewPairs, {
   onDrag: (id, coord) => emit('stop-drag', id, coord),
   onDragEnd: (id, coord) => emit('stop-drag-end', id, coord),
+  onHover: (id) => emit('stop-hover', id),
   idleCursor,
 })
 stopDrag.requires = [stopPreview]
@@ -195,6 +199,20 @@ function applyPlacementMode(): void {
 }
 
 watch(() => props.placementArmed, applyPlacementMode)
+
+// Watched by identity, not by value: asking for the same stop again, after
+// panning away from it, has to move the map back. Zooms in only as far as a
+// stop can be told from its neighbours, never out.
+watch(
+  () => props.centerOn,
+  (coord) => {
+    if (!coord || !map || !isMapLoaded.value) return
+    map.flyTo({
+      center: [coord.lng, coord.lat],
+      zoom: Math.max(map.getZoom(), STOP_FOCUS_ZOOM),
+    })
+  },
+)
 
 watch(
   () => props.isochroneData,

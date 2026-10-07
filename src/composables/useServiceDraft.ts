@@ -19,6 +19,7 @@ import type {
   Service,
   ServiceInput,
   SnapCoord,
+  SnappedStopResult,
   SnapStopsResponse,
   StopPlacementFault,
   StopPlacementFaultKind,
@@ -134,6 +135,11 @@ export function useServiceDraft(serviceSlug?: string) {
   const selectedRoute = ref<Route | null>(null)
 
   const preview = ref<SnapStopsResponse | null>(null)
+  // The ids of the stops the preview was asked about, in the order it was
+  // asked. Its answers are positional, and the list can be reordered while a
+  // request is out or before the next one is scheduled; reading them through
+  // these ids keeps each answer on the stop it is about.
+  const previewStopIds = ref<string[]>([])
   const previewLoading = ref(false)
   const previewError = ref(false)
 
@@ -225,9 +231,14 @@ export function useServiceDraft(serviceSlug?: string) {
     }]
   })
 
+  const stopSnaps = computed<Map<string, SnappedStopResult>>(() => {
+    const answers = preview.value?.stops ?? []
+    return new Map(answers.map((answer, index) => [previewStopIds.value[index], answer]))
+  })
+
   const stopPreviewPairs = computed<StopPreviewPair[]>(() =>
     stops.value.map((stop, index) => {
-      const snapped = preview.value?.stops[index]
+      const snapped = stopSnaps.value.get(stop.id)
       return {
         id: String(index),
         raw: { lat: stop.lat, lng: stop.lng },
@@ -243,11 +254,48 @@ export function useServiceDraft(serviceSlug?: string) {
   // lets them compare it to what they authored and reorder by hand.
   const orderWarning = computed<string | null>(() => {
     if (!preview.value || preview.value.order_is_consistent) return null
+    const byId = new Map(stops.value.map((stop) => [stop.id, stop.name]))
     const alongLine = preview.value.chainage_order
-      .map((i) => stops.value[i]?.name)
+      .map((i) => byId.get(previewStopIds.value[i]))
       .filter((stopName): stopName is string => !!stopName)
     return `Authored order doesn't match the route's direction. Along the route: ${alongLine.join(' → ')}.`
   })
+
+  // The along-the-line order as stop ids, or null when the preview has no
+  // complaint or was taken of a different set of stops than the draft now
+  // holds. Applying it is idempotent, which matters because the warning that
+  // offers it outlives the reorder until the next preview lands.
+  const routeOrder = computed<string[] | null>(() => {
+    if (!preview.value || preview.value.order_is_consistent) return null
+    const ids = preview.value.chainage_order.map((i) => previewStopIds.value[i])
+    const current = new Set(stops.value.map((stop) => stop.id))
+    if (ids.length !== current.size || !ids.every((id) => current.has(id))) return null
+    return ids
+  })
+
+  const canPutInRouteOrder = computed(() => {
+    const order = routeOrder.value
+    return order !== null && order.some((id, index) => stops.value[index]?.id !== id)
+  })
+
+  function putInRouteOrder(): void {
+    if (canPutInRouteOrder.value) drafts.reorderStops(routeOrder.value!)
+  }
+
+  // For a line that runs its route backwards: chainage order is monotonic, not
+  // ascending, so the route order above can be the wrong way round for it.
+  function reverseStops(): void {
+    drafts.reorderStops(stops.value.map((stop) => stop.id).reverse())
+  }
+
+  function moveStopTo(id: string, to: number): void {
+    const ids = stops.value.map((stop) => stop.id)
+    const from = ids.indexOf(id)
+    if (from === -1 || to < 0 || to >= ids.length || from === to) return
+    ids.splice(from, 1)
+    ids.splice(to, 0, id)
+    drafts.reorderStops(ids)
+  }
 
   // Preview is advisory, so a preview that has not run does not block a submit;
   // one that has run and found a fault does. The server re-checks either way.
@@ -324,11 +372,14 @@ export function useServiceDraft(serviceSlug?: string) {
     }
     previewLoading.value = true
     previewError.value = false
+    const asked = current.stops.map((stop) => stop.id)
     try {
-      preview.value = await snapStops(
+      const answer = await snapStops(
         current.route_slug,
         current.stops.map((stop) => ({ lat: stop.lat, lng: stop.lng })),
       )
+      previewStopIds.value = asked
+      preview.value = answer
     } catch {
       previewError.value = true
     } finally {
@@ -537,6 +588,10 @@ export function useServiceDraft(serviceSlug?: string) {
     updateStop: drafts.updateStop,
     removeStop: drafts.removeStop,
     moveStop: drafts.moveStop,
+    moveStopTo,
+    putInRouteOrder,
+    reverseStops,
+    canPutInRouteOrder,
     dragStop,
     dropStop,
     addFrequencyWindow: drafts.addFrequencyWindow,
@@ -544,6 +599,7 @@ export function useServiceDraft(serviceSlug?: string) {
     preview,
     previewLoading,
     previewError,
+    stopSnaps,
     stopPreviewPairs,
     orderWarning,
     canSubmit,

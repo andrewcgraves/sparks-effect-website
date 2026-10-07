@@ -5,6 +5,7 @@ import { useConfirm } from '../composables/useConfirm'
 import { usePageTitle } from '../composables/usePageTitle'
 import { useServiceDraft } from '../composables/useServiceDraft'
 import { useToast } from '../composables/useToast'
+import type { DraftStop } from '../stores/drafts'
 import { MAX_DESCRIPTION_CHARS, MAX_SUBTEXT_CHARS, type SnapCoord as LatLng } from '../api/authoring'
 import BreadcrumbTrail from '../components/BreadcrumbTrail.vue'
 import { AUTHORING_CRUMB, type Crumb } from '../components/crumbs'
@@ -12,7 +13,8 @@ import MapView from '../components/MapView.vue'
 import FieldSkeleton from '../components/FieldSkeleton.vue'
 import LoadingRegion from '../components/LoadingRegion.vue'
 import SkeletonShape from '../components/SkeletonShape.vue'
-import { PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS, TOGGLE_BUTTON_CLASS } from '../components/buttonStyles'
+import StopActionsMenu from '../components/StopActionsMenu.vue'
+import { PLACEMENT_TOGGLE_CLASS, PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS } from '../components/buttonStyles'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
 import { ACTION_LINK_CLASS } from '../components/linkStyles'
 import { STOP_PLACEMENT_CUE } from '../components/placementCues'
@@ -50,13 +52,17 @@ const {
   updateStop,
   removeStop,
   moveStop,
+  moveStopTo,
+  putInRouteOrder,
+  reverseStops,
+  canPutInRouteOrder,
   dragStop,
   dropStop,
   addFrequencyWindow,
   removeFrequencyWindow,
-  preview,
   previewLoading,
   previewError,
+  stopSnaps,
   stopPreviewPairs,
   orderWarning,
   hasChanges,
@@ -159,8 +165,160 @@ const stopsSection = ref<HTMLElement | null>(null)
 const { confirm } = useConfirm()
 const { show: toast } = useToast()
 
-async function handleRemoveStop(index: number): Promise<void> {
-  const stop = stops.value[index]
+// What every control in a row calls its stop. Two stops can share a name, and
+// a stop can lose its name altogether while it is being retyped; the position
+// is what keeps "Remove Fresno" naming one button and not two.
+const stopLabels = computed(() => {
+  const counts = new Map<string, number>()
+  for (const stop of stops.value) {
+    const key = stop.name.trim().toLowerCase()
+    counts.set(key, (counts.get(key) ?? 0) + 1)
+  }
+  return stops.value.map((stop, index) => {
+    const stopName = stop.name.trim()
+    if (!stopName) return `stop ${index + 1}`
+    return (counts.get(stopName.toLowerCase()) ?? 0) > 1 ? `${stopName} (stop ${index + 1})` : stopName
+  })
+})
+
+const selectedStopId = ref<string | null>(null)
+const mapCenter = ref<LatLng | null>(null)
+const hoveredStopIndex = ref<number | null>(null)
+const editingPositionId = ref<string | null>(null)
+const draggingStopId = ref<string | null>(null)
+const dropTargetId = ref<string | null>(null)
+const stopAnnouncement = ref('')
+
+// A fresh object each time, so picking the stop the map has since been panned
+// away from still brings it back.
+function selectStop(stop: DraftStop): void {
+  selectedStopId.value = stop.id
+  mapCenter.value = { lat: stop.lat, lng: stop.lng }
+}
+
+// Handed through unchanged until something is selected, so the map is never
+// given a new pair list — and a redraw — that differs in nothing.
+const mapStopPairs = computed(() => {
+  const at = stops.value.findIndex((stop) => stop.id === selectedStopId.value)
+  if (at === -1) return stopPreviewPairs.value
+  return stopPreviewPairs.value.map((pair, index) => (index === at ? { ...pair, selected: true } : pair))
+})
+
+function handleMapStopHover(pairId: string | null): void {
+  hoveredStopIndex.value = pairId === null ? null : Number(pairId)
+}
+
+// Cleared first so the same sentence twice in a row is still read out.
+async function announce(message: string): Promise<void> {
+  stopAnnouncement.value = ''
+  await nextTick()
+  stopAnnouncement.value = message
+}
+
+function handleMoveStop(index: number, direction: -1 | 1): void {
+  const label = stopLabels.value[index]
+  moveStop(index, direction)
+  void announce(`${label} is now stop ${index + direction + 1} of ${stops.value.length}`)
+}
+
+function handlePutInRouteOrder(): void {
+  putInRouteOrder()
+  void announce('Stops put in route order')
+}
+
+function handleReverseStops(): void {
+  reverseStops()
+  void announce('Stop order reversed')
+}
+
+async function togglePositionEditor(stop: DraftStop, index: number): Promise<void> {
+  if (editingPositionId.value === stop.id) {
+    editingPositionId.value = null
+    return
+  }
+  editingPositionId.value = stop.id
+  await nextTick()
+  stopsSection.value?.querySelector<HTMLElement>(`[data-testid="stop-edit-lat-${index}"]`)?.focus()
+}
+
+function closePositionEditor(index: number): void {
+  editingPositionId.value = null
+  stopsSection.value?.querySelector<HTMLElement>(`[data-testid="stop-actions-${index}"]`)?.focus()
+}
+
+// A cleared or half-typed field is not a coordinate: Number('') is 0, which
+// would put the stop in the Gulf of Guinea. The field is put back to what the
+// stop still holds, since nothing changed for Vue to write it back itself.
+function commitCoordinate(index: number, field: 'lat' | 'lng', event: Event): void {
+  const input = event.target as HTMLInputElement
+  const typed = input.value.trim()
+  const value = Number(typed)
+  if (typed === '' || !Number.isFinite(value)) {
+    const stop = stops.value[index]
+    if (stop) input.value = String(stop[field])
+    return
+  }
+  updateStop(index, { [field]: value })
+}
+
+function onStopDragStart(stop: DraftStop, event: DragEvent): void {
+  draggingStopId.value = stop.id
+  const transfer = event.dataTransfer
+  if (!transfer) return
+  transfer.effectAllowed = 'move'
+  // Firefox starts no drag that carries no data.
+  transfer.setData('text/plain', stop.name)
+  // The handle is what is grabbed, but the row is what is being moved.
+  const row = (event.target as HTMLElement).closest('li')
+  if (row) transfer.setDragImage(row, 16, 16)
+}
+
+function onStopDragOver(stop: DraftStop, event: DragEvent): void {
+  if (!draggingStopId.value) return
+  event.preventDefault()
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
+  dropTargetId.value = stop.id
+}
+
+function onStopDrop(index: number, event: DragEvent): void {
+  const id = draggingStopId.value
+  endStopDrag()
+  if (!id) return
+  event.preventDefault()
+  const from = stops.value.findIndex((stop) => stop.id === id)
+  if (from === -1 || from === index) return
+  const label = stopLabels.value[from]
+  moveStopTo(id, index)
+  void announce(`${label} is now stop ${index + 1} of ${stops.value.length}`)
+}
+
+function endStopDrag(): void {
+  draggingStopId.value = null
+  dropTargetId.value = null
+}
+
+// Dropped onto a row, a stop takes that row's place: the row moves down to
+// make room when the stop came from below it, and up when it came from above,
+// so the line is drawn on the side the stop will land.
+function dropEdge(stop: DraftStop, index: number): 'before' | 'after' | null {
+  if (!draggingStopId.value || dropTargetId.value !== stop.id || draggingStopId.value === stop.id) return null
+  const from = stops.value.findIndex((s) => s.id === draggingStopId.value)
+  return from < index ? 'after' : 'before'
+}
+
+function stopRowClass(stop: DraftStop, index: number): string[] {
+  const classes = [stop.id === selectedStopId.value ? 'border-coral ring-1 ring-coral' : 'border-border']
+  if (index === hoveredStopIndex.value) classes.push('bg-surface')
+  else classes.push('bg-white')
+  if (stop.id === draggingStopId.value) classes.push('opacity-50')
+  const edge = dropEdge(stop, index)
+  if (edge === 'before') classes.push('shadow-[0_-3px_0_var(--color-coral)]')
+  if (edge === 'after') classes.push('shadow-[0_3px_0_var(--color-coral)]')
+  return classes
+}
+
+async function handleRemoveStop(stopId: string): Promise<void> {
+  const stop = stops.value.find((s) => s.id === stopId)
   if (!stop) return
   const confirmed = await confirm({
     title: 'Remove this stop?',
@@ -174,12 +332,14 @@ async function handleRemoveStop(index: number): Promise<void> {
   const at = stops.value.findIndex((s) => s.id === stop.id)
   if (!confirmed || at === -1) return
   removeStop(at)
+  if (editingPositionId.value === stop.id) editingPositionId.value = null
+  if (selectedStopId.value === stop.id) selectedStopId.value = null
   toast('Stop removed')
-  // The remove button that had focus went with its row; carry focus to the
-  // stop that took its place, or the one before, or the new-stop name.
+  // The menu that had focus went with its row; carry focus to the stop that
+  // took its place, or the one before, or the way to place a new one.
   await nextTick()
   const next = Math.min(at, stops.value.length - 1)
-  const target = next >= 0 ? `[data-testid="stop-remove-${next}"]` : '[data-testid="stop-name"]'
+  const target = next >= 0 ? `[data-testid="stop-actions-${next}"]` : '[data-testid="toggle-place-stops"]'
   stopsSection.value?.querySelector<HTMLElement>(target)?.focus()
 }
 
@@ -399,18 +559,40 @@ watch(createdSlug, (created) => {
               <p :class="FIELD_LABEL_CLASS">
                 Stops
               </p>
-              <button
-                type="button"
-                :class="TOGGLE_BUTTON_CLASS"
-                data-testid="toggle-place-stops"
-                :aria-pressed="placingStops"
-                @click="placingStops = !placingStops"
+              <div
+                v-if="stops.length > 1"
+                class="flex flex-wrap gap-2"
               >
-                {{ placingStops ? 'Done adding' : 'Add stops by clicking' }}
-              </button>
+                <button
+                  type="button"
+                  :class="SECONDARY_BUTTON_CLASS"
+                  data-testid="put-in-route-order"
+                  :disabled="!canPutInRouteOrder"
+                  @click="handlePutInRouteOrder"
+                >
+                  Put in route order
+                </button>
+                <button
+                  type="button"
+                  :class="SECONDARY_BUTTON_CLASS"
+                  data-testid="reverse-stops"
+                  @click="handleReverseStops"
+                >
+                  Reverse order
+                </button>
+              </div>
             </div>
 
-            <ul
+            <p
+              v-if="orderWarning"
+              class="font-body text-caption mt-2 text-error"
+              role="alert"
+              data-testid="order-warning"
+            >
+              {{ orderWarning }}
+            </p>
+
+            <ol
               v-if="stops.length"
               class="mt-3 flex flex-col gap-2"
               data-testid="stops-list"
@@ -418,39 +600,63 @@ watch(createdSlug, (created) => {
               <li
                 v-for="(stop, index) in stops"
                 :key="stop.id"
-                class="font-body text-caption flex items-center justify-between gap-2 rounded-(--radius-field) border border-border bg-white px-3 py-2 text-ink"
+                class="font-body text-caption rounded-(--radius-field) border px-2 py-1.5 text-ink"
+                :class="stopRowClass(stop, index)"
+                :aria-current="stop.id === selectedStopId ? 'true' : undefined"
                 data-testid="stop-row"
+                @click="selectStop(stop)"
+                @dragover="onStopDragOver(stop, $event)"
+                @drop="onStopDrop(index, $event)"
               >
-                <div class="flex flex-wrap items-center gap-2">
+                <div class="flex items-center gap-2">
+                  <!--
+                    Hidden from assistive tech and out of the tab order: the
+                    keyboard way to reorder is Move up / Move down in the menu.
+                  -->
+                  <span
+                    draggable="true"
+                    class="cursor-grab px-0.5 text-ink-faint select-none hover:text-ink-muted active:cursor-grabbing"
+                    title="Drag to reorder"
+                    aria-hidden="true"
+                    :data-testid="`stop-drag-${index}`"
+                    @dragstart="onStopDragStart(stop, $event)"
+                    @dragend="endStopDrag"
+                  >⠿</span>
+                  <span
+                    class="w-5 shrink-0 text-right text-ink-muted tabular-nums"
+                    data-testid="stop-seq"
+                  >{{ index + 1 }}</span>
                   <input
                     :value="stop.name"
-                    class="w-28 border-b border-transparent bg-transparent font-medium not-italic normal-case hover:border-border focus:border-border focus:outline-none"
+                    class="min-w-0 flex-1 border-b border-transparent bg-transparent font-medium not-italic normal-case hover:border-border focus:border-border focus:outline-none"
+                    :aria-label="`Rename ${stopLabels[index]}`"
                     :data-testid="`stop-edit-name-${index}`"
                     type="text"
                     @change="updateStop(index, { name: ($event.target as HTMLInputElement).value })"
                   >
-                  <input
-                    :value="stop.lat"
-                    class="w-20 border-b border-transparent bg-transparent text-ink-muted not-italic normal-case hover:border-border focus:border-border focus:outline-none"
-                    :data-testid="`stop-edit-lat-${index}`"
-                    type="number"
-                    step="any"
-                    @change="updateStop(index, { lat: Number(($event.target as HTMLInputElement).value) })"
-                  >
-                  <input
-                    :value="stop.lng"
-                    class="w-20 border-b border-transparent bg-transparent text-ink-muted not-italic normal-case hover:border-border focus:border-border focus:outline-none"
-                    :data-testid="`stop-edit-lng-${index}`"
-                    type="number"
-                    step="any"
-                    @change="updateStop(index, { lng: Number(($event.target as HTMLInputElement).value) })"
-                  >
+                  <StopActionsMenu
+                    :label="stopLabels[index]"
+                    :index="index"
+                    :first="index === 0"
+                    :last="index === stops.length - 1"
+                    :editing-position="editingPositionId === stop.id"
+                    @move-up="handleMoveStop(index, -1)"
+                    @move-down="handleMoveStop(index, 1)"
+                    @edit-position="togglePositionEditor(stop, index)"
+                    @show-on-map="selectStop(stop)"
+                    @remove="handleRemoveStop(stop.id)"
+                  />
+                </div>
+                <p
+                  v-if="stopSnaps.get(stop.id)?.off_route || faultedStops.has(stop.seq)"
+                  class="mt-1 flex flex-wrap gap-x-3 gap-y-1 pl-9"
+                >
                   <span
-                    v-if="preview?.stops[index]?.off_route"
+                    v-if="stopSnaps.get(stop.id)?.off_route"
                     class="text-error"
                     data-testid="stop-off-route"
                   >
-                    {{ Math.round(preview!.stops[index].offset_m) }}m off the route
+                    {{ Math.round(stopSnaps.get(stop.id)!.offset_m) }}m off the route
                   </span>
                   <span
                     v-if="faultedStops.has(stop.seq)"
@@ -459,37 +665,53 @@ watch(createdSlug, (created) => {
                   >
                     {{ stopFaultMessage(faultedStops.get(stop.seq)!) }}
                   </span>
-                </div>
-                <div class="flex shrink-0 gap-1">
+                </p>
+                <div
+                  v-if="editingPositionId === stop.id"
+                  class="mt-2 grid grid-cols-2 gap-2 pl-9 sm:grid-cols-[1fr_1fr_auto]"
+                  :data-testid="`stop-position-${index}`"
+                >
+                  <label :class="FIELD_LABEL_CLASS">
+                    <span>Latitude<span class="sr-only"> of {{ stopLabels[index] }}</span></span>
+                    <input
+                      :value="stop.lat"
+                      :class="FIELD_INPUT_CLASS"
+                      :data-testid="`stop-edit-lat-${index}`"
+                      type="number"
+                      step="any"
+                      @change="commitCoordinate(index, 'lat', $event)"
+                    >
+                  </label>
+                  <label :class="FIELD_LABEL_CLASS">
+                    <span>Longitude<span class="sr-only"> of {{ stopLabels[index] }}</span></span>
+                    <input
+                      :value="stop.lng"
+                      :class="FIELD_INPUT_CLASS"
+                      :data-testid="`stop-edit-lng-${index}`"
+                      type="number"
+                      step="any"
+                      @change="commitCoordinate(index, 'lng', $event)"
+                    >
+                  </label>
                   <button
                     type="button"
-                    class="cursor-pointer px-1 text-ink-muted hover:text-ink"
-                    :data-testid="`stop-up-${index}`"
-                    :disabled="index === 0"
-                    @click="moveStop(index, -1)"
+                    :class="[SECONDARY_BUTTON_CLASS, 'col-span-2 sm:col-span-1 sm:mt-auto']"
+                    :aria-label="`Done editing position of ${stopLabels[index]}`"
+                    :data-testid="`stop-position-done-${index}`"
+                    @click="closePositionEditor(index)"
                   >
-                    ↑
-                  </button>
-                  <button
-                    type="button"
-                    class="cursor-pointer px-1 text-ink-muted hover:text-ink"
-                    :data-testid="`stop-down-${index}`"
-                    :disabled="index === stops.length - 1"
-                    @click="moveStop(index, 1)"
-                  >
-                    ↓
-                  </button>
-                  <button
-                    type="button"
-                    class="cursor-pointer px-1 text-ink-muted hover:text-coral"
-                    :data-testid="`stop-remove-${index}`"
-                    @click="handleRemoveStop(index)"
-                  >
-                    ✕
+                    Done
                   </button>
                 </div>
               </li>
-            </ul>
+            </ol>
+            <p
+              v-else
+              class="font-body text-caption mt-3 text-ink-muted"
+              data-testid="stops-empty"
+            >
+              No stops yet. Turn on placing below, then click along the route on the map.
+            </p>
 
             <p
               v-if="previewLoading"
@@ -506,54 +728,72 @@ watch(createdSlug, (created) => {
             >
               Couldn't preview the snap. You can still add stops.
             </p>
-            <p
-              v-if="orderWarning"
-              class="font-body text-caption mt-2 text-error"
-              role="alert"
-              data-testid="order-warning"
-            >
-              {{ orderWarning }}
-            </p>
 
-            <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-[2fr_1fr_1fr_auto]">
-              <label :class="[FIELD_LABEL_CLASS, 'col-span-2 sm:col-span-1']">
-                Name
-                <input
-                  v-model="newStopName"
-                  :class="FIELD_INPUT_CLASS"
-                  data-testid="stop-name"
-                  type="text"
+            <button
+              type="button"
+              :class="[PLACEMENT_TOGGLE_CLASS, 'mt-3']"
+              data-testid="toggle-place-stops"
+              :aria-pressed="placingStops"
+              @click="placingStops = !placingStops"
+            >
+              {{ placingStops ? 'Done adding stops' : 'Add stops by clicking the map' }}
+            </button>
+
+            <details
+              class="mt-3"
+              data-testid="add-by-coordinates"
+            >
+              <summary class="font-body text-caption cursor-pointer text-ink-muted hover:text-ink">
+                Add by coordinates
+              </summary>
+              <div class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-[2fr_1fr_1fr_auto]">
+                <label :class="[FIELD_LABEL_CLASS, 'col-span-2 sm:col-span-1']">
+                  Name
+                  <input
+                    v-model="newStopName"
+                    :class="FIELD_INPUT_CLASS"
+                    data-testid="stop-name"
+                    type="text"
+                  >
+                </label>
+                <label :class="FIELD_LABEL_CLASS">
+                  Lat
+                  <input
+                    v-model.number="newStopLat"
+                    :class="FIELD_INPUT_CLASS"
+                    data-testid="stop-lat"
+                    type="number"
+                    step="any"
+                  >
+                </label>
+                <label :class="FIELD_LABEL_CLASS">
+                  Lng
+                  <input
+                    v-model.number="newStopLng"
+                    :class="FIELD_INPUT_CLASS"
+                    data-testid="stop-lng"
+                    type="number"
+                    step="any"
+                  >
+                </label>
+                <button
+                  type="button"
+                  :class="[SECONDARY_BUTTON_CLASS, 'col-span-2 mt-2 sm:col-span-1 sm:mt-auto']"
+                  data-testid="add-stop"
+                  @click="handleAddStop"
                 >
-              </label>
-              <label :class="FIELD_LABEL_CLASS">
-                Lat
-                <input
-                  v-model.number="newStopLat"
-                  :class="FIELD_INPUT_CLASS"
-                  data-testid="stop-lat"
-                  type="number"
-                  step="any"
-                >
-              </label>
-              <label :class="FIELD_LABEL_CLASS">
-                Lng
-                <input
-                  v-model.number="newStopLng"
-                  :class="FIELD_INPUT_CLASS"
-                  data-testid="stop-lng"
-                  type="number"
-                  step="any"
-                >
-              </label>
-              <button
-                type="button"
-                :class="[SECONDARY_BUTTON_CLASS, 'col-span-2 mt-2 sm:col-span-1 sm:mt-auto']"
-                data-testid="add-stop"
-                @click="handleAddStop"
-              >
-                Add
-              </button>
-            </div>
+                  Add stop
+                </button>
+              </div>
+            </details>
+
+            <p
+              class="sr-only"
+              role="status"
+              data-testid="stop-announcement"
+            >
+              {{ stopAnnouncement }}
+            </p>
           </section>
 
           <section class="rounded-(--radius-box) border border-border bg-surface p-4">
@@ -778,13 +1018,15 @@ watch(createdSlug, (created) => {
             :isochrone-data="null"
             :routes="mapRoutes"
             :stations="[]"
-            :stop-preview-pairs="stopPreviewPairs"
+            :stop-preview-pairs="mapStopPairs"
             :placement-armed="placingStops"
             :placement-cue="STOP_PLACEMENT_CUE"
+            :center-on="mapCenter"
             hide-isochrone-legend
             @map-click="addStopAt"
             @stop-drag="handleStopDrag"
             @stop-drag-end="handleStopDragEnd"
+            @stop-hover="handleMapStopHover"
           />
         </div>
       </div>

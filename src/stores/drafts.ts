@@ -347,8 +347,7 @@ export const useDraftsStore = defineStore('drafts', () => {
     serviceDraft.value.stops = stops.map((s, i) => (i === index ? { ...s, ...patch } : s))
   }
 
-  // The reordering the order-fault check asks the user to do by hand, since
-  // map-drag reordering is out of scope.
+  // The keyboard way to reorder; dragging a row goes through reorderStops.
   function moveStop(index: number, direction: -1 | 1): void {
     if (!serviceDraft.value) return
     const stops = serviceDraft.value.stops
@@ -357,6 +356,19 @@ export const useDraftsStore = defineStore('drafts', () => {
     const next = [...stops]
     ;[next[index], next[target]] = [next[target], next[index]]
     serviceDraft.value.stops = renumber(next)
+  }
+
+  // Takes ids rather than positions, so an order worked out against one list —
+  // a preview that has not caught up, a drag that started before a removal —
+  // cannot reshuffle a different one. Anything that is not exactly a
+  // permutation of the current stops is refused whole.
+  function reorderStops(ids: readonly string[]): void {
+    if (!serviceDraft.value) return
+    const byId = new Map(serviceDraft.value.stops.map((stop) => [stop.id, stop]))
+    if (ids.length !== byId.size || new Set(ids).size !== ids.length) return
+    const reordered = ids.map((id) => byId.get(id))
+    if (reordered.some((stop) => !stop)) return
+    serviceDraft.value.stops = renumber(reordered as DraftStop[])
   }
 
   function addFrequencyWindow(window: FrequencyWindow): void {
@@ -433,6 +445,7 @@ export const useDraftsStore = defineStore('drafts', () => {
     removeStop,
     updateStop,
     moveStop,
+    reorderStops,
     addFrequencyWindow,
     removeFrequencyWindow,
     updateFrequencyWindow,
