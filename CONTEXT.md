@@ -18,6 +18,32 @@ local.
 > in in-function comments and the README. Do not reintroduce comments that only
 > repeat a declaration.
 
+## Product vocabulary
+
+Visitors and authors read product words; the code, URLs and API keep the
+domain's. Use the product word in anything a person reads on the site: headings,
+buttons, page titles, empty states, toasts, confirm dialogs, error messages. Use
+the domain word for identifiers, test ids, router names and API fields. Code is
+not renamed to match, and URLs are tidied separately (SPA-456).
+
+| Product word | Domain word | Where it appears |
+| --- | --- | --- |
+| **Line** | service | Everywhere a person reads about one stopping pattern: the cover page, a published line's page, authoring ("My lines", "+ New line", "Line name", "Delete line"), publication status, admin's published list, and errors and confirmations about one |
+| **Network** | scenario | A set of lines, curated or authored: the cover page, the network page, authoring ("My networks", "+ New network", "Network name"), the network builder's list of member lines, and errors and confirmations about one |
+| **Route** | route | The geometry a line runs along. Only authors see it: picking a route for a line, stops sitting on or off the route, the route page. Never use it for a line or a network, and never say *alignment* or *track* in copy |
+| **Splash zone** | isochrone | See [Splash zone](#splash-zone) |
+
+The words are kept apart because the API's two senses of *scenario* and
+*service* (its `CONTEXT.md`, "The one that catches everyone") are a code
+concern, and copy that mixed "route", "scenario" and "service" for the same thing
+asked visitors to learn them. When a domain word appears in copy, it is a bug in
+the copy, not in this table. Each noun maps to its word once, in
+`AUTHORING_NOUN_WORDS` (`src/api/authoringFault.ts`); copy built from an
+`AuthoringNoun` goes through that map rather than printing the noun.
+
+*Line* also names a drawn stroke on the route map ("The three states of a line",
+below). That is a word for developers about drawing, not copy.
+
 ## Splash zone
 
 The product-facing name for an isochrone — the area reachable from a point
@@ -42,7 +68,11 @@ where. Four words carry the whole layout.
 Three related row facts, all per-view:
 
 - **Flag** — the service a rider departs a row on. If they stay aboard what they
-  arrived on, that; otherwise the first onward branch.
+  arrived on, that; otherwise the first onward branch. On the starting location
+  it is the mode the plot asked for, except that a transit access leg Valhalla
+  walked the whole way (`access_rode_transit: false`) reads "Walk": when every
+  access line in the view walked, the flag does; when they disagree, the flag
+  stays the mode and each access line is prefixed with its own (SPA-336).
 - **Transfer from** — set only when they do *not* stay aboard, naming the
   service they arrived on. This is the frontend's own presentation of a change of
   train; there is no transfer edge in the graph it is reading.

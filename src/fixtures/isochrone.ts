@@ -20,6 +20,7 @@ export interface ReachableStation {
   board_slug?: string
   board_wait_secs?: number
   legs?: JourneyLeg[]
+  access_rode_transit?: boolean
 }
 
 export interface StarterWalk {

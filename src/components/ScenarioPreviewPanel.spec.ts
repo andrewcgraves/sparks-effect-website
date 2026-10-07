@@ -1,9 +1,19 @@
-import { describe, expect, it } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import ScenarioPreviewPanel from './ScenarioPreviewPanel.vue'
 import { formatTimeRemaining, remainingSecsBySlug, buildTimeRemainingGraph } from './timeRemaining'
 import type { ChainResponse } from '../fixtures/isochrone'
 import type { Station } from '../api/scenarios'
+
+vi.mock('../api/routingStatus', () => ({ fetchRoutingStatus: vi.fn() }))
+
+import { fetchRoutingStatus, type RoutingStatus } from '../api/routingStatus'
+
+enableAutoUnmount(afterEach)
+
+beforeEach(() => {
+  vi.mocked(fetchRoutingStatus).mockReset().mockResolvedValue('ok')
+})
 
 const defaultProps = {
   origin: null,
@@ -137,6 +147,46 @@ describe('ScenarioPreviewPanel', () => {
       await wrapper.findComponent({ name: 'TimeRemaining' }).vm.$emit('activate', 'sf')
 
       expect(wrapper.findComponent({ name: 'MapView' }).props('activeStation')).toBe('sf')
+    })
+  })
+
+  describe('when live routing is down', () => {
+    async function mountWithStatus(status: RoutingStatus) {
+      vi.mocked(fetchRoutingStatus).mockResolvedValue(status)
+      const wrapper = mount(ScenarioPreviewPanel, {
+        props: { ...defaultProps, initial: { lat: 37.7, lng: -122.4 } },
+        global: { stubs: { MapView: true } },
+      })
+      await flushPromises()
+      return wrapper
+    }
+
+    function plotButton(wrapper: Awaited<ReturnType<typeof mountWithStatus>>) {
+      return wrapper.find('button[type="submit"]').element as HTMLButtonElement
+    }
+
+    it('says so, and disables Plot with the reason, when routing is offline', async () => {
+      const wrapper = await mountWithStatus('offline')
+
+      const banner = wrapper.find('[data-testid="routing-status"]')
+      expect(banner.text()).toContain('Live routing is offline right now.')
+      expect(banner.text()).not.toContain('saved examples')
+      expect(plotButton(wrapper).disabled).toBe(true)
+      expect(wrapper.find('[data-testid="plot-reason"]').attributes('title')).toContain('offline')
+    })
+
+    it('warns that plotting may be slow, but still lets the visitor plot, when routing is degraded', async () => {
+      const wrapper = await mountWithStatus('degraded')
+
+      expect(wrapper.find('[data-testid="routing-status"]').text()).toContain('may be slow')
+      expect(plotButton(wrapper).disabled).toBe(false)
+    })
+
+    it('shows nothing extra when routing is ok', async () => {
+      const wrapper = await mountWithStatus('ok')
+
+      expect(wrapper.find('[data-testid="routing-status"]').exists()).toBe(false)
+      expect(plotButton(wrapper).disabled).toBe(false)
     })
   })
 })

@@ -15,7 +15,10 @@ building that ships.
 
 Every page's footer shows the short commit SHA the build was made from
 (`VERCEL_GIT_COMMIT_SHA`, or `dev` for a local build). Promotion doesn't
-rebuild, so production shows the same SHA its staging build did.
+rebuild, so production shows the same SHA its staging build did. The same goes
+for `vercel.json`'s headers: production serves the security headers and CSP
+that build carried on staging, so flipping the CSP to enforcing (README →
+Security headers) reaches production only through a tag.
 
 ## Releasing
 

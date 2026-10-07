@@ -19,6 +19,7 @@ export interface RowDetail {
 export interface AccessLeg {
   to: string
   secs: number
+  flag?: string
 }
 
 export interface TimeRemainingRow {
@@ -276,10 +277,11 @@ function viewMemberships(
 
 function buildView({ key, label, members }: ViewMembership, trip: Trip): TimeRemainingView {
   const held = new Set(members)
-  const access = accessLegsOf(key, members, trip)
+  const { flag, access } = accessLegsOf(key, members, trip)
   const rows: TimeRemainingRow[] = [
     {
       ...trip.originRow,
+      flag,
       detail: access.length ? { access } : {},
       lane: 0,
       through: [],
@@ -346,23 +348,49 @@ function buildOriginRow(metadata: ChainMetadata, context: TimeRemainingContext):
 // the starting location names only one of them: the station the map's starter
 // walk is drawn to, or failing that the quickest, which is how the worker picks
 // it.
-function accessLegsOf(viewKey: string, members: string[], trip: Trip): AccessLeg[] {
-  const bySource = new Map<string, number>()
+//
+// Valhalla answers a transit request it finds no service for by walking the
+// whole way, so a transit access leg may not have ridden anything. The worker
+// says which as access_rode_transit, and a leg that walked reads "Walk" rather
+// than the mode it was asked in (SPA-336). One flag cannot describe legs that
+// disagree, so then the flag stays the mode and each line says its own. A
+// result plotted before the field existed has none, and keeps the mode.
+function accessLegsOf(
+  viewKey: string,
+  members: string[],
+  trip: Trip,
+): { flag: string | null; access: AccessLeg[] } {
+  const bySource = new Map<string, { secs: number; walked: boolean }>()
   for (const slug of members) {
     const station = trip.bySlug.get(slug)!
     const source = station.legs?.[0]?.from ?? slug
-    if (!bySource.has(source)) bySource.set(source, accessSecsOf(station))
+    if (!bySource.has(source)) {
+      bySource.set(source, { secs: accessSecsOf(station), walked: station.access_rode_transit === false })
+    }
   }
   const sources = [...bySource]
-    .sort(([a, aSecs], [b, bSecs]) => aSecs - bSecs || a.localeCompare(b))
+    .sort(([a, { secs: aSecs }], [b, { secs: bSecs }]) => aSecs - bSecs || a.localeCompare(b))
     .map(([source]) => source)
-  const named =
+  const named = (
     viewKey !== ACCESS_VIEW_KEY
       ? sources
       : [trip.starterSlug && bySource.has(trip.starterSlug) ? trip.starterSlug : sources[0]]
-  return named
-    .filter((source) => source !== undefined)
-    .map((source) => ({ to: trip.context.stationName(source), secs: bySource.get(source)! }))
+  ).filter((source) => source !== undefined)
+
+  const modeFlag = trip.originRow.flag
+  const walkedCount = named.filter((source) => bySource.get(source)!.walked).length
+  const allWalked = walkedCount > 0 && walkedCount === named.length
+  const mixed = walkedCount > 0 && !allWalked
+
+  return {
+    flag: allWalked ? MODE_LABELS.walk : modeFlag,
+    access: named.map((source) => {
+      const { secs, walked } = bySource.get(source)!
+      const leg: AccessLeg = { to: trip.context.stationName(source), secs }
+      if (mixed) leg.flag = walked ? MODE_LABELS.walk : (modeFlag ?? undefined)
+      return leg
+    }),
+  }
 }
 
 function buildStationRow(

@@ -5,6 +5,7 @@ import { fetchMyServices } from '../api/authoring/services'
 import type { Scenario } from '../api/authoring/types'
 import { useOwnedDetail } from '../composables/useOwnedDetail'
 import { useOwnedList } from '../composables/useOwnedList'
+import { isochroneWaitMessage } from '../api/isochroneFault'
 import { useAuthoredGraph } from '../composables/useAuthoredGraph'
 import { usePageTitle } from '../composables/usePageTitle'
 import { useScenarioDeletion } from '../composables/useDeletion'
@@ -32,6 +33,7 @@ const {
   origin,
   isochroneData,
   isochroneError,
+  isochroneProgress,
   isochroneFormLoading,
   nearMisses,
   realisedClusters,
@@ -61,11 +63,11 @@ watch(scenario, (loaded) => {
 
 <template>
   <main class="flex-1 p-(--page-padding)">
-    <BreadcrumbTrail :items="[AUTHORING_CRUMB, { label: scenario?.name ?? 'Scenario' }]" />
+    <BreadcrumbTrail :items="[AUTHORING_CRUMB, { label: scenario?.name ?? 'Network' }]" />
 
     <PageSkeleton
       v-if="loading"
-      label="Loading scenario"
+      label="Loading network"
       subtitle
       :cards="1"
       class="mt-8"
@@ -74,13 +76,13 @@ watch(scenario, (loaded) => {
 
     <template v-else-if="notFound">
       <h1 class="font-display text-display mt-8 text-ink-true">
-        Scenario not found
+        Network not found
       </h1>
       <p
         class="font-body text-body mt-3 text-ink-muted"
         data-testid="scenario-not-found"
       >
-        No scenario of yours matches "{{ props.slug }}".
+        No network of yours matches "{{ props.slug }}".
       </p>
     </template>
 
@@ -93,7 +95,7 @@ watch(scenario, (loaded) => {
         role="alert"
         data-testid="scenario-error"
       >
-        Failed to load this scenario. Please try again.
+        Failed to load this network. Please try again.
       </p>
     </template>
 
@@ -134,7 +136,7 @@ watch(scenario, (loaded) => {
         class="font-body text-caption mt-8 text-ink-muted italic"
         data-testid="compiling-status"
       >
-        Compiling this scenario…
+        Compiling this network…
       </p>
       <p
         v-else-if="graphFailed"
@@ -142,7 +144,7 @@ watch(scenario, (loaded) => {
         role="alert"
         data-testid="graph-error"
       >
-        Couldn't load this scenario's compiled graph.
+        Couldn't load this network's compiled graph.
       </p>
       
       <p
@@ -159,13 +161,14 @@ watch(scenario, (loaded) => {
         :origin="origin"
         :isochrone-data="isochroneData"
         :loading="isochroneFormLoading"
+        :loading-message="isochroneWaitMessage(isochroneProgress)"
         :error="isochroneError || compileError || null"
         :near-misses="nearMisses"
         :realised-clusters="realisedClusters"
         :services="services"
         :map-stations="mapStations"
         :map-routes="mapRoutes"
-        :status-note="compiling ? 'A member service changed — recompiling…' : null"
+        :status-note="compiling ? 'A member line changed — recompiling…' : null"
         @submit="handleIsochroneSubmit"
         @origin-change="onOriginChange"
       />

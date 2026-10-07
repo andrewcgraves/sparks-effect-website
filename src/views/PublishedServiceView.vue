@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { fetchPublicationIsochrone, fetchServicePublication } from '../api/publications'
+import { isochroneWaitMessage } from '../api/isochroneFault'
 import { useAuthoredGraph } from '../composables/useAuthoredGraph'
 import { usePageTitle } from '../composables/usePageTitle'
 import AllLinesLink from '../components/AllLinesLink.vue'
@@ -26,6 +27,7 @@ const {
   origin,
   isochroneData,
   isochroneError,
+  isochroneProgress,
   isochroneFormLoading,
   nearMisses,
   realisedClusters,
@@ -80,20 +82,20 @@ void loadGraph(props.slug)
 
     <PageSkeleton
       v-if="loading"
-      label="Loading service"
+      label="Loading line"
       :cards="2"
       data-testid="service-loading"
     />
 
     <template v-else-if="graphNotFound">
       <h1 class="font-display text-display text-ink-true">
-        Service not found
+        Line not found
       </h1>
       <p
         class="font-body text-body mt-3 text-ink-muted"
         data-testid="service-not-found"
       >
-        No published service lives at "{{ props.slug }}".
+        No published line lives at "{{ props.slug }}".
       </p>
     </template>
 
@@ -106,7 +108,7 @@ void loadGraph(props.slug)
         role="alert"
         data-testid="service-error"
       >
-        Failed to load this service. Please try again.
+        Failed to load this line. Please try again.
       </p>
     </template>
 
@@ -128,6 +130,7 @@ void loadGraph(props.slug)
         :origin="origin"
         :isochrone-data="isochroneData"
         :loading="isochroneFormLoading"
+        :loading-message="isochroneWaitMessage(isochroneProgress)"
         :error="isochroneError"
         :near-misses="nearMisses"
         :realised-clusters="realisedClusters"

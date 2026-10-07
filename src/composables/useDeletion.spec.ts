@@ -41,9 +41,9 @@ describe('serviceDeletionBody', () => {
 
   it('counts the scenarios it will be removed from', () => {
     expect(serviceDeletionBody({ scenarioCount: 1, published: false }))
-      .toBe("Its compile history goes too, and it will be removed from 1 scenario. This can't be undone.")
+      .toBe("Its compile history goes too, and it will be removed from 1 network. This can't be undone.")
     expect(serviceDeletionBody({ scenarioCount: 2, published: false }))
-      .toBe("Its compile history goes too, and it will be removed from 2 scenarios. This can't be undone.")
+      .toBe("Its compile history goes too, and it will be removed from 2 networks. This can't be undone.")
   })
 
   it('warns that a published service takes its public page with it', () => {
@@ -53,7 +53,7 @@ describe('serviceDeletionBody', () => {
 
   it('still warns, conditionally, when neither count nor publication could be checked', () => {
     expect(serviceDeletionBody({ scenarioCount: null, published: null })).toBe(
-      "Its compile history goes too, and it will be removed from any scenario it's in. "
+      "Its compile history goes too, and it will be removed from any network it's in. "
       + "If it's published, its public page will stop working. This can't be undone.",
     )
   })
@@ -88,8 +88,8 @@ describe('useServiceDeletion', () => {
     await vi.waitFor(() => expect(pending.value).not.toBeNull())
     expect(pending.value).toMatchObject({
       title: "Delete 'Coast Express'?",
-      body: "Its compile history goes too, and it will be removed from 2 scenarios. This can't be undone.",
-      confirmLabel: 'Delete service',
+      body: "Its compile history goes too, and it will be removed from 2 networks. This can't be undone.",
+      confirmLabel: 'Delete line',
       destructive: true,
     })
   })
@@ -177,8 +177,8 @@ describe('useScenarioDeletion', () => {
     await vi.waitFor(() => expect(pending.value).not.toBeNull())
     expect(pending.value).toMatchObject({
       title: "Delete 'CA HSR'?",
-      body: "Its compiled graph goes too. Its services aren't deleted. This can't be undone.",
-      confirmLabel: 'Delete scenario',
+      body: "Its compiled graph goes too. Its lines aren't deleted. This can't be undone.",
+      confirmLabel: 'Delete network',
       destructive: true,
     })
   })

@@ -261,29 +261,29 @@ describe('router', () => {
       await router.push('/authoring')
       expect(document.title).toBe('My authoring · Sparks Effect')
       await router.push('/authoring/services/new')
-      expect(document.title).toBe('New service · Sparks Effect')
+      expect(document.title).toBe('New line · Sparks Effect')
       await router.push('/authoring/scenarios/new')
-      expect(document.title).toBe('New scenario · Sparks Effect')
+      expect(document.title).toBe('New network · Sparks Effect')
     })
 
     it('tells an owner\'s draft apart from its public page before either loads', async () => {
       useAuthStore().signIn('tok-1', { id: 'u1', email: 'a@example.com' })
       await router.push('/authoring/services/northbound-express')
-      expect(document.title).toBe('My service · Sparks Effect')
+      expect(document.title).toBe('My line · Sparks Effect')
       await router.push('/services/northbound-express')
-      expect(document.title).toBe('Service · Sparks Effect')
+      expect(document.title).toBe('Line · Sparks Effect')
       await router.push('/authoring/scenarios/ca-hsr')
-      expect(document.title).toBe('My scenario · Sparks Effect')
+      expect(document.title).toBe('My network · Sparks Effect')
       await router.push('/scenario/ca-hsr')
-      expect(document.title).toBe('Scenario · Sparks Effect')
+      expect(document.title).toBe('Network · Sparks Effect')
     })
 
     it('names an edit page by what it edits before the draft loads', async () => {
       useAuthStore().signIn('tok-1', { id: 'u1', email: 'a@example.com' })
       await router.push('/authoring/services/northbound-express/edit')
-      expect(document.title).toBe('Edit service · Sparks Effect')
+      expect(document.title).toBe('Edit line · Sparks Effect')
       await router.push('/authoring/scenarios/ca-hsr/edit')
-      expect(document.title).toBe('Edit scenario · Sparks Effect')
+      expect(document.title).toBe('Edit network · Sparks Effect')
     })
 
     it('names an unmatched path as not found', async () => {
@@ -296,6 +296,19 @@ describe('router', () => {
       document.title = 'California HSR · Sparks Effect'
       await router.replace({ query: { at: '37.3,-121.8', mode: 'walk', mins: '60' } })
       expect(document.title).toBe('California HSR · Sparks Effect')
+    })
+
+    it('drops one public page\'s own title on navigating to the next, and back to /', async () => {
+      await router.push('/scenario/ca-hsr')
+      document.title = 'California HSR · Sparks Effect'
+      await router.push('/services/northbound-express')
+      expect(document.title).toBe('Line · Sparks Effect')
+      document.title = 'Northbound Express · Sparks Effect'
+      await router.push('/routes/main-line')
+      expect(document.title).toBe('Route · Sparks Effect')
+      document.title = 'Main Line · Sparks Effect'
+      await router.push('/')
+      expect(document.title).toBe('Sparks Effect')
     })
 
     it('restores the bare site name on returning to /', async () => {

@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ApiError, isSessionExpiry } from '../api/authoring/client'
-import { authoringFault, type AuthoringNoun } from '../api/authoringFault'
+import { AUTHORING_NOUN_WORDS, authoringFault, type AuthoringNoun } from '../api/authoringFault'
 import { deleteService } from '../api/authoring/services'
 import { deleteScenario, fetchMyScenarios } from '../api/authoring/scenarios'
 import { fetchServicePublication } from '../api/publications'
@@ -23,12 +23,12 @@ const NO_UNDO = "This can't be undone."
 
 // A lookup that failed reads as null, and the sentence hedges rather than
 // dropping the warning: the author should still hear that a public page or a
-// scenario may be at stake.
+// network may be at stake.
 export function serviceDeletionBody({ scenarioCount, published }: ServiceDeletionCost): string {
   let history = 'Its compile history goes too'
-  if (scenarioCount === null) history += ", and it will be removed from any scenario it's in"
+  if (scenarioCount === null) history += ", and it will be removed from any network it's in"
   else if (scenarioCount > 0) {
-    history += `, and it will be removed from ${scenarioCount} ${scenarioCount === 1 ? 'scenario' : 'scenarios'}`
+    history += `, and it will be removed from ${scenarioCount} ${scenarioCount === 1 ? 'network' : 'networks'}`
   }
   const sentences = [`${history}.`]
   if (published === true) sentences.push('Its public page will stop working.')
@@ -72,7 +72,7 @@ function useDeletion(
       const confirmed = await confirm({
         title: `Delete '${target.name}'?`,
         body: await confirmBody(target),
-        confirmLabel: `Delete ${noun}`,
+        confirmLabel: `Delete ${AUTHORING_NOUN_WORDS[noun]}`,
         cancelLabel: 'Keep it',
         destructive: true,
       })
@@ -103,7 +103,7 @@ export function useServiceDeletion() {
 export function useScenarioDeletion() {
   return useDeletion(
     'scenario',
-    async () => `Its compiled graph goes too. Its services aren't deleted. ${NO_UNDO}`,
+    async () => `Its compiled graph goes too. Its lines aren't deleted. ${NO_UNDO}`,
     deleteScenario,
   )
 }

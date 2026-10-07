@@ -7,6 +7,8 @@ import { ApiError } from '../api/authoring/client'
 import type { ServicePublication } from '../api/publications'
 import type { ChainResponse } from '../fixtures/isochrone'
 
+vi.mock('../api/routingStatus', () => ({ fetchRoutingStatus: vi.fn().mockResolvedValue('ok') }))
+
 vi.mock('../api/publications', () => ({
   fetchServicePublication: vi.fn(),
   fetchPublicationIsochrone: vi.fn(),
@@ -19,8 +21,8 @@ vi.mock('../api/authoring/services', () => ({
 }))
 vi.mock('../components/MapView.vue', () => ({
   default: {
-    props: ['origin', 'isochroneData', 'loading', 'routes', 'stations'],
-    template: '<div data-testid="map" :data-stations="stations.length" :data-routes="routes.length" />',
+    props: ['origin', 'isochroneData', 'loading', 'loadingMessage', 'routes', 'stations'],
+    template: '<div data-testid="map" :data-stations="stations.length" :data-routes="routes.length" :data-loading-message="loadingMessage" />',
   },
 }))
 
@@ -184,6 +186,21 @@ describe('PublishedServiceView', () => {
     expect(rows[0].findAll('td').map((td) => td.text())).toEqual(['Union', 'Midtown', '1:00'])
   })
 
+  // SPA-467: a visitor waiting on a queued plot is told where they stand.
+  it('tells a waiting visitor how many plots are ahead of theirs', async () => {
+    vi.mocked(fetchPublicationIsochrone).mockImplementation((_slug, _request, onProgress) => {
+      onProgress?.({ status: 'queued', queue_position: 2 })
+      return new Promise(() => {})
+    })
+    const wrapper = mountView()
+    await flushPromises()
+
+    wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('submit', submit)
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="map"]').attributes('data-loading-message')).toBe('Waiting — 2 ahead of you')
+  })
+
   it('plots over the publication and draws the time-remaining graph', async () => {
     const wrapper = mountView()
     await flushPromises()
@@ -193,7 +210,7 @@ describe('PublishedServiceView', () => {
 
     expect(fetchPublicationIsochrone).toHaveBeenCalledWith('northbound-express', {
       lat: 37.7, lng: -122.4, budget_mins: 30, mode: 'walk',
-    })
+    }, expect.any(Function))
     expect(fetchServiceIsochrone).not.toHaveBeenCalled()
     const graph = wrapper.findComponent({ name: 'TimeRemaining' })
     expect(graph.exists()).toBe(true)
@@ -266,7 +283,7 @@ describe('PublishedServiceView', () => {
       expect(fetchPublicationIsochrone).toHaveBeenCalledTimes(1)
       expect(fetchPublicationIsochrone).toHaveBeenCalledWith('northbound-express', {
         lat: 37.7, lng: -122.4, budget_mins: 75, mode: 'bike',
-      })
+      }, expect.any(Function))
       expect((wrapper.get('input[data-testid="mode-bike"]').element as HTMLInputElement).checked).toBe(true)
       expect(wrapper.findComponent({ name: 'TimeRemaining' }).exists()).toBe(true)
       expect(wrapper.find('[data-testid="copy-link"]').exists()).toBe(true)

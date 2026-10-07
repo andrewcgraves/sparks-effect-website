@@ -5,6 +5,7 @@ import { ApiError, SessionExpiredError } from '../api/authoring/client'
 import type { AuthoredIsochroneRequest, Job, TransitGraph } from '../api/authoring'
 import type { ChainResponse } from '../fixtures/isochrone'
 import { JobFailedError } from '../api/polling'
+import type { IsochroneProgress } from '../api/routingJobs'
 import { useAuthoredGraph } from './useAuthoredGraph'
 
 vi.mock('../analytics/index', () => ({
@@ -36,7 +37,11 @@ const stale = () => new ApiError('stale', 409, 'stale_graph')
 
 let compile: Mock<(slug: string, init?: RequestInit) => Promise<Job>>
 let fetchGraph: Mock<(slug: string) => Promise<TransitGraph>>
-let isochrone: Mock<(slug: string, request: AuthoredIsochroneRequest) => Promise<ChainResponse>>
+let isochrone: Mock<(
+  slug: string,
+  request: AuthoredIsochroneRequest,
+  onProgress?: (progress: IsochroneProgress) => void,
+) => Promise<ChainResponse>>
 
 function subject(getSlug: () => string | null = () => 'ca-hsr') {
   return useAuthoredGraph(getSlug, { compile, fetchGraph, isochrone })
@@ -180,7 +185,7 @@ describe('useAuthoredGraph', () => {
 
       await triggerCompile('ca-hsr')
 
-      expect(compileError.value).toBe("This service couldn't be compiled. Check its stops and timetable, then try again.")
+      expect(compileError.value).toBe("This line couldn't be compiled. Check its stops and timetable, then try again.")
       expect(graph.value).toBeNull()
     })
 
@@ -197,7 +202,7 @@ describe('useAuthoredGraph', () => {
       await triggerCompile('ca-hsr')
 
       expect(compileError.value).toBe(
-        "This scenario couldn't be compiled. Check its services and interchanges, then try again.",
+        "This network couldn't be compiled. Check its lines and interchanges, then try again.",
       )
     })
 
@@ -210,7 +215,7 @@ describe('useAuthoredGraph', () => {
       await triggerCompile('ca-hsr')
 
       expect(compile).toHaveBeenCalledTimes(1)
-      expect(compileError.value).toBe('This service changed since it was last compiled. Compile it again, then retry.')
+      expect(compileError.value).toBe('This line changed since it was last compiled. Compile it again, then retry.')
     })
 
     it('reports the form as loading while a compile is in flight', async () => {
@@ -233,7 +238,7 @@ describe('useAuthoredGraph', () => {
 
       expect(isochrone).toHaveBeenCalledWith('ca-hsr', {
         lat: 37.7, lng: -122.4, budget_mins: 30, mode: 'walk',
-      })
+      }, expect.any(Function))
       expect(isochroneData.value).toEqual(chain)
       expect(origin.value).toEqual({ lat: 37.7, lng: -122.4 })
     })
@@ -244,7 +249,7 @@ describe('useAuthoredGraph', () => {
 
       await handleIsochroneSubmit({ ...payload, mode: 'transit' })
 
-      expect(isochrone).toHaveBeenCalledWith('ca-hsr', expect.objectContaining({ mode: 'transit' }))
+      expect(isochrone).toHaveBeenCalledWith('ca-hsr', expect.objectContaining({ mode: 'transit' }), expect.any(Function))
     })
 
     it('plots against whichever endpoints it was handed', async () => {
@@ -253,7 +258,7 @@ describe('useAuthoredGraph', () => {
 
       await handleIsochroneSubmit(payload)
 
-      expect(isochrone).toHaveBeenCalledWith('northbound-express', expect.anything())
+      expect(isochrone).toHaveBeenCalledWith('northbound-express', expect.anything(), expect.any(Function))
     })
 
     it('does nothing without a slug', async () => {
@@ -582,6 +587,77 @@ describe('useAuthoredGraph', () => {
 
       expect(isochroneData.value).toBeNull()
       expect(isochroneLoading.value).toBe(false)
+    })
+  })
+
+  // SPA-467: the overlay tells the visitor where they are in the queue, for
+  // every target this plots against — published, authored service, authored
+  // scenario — and only the current plot's polls get to say it.
+  describe('isochrone progress', () => {
+    const pending = () => new Promise<ChainResponse>(() => {})
+
+    it('starts at null, meaning no poll has answered yet', () => {
+      expect(subject().isochroneProgress.value).toBeNull()
+    })
+
+    it('holds the latest poll of the plot in flight', async () => {
+      isochrone.mockImplementationOnce((_slug, _request, onProgress) => {
+        onProgress?.({ status: 'queued', queue_position: 2 })
+        onProgress?.({ status: 'running' })
+        return pending()
+      })
+      const { handleIsochroneSubmit, isochroneProgress } = subject()
+
+      void handleIsochroneSubmit(payload)
+      await flushPromises()
+
+      expect(isochroneProgress.value).toEqual({ status: 'running' })
+    })
+
+    it('ignores polls from a plot already resubmitted', async () => {
+      let reportOlder: ((progress: IsochroneProgress) => void) | undefined
+      isochrone
+        .mockImplementationOnce((_slug, _request, onProgress) => {
+          reportOlder = onProgress
+          return pending()
+        })
+        .mockImplementationOnce(() => pending())
+      const { handleIsochroneSubmit, isochroneProgress } = subject()
+
+      void handleIsochroneSubmit(payload)
+      void handleIsochroneSubmit({ ...payload, mode: 'bike' })
+      await flushPromises()
+      reportOlder?.({ status: 'running' })
+
+      expect(isochroneProgress.value).toBeNull()
+    })
+
+    // The last poll of a finished plot says succeeded; left standing, it would
+    // word a later compile's wait as a plot.
+    it('clears once the plot it describes has ended', async () => {
+      isochrone.mockImplementationOnce(async (_slug, _request, onProgress) => {
+        onProgress?.({ status: 'succeeded' })
+        return chain
+      })
+      const { handleIsochroneSubmit, isochroneProgress } = subject()
+
+      await handleIsochroneSubmit(payload)
+
+      expect(isochroneProgress.value).toBeNull()
+    })
+
+    it('is cleared by reset', async () => {
+      isochrone.mockImplementationOnce((_slug, _request, onProgress) => {
+        onProgress?.({ status: 'queued', queue_position: 0 })
+        return pending()
+      })
+      const { handleIsochroneSubmit, reset, isochroneProgress } = subject()
+
+      void handleIsochroneSubmit(payload)
+      await flushPromises()
+      reset()
+
+      expect(isochroneProgress.value).toBeNull()
     })
   })
 

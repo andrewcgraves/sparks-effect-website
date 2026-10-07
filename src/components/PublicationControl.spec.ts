@@ -145,7 +145,7 @@ describe('PublicationControl', () => {
       await flushPromises()
       expect(wrapper.get('[data-testid="publication"]').attributes('data-state')).toBe('current')
       expect(wrapper.get('time').attributes('datetime')).toBe(PUBLISHED_AT)
-      expect(wrapper.get('[data-testid="publication-status"]').text()).toContain('Visitors see this service as it is now')
+      expect(wrapper.get('[data-testid="publication-status"]').text()).toContain('Visitors see this line as it is now')
       const link = wrapper.get('[data-testid="public-url"]')
       expect(link.attributes('href')).toBe('/services/northbound-express')
       expect(link.text()).toBe(`${window.location.origin}/services/northbound-express`)

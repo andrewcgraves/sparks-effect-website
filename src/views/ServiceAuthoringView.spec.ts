@@ -81,6 +81,20 @@ async function addStop(wrapper: ReturnType<typeof mountView>, name: string, lat:
   await wrapper.find('[data-testid="add-stop"]').trigger('click')
 }
 
+function saveStatus(wrapper: ReturnType<typeof mountView>): string {
+  return wrapper.get('[data-testid="save-bar"] [data-testid="save-status"]').text()
+}
+
+function formLocked(wrapper: ReturnType<typeof mountView>): boolean {
+  return (wrapper.get('[data-testid="form-body"]').element as HTMLFieldSetElement).disabled
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((r) => { resolve = r })
+  return { promise, resolve }
+}
+
 function stopRowName(row: DOMWrapper<Element>): string {
   return (row.find('input[type="text"]').element as HTMLInputElement).value
 }
@@ -447,9 +461,46 @@ describe('ServiceAuthoringView', () => {
       )
       expect(flaggedRows(wrapper)).toEqual([])
       expect(wrapper.find('[data-testid="submit-error"]').text()).toBe(
-        "Some of this service's details weren't accepted. Check them and try again.",
+        "Some of this line's details weren't accepted. Check them and try again.",
       )
     })
+  })
+
+  it('asks what the service is called before where it runs, how it runs, and what it is for', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.findAll('form h2').map((h) => h.text())).toEqual([
+      'Identity',
+      'Route & stops',
+      'Operations',
+      'Description optional',
+    ])
+    expect(wrapper.findAll('form h3').map((h) => h.text())).toEqual(['Vehicle', 'Frequency windows'])
+    const inputs = wrapper.findAll('form input')
+    expect(inputs[0].attributes('data-testid')).toBe('service-name')
+    expect(inputs[1].attributes('data-testid')).toBe('service-subtext')
+  })
+
+  it('ends the form column with a sticky save bar, and offers no discard on a create', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    const bar = wrapper.get('[data-testid="save-bar"]')
+    expect(bar.classes()).toEqual(expect.arrayContaining(['sticky', 'bottom-0']))
+    expect(bar.element.parentElement?.lastElementChild).toBe(bar.element)
+    expect(bar.find('[data-testid="submit"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="discard-edit"]').exists()).toBe(false)
+  })
+
+  it('reads "Nothing here yet" on a fresh create, and "Not created yet" once it is started', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    expect(saveStatus(wrapper)).toBe('Nothing here yet')
+
+    await wrapper.find('[data-testid="service-name"]').setValue('Northbound Express')
+
+    expect(saveStatus(wrapper)).toBe('Not created yet · Draft kept in this browser')
   })
 
   it('disables submit until a route, two stops, name, and a frequency window are set', async () => {
@@ -503,7 +554,7 @@ describe('ServiceAuthoringView', () => {
 
       expect(breadcrumbTrail(wrapper)).toEqual([
         ['My authoring', '/authoring'],
-        ['New service', null],
+        ['New line', null],
       ])
     })
 
@@ -516,6 +567,35 @@ describe('ServiceAuthoringView', () => {
       expect(createService).toHaveBeenCalledWith(expect.objectContaining({ route_slug: 'main-line', name: 'Northbound Express' }))
       expect(compileService).not.toHaveBeenCalled()
       expect(router.currentRoute.value.path).toBe('/authoring/services/northbound-express')
+    })
+
+    it('locks the form while creating, then says so and leaves, with no interstitial', async () => {
+      const creating = deferred<Service>()
+      vi.mocked(createService).mockReturnValue(creating.promise)
+      const { wrapper, router } = await mountNew()
+
+      await wrapper.find('form').trigger('submit')
+      await flushPromises()
+      expect(saveStatus(wrapper)).toBe('Creating…')
+      expect(formLocked(wrapper)).toBe(true)
+
+      creating.resolve(stubService)
+      await flushPromises()
+      expect(hosts.toasts()).toEqual(['Line created'])
+      expect(router.currentRoute.value.path).toBe('/authoring/services/northbound-express')
+      expect(wrapper.find('[data-testid="compiling-status"]').exists()).toBe(false)
+    })
+
+    it('reads "Couldn\'t save" and unlocks the form when the create is refused', async () => {
+      vi.mocked(createService).mockRejectedValue(new ApiError('nope', 500))
+      const { wrapper } = await mountNew()
+
+      await wrapper.find('form').trigger('submit')
+      await flushPromises()
+
+      expect(saveStatus(wrapper)).toBe("Couldn't save · Your draft is still kept in this browser")
+      expect(wrapper.get('[data-testid="save-bar"] [data-testid="submit-error"]').attributes('role')).toBe('alert')
+      expect(formLocked(wrapper)).toBe(false)
     })
 
     it('replaces the form in history, so going back does not reopen it', async () => {
@@ -560,7 +640,7 @@ describe('ServiceAuthoringView', () => {
 
       expect(router.currentRoute.value.path).toBe('/authoring/services/new')
       expect(wrapper.find('[data-testid="submit-error"]').text()).toBe(
-        'Stop "B" is too far from the route. Move it onto the line and save again.',
+        'Stop "B" is too far from the route. Move it onto the route and save again.',
       )
       expect(wrapper.findAll('[data-testid="stop-row"]').map(stopRowName)).toEqual(['A', 'B'])
       expect(wrapper.find('[data-testid="service-name"]').element).toHaveProperty('value', 'Northbound Express')
@@ -597,7 +677,7 @@ describe('ServiceAuthoringView', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-testid="submit-error"]').text()).toBe(
-      "Some of this service's details weren't accepted. Check them and try again.",
+      "Some of this line's details weren't accepted. Check them and try again.",
     )
     expect(compileService).not.toHaveBeenCalled()
   })
@@ -906,7 +986,7 @@ describe('ServiceAuthoringView', () => {
     it('arrives with the service\'s stops, vehicle, windows and prose filled in', async () => {
       const { wrapper } = await mountEdit()
 
-      expect(wrapper.find('h1').text()).toBe('Edit service')
+      expect(wrapper.find('h1').text()).toBe('Edit line')
       expect(fieldValue(wrapper, 'route-select')).toBe('main-line')
       expect(fieldValue(wrapper, 'service-name')).toBe('Northbound Express')
       expect(fieldValue(wrapper, 'service-subtext')).toBe('Electrified · High-speed rail')
@@ -949,6 +1029,7 @@ describe('ServiceAuthoringView', () => {
       await wrapper.find('form').trigger('submit')
       await flushPromises()
 
+      expect(hosts.toasts()).toEqual(['Changes saved'])
       expect(updateService).toHaveBeenCalledWith('northbound-express', expect.objectContaining({
         name: 'Northbound Express',
         description: 'Runs the whole spine.',
@@ -961,13 +1042,107 @@ describe('ServiceAuthoringView', () => {
     it('stays put and offers the way back when the recompile fails', async () => {
       vi.mocked(compileService).mockRejectedValue(new Error('compile exploded'))
       const { wrapper, router } = await mountEdit()
+      await wrapper.find('[data-testid="service-description"]').setValue('Runs the whole spine.')
 
       await wrapper.find('form').trigger('submit')
       await flushPromises()
 
-      expect(wrapper.find('[data-testid="compile-error"]').text()).toBe('Something went wrong. Please try again.')
-      expect(wrapper.find('[data-testid="view-service"]').attributes('href')).toBe('/authoring/services/northbound-express')
+      const bar = wrapper.get('[data-testid="save-bar"]')
+      expect(bar.get('[data-testid="compile-error"]').text()).toBe('Saved, but compiling failed: Something went wrong. Please try again.')
+      expect(bar.get('[data-testid="view-service"]').attributes('href')).toBe('/authoring/services/northbound-express')
       expect(router.currentRoute.value.name).toBe('edit-service')
+      expect(fieldValue(wrapper, 'service-description')).toBe('Runs the whole spine.')
+      expect(formLocked(wrapper)).toBe(false)
+      expect(hosts.toasts()).toEqual([])
+    })
+
+    it('reads "No changes" with Save disabled until a field changes, and again once it is changed back', async () => {
+      const { wrapper } = await mountEdit()
+      expect(saveStatus(wrapper)).toBe('No changes')
+      expect(wrapper.get('[data-testid="submit"]').attributes('disabled')).toBeDefined()
+
+      await wrapper.find('[data-testid="service-name"]').setValue('Southbound Express')
+      expect(saveStatus(wrapper)).toBe('Unsaved changes · Draft kept in this browser')
+      expect(wrapper.get('[data-testid="submit"]').attributes('disabled')).toBeUndefined()
+
+      await wrapper.find('[data-testid="service-name"]').setValue('Northbound Express')
+      expect(saveStatus(wrapper)).toBe('No changes')
+      expect(wrapper.get('[data-testid="submit"]').attributes('disabled')).toBeDefined()
+    })
+
+    it('locks the form through "Saving…" and then "Compiling…"', async () => {
+      const saving = deferred<Service>()
+      vi.mocked(updateService).mockReturnValue(saving.promise)
+      vi.mocked(compileService).mockReturnValue(new Promise(() => {}))
+      const { wrapper, router } = await mountEdit()
+      await wrapper.find('[data-testid="service-name"]').setValue('Southbound Express')
+
+      await wrapper.find('form').trigger('submit')
+      await flushPromises()
+      expect(saveStatus(wrapper)).toBe('Saving…')
+      expect(formLocked(wrapper)).toBe(true)
+      expect(wrapper.get('[data-testid="discard-edit"]').attributes('disabled')).toBeDefined()
+
+      saving.resolve(savedService)
+      await flushPromises()
+      expect(saveStatus(wrapper)).toBe('Compiling…')
+      expect(formLocked(wrapper)).toBe(true)
+      expect(fieldValue(wrapper, 'service-name')).toBe('Southbound Express')
+      expect(router.currentRoute.value.name).toBe('edit-service')
+    })
+
+    it('reads "Couldn\'t save" and keeps the changes when the save is refused', async () => {
+      vi.mocked(updateService).mockRejectedValue(new ApiError('nope', 500))
+      const { wrapper } = await mountEdit()
+      await wrapper.find('[data-testid="service-name"]').setValue('Southbound Express')
+
+      await wrapper.find('form').trigger('submit')
+      await flushPromises()
+
+      expect(saveStatus(wrapper)).toBe("Couldn't save · Your draft is still kept in this browser")
+      expect(fieldValue(wrapper, 'service-name')).toBe('Southbound Express')
+      expect(formLocked(wrapper)).toBe(false)
+    })
+
+    it('asks before discarding changes, and backing out keeps them', async () => {
+      const { wrapper, router } = await mountEdit()
+      await wrapper.find('[data-testid="service-name"]').setValue('Southbound Express')
+
+      await wrapper.find('[data-testid="discard-edit"]').trigger('click')
+      await flushPromises()
+      expect(hosts.dialogOpen()).toBe(true)
+      expect(hosts.dialog().text()).toContain('Discard your changes?')
+      expect(hosts.confirmButton().text()).toBe('Discard changes')
+      expect(hosts.cancelButton().text()).toBe('Keep editing')
+
+      await hosts.cancelButton().trigger('click')
+      await flushPromises()
+      expect(router.currentRoute.value.name).toBe('edit-service')
+      expect(fieldValue(wrapper, 'service-name')).toBe('Southbound Express')
+      expect(useDraftsStore().serviceDraft?.name).toBe('Southbound Express')
+    })
+
+    it('discards changes once confirmed and returns to the service', async () => {
+      const { wrapper, router } = await mountEdit()
+      await wrapper.find('[data-testid="service-name"]').setValue('Southbound Express')
+
+      await wrapper.find('[data-testid="discard-edit"]').trigger('click')
+      await flushPromises()
+      await hosts.confirmButton().trigger('click')
+      await flushPromises()
+
+      expect(router.currentRoute.value.path).toBe('/authoring/services/northbound-express')
+      expect(useDraftsStore().hasServiceDraft).toBe(false)
+    })
+
+    it('discards an unchanged edit without asking', async () => {
+      const { wrapper, router } = await mountEdit()
+
+      await wrapper.find('[data-testid="discard-edit"]').trigger('click')
+      await flushPromises()
+
+      expect(hosts.dialogOpen()).toBe(false)
+      expect(router.currentRoute.value.path).toBe('/authoring/services/northbound-express')
     })
 
     it('asks for the route again when it cannot be recovered', async () => {

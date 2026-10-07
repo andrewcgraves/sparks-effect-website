@@ -1,6 +1,6 @@
 /// <reference types="vitest/config" />
-import { readdirSync, rmSync } from 'node:fs'
-import { join } from 'node:path'
+import { readdirSync, readFileSync, rmSync } from 'node:fs'
+import { join, resolve } from 'node:path'
 import { defineConfig, loadEnv, type HtmlTagDescriptor, type Plugin } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
@@ -9,6 +9,8 @@ import { shortCommitSha } from './src/buildVersion.ts'
 import { resolveTilePreconnectOrigin } from './src/tileHost.ts'
 import { safeHttpOrigin } from './src/preconnect.ts'
 import { FARO_APP_NAME } from './src/errorReporting/appName.ts'
+import { withDefaultPreview } from './src/share/linkPreview.ts'
+import { apiOriginMissingFromCsp, type VercelHeaderRule } from './src/securityHeaders.ts'
 
 function preconnectTags(apiBaseUrl: string | undefined, stadiaApiKey: string | undefined): HtmlTagDescriptor[] {
   const tags: HtmlTagDescriptor[] = [
@@ -82,14 +84,32 @@ function sourceMapUpload(): Plugin[] {
   return [upload, deleteSourceMaps()]
 }
 
-export default defineConfig(({ mode }) => {
+function linkPreviewPlugin(): Plugin {
+  return {
+    name: 'link-preview',
+    transformIndexHtml: withDefaultPreview,
+  }
+}
+
+export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_')
   const apiBaseUrl = process.env.VITE_API_BASE_URL ?? env.VITE_API_BASE_URL
+  // The API host lives only in Vercel's env settings, out of the repo's sight.
+  // A Vercel build (a PR preview included) whose host vercel.json's CSP does not
+  // name fails here, rather than shipping a page whose every API call the
+  // browser blocks once the CSP is enforced. Local and CI builds skip this.
+  if (command === 'build' && process.env.VERCEL) {
+    const vercelConfig = JSON.parse(readFileSync(resolve(process.cwd(), 'vercel.json'), 'utf8')) as {
+      headers?: VercelHeaderRule[]
+    }
+    const problem = apiOriginMissingFromCsp(vercelConfig.headers ?? [], apiBaseUrl)
+    if (problem) throw new Error(problem)
+  }
   const stadiaApiKey = process.env.VITE_STADIA_API_KEY ?? env.VITE_STADIA_API_KEY
   const upload = sourceMapUpload()
   const uploadingSourceMaps = upload.length > 0
   return {
-    plugins: [vue(), tailwindcss(), preconnectPlugin(apiBaseUrl, stadiaApiKey), ...upload],
+    plugins: [vue(), tailwindcss(), preconnectPlugin(apiBaseUrl, stadiaApiKey), linkPreviewPlugin(), ...upload],
     build: {
       sourcemap: uploadingSourceMaps ? 'hidden' : false,
     },
@@ -99,7 +119,7 @@ export default defineConfig(({ mode }) => {
     },
     test: {
       environment: 'happy-dom',
-      include: ['src/**/*.spec.ts'],
+      include: ['src/**/*.spec.ts', 'middleware.spec.ts'],
       setupFiles: ['src/test/setup.ts'],
     },
   }

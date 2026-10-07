@@ -1,5 +1,5 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
+import { enableAutoUnmount, mount, flushPromises } from '@vue/test-utils'
 import ScenarioView from './ScenarioView.vue'
 import { ref } from 'vue'
 import type { Router } from 'vue-router'
@@ -31,7 +31,10 @@ vi.mock('../api/prerenderedIsochrones', () => ({
   fetchPrerenderedIsochrone: vi.fn(),
 }))
 
+vi.mock('../api/routingStatus', () => ({ fetchRoutingStatus: vi.fn() }))
+
 import { fetchIsochrone } from '../api/isochrone'
+import { fetchRoutingStatus } from '../api/routingStatus'
 import { fetchScenarioTravelTimes } from '../api/scenarios'
 import {
   fetchPrerenderedIsochrone,
@@ -112,8 +115,11 @@ async function mountScenarioViewAt(path: string, stubs: Record<string, boolean> 
   return { wrapper, router }
 }
 
+enableAutoUnmount(afterEach)
+
 describe('ScenarioView', () => {
   beforeEach(() => {
+    vi.mocked(fetchRoutingStatus).mockReset().mockResolvedValue('ok')
     vi.mocked(fetchIsochrone).mockClear()
     vi.mocked(fetchScenarioTravelTimes).mockReset().mockResolvedValue(stubTravelTimes)
     // Most of this page's cases are about the generate form; a scenario with no
@@ -161,9 +167,9 @@ describe('ScenarioView', () => {
       stations: ref(stubStations),
       services: ref([]),
     })
-    document.title = 'Scenario · Sparks Effect'
+    document.title = 'Network · Sparks Effect'
     mountScenarioView()
-    expect(document.title).toBe('Scenario · Sparks Effect')
+    expect(document.title).toBe('Network · Sparks Effect')
 
     name.value = 'CA HSR'
     await flushPromises()
@@ -217,6 +223,23 @@ describe('ScenarioView', () => {
     expect(mapView.props('loading')).toBe(false)
   })
 
+  // SPA-467: a visitor waiting on a queued plot is told where they stand.
+  it('tells a waiting visitor how many plots are ahead of theirs', async () => {
+    vi.mocked(fetchIsochrone).mockImplementation((_request, onProgress) => {
+      onProgress?.({ status: 'queued', queue_position: 2 })
+      return new Promise(() => {})
+    })
+    const wrapper = mountScenarioView('ca-hsr')
+    await wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('submit', {
+      ...NEARBY_ORIGIN,
+      duration: 30,
+      mode: 'walk',
+    })
+    await flushPromises()
+
+    expect(wrapper.findComponent({ name: 'MapView' }).props('loadingMessage')).toBe('Waiting — 2 ahead of you')
+  })
+
   it('calls fetchIsochrone with the form payload and route slug on submit', async () => {
     vi.mocked(fetchIsochrone).mockResolvedValue(stubIsochrone)
     const wrapper = mountScenarioView('ca-hsr')
@@ -231,7 +254,7 @@ describe('ScenarioView', () => {
       budget_mins: 30,
       mode: 'walk',
       scenario_slug: 'ca-hsr',
-    })
+    }, expect.any(Function))
   })
 
   it('forwards the selected mode from the form payload to fetchIsochrone', async () => {
@@ -244,6 +267,7 @@ describe('ScenarioView', () => {
     })
     expect(fetchIsochrone).toHaveBeenCalledWith(
       expect.objectContaining({ mode: 'bike' }),
+      expect.any(Function),
     )
   })
 
@@ -257,6 +281,7 @@ describe('ScenarioView', () => {
     })
     expect(fetchIsochrone).toHaveBeenCalledWith(
       expect.objectContaining({ mode: 'transit' }),
+      expect.any(Function),
     )
   })
 
@@ -895,6 +920,50 @@ describe('ScenarioView', () => {
       expect(access()).toEqual(['to San Jose, 20m'])
     })
 
+    it('reads Walk, not Transit, where a transit access leg walked the whole way', async () => {
+      const metadata = boardedApartIsochrone.metadata
+      const wrapper = await plot({
+        ...boardedApartIsochrone,
+        metadata: {
+          ...metadata,
+          mode: 'transit',
+          reachable_stations: metadata.reachable_stations.map((station) => ({
+            ...station,
+            access_rode_transit: (station.legs?.[0]?.from ?? station.station_slug) === 'sj',
+          })),
+        },
+      })
+      const origin = () => wrapper.findAll('[data-testid="time-remaining-row"]')[0]
+
+      expect(origin().find('[data-testid="time-remaining-flag"]').text()).toBe('Walk')
+      expect(origin().find('[data-testid="time-remaining-access"]').text()).toBe('to San Francisco, 5m')
+      await wrapper.find('[data-testid="time-remaining-service-option-1"]').setValue()
+      expect(origin().find('[data-testid="time-remaining-flag"]').text()).toBe('Transit')
+      expect(origin().find('[data-testid="time-remaining-access"]').text()).toBe('to San Jose, 20m')
+    })
+
+    it('says how each access leg was covered when one line was reached both ways', async () => {
+      const metadata = boardedApartIsochrone.metadata
+      const wrapper = await plot({
+        ...boardedApartIsochrone,
+        metadata: {
+          ...metadata,
+          mode: 'transit',
+          reachable_stations: metadata.reachable_stations.map((station) => ({
+            ...station,
+            legs: station.legs?.map((leg) => ({ ...leg, service_id: 'svc-trunk' })),
+            access_rode_transit: (station.legs?.[0]?.from ?? station.station_slug) === 'sj',
+          })),
+        },
+      })
+
+      expect(wrapper.find('[data-testid="time-remaining-flag"]').text()).toBe('Transit')
+      expect(wrapper.findAll('[data-testid="time-remaining-access"]').map((a) => a.text())).toEqual([
+        'Walk to San Francisco, 5m',
+        'Transit to San Jose, 20m',
+      ])
+    })
+
     it('cuts to the line a station hovered on the map is on', async () => {
       const wrapper = await plot(twoServiceIsochrone)
       expect(wrapper.findAll('[data-testid="time-remaining-row"]').map((r) => r.text())
@@ -1108,6 +1177,84 @@ describe('ScenarioView', () => {
     })
   })
 
+  describe('when live routing is offline', () => {
+    const saved: PrerenderedIsochrone = {
+      id: 'pre-1',
+      label: 'Downtown SF, 30 min walk',
+      lat: 37.7749,
+      lng: -122.4194,
+      budget_mins: 30,
+      mode: 'walk',
+      outdated: false,
+      created_at: '2026-08-01T12:00:00Z',
+      result: stubIsochrone,
+    }
+
+    async function mountWithOrigin() {
+      const wrapper = mountScenarioView('ca-hsr', { MapView: true })
+      await flushPromises()
+      await wrapper.get('[data-testid="lat"]').setValue(String(NEARBY_ORIGIN.lat))
+      await wrapper.get('[data-testid="lng"]').setValue(String(NEARBY_ORIGIN.lng))
+      return wrapper
+    }
+
+    function plotButton(wrapper: Awaited<ReturnType<typeof mountWithOrigin>>) {
+      return wrapper.get('button[type="submit"]').element as HTMLButtonElement
+    }
+
+    it('says so, disables Plot, and puts the saved examples ahead of the form', async () => {
+      vi.mocked(fetchRoutingStatus).mockResolvedValue('offline')
+      vi.mocked(listPrerenderedIsochrones).mockResolvedValue([saved])
+
+      const wrapper = await mountWithOrigin()
+
+      expect(wrapper.get('[data-testid="routing-status"]').text())
+        .toBe('Live routing is offline right now. Here are some saved examples.')
+      expect(plotButton(wrapper).disabled).toBe(true)
+      const examples = wrapper.get('[data-testid="prerendered-isochrones"]').element
+      const form = wrapper.get('form').element
+      expect(examples.compareDocumentPosition(form) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    })
+
+    it('neither promises nor rules out examples until the list has answered', async () => {
+      vi.mocked(fetchRoutingStatus).mockResolvedValue('offline')
+      let answerList: (list: PrerenderedIsochrone[]) => void = () => {}
+      vi.mocked(listPrerenderedIsochrones).mockReturnValue(new Promise((resolve) => (answerList = resolve)))
+
+      const wrapper = await mountWithOrigin()
+      expect(wrapper.get('[data-testid="routing-status"]').text()).toBe('Live routing is offline right now.')
+
+      answerList([saved])
+      await flushPromises()
+      expect(wrapper.get('[data-testid="routing-status"]').text())
+        .toBe('Live routing is offline right now. Here are some saved examples.')
+    })
+
+    it('only explains, without promising examples, for a network that ships none', async () => {
+      vi.mocked(fetchRoutingStatus).mockResolvedValue('offline')
+
+      const wrapper = await mountWithOrigin()
+
+      const banner = wrapper.get('[data-testid="routing-status"]').text()
+      expect(banner).toContain('Live routing is offline right now.')
+      expect(banner).not.toContain('saved examples')
+      expect(plotButton(wrapper).disabled).toBe(true)
+    })
+
+    it('behaves as if routing were fine when the status cannot be read', async () => {
+      vi.mocked(fetchRoutingStatus).mockRejectedValue(new Error('network down'))
+      vi.mocked(listPrerenderedIsochrones).mockResolvedValue([saved])
+
+      const wrapper = await mountWithOrigin()
+
+      expect(wrapper.find('[data-testid="routing-status"]').exists()).toBe(false)
+      expect(plotButton(wrapper).disabled).toBe(false)
+      const examples = wrapper.get('[data-testid="prerendered-isochrones"]').element
+      const form = wrapper.get('form').element
+      expect(examples.compareDocumentPosition(form) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy()
+    })
+  })
+
   describe('a shareable isochrone', () => {
     const linked = '/scenario/ca-hsr?at=37.71,-122.41&mode=transit&mins=120'
 
@@ -1121,7 +1268,7 @@ describe('ScenarioView', () => {
         budget_mins: 120,
         mode: 'transit',
         scenario_slug: 'ca-hsr',
-      })
+      }, expect.any(Function))
       expect((wrapper.get('input[data-testid="lat"]').element as HTMLInputElement).value).toBe('37.71')
       expect((wrapper.get('input[data-testid="mode-transit"]').element as HTMLInputElement).checked).toBe(true)
       expect(wrapper.findComponent({ name: 'MapView' }).props('isochroneData')).toEqual(stubIsochrone)

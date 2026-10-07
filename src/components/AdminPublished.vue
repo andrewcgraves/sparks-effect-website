@@ -47,7 +47,7 @@ async function loadMore(): Promise<void> {
     services.value = [...services.value, ...page.items]
     nextCursor.value = page.next_cursor
   } catch (err: unknown) {
-    if (!isSessionExpiry(err)) toast("Couldn't load more services.", { kind: 'error' })
+    if (!isSessionExpiry(err)) toast("Couldn't load more lines.", { kind: 'error' })
   } finally {
     loadingMore.value = false
   }
@@ -84,7 +84,7 @@ async function unpublish(service: PublishedServiceSummary): Promise<void> {
       id="published-heading"
       class="font-display text-h2 text-ink-true"
     >
-      Published services
+      Published lines
     </h2>
 
     <p
@@ -99,7 +99,7 @@ async function unpublish(service: PublishedServiceSummary): Promise<void> {
       role="alert"
       data-testid="published-error"
     >
-      Couldn't load the published services.
+      Couldn't load the published lines.
     </p>
     <p
       v-else-if="services.length === 0"

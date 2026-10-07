@@ -117,8 +117,136 @@ with as well. Values come from the app's page in Frontend Observability:
 The collector's host (`faro-collector-*.grafana.net`) is a new outbound
 destination for the Content Security Policy (SPA-425) to allow.
 
+## Link previews
+
+Link-unfurl crawlers (Slackbot, Discordbot, iMessage, …) run no JavaScript, so a
+shared link's title and description have to be in the HTML. `middleware.ts` is
+Vercel Routing Middleware for the public pages only — `/`, `/scenario/:slug`,
+`/services/:slug`, `/routes/:slug`. It fetches the deployment's own
+`/index.html` and the page's public read (both within 1.5 s, side by side), and
+splices that page's `<title>`, `description`, `og:*` and `twitter:card` tags
+into the head. The tag building lives in `src/share/linkPreview.ts`.
+
+- `og:url` comes from the request's host, never the build, so a build promoted
+  from staging names production.
+- A failed or slow read, a 404 and an unpublished service all give the
+  site-wide card, the same one the built `index.html` carries for every other
+  page. Nothing tells "unpublished" apart from "never existed".
+- The middleware reads `VITE_API_BASE_URL` at runtime, so the variable must be
+  set for the deployment's runtime as well as its build.
+- On a deployment behind Deployment Protection the shell fetch gets a 401 and
+  the middleware steps aside: the page loads as built, with the default card.
+  Check a real unfurl on staging, not on a pull-request preview.
+
+## Search engines
+
+- `/robots.txt` lets crawlers in, keeps them out of `/authoring`, `/login`,
+  `/account`, `/admin`, `/welcome`, `/set-password` and `/api/` (the functions
+  behind these two paths), and names the sitemap.
+  Its `Sitemap:` line must be absolute, and a build cannot know its host, so it
+  is served by a function (`api/robots.ts`) rather than a file in `public/`.
+- `/sitemap.xml` (`api/sitemap.ts`) lists `/`, every curated scenario
+  (`/scenario/:slug`) and curated route (`/routes/:slug`), and every published
+  service (`/services/:slug`, with `lastmod` from `published_at`), read from the
+  API's public lists. The CDN keeps it for an hour. A list the API cannot answer
+  in time (all reads share one 8-second deadline) is left out, or cut short, and
+  the rest is kept for five minutes instead; with nothing read it is `/` alone.
+  Like the middleware, it needs `VITE_API_BASE_URL` at runtime.
+- `/` and every public page the middleware finds in the API carry
+  `<link rel="canonical">` on the requesting host, with no query string or
+  trailing slash. An unknown or unpublished slug, or a failed read, gets none.
+- Every response from any host but `sparks-effect.app` (or `www.`) carries
+  `X-Robots-Tag: noindex` — staging, previews, and the `vercel.app` alias of
+  production alike. It is a host rule in `vercel.json`, not `VERCEL_ENV`:
+  production and staging can be the very same deployment (a promotion moves
+  domains, it does not rebuild — `docs/releases.md`), so the host is the only
+  thing that tells them apart. Vercel adds the header to `*.vercel.app`
+  previews itself, but not to a custom domain on a non-production branch, which
+  is what staging is. If production's domain changes, change it there.
+- Both rewrites sit ahead of the SPA catch-all in `vercel.json`, which also
+  excludes the two paths, so neither can be answered with the shell.
+
+Production's sitemap lists published services only once production's API runs
+a tag that serves `/api/published-services` (SPA-358, paged by SPA-434; not in
+`v0.3.0`). Until then that list is left out and the sitemap is kept for five
+minutes; check `/sitemap.xml` after promoting the API.
+
+After a deploy, `curl -sI https://dev.sparks-effect.app/robots.txt` shows
+`x-robots-tag: noindex`, and `curl -sI https://sparks-effect.app/` does not.
+
+Once production serves this, submit `https://sparks-effect.app/sitemap.xml` in
+Google Search Console (and Bing Webmaster Tools, if wanted). That is a manual,
+one-time step; nothing here does it.
+
+## Security headers
+
+`vercel.json` sends these on every path (`/(.*)`), beside the `Cache-Control`
+rules — different keys, so the rules compose rather than compete:
+
+- `Content-Security-Policy-Report-Only` — scripts only from this origin, no
+  inline or `eval`; styles may be inline (Tailwind, Vue `:style`, MapLibre);
+  `connect-src` names the API (staging and production Railway hosts), the tile
+  hosts (OpenFreeMap, and Stadia when `VITE_STADIA_API_KEY` is set) and the
+  geocoder (Nominatim); `worker-src 'self'` for MapLibre's worker, which
+  `MapView.vue` loads from `/assets/`; `img-src data: blob:` for MapLibre's
+  control icons and images.
+- `Strict-Transport-Security`, `X-Content-Type-Options: nosniff`,
+  `Referrer-Policy: strict-origin-when-cross-origin`, and
+  `Permissions-Policy` — geolocation for this origin only ("use my location"),
+  no camera or microphone.
+- `X-Frame-Options: DENY`. `frame-ancestors 'none'` is in the CSP too, but a
+  Report-Only policy enforces nothing, `frame-ancestors` included, so this is
+  what stops framing today.
+
+The pages `middleware.ts` answers are responses it builds itself, and Vercel
+may not apply `vercel.json`'s headers to those. So the middleware copies the
+security headers (and only those — not the shell's caching) from the
+`/index.html` shell it already fetches, which is an ordinary static hit that
+carries them. `vercel.json` stays their one source; `src/securityHeaders.ts`
+holds the list of keys copied, and its spec fails if the catch-all rule gains
+a header the list lacks.
+
+The CSP only reports for now, and no reports are collected: there is no
+`report-uri` until the error tracker lands (SPA-380). So the watch week means
+opening DevTools' console on staging (`dev.sparks-effect.app`) and looking for
+`[Report Only]` violations across the main pages: `/`, a `/scenario/<slug>`, a
+`/services/<slug>`, a `/routes/<slug>`, the authoring pages, login, an address
+search, and "use my location". `curl -sI https://dev.sparks-effect.app/` and a
+`/scenario/<slug>` page (served by `middleware.ts`) should both show the
+headers.
+
+Staging and pull-request previews are preview deployments, so the Vercel
+Toolbar loads there, and its requests (`vercel.live` and the like) will be
+blocked once the CSP is enforced. Before the watch week, turn the Toolbar off
+for preview deployments in the Vercel project settings, rather than
+allowlisting `vercel.live` in `vercel.json`: that file cannot vary per
+environment, so the allowance would ship to production on promotion.
+
+After a clean week, enforce it: set `ENFORCING` to true in
+`src/securityHeaders.spec.ts` and rename the key to `Content-Security-Policy`
+in `vercel.json`. What guards the policy meanwhile:
+
+- `src/securityHeaders.spec.ts` fails CI when the map style URL's origin or the
+  geocoder changes without the CSP following. It checks the style URL's
+  origin only; sprite, glyph and tile URLs inside the remote style JSON are not
+  covered, so a style that moves those to another host needs a manual check.
+- The API hosts come from Vercel's `VITE_API_BASE_URL`, which the repository
+  cannot see. `vite.config.ts` reads `vercel.json` on a Vercel build (where
+  `VERCEL` is set) and fails it when that variable's origin is not in the CSP's
+  `connect-src`, so a misconfigured preview fails visibly instead of the
+  enforced CSP silently blocking every API call. Local and CI builds skip it.
+
+Hosts still to add when they land: the geocoder that replaces Nominatim
+(SPA-370) and the error tracker's ingest host, plus its `report-uri`
+(SPA-380). An embeddable map for other sites (SPA-462) will need its own
+carve-out from `frame-ancestors` and `X-Frame-Options`. MapLibre's RTL text
+plugin, or anything loaded through `importScriptInWorkers`, would need
+`script-src` changes if ever adopted.
+
 ## Project structure
 
+- `middleware.ts` — Vercel Routing Middleware for link previews, carrying the security headers onto the pages it answers (above)
+- `api/` — Vercel Functions for `/robots.txt` and `/sitemap.xml` (above)
 - `src/` — Vue application source
-- `.github/workflows/ci.yml` — CI: lint + test on every push/PR, then build and upload the `dist`
+- `.github/workflows/ci.yml` — CI: a production-dependency `npm audit`, lint + test on every push/PR, then build and upload the `dist`
   artifact

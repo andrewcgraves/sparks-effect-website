@@ -21,6 +21,10 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      # Fails on a high or critical advisory in what ships to browsers.
+      # --omit=dev leaves out the build and test toolchain, whose advisories
+      # never reach a user; Dependabot still opens PRs for those.
+      - run: npm audit --omit=dev --audit-level=high
       - run: npm run lint
       - run: npm run test
       # `build` is `vue-tsc -b && vite build`, so this covers the typecheck too.

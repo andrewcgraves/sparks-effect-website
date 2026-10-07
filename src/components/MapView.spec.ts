@@ -416,6 +416,32 @@ describe('MapView', () => {
     expect(wrapper.find('[data-testid="map-loading"]').exists()).toBe(true)
   })
 
+  // SPA-467: the overlay is the one place the wait is told, so it says what
+  // the page hands it — where the visitor is in the queue — and a screen reader
+  // hears the whole sentence again only when the sentence changes.
+  it('shows the wait message it is handed in the loading overlay', () => {
+    const wrapper = mount(MapView, {
+      props: { ...defaultProps, loading: true, loadingMessage: 'Waiting — 2 ahead of you' },
+    })
+    expect(wrapper.get('[data-testid="map-loading"]').text()).toBe('Waiting — 2 ahead of you')
+  })
+
+  it('says Waiting… when no message is handed to it', () => {
+    const wrapper = mount(MapView, { props: { ...defaultProps, loading: true } })
+    expect(wrapper.get('[data-testid="map-loading"]').text()).toBe('Waiting…')
+  })
+
+  it('announces the wait message politely and as a whole', () => {
+    const wrapper = mount(MapView, {
+      props: { ...defaultProps, loading: true, loadingMessage: 'Plotting…' },
+    })
+    const overlay = wrapper.get('[data-testid="map-loading"]')
+    expect(overlay.attributes('aria-live')).toBe('polite')
+    expect(overlay.attributes('aria-atomic')).toBe('true')
+    // A fixed label would be read in place of the message it is meant to carry.
+    expect(overlay.attributes('aria-label')).toBeUndefined()
+  })
+
   it('hides the loading overlay when loading prop is false', () => {
     const wrapper = mount(MapView, { props: defaultProps })
     expect(wrapper.find('[data-testid="map-loading"]').exists()).toBe(false)

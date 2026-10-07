@@ -3,7 +3,7 @@ import { checkOriginReach, outOfRangeError, outOfRangeMessage } from '../originR
 import { ApiError } from './authoring/client'
 import type { TravelMode } from './authoring/types'
 import { JobFailedError } from './polling'
-import { backlogFullError } from './routingJobs'
+import { backlogFullError, type IsochroneProgress } from './routingJobs'
 import type { Station } from './scenarios'
 
 const GENERIC_FAULT = 'Failed to generate isochrone. Please try again.'
@@ -56,4 +56,13 @@ export function isochroneFault(err: unknown, mode: TravelMode, budgetMins: numbe
     (err instanceof JobFailedError ? err.jobError || null : null) ??
     GENERIC_FAULT
   )
+}
+
+export function isochroneWaitMessage(progress: IsochroneProgress | null): string {
+  if (progress === null) return 'Waiting…'
+  if (progress.status !== 'queued') return 'Plotting…'
+  const ahead = progress.queue_position
+  if (ahead === undefined) return 'Waiting…'
+  if (ahead === 0) return "You're next…"
+  return `Waiting — ${ahead} ahead of you`
 }

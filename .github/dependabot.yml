@@ -1,0 +1,26 @@
+# Weekly update PRs (SPA-435). Minor and patch updates are grouped into one PR
+# per ecosystem; a major update gets a PR of its own, because that is where
+# breaking changes live. Nothing auto-merges: every PR goes through CI and a
+# human, the same as any other change to trunk.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      npm-minor-patch:
+        update-types: [minor, patch]
+    ignore:
+      # typescript-eslint@8 peers typescript <6.1, so a TypeScript major PR
+      # cannot install (SPA-472). Lift this once typescript-eslint supports 7.
+      - dependency-name: typescript
+        update-types: [version-update:semver-major]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions-minor-patch:
+        update-types: [minor, patch]

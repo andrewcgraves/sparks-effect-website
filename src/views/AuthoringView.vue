@@ -56,19 +56,19 @@ async function handleSignOut() {
       <section>
         <div class="flex items-center justify-between gap-3">
           <h2 class="font-display text-h2 text-ink-true">
-            My services
+            My lines
           </h2>
           <router-link
             to="/authoring/services/new"
             :class="ACTION_LINK_CLASS"
             data-testid="new-service-link"
           >
-            + New service
+            + New line
           </router-link>
         </div>
         <ListSkeleton
           v-if="servicesLoading"
-          label="Loading your services"
+          label="Loading your lines"
           class="mt-3"
           data-testid="services-loading"
         />
@@ -78,14 +78,14 @@ async function handleSignOut() {
           role="alert"
           data-testid="services-error"
         >
-          Couldn't load your services.
+          Couldn't load your lines.
         </p>
         <p
           v-else-if="services.length === 0"
           class="font-body text-caption mt-3 text-ink-muted italic"
           data-testid="services-empty"
         >
-          You haven't created any services yet.
+          You haven't created any lines yet.
         </p>
         <ul
           v-else
@@ -110,19 +110,19 @@ async function handleSignOut() {
       <section>
         <div class="flex items-center justify-between gap-3">
           <h2 class="font-display text-h2 text-ink-true">
-            My scenarios
+            My networks
           </h2>
           <router-link
             to="/authoring/scenarios/new"
             :class="ACTION_LINK_CLASS"
             data-testid="new-scenario-link"
           >
-            + New scenario
+            + New network
           </router-link>
         </div>
         <ListSkeleton
           v-if="scenariosLoading"
-          label="Loading your scenarios"
+          label="Loading your networks"
           class="mt-3"
           data-testid="scenarios-loading"
         />
@@ -132,14 +132,14 @@ async function handleSignOut() {
           role="alert"
           data-testid="scenarios-error"
         >
-          Couldn't load your scenarios.
+          Couldn't load your networks.
         </p>
         <p
           v-else-if="scenarios.length === 0"
           class="font-body text-caption mt-3 text-ink-muted italic"
           data-testid="scenarios-empty"
         >
-          You haven't created any scenarios yet.
+          You haven't created any networks yet.
         </p>
         <ul
           v-else

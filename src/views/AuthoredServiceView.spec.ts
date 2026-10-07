@@ -5,6 +5,8 @@ import { createRouter, createMemoryHistory } from 'vue-router'
 import type { Service, TransitGraph } from '../api/authoring/types'
 import { ApiError } from '../api/authoring/client'
 
+vi.mock('../api/routingStatus', () => ({ fetchRoutingStatus: vi.fn().mockResolvedValue('ok') }))
+
 vi.mock('../api/authoring/services', () => ({
   fetchService: vi.fn(),
   fetchServiceGraph: vi.fn(),
@@ -23,8 +25,8 @@ vi.mock('../api/publications', () => ({
 }))
 vi.mock('../components/MapView.vue', () => ({
   default: {
-    props: ['origin', 'isochroneData', 'loading', 'routes', 'stations'],
-    template: '<div data-testid="map" :data-stations="stations.length" :data-routes="routes.length" />',
+    props: ['origin', 'isochroneData', 'loading', 'loadingMessage', 'routes', 'stations'],
+    template: '<div data-testid="map" :data-stations="stations.length" :data-routes="routes.length" :data-loading-message="loadingMessage" />',
   },
 }))
 
@@ -328,7 +330,25 @@ describe('AuthoredServiceView', () => {
 
     expect(fetchServiceIsochrone).toHaveBeenCalledWith('northbound-express', {
       lat: 37.7, lng: -122.4, budget_mins: 30, mode: 'walk',
+    }, expect.any(Function))
+  })
+
+  // SPA-467: a visitor waiting on a queued plot is told where they stand.
+  it('tells a waiting visitor how many plots are ahead of theirs', async () => {
+    vi.mocked(fetchService).mockResolvedValue(stubService)
+    vi.mocked(fetchServiceIsochrone).mockImplementation((_slug, _request, onProgress) => {
+      onProgress?.({ status: 'queued', queue_position: 2 })
+      return new Promise(() => {})
     })
+    const wrapper = mountView()
+    await flushPromises()
+
+    wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('submit', {
+      lat: 37.7, lng: -122.4, duration: 30, mode: 'walk',
+    })
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="map"]').attributes('data-loading-message')).toBe('Waiting — 2 ahead of you')
   })
 
   it('forwards transit mode when plotting an isochrone', async () => {
@@ -344,7 +364,7 @@ describe('AuthoredServiceView', () => {
 
     expect(fetchServiceIsochrone).toHaveBeenCalledWith('northbound-express', {
       lat: 37.7, lng: -122.4, budget_mins: 30, mode: 'transit',
-    })
+    }, expect.any(Function))
   })
 
   // Editing the service leaves its graph stale; the shared composable's retry
@@ -468,7 +488,7 @@ describe('AuthoredServiceView', () => {
     await flushPromises()
     const menu = wrapper.get('[data-testid="service-actions"]')
     expect(menu.element.tagName).toBe('DETAILS')
-    expect(menu.find('[data-testid="delete-service"]').exists()).toBe(true)
+    expect(menu.get('[data-testid="delete-service"]').text()).toBe('Delete line')
   })
 
   it('asks before deleting, and deletes nothing when declined', async () => {
