@@ -1,8 +1,24 @@
 {
   "rewrites": [
-    { "source": "/((?!assets/).*)", "destination": "/index.html" }
+    { "source": "/robots.txt", "destination": "/api/robots" },
+    { "source": "/sitemap.xml", "destination": "/api/sitemap" },
+    { "source": "/((?!assets/|robots\\.txt$|sitemap\\.xml$).*)", "destination": "/index.html" }
   ],
   "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Content-Security-Policy-Report-Only",
+          "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://tiles.openfreemap.org https://tiles.stadiamaps.com; connect-src 'self' https://sparks-effect-api-production.up.railway.app https://sparks-effect-api-staging.up.railway.app https://tiles.openfreemap.org https://tiles.stadiamaps.com https://nominatim.openstreetmap.org; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        },
+        { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy", "value": "geolocation=(self), camera=(), microphone=()" },
+        { "key": "X-Frame-Options", "value": "DENY" }
+      ]
+    },
     {
       "source": "/assets/(.*)",
       "headers": [
@@ -16,9 +32,16 @@
       ]
     },
     {
-      "source": "/((?!assets/|index\\.html$|$|how-it-works$|scenario/|services/|routes/).*)",
+      "source": "/((?!assets/|index\\.html$|$|how-it-works$|scenario/|services/|routes/|robots\\.txt$|sitemap\\.xml$).*)",
       "headers": [
         { "key": "Cache-Control", "value": "no-cache" }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "missing": [{ "type": "host", "value": "(www\\.)?sparks-effect\\.app" }],
+      "headers": [
+        { "key": "X-Robots-Tag", "value": "noindex" }
       ]
     }
   ]

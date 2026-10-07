@@ -1,3 +1,5 @@
+import type { ApiRead } from './apiRead.js'
+import { escapeMarkup } from './escape.js'
 import { SITE_NAME, formatPageTitle } from './pageTitle.js'
 
 const SITE_DESCRIPTION =
@@ -7,19 +9,10 @@ interface PageMeta {
   name: string | null
   description: string
   url?: string
+  canonical?: string
 }
 
 const SITE_DEFAULT: PageMeta = { name: null, description: SITE_DESCRIPTION }
-
-// Safe both inside an attribute value and as the <title> element's text.
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
 
 interface MetaTag {
   attr: 'name' | 'property'
@@ -38,20 +31,19 @@ function metaTags(page: PageMeta): string {
   if (page.url) tags.push({ attr: 'property', key: 'og:url', content: page.url })
   tags.push({ attr: 'name', key: 'twitter:card', content: 'summary' })
   return [
-    `<title>${escapeHtml(formatPageTitle(page.name))}</title>`,
-    ...tags.map(({ attr, key, content }) => `<meta ${attr}="${key}" content="${escapeHtml(content)}" />`),
+    `<title>${escapeMarkup(formatPageTitle(page.name))}</title>`,
+    ...tags.map(({ attr, key, content }) => `<meta ${attr}="${key}" content="${escapeMarkup(content)}" />`),
+    ...(page.canonical ? [`<link rel="canonical" href="${escapeMarkup(page.canonical)}" />`] : []),
   ].join('\n    ')
 }
 
 // Whatever preview the shell already carries — the build's defaults — goes, so
 // a page never ends up with two og:titles for a crawler to choose between.
-const PREVIEW_TAG = /\s*(<title>[\s\S]*?<\/title>|<meta\s+(?:name="(?:description|twitter:[^"]*)"|property="og:[^"]*")[^>]*>)/g
+const PREVIEW_TAG = /\s*(<title>[\s\S]*?<\/title>|<meta\s+(?:name="(?:description|twitter:[^"]*)"|property="og:[^"]*")[^>]*>|<link\s+rel="canonical"[^>]*>)/g
 
 function spliceHead(shell: string, tags: string): string {
   return shell.replace(PREVIEW_TAG, '').replace('</head>', `  ${tags}\n  </head>`)
 }
-
-export type ApiRead = (path: string) => Promise<unknown>
 
 const DESCRIPTION_MAX = 200
 
@@ -117,6 +109,13 @@ async function readPageMeta(pathname: string, read: ApiRead): Promise<PageMeta> 
   return { name, description: truncate(page.describe(body) ?? SITE_DESCRIPTION) }
 }
 
+// One URL per page, on the host that was asked: no query (a plotted isochrone
+// lives there) and no trailing slash, so every way of reaching a page names it
+// the same. The host is the request's, never the build's (docs/releases.md).
+function canonicalPath(pathname: string): string {
+  return pathname.replace(/\/+$/, '') || '/'
+}
+
 // Null when there is no shell to splice into. The shell arrives as a promise so
 // its fetch and the API read overlap: neither waits on the other's timeout.
 export async function renderPreview(
@@ -126,12 +125,18 @@ export async function renderPreview(
 ): Promise<string | null> {
   // A failed read, whatever failed, is the same card an unknown slug gets: an
   // unpublished service must look exactly like one that never existed.
+  const path = canonicalPath(requestUrl.pathname)
   const [html, page] = await Promise.all([
     shell,
-    readPageMeta(requestUrl.pathname, read).catch(() => SITE_DEFAULT),
+    readPageMeta(path, read).catch(() => SITE_DEFAULT),
   ])
   if (html === null) return null
-  return spliceHead(html, metaTags({ ...page, url: `${requestUrl.origin}${requestUrl.pathname}` }))
+  const url = `${requestUrl.origin}${path}`
+  // Only a page that resolved names itself canonical. An unknown slug, an
+  // unpublished service and a failed read all get none, so none of them asks
+  // to be indexed as a page of its own; og:url still names the address.
+  const resolved = page.name !== null || path === '/'
+  return spliceHead(html, metaTags({ ...page, url, canonical: resolved ? url : undefined }))
 }
 
 // The build's own index.html: what every page the middleware does not answer
