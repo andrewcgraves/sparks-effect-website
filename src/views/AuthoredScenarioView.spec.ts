@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createMemoryHistory } from 'vue-router'
-import type { Scenario, TransitGraph } from '../api/authoring/types'
+import type { InterchangePair, Scenario, Service, TransitGraph } from '../api/authoring/types'
 import { ApiError } from '../api/authoring/client'
 
 vi.mock('../api/routingStatus', () => ({ fetchRoutingStatus: vi.fn().mockResolvedValue('ok') }))
@@ -14,6 +14,7 @@ vi.mock('../api/authoring/scenarios', () => ({
   fetchScenarioIsochrone: vi.fn(),
   fetchMyScenarios: vi.fn(),
   deleteScenario: vi.fn(),
+  updateScenario: vi.fn(),
 }))
 vi.mock('../api/authoring/services', () => ({
   fetchMyServices: vi.fn(),
@@ -33,6 +34,7 @@ import {
   compileScenario,
   fetchScenarioIsochrone,
   deleteScenario,
+  updateScenario,
 } from '../api/authoring/scenarios'
 import { useConfirmHost } from '../composables/useConfirm'
 import { fetchMyServices } from '../api/authoring/services'
@@ -384,5 +386,205 @@ describe('AuthoredScenarioView', () => {
     await flushPromises()
     expect(deleteScenario).toHaveBeenCalledWith('ca-hsr')
     expect(wrapper.vm.$router.currentRoute.value.path).toBe('/authoring')
+  })
+})
+
+describe('AuthoredScenarioView joining near misses into interchanges', () => {
+  const union = { service_id: 'svc1', slug: 'union' }
+  const midtown = { service_id: 'svc2', slug: 'midtown' }
+  const joined: InterchangePair = { a: union, b: midtown }
+
+  const network: Scenario = {
+    id: 's1',
+    slug: 'ca-hsr',
+    name: 'CA HSR',
+    description: 'California High-Speed Rail',
+    service_ids: ['svc1', 'svc2'],
+    boarding_wait: { policy: 'fixed', secs: 300 },
+  }
+
+  function line(id: string, name: string, stops: [string, string][]): Service {
+    return {
+      id, slug: id, route_id: 'r1', name,
+      stops: stops.map(([slug, stopName], seq) => ({ slug, name: stopName, seq, lat: 0, lng: 0 })),
+      vehicle: { max_speed_kmh: 100, acceleration_ms2: 1, deceleration_ms2: 1, dwell_s: 30 },
+      frequency_windows: [],
+    }
+  }
+
+  const lines = [
+    line('svc1', 'Coast Express', [['union', 'Union']]),
+    line('svc2', 'Midtown Local', [['midtown', 'Midtown'], ['harbour', 'Harbour']]),
+  ]
+
+  const unjoinedGraph = {
+    services: [{ service_id: 'svc1', edges: [], wait_secs: 300 }, { service_id: 'svc2', edges: [], wait_secs: 300 }],
+    merge: {
+      near_misses: [{ a: { ...union, name: 'Union' }, b: { ...midtown, name: 'Midtown' }, distance_m: 120.4 }],
+    },
+  } as TransitGraph
+
+  const joinedGraph = {
+    services: unjoinedGraph.services,
+    merge: {
+      clusters: [{
+        key: 'union',
+        names: ['Union', 'Midtown'],
+        members: [{ ...union, name: 'Union' }, { ...midtown, name: 'Midtown' }],
+      }],
+    },
+  } as TransitGraph
+
+  function stubCompiledGraph(result: TransitGraph) {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ id: 'job2', kind: 'compile_user_scenario', status: 'succeeded', result }),
+    } as Response))
+  }
+
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.mocked(fetchScenario).mockReset().mockResolvedValue(network)
+    vi.mocked(fetchScenarioGraph).mockReset().mockResolvedValue(unjoinedGraph)
+    vi.mocked(fetchMyServices).mockReset().mockResolvedValue(lines)
+    vi.mocked(compileScenario).mockReset().mockResolvedValue({ id: 'job2', kind: 'compile_user_scenario', status: 'queued' })
+    vi.mocked(updateScenario).mockReset().mockImplementation(async (slug, input) => ({ ...network, ...input, slug }))
+    stubCompiledGraph(joinedGraph)
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  })
+
+  it('joins a near miss with one click: saves the pair, recompiles, and lists it as realised', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.findAll('[data-testid="near-miss-row"]')).toHaveLength(1)
+    expect(wrapper.find('[data-testid="realised-cluster-row"]').exists()).toBe(false)
+
+    await wrapper.get('[data-testid="join-interchange"]').trigger('click')
+    await flushPromises()
+
+    // Everything else the scenario carried goes back as it came.
+    expect(updateScenario).toHaveBeenCalledWith('ca-hsr', {
+      name: 'CA HSR',
+      description: 'California High-Speed Rail',
+      service_ids: ['svc1', 'svc2'],
+      interchange_pairs: [joined],
+      boarding_wait: { policy: 'fixed', secs: 300 },
+    })
+    expect(compileScenario).toHaveBeenCalledWith('ca-hsr', expect.any(Object))
+    expect(wrapper.find('[data-testid="near-miss-row"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="realised-cluster-row"]').text()).toBe('Union, Midtown')
+    expect(wrapper.get('[data-testid="declared-interchange-row"]').text())
+      .toContain('Union (Coast Express) and Midtown (Midtown Local)')
+  })
+
+  it('says it is recompiling for the interchange, and holds every button until it has', async () => {
+    vi.mocked(compileScenario).mockReturnValue(new Promise(() => {}))
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.get('[data-testid="join-interchange"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="recompiling-status"]').text()).toBe('Interchanges changed — recompiling…')
+    expect(wrapper.get('[data-testid="join-interchange"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('[data-testid="remove-interchange"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('holds the button while the save is in flight, so a second click cannot declare the pair twice', async () => {
+    vi.mocked(updateScenario).mockReturnValue(new Promise(() => {}))
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.get('[data-testid="join-interchange"]').trigger('click')
+    await wrapper.get('[data-testid="join-interchange"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="join-interchange"]').attributes('disabled')).toBeDefined()
+    expect(updateScenario).toHaveBeenCalledTimes(1)
+  })
+
+  it('reads Joined, not Join, for a near miss already declared in either order', async () => {
+    vi.mocked(fetchScenario).mockResolvedValue({ ...network, interchange_pairs: [{ a: midtown, b: union }] })
+    const wrapper = mountView()
+    await flushPromises()
+
+    const button = wrapper.get('[data-testid="join-interchange"]')
+    expect(button.text()).toBe('Joined')
+    expect(button.attributes('disabled')).toBeDefined()
+    await button.trigger('click')
+    expect(updateScenario).not.toHaveBeenCalled()
+  })
+
+  it('says why the save was refused, does not recompile, and keeps the near miss', async () => {
+    vi.mocked(updateScenario).mockRejectedValue(new ApiError('PUT failed: 422', 422, 'validation', {
+      faults: [{ field: 'interchange_pairs', index: 0, rule: 'same_service' }],
+    }))
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.get('[data-testid="join-interchange"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="interchange-error"]').text()).toBe('Interchange 1 joins a line to itself.')
+    expect(compileScenario).not.toHaveBeenCalled()
+    expect(wrapper.findAll('[data-testid="near-miss-row"]')).toHaveLength(1)
+    expect(wrapper.get('[data-testid="join-interchange"]').attributes('disabled')).toBeUndefined()
+  })
+
+  it('removes a declared pair, saving the others, and recompiles', async () => {
+    const other: InterchangePair = { a: { service_id: 'svc1', slug: 'union' }, b: { service_id: 'svc2', slug: 'harbour' } }
+    vi.mocked(fetchScenario).mockResolvedValue({ ...network, interchange_pairs: [joined, other] })
+    stubCompiledGraph(unjoinedGraph)
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.findAll('[data-testid="declared-interchange-row"]')).toHaveLength(2)
+
+    await wrapper.findAll('[data-testid="remove-interchange"]')[0].trigger('click')
+    await flushPromises()
+
+    expect(updateScenario).toHaveBeenCalledWith('ca-hsr', expect.objectContaining({ interchange_pairs: [other] }))
+    expect(compileScenario).toHaveBeenCalledWith('ca-hsr', expect.any(Object))
+    expect(wrapper.findAll('[data-testid="declared-interchange-row"]').map((row) => row.text()))
+      .toEqual([expect.stringContaining('Union (Coast Express) and Harbour (Midtown Local)')])
+  })
+
+  // A pair naming a stop that has gone fails every compile, so it has to stay
+  // reachable even with no graph to preview.
+  it('lists a pair whose stop has gone, even when the compile it breaks leaves no preview, and removes it', async () => {
+    const stale: InterchangePair = { a: union, b: { service_id: 'svc2', slug: 'old-midtown' } }
+    vi.mocked(fetchScenario).mockResolvedValue({ ...network, interchange_pairs: [stale] })
+    vi.mocked(fetchScenarioGraph).mockRejectedValue(new ApiError('no compiled graph', 404))
+    stubCompiledGraph(unjoinedGraph)
+    vi.mocked(compileScenario).mockRejectedValueOnce(new ApiError('compile boom', 500))
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="compile-error"]').exists()).toBe(true)
+    const row = wrapper.get('[data-testid="declared-interchange-row"]')
+    expect(row.text()).toContain('Union (Coast Express) and old-midtown (Midtown Local)')
+    expect(row.find('[data-testid="declared-interchange-missing"]').exists()).toBe(true)
+
+    await row.get('[data-testid="remove-interchange"]').trigger('click')
+    await flushPromises()
+
+    expect(updateScenario).toHaveBeenCalledWith('ca-hsr', expect.objectContaining({ interchange_pairs: [] }))
+    expect(wrapper.find('[data-testid="compile-error"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="map"]').exists()).toBe(true)
+  })
+
+  it('names a pair on a line it has no record of by its ids, and marks it gone', async () => {
+    const orphan: InterchangePair = { a: union, b: { service_id: 'svc9', slug: 'pier' } }
+    vi.mocked(fetchScenario).mockResolvedValue({ ...network, interchange_pairs: [orphan] })
+    const wrapper = mountView()
+    await flushPromises()
+
+    const row = wrapper.get('[data-testid="declared-interchange-row"]')
+    expect(row.text()).toContain('Union (Coast Express) and pier (svc9)')
+    expect(row.find('[data-testid="declared-interchange-missing"]').exists()).toBe(true)
   })
 })

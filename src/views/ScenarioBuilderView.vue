@@ -6,7 +6,8 @@ import { authoringFault } from '../api/authoringFault'
 import { ApiError, isSessionExpiry } from '../api/authoring/client'
 import { fetchMyServices } from '../api/authoring/services'
 import { compileScenario, createScenario, fetchScenario, updateScenario } from '../api/authoring/scenarios'
-import type { ScenarioInput, Service } from '../api/authoring/types'
+import { isValidBoardingWait, scenarioInput } from '../api/authoring/scenarioInput'
+import type { BoardingWaitPolicy, InterchangePair, ScenarioInput, Service } from '../api/authoring/types'
 import { useCompileJob } from '../composables/useCompileJob'
 import { usePageTitle } from '../composables/usePageTitle'
 import BreadcrumbTrail from '../components/BreadcrumbTrail.vue'
@@ -77,11 +78,7 @@ async function loadEdit(slug: string): Promise<void> {
   try {
     const scenario = await fetchScenario(slug)
     editName.value = scenario.name
-    editDraft.value = {
-      name: scenario.name,
-      description: scenario.description,
-      service_ids: [...scenario.service_ids],
-    }
+    editDraft.value = scenarioInput(scenario)
   } catch (err) {
     if (isSessionExpiry(err)) return
     if (err instanceof ApiError && err.status === 404) editNotFound.value = true
@@ -113,10 +110,49 @@ function isSelected(serviceId: string): boolean {
   return draft.value?.service_ids.includes(serviceId) ?? false
 }
 
+const BOARDING_WAIT_OPTIONS: { value: BoardingWaitPolicy | 'default'; label: string }[] = [
+  { value: 'default', label: 'Use default' },
+  { value: 'none', label: 'None' },
+  { value: 'half_headway', label: 'Half the headway' },
+  { value: 'full_headway', label: 'The full headway' },
+  { value: 'fixed', label: 'Fixed' },
+]
+
+// Seconds belong to `fixed` alone, so leaving it drops them rather than
+// sending a value the API would ignore; returning to it starts blank.
+const boardingWaitPolicy = computed({
+  get: () => draft.value?.boarding_wait?.policy ?? 'default',
+  set: (value: BoardingWaitPolicy | 'default') =>
+    patchDraft({ boarding_wait: value === 'default' ? null : { policy: value } }),
+})
+
+// A number input hands v-model '' when it is cleared, which is "not entered
+// yet" rather than zero.
+const fixedSecs = computed({
+  get: () => draft.value?.boarding_wait?.secs ?? '',
+  set: (value: number | string) =>
+    patchDraft({ boarding_wait: { policy: 'fixed', secs: value === '' ? undefined : Number(value) } }),
+})
+
+const boardingWaitValid = computed(() => isValidBoardingWait(draft.value?.boarding_wait ?? null))
+
+function namesMembers(pair: InterchangePair, members: string[]): boolean {
+  return members.includes(pair.a.service_id) && members.includes(pair.b.service_id)
+}
+
+// The API refuses a pair naming a line outside the network, so unticking a
+// line takes its pairs with it on save — said here rather than discovered as a
+// refusal.
+const droppedPairCount = computed(() => {
+  const current = draft.value
+  if (!current) return 0
+  return current.interchange_pairs.filter((pair) => !namesMembers(pair, current.service_ids)).length
+})
+
 const canSubmit = computed(() => {
   const current = draft.value
   if (!current || submitting.value) return false
-  return current.name.trim() !== '' && current.service_ids.length > 0
+  return current.name.trim() !== '' && current.service_ids.length > 0 && boardingWaitValid.value
 })
 
 const submitLabel = computed(() => {
@@ -159,15 +195,19 @@ async function handleSave(): Promise<void> {
   if (!current || !canSubmit.value) return
   submitting.value = true
   submitError.value = ''
+  const input: ScenarioInput = {
+    ...current,
+    interchange_pairs: current.interchange_pairs.filter((pair) => namesMembers(pair, current.service_ids)),
+  }
   try {
     if (props.slug) {
-      const saved = await updateScenario(props.slug, current)
+      const saved = await updateScenario(props.slug, input)
       savedSlug.value = saved.slug
       submitting.value = false
       await triggerCompile(saved.slug)
       return
     }
-    const created = await createScenario(current)
+    const created = await createScenario(input)
     drafts.clearScenarioDraft()
     await router.push({ name: 'scenario-detail', params: { slug: created.slug } })
   } catch (err) {
@@ -310,6 +350,62 @@ async function handleSave(): Promise<void> {
             </label>
           </li>
         </ul>
+        <p
+          v-if="droppedPairCount"
+          class="font-body text-caption mt-3 text-ink-muted italic"
+          data-testid="dropped-interchanges"
+        >
+          Saving also removes {{ droppedPairCount === 1 ? 'an interchange' : `${droppedPairCount} interchanges` }}
+          with a line no longer in this network.
+        </p>
+      </section>
+
+      <section class="flex flex-col gap-2">
+        <label :class="FIELD_LABEL_CLASS">
+          Boarding wait
+          <select
+            v-model="boardingWaitPolicy"
+            :class="FIELD_INPUT_CLASS"
+            data-testid="boarding-wait-policy"
+          >
+            <option
+              v-for="option in BOARDING_WAIT_OPTIONS"
+              :key="option.value"
+              :value="option.value"
+            >
+              {{ option.label }}
+            </option>
+          </select>
+        </label>
+        <label
+          v-if="boardingWaitPolicy === 'fixed'"
+          :class="FIELD_LABEL_CLASS"
+        >
+          Seconds
+          <input
+            v-model="fixedSecs"
+            :class="FIELD_INPUT_CLASS"
+            data-testid="boarding-wait-secs"
+            type="number"
+            min="0"
+            step="1"
+            :aria-invalid="!boardingWaitValid"
+          >
+        </label>
+        <p
+          v-if="!boardingWaitValid"
+          class="font-body text-caption text-error"
+          role="alert"
+          data-testid="boarding-wait-error"
+        >
+          Enter the wait in whole seconds, 0 or more.
+        </p>
+        <p
+          class="font-body text-caption text-ink-muted italic"
+          data-testid="boarding-wait-note"
+        >
+          Charged once, when a trip first boards — not again at each change. A line with its own boarding wait keeps it.
+        </p>
       </section>
 
       <button

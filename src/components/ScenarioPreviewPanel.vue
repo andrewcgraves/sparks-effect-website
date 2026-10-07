@@ -8,7 +8,9 @@ import { ORIGIN_PICK_CUE } from './placementCues'
 import { buildTimeRemainingGraph, remainingSecsBySlug } from './timeRemaining'
 import { useOriginPick } from '../composables/useOriginPick'
 import { useRoutingStatus } from '../composables/useRoutingStatus'
-import type { NearMiss, Service, StopCluster } from '../api/authoring/types'
+import { hasInterchangePair, nearMissPair } from '../api/authoring/scenarioInput'
+import type { InterchangePair, NearMiss, Service, StopCluster } from '../api/authoring/types'
+import { SECONDARY_BUTTON_CLASS } from './buttonStyles'
 import type { Route, Station } from '../api/scenarios'
 import type { ChainResponse } from '../fixtures/isochrone'
 import type { IsochronePayload } from '../isochroneQuery'
@@ -26,11 +28,16 @@ const props = defineProps<{
   mapRoutes?: Route[]
   statusNote?: string | null
   initial?: Partial<IsochronePayload>
+  // Only a scenario's owner can join stops, so only a page that passes its
+  // declared pairs gets the button; every other preview just reports.
+  interchangePairs?: InterchangePair[] | null
+  interchangeBusy?: boolean
 }>()
 
 defineEmits<{
   submit: [payload: IsochronePayload]
   'origin-change': [coords: { lat: number; lng: number } | null]
+  join: [nearMiss: NearMiss]
 }>()
 
 const { pickArmed, onMapClick } = useOriginPick()
@@ -58,6 +65,12 @@ function remainingSecs(slug: string): number | null {
 
 function serviceName(serviceId: string): string {
   return props.services.find((service) => service.id === serviceId)?.name ?? serviceId
+}
+
+// Joined but not yet recompiled — or recompiled into a failure — the graph
+// still calls it a near miss; a second click would only declare it again.
+function isJoined(nearMiss: NearMiss): boolean {
+  return hasInterchangePair(props.interchangePairs ?? [], nearMissPair(nearMiss))
 }
 
 function formatMeters(total: number): string {
@@ -126,12 +139,24 @@ function formatMeters(total: number): string {
           <li
             v-for="(nearMiss, index) in props.nearMisses"
             :key="index"
-            class="font-body text-caption text-ink"
+            class="font-body text-caption flex flex-col items-start gap-2 text-ink"
             data-testid="near-miss-row"
           >
-            {{ nearMiss.a.name }} ({{ serviceName(nearMiss.a.service_id) }}) and
-            {{ nearMiss.b.name }} ({{ serviceName(nearMiss.b.service_id) }})
-            are {{ formatMeters(nearMiss.distance_m) }} apart and did not connect
+            <span>
+              {{ nearMiss.a.name }} ({{ serviceName(nearMiss.a.service_id) }}) and
+              {{ nearMiss.b.name }} ({{ serviceName(nearMiss.b.service_id) }})
+              are {{ formatMeters(nearMiss.distance_m) }} apart and did not connect
+            </span>
+            <button
+              v-if="props.interchangePairs"
+              type="button"
+              :class="SECONDARY_BUTTON_CLASS"
+              :disabled="props.interchangeBusy || isJoined(nearMiss)"
+              data-testid="join-interchange"
+              @click="$emit('join', nearMiss)"
+            >
+              {{ isJoined(nearMiss) ? 'Joined' : 'Join as interchange' }}
+            </button>
           </li>
         </ul>
       </section>
@@ -155,6 +180,8 @@ function formatMeters(total: number): string {
           </li>
         </ul>
       </section>
+
+      <slot name="interchanges" />
     </div>
   </div>
 </template>

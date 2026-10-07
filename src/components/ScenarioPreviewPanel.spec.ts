@@ -4,6 +4,7 @@ import ScenarioPreviewPanel from './ScenarioPreviewPanel.vue'
 import { formatTimeRemaining, remainingSecsBySlug, buildTimeRemainingGraph } from './timeRemaining'
 import type { ChainResponse } from '../fixtures/isochrone'
 import type { Station } from '../api/scenarios'
+import type { NearMiss } from '../api/authoring/types'
 
 vi.mock('../api/routingStatus', () => ({ fetchRoutingStatus: vi.fn() }))
 
@@ -187,6 +188,50 @@ describe('ScenarioPreviewPanel', () => {
 
       expect(wrapper.find('[data-testid="routing-status"]').exists()).toBe(false)
       expect(plotButton(wrapper).disabled).toBe(false)
+    })
+  })
+
+  describe('near misses', () => {
+    const nearMiss: NearMiss = {
+      a: { service_id: 'svc1', slug: 'union', name: 'Union' },
+      b: { service_id: 'svc2', slug: 'midtown', name: 'Midtown' },
+      distance_m: 120.4,
+    }
+
+    function mountWithNearMiss(extra: Record<string, unknown> = {}) {
+      return mount(ScenarioPreviewPanel, {
+        props: { ...defaultProps, nearMisses: [nearMiss], ...extra },
+        global: { stubs: { MapView: true, IsochroneForm: true } },
+      })
+    }
+
+    it('only reports them on a page that does not pass its declared pairs', () => {
+      const wrapper = mountWithNearMiss()
+      expect(wrapper.get('[data-testid="near-miss-row"]').text()).toContain('120 m apart')
+      expect(wrapper.find('[data-testid="join-interchange"]').exists()).toBe(false)
+    })
+
+    it('offers Join as interchange beside each, and hands the near miss up', async () => {
+      const wrapper = mountWithNearMiss({ interchangePairs: [] })
+      const button = wrapper.get('[data-testid="join-interchange"]')
+      expect(button.text()).toBe('Join as interchange')
+
+      await button.trigger('click')
+      expect(wrapper.emitted('join')).toEqual([[nearMiss]])
+    })
+
+    it('holds Join while the page is busy saving or compiling', () => {
+      const wrapper = mountWithNearMiss({ interchangePairs: [], interchangeBusy: true })
+      expect(wrapper.get('[data-testid="join-interchange"]').attributes('disabled')).toBeDefined()
+    })
+
+    it('reads Joined for a pair already declared, whichever way round', () => {
+      const wrapper = mountWithNearMiss({
+        interchangePairs: [{ a: { service_id: 'svc2', slug: 'midtown' }, b: { service_id: 'svc1', slug: 'union' } }],
+      })
+      const button = wrapper.get('[data-testid="join-interchange"]')
+      expect(button.text()).toBe('Joined')
+      expect(button.attributes('disabled')).toBeDefined()
     })
   })
 })
