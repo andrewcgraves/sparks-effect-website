@@ -63,6 +63,13 @@ describe('speed units', () => {
       expect(kmhToMph(mphToKmh(mph))).toBe(mph)
     }
   })
+
+  it('keeps a whole km/h figure when the mph typed is the one it displays as, so retyping a preset\'s speed keeps the preset', () => {
+    for (const preset of VEHICLE_PRESETS) {
+      const kmh = preset.vehicle.max_speed_kmh
+      expect(mphToKmh(kmhToMph(kmh))).toBe(kmh)
+    }
+  })
 })
 
 describe('vehicleWarnings', () => {
@@ -76,7 +83,7 @@ describe('vehicleWarnings', () => {
     expect(vehicleWarnings({ max_speed_kmh: 450, acceleration_ms2: 1.6, deceleration_ms2: 2, dwell_s: 400 })).toEqual({
       max_speed_kmh: 'Faster than any passenger rail in service',
       acceleration_ms2: 'Higher than most passenger rail',
-      deceleration_ms2: 'Harder than a normal service stop',
+      deceleration_ms2: 'Harder than a normal station stop',
       dwell_s: 'Longer than most station stops',
     })
   })

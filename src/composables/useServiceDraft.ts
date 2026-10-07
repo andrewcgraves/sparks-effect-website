@@ -199,7 +199,7 @@ export function useServiceDraft(serviceSlug?: string) {
   // and the fields that make up a vehicle are the editor's concern.
   const vehicle = computed({
     get: () => draft.value?.vehicle ?? NO_VEHICLE,
-    set: (value: VehicleParams) => drafts.patchServiceDraft({ vehicle: { ...value } }),
+    set: (value: VehicleParams) => drafts.patchServiceDraft({ vehicle: value }),
   })
 
   // An edit whose route could not be recovered opens without one, and cannot be
@@ -253,7 +253,8 @@ export function useServiceDraft(serviceSlug?: string) {
     if (
       current.vehicle.max_speed_kmh <= 0 ||
       current.vehicle.acceleration_ms2 <= 0 ||
-      current.vehicle.deceleration_ms2 <= 0
+      current.vehicle.deceleration_ms2 <= 0 ||
+      current.vehicle.dwell_s < 0
     ) {
       return false
     }

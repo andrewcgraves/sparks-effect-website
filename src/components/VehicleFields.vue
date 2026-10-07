@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, useId } from 'vue'
 import type { VehicleParams } from '../api/authoring/types'
+import FieldNote from './FieldNote.vue'
 import SegmentedControl from './SegmentedControl.vue'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from './fieldStyles'
 import {
@@ -70,9 +71,6 @@ const maxSpeed = computed({
 const warnings = computed(() => vehicleWarnings(props.modelValue))
 
 const speedInputId = useId()
-
-const HELP_CLASS = 'font-body text-caption text-ink-muted'
-const WARNING_CLASS = 'font-body text-caption flex items-center gap-2 text-ink'
 </script>
 
 <template>
@@ -116,24 +114,11 @@ const WARNING_CLASS = 'font-body text-caption flex items-center gap-2 text-ink'
           min="0"
           step="any"
         >
-        <p
-          :class="HELP_CLASS"
-          data-testid="vehicle-max-speed-help"
-        >
-          {{ vehicleFieldHelp('max_speed_kmh', speedUnit) }}
-        </p>
-        <p
-          v-if="warnings.max_speed_kmh"
-          :class="WARNING_CLASS"
-          role="status"
-          data-testid="vehicle-max-speed-warning"
-        >
-          <span
-            class="size-2 shrink-0 rounded-full bg-apricot"
-            aria-hidden="true"
-          />
-          {{ warnings.max_speed_kmh }}
-        </p>
+        <FieldNote
+          :help="vehicleFieldHelp('max_speed_kmh', speedUnit)"
+          :warning="warnings.max_speed_kmh"
+          testid="vehicle-max-speed"
+        />
       </div>
 
       <div class="flex flex-col gap-1">
@@ -148,24 +133,11 @@ const WARNING_CLASS = 'font-body text-caption flex items-center gap-2 text-ink'
             step="0.1"
           >
         </label>
-        <p
-          :class="HELP_CLASS"
-          data-testid="vehicle-acceleration-help"
-        >
-          {{ vehicleFieldHelp('acceleration_ms2', speedUnit) }}
-        </p>
-        <p
-          v-if="warnings.acceleration_ms2"
-          :class="WARNING_CLASS"
-          role="status"
-          data-testid="vehicle-acceleration-warning"
-        >
-          <span
-            class="size-2 shrink-0 rounded-full bg-apricot"
-            aria-hidden="true"
-          />
-          {{ warnings.acceleration_ms2 }}
-        </p>
+        <FieldNote
+          :help="vehicleFieldHelp('acceleration_ms2', speedUnit)"
+          :warning="warnings.acceleration_ms2"
+          testid="vehicle-acceleration"
+        />
       </div>
 
       <div class="flex flex-col gap-1">
@@ -180,24 +152,11 @@ const WARNING_CLASS = 'font-body text-caption flex items-center gap-2 text-ink'
             step="0.1"
           >
         </label>
-        <p
-          :class="HELP_CLASS"
-          data-testid="vehicle-deceleration-help"
-        >
-          {{ vehicleFieldHelp('deceleration_ms2', speedUnit) }}
-        </p>
-        <p
-          v-if="warnings.deceleration_ms2"
-          :class="WARNING_CLASS"
-          role="status"
-          data-testid="vehicle-deceleration-warning"
-        >
-          <span
-            class="size-2 shrink-0 rounded-full bg-apricot"
-            aria-hidden="true"
-          />
-          {{ warnings.deceleration_ms2 }}
-        </p>
+        <FieldNote
+          :help="vehicleFieldHelp('deceleration_ms2', speedUnit)"
+          :warning="warnings.deceleration_ms2"
+          testid="vehicle-deceleration"
+        />
       </div>
 
       <div class="flex flex-col gap-1">
@@ -211,24 +170,11 @@ const WARNING_CLASS = 'font-body text-caption flex items-center gap-2 text-ink'
             min="0"
           >
         </label>
-        <p
-          :class="HELP_CLASS"
-          data-testid="vehicle-dwell-help"
-        >
-          {{ vehicleFieldHelp('dwell_s', speedUnit) }}
-        </p>
-        <p
-          v-if="warnings.dwell_s"
-          :class="WARNING_CLASS"
-          role="status"
-          data-testid="vehicle-dwell-warning"
-        >
-          <span
-            class="size-2 shrink-0 rounded-full bg-apricot"
-            aria-hidden="true"
-          />
-          {{ warnings.dwell_s }}
-        </p>
+        <FieldNote
+          :help="vehicleFieldHelp('dwell_s', speedUnit)"
+          :warning="warnings.dwell_s"
+          testid="vehicle-dwell"
+        />
       </div>
     </div>
   </div>

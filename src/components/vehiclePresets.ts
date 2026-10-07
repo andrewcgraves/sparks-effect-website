@@ -72,45 +72,61 @@ export function kmhToMph(kmh: number): number {
   return toTenth(kmh / KM_PER_MILE)
 }
 
+// Prefers the whole km/h that shows as the mph typed, when there is one: a
+// preset's 320 km/h reads as 198.8 mph, and an author who retypes that 198.8
+// should get 320 back, not 319.9 and a vehicle that no longer matches it.
 export function mphToKmh(mph: number): number {
-  return toTenth(mph * KM_PER_MILE)
+  const kmh = mph * KM_PER_MILE
+  const whole = Math.round(kmh)
+  return kmhToMph(whole) === mph ? whole : toTenth(kmh)
 }
 
 // Soft ranges: a figure outside them is almost always a typo or a unit mix-up,
-// but the API accepts it and so does the form. The floor of each positive
-// field is the one thing the API refuses, and canSubmit already holds the save
-// back for it, so that message says why the button is dead rather than adding
-// a block of its own.
+// but the API accepts it and so does the form. The floor is the one thing the
+// API refuses — above zero for the three motion figures, not negative for
+// dwell — and canSubmit holds the save back for it, so that message says why
+// the button is dead rather than adding a block of its own.
+type Floor = 'positive' | 'non_negative'
+
 interface SoftRange {
+  floor: Floor
   low: number
   high: number
-  tooLow: string
+  tooLow?: string
   tooHigh: string
+}
+
+const REFUSED: Record<Floor, string> = {
+  positive: 'Must be above zero',
+  non_negative: "Can't be negative",
 }
 
 const SOFT_RANGES: Record<keyof VehicleParams, SoftRange> = {
   max_speed_kmh: {
+    floor: 'positive',
     low: 20,
     high: 400,
     tooLow: 'Slower than city traffic',
     tooHigh: 'Faster than any passenger rail in service',
   },
   acceleration_ms2: {
+    floor: 'positive',
     low: 0.2,
     high: 1.5,
     tooLow: 'Lower than most passenger rail',
     tooHigh: 'Higher than most passenger rail',
   },
   deceleration_ms2: {
+    floor: 'positive',
     low: 0.2,
     high: 1.5,
     tooLow: 'Lower than most passenger rail',
-    tooHigh: 'Harder than a normal service stop',
+    tooHigh: 'Harder than a normal station stop',
   },
   dwell_s: {
+    floor: 'non_negative',
     low: 0,
     high: 300,
-    tooLow: '',
     tooHigh: 'Longer than most station stops',
   },
 }
@@ -121,15 +137,11 @@ export function vehicleWarnings(vehicle: VehicleParams): VehicleWarnings {
   const warnings: VehicleWarnings = {}
   for (const field of VEHICLE_FIELDS) {
     const value = vehicle[field]
-    const range = SOFT_RANGES[field]
-    if (field === 'dwell_s') {
-      if (value < 0) warnings[field] = "Can't be negative"
-      else if (value > range.high) warnings[field] = range.tooHigh
-      continue
-    }
-    if (value <= 0) warnings[field] = 'Must be above zero'
-    else if (value < range.low) warnings[field] = range.tooLow
-    else if (value > range.high) warnings[field] = range.tooHigh
+    const { floor, low, high, tooLow, tooHigh } = SOFT_RANGES[field]
+    const refused = floor === 'positive' ? value <= 0 : value < 0
+    if (refused) warnings[field] = REFUSED[floor]
+    else if (tooLow && value < low) warnings[field] = tooLow
+    else if (value > high) warnings[field] = tooHigh
   }
   return warnings
 }

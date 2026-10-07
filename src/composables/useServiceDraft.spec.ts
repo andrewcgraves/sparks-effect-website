@@ -797,6 +797,7 @@ describe('useServiceDraft', () => {
       ['one stop', (d: Draft) => { d.removeStop(1) }],
       ['no route', (d: Draft) => { d.routeSlug.value = '' }],
       ['an impossible vehicle', (d: Draft) => { d.vehicle.value = { ...d.vehicle.value, max_speed_kmh: 0 } }],
+      ['a negative dwell', (d: Draft) => { d.vehicle.value = { ...d.vehicle.value, dwell_s: -1 } }],
     ])('is not ready with %s', async (_label, break_) => {
       const draft = useServiceDraft()
       await submittable(draft)
