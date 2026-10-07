@@ -41,15 +41,19 @@ const items = computed<Item[]>(() => [
   { action: 'remove', text: `Remove ${props.label}`, testId: `stop-remove-${props.index}`, destructive: true },
 ])
 
-function enabledItems(): HTMLButtonElement[] {
-  return Array.from(menu.value?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)') ?? [])
+// A move the stop cannot make is still walked onto, and said to be
+// unavailable, so the menu reads the same length and order on every stop.
+function menuItems(): HTMLButtonElement[] {
+  return Array.from(menu.value?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? [])
 }
 
+// Opens on the nearest item that can be used, rather than on a move the stop
+// cannot make.
 async function openMenu(focus: 'first' | 'last'): Promise<void> {
   open.value = true
   await nextTick()
-  const enabled = enabledItems()
-  ;(focus === 'first' ? enabled[0] : enabled[enabled.length - 1])?.focus()
+  const usable = menuItems().filter((item) => item.getAttribute('aria-disabled') !== 'true')
+  ;(focus === 'first' ? usable[0] : usable[usable.length - 1])?.focus()
 }
 
 function close(returnFocus: boolean): void {
@@ -71,14 +75,14 @@ function onTriggerKeydown(event: KeyboardEvent): void {
 }
 
 function onMenuKeydown(event: KeyboardEvent): void {
-  const enabled = enabledItems()
-  const at = enabled.indexOf(document.activeElement as HTMLButtonElement)
+  const items = menuItems()
+  const at = items.indexOf(document.activeElement as HTMLButtonElement)
   let next: number
   switch (event.key) {
-    case 'ArrowDown': next = (at + 1) % enabled.length; break
-    case 'ArrowUp': next = (at - 1 + enabled.length) % enabled.length; break
+    case 'ArrowDown': next = (at + 1) % items.length; break
+    case 'ArrowUp': next = (at - 1 + items.length) % items.length; break
     case 'Home': next = 0; break
-    case 'End': next = enabled.length - 1; break
+    case 'End': next = items.length - 1; break
     case 'Escape':
       // Kept from the page, whose own Escape disarms click-to-place: closing a
       // menu should not also stop the author placing stops.
@@ -93,7 +97,7 @@ function onMenuKeydown(event: KeyboardEvent): void {
       return
   }
   event.preventDefault()
-  enabled[next]?.focus()
+  items[next]?.focus()
 }
 
 // Focus goes back to the trigger before the action runs, so whatever the
@@ -160,9 +164,9 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onPointerDownO
           type="button"
           role="menuitem"
           tabindex="-1"
-          class="font-body text-caption w-full cursor-pointer truncate rounded-(--radius-field) px-3 py-1.5 text-left hover:bg-surface focus:bg-surface focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+          class="font-body text-caption w-full cursor-pointer truncate rounded-(--radius-field) px-3 py-1.5 text-left hover:bg-surface focus:bg-surface focus:outline-none aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:hover:bg-transparent aria-disabled:focus:bg-surface"
           :class="item.destructive ? 'text-error' : 'text-ink'"
-          :disabled="item.disabled"
+          :aria-disabled="item.disabled ? 'true' : undefined"
           :data-testid="item.testId"
           @click.stop="choose(item)"
         >

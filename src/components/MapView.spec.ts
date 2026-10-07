@@ -1340,6 +1340,16 @@ describe('MapView', () => {
       expect(mockFlyTo).toHaveBeenLastCalledWith({ center: [-119.79, 36.74], zoom: 15 })
     })
 
+    it('flies to a stop asked for before the map had loaded, once it has', async () => {
+      const wrapper = mount(MapView, { props: defaultProps })
+      await wrapper.setProps({ centerOn: { lat: 36.74, lng: -119.79 } })
+      expect(mockFlyTo).not.toHaveBeenCalled()
+
+      await triggerMapLoad()
+
+      expect(mockFlyTo).toHaveBeenLastCalledWith({ center: [-119.79, 36.74], zoom: 12 })
+    })
+
     it('flies again when asked for the same stop a second time', async () => {
       const wrapper = mount(MapView, { props: defaultProps })
       await triggerMapLoad()

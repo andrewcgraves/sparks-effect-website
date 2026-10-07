@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useConfirm } from '../composables/useConfirm'
 import { usePageTitle } from '../composables/usePageTitle'
@@ -152,9 +152,19 @@ function handleKeydown(event: KeyboardEvent): void {
   if (event.key === 'Escape') placingStops.value = false
 }
 
+const COORDINATE_LIMITS = { lat: 90, lng: 180 } as const
+
+// A cleared number field reaches its model as '' rather than null, and Number('')
+// is 0, which would put the stop in the Gulf of Guinea.
+function isCoordinate(field: 'lat' | 'lng', value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= COORDINATE_LIMITS[field]
+}
+
 function handleAddStop(): void {
-  if (newStopLat.value === null || newStopLng.value === null) return
-  addStop({ name: newStopName.value, lat: newStopLat.value, lng: newStopLng.value })
+  const lat = newStopLat.value
+  const lng = newStopLng.value
+  if (!isCoordinate('lat', lat) || !isCoordinate('lng', lng)) return
+  addStop({ name: newStopName.value, lat, lng })
   newStopName.value = ''
   newStopLat.value = null
   newStopLng.value = null
@@ -167,23 +177,23 @@ const { show: toast } = useToast()
 
 // What every control in a row calls its stop. Two stops can share a name, and
 // a stop can lose its name altogether while it is being retyped; the position
-// is what keeps "Remove Fresno" naming one button and not two.
+// is what keeps "Remove Fresno" naming one button and not two. Compared the
+// way a listener hears them, so "Stop 2" and "stop 2" count as the same name.
 const stopLabels = computed(() => {
+  const named = stops.value.map((stop, index) => stop.name.trim() || `Unnamed stop ${index + 1}`)
   const counts = new Map<string, number>()
-  for (const stop of stops.value) {
-    const key = stop.name.trim().toLowerCase()
+  for (const label of named) {
+    const key = label.toLowerCase()
     counts.set(key, (counts.get(key) ?? 0) + 1)
   }
-  return stops.value.map((stop, index) => {
-    const stopName = stop.name.trim()
-    if (!stopName) return `stop ${index + 1}`
-    return (counts.get(stopName.toLowerCase()) ?? 0) > 1 ? `${stopName} (stop ${index + 1})` : stopName
-  })
+  return named.map((label, index) =>
+    (counts.get(label.toLowerCase()) ?? 0) > 1 ? `${label} (stop ${index + 1})` : label,
+  )
 })
 
 const selectedStopId = ref<string | null>(null)
 const mapCenter = ref<LatLng | null>(null)
-const hoveredStopIndex = ref<number | null>(null)
+const hoveredStopId = ref<string | null>(null)
 const editingPositionId = ref<string | null>(null)
 const draggingStopId = ref<string | null>(null)
 const dropTargetId = ref<string | null>(null)
@@ -196,6 +206,13 @@ function selectStop(stop: DraftStop): void {
   mapCenter.value = { lat: stop.lat, lng: stop.lng }
 }
 
+// A click that lands in one of the row's own controls is that control's: the
+// author renaming a stop or typing its latitude is not asking the map to move.
+function onStopRowClick(stop: DraftStop, event: MouseEvent): void {
+  if ((event.target as Element | null)?.closest('input, button, label, textarea, select')) return
+  selectStop(stop)
+}
+
 // Handed through unchanged until something is selected, so the map is never
 // given a new pair list — and a redraw — that differs in nothing.
 const mapStopPairs = computed(() => {
@@ -204,8 +221,11 @@ const mapStopPairs = computed(() => {
   return stopPreviewPairs.value.map((pair, index) => (index === at ? { ...pair, selected: true } : pair))
 })
 
+// The map names pins by position, which a reorder hands to another stop while
+// the pointer has not moved; held by id, the highlight stays on the stop that
+// was hovered, and goes when that stop does.
 function handleMapStopHover(pairId: string | null): void {
-  hoveredStopIndex.value = pairId === null ? null : Number(pairId)
+  hoveredStopId.value = pairId === null ? null : (stops.value[Number(pairId)]?.id ?? null)
 }
 
 // Cleared first so the same sentence twice in a row is still read out.
@@ -215,13 +235,40 @@ async function announce(message: string): Promise<void> {
   stopAnnouncement.value = message
 }
 
-function handleMoveStop(index: number, direction: -1 | 1): void {
-  const label = stopLabels.value[index]
-  moveStop(index, direction)
-  void announce(`${label} is now stop ${index + direction + 1} of ${stops.value.length}`)
+// Named without the position its label may carry, which the move has just
+// made untrue.
+function announceMove(stop: DraftStop, to: number): void {
+  void announce(`${stop.name.trim() || 'Unnamed stop'} is now stop ${to + 1} of ${stops.value.length}`)
 }
 
+function handleMoveStop(index: number, direction: -1 | 1): void {
+  const stop = stops.value[index]
+  if (!stop) return
+  moveStop(index, direction)
+  announceMove(stop, index + direction)
+}
+
+const orderWarningId = useId()
+const routeOrderHintId = useId()
+
+// Said only while the button cannot be used, which is most of the time. Kept
+// hidden, since it is the button's description and not a line of the page.
+const routeOrderHint = computed(() => {
+  if (canPutInRouteOrder.value) return ''
+  return orderWarning.value
+    ? 'Available again once the check against the route has caught up with your changes.'
+    : 'Available when the check against the route finds the stops out of order.'
+})
+
+const routeOrderDescription = computed(() => {
+  const ids = [orderWarning.value ? orderWarningId : null, routeOrderHint.value ? routeOrderHintId : null]
+  return ids.filter(Boolean).join(' ') || undefined
+})
+
+// aria-disabled rather than disabled: a button that disables itself under the
+// pointer or the keyboard that pressed it throws focus back to the page.
 function handlePutInRouteOrder(): void {
+  if (!canPutInRouteOrder.value) return
   putInRouteOrder()
   void announce('Stops put in route order')
 }
@@ -246,14 +293,14 @@ function closePositionEditor(index: number): void {
   stopsSection.value?.querySelector<HTMLElement>(`[data-testid="stop-actions-${index}"]`)?.focus()
 }
 
-// A cleared or half-typed field is not a coordinate: Number('') is 0, which
-// would put the stop in the Gulf of Guinea. The field is put back to what the
-// stop still holds, since nothing changed for Vue to write it back itself.
+// A cleared, half-typed or out-of-range field is not a coordinate. The field is
+// put back to what the stop still holds, since nothing changed for Vue to
+// write it back itself.
 function commitCoordinate(index: number, field: 'lat' | 'lng', event: Event): void {
   const input = event.target as HTMLInputElement
   const typed = input.value.trim()
   const value = Number(typed)
-  if (typed === '' || !Number.isFinite(value)) {
+  if (typed === '' || !isCoordinate(field, value)) {
     const stop = stops.value[index]
     if (stop) input.value = String(stop[field])
     return
@@ -261,13 +308,16 @@ function commitCoordinate(index: number, field: 'lat' | 'lng', event: Event): vo
   updateStop(index, { [field]: value })
 }
 
+const STOP_DRAG_TYPE = 'application/x-sparks-stop-id'
+
 function onStopDragStart(stop: DraftStop, event: DragEvent): void {
   draggingStopId.value = stop.id
   const transfer = event.dataTransfer
   if (!transfer) return
   transfer.effectAllowed = 'move'
-  // Firefox starts no drag that carries no data.
-  transfer.setData('text/plain', stop.name)
+  // Firefox starts no drag that carries no data. A type of its own, rather
+  // than text, so a row let go over a text field is not pasted into it.
+  transfer.setData(STOP_DRAG_TYPE, stop.id)
   // The handle is what is grabbed, but the row is what is being moved.
   const row = (event.target as HTMLElement).closest('li')
   if (row) transfer.setDragImage(row, 16, 16)
@@ -287,9 +337,18 @@ function onStopDrop(index: number, event: DragEvent): void {
   event.preventDefault()
   const from = stops.value.findIndex((stop) => stop.id === id)
   if (from === -1 || from === index) return
-  const label = stopLabels.value[from]
+  const stop = stops.value[from]
   moveStopTo(id, index)
-  void announce(`${label} is now stop ${index + 1} of ${stops.value.length}`)
+  announceMove(stop, index)
+}
+
+// Leaving a row for one of its own children is not leaving it; leaving it for
+// a gap between rows, or for outside the list, is, and a drop there does
+// nothing, so the line promising one goes.
+function onStopDragLeave(stop: DraftStop, event: DragEvent): void {
+  const row = event.currentTarget as Element
+  if (row.contains(event.relatedTarget as Node | null)) return
+  if (dropTargetId.value === stop.id) dropTargetId.value = null
 }
 
 function endStopDrag(): void {
@@ -306,9 +365,11 @@ function dropEdge(stop: DraftStop, index: number): 'before' | 'after' | null {
   return from < index ? 'after' : 'before'
 }
 
+// Hovering a pin tints the row; selecting it rings the row. Both can hold at
+// once, so neither is drawn with the other's mark.
 function stopRowClass(stop: DraftStop, index: number): string[] {
   const classes = [stop.id === selectedStopId.value ? 'border-coral ring-1 ring-coral' : 'border-border']
-  if (index === hoveredStopIndex.value) classes.push('bg-surface')
+  if (stop.id === hoveredStopId.value) classes.push('bg-coral/10')
   else classes.push('bg-white')
   if (stop.id === draggingStopId.value) classes.push('opacity-50')
   const edge = dropEdge(stop, index)
@@ -318,11 +379,12 @@ function stopRowClass(stop: DraftStop, index: number): string[] {
 }
 
 async function handleRemoveStop(stopId: string): Promise<void> {
-  const stop = stops.value.find((s) => s.id === stopId)
+  const asked = stops.value.findIndex((s) => s.id === stopId)
+  const stop = stops.value[asked]
   if (!stop) return
   const confirmed = await confirm({
     title: 'Remove this stop?',
-    body: `${stop.name || 'This stop'} comes off the route, and this can't be undone.`,
+    body: `${stopLabels.value[asked]} comes off the route, and this can't be undone.`,
     confirmLabel: 'Remove stop',
     cancelLabel: 'Keep stop',
     destructive: true,
@@ -565,9 +627,10 @@ watch(createdSlug, (created) => {
               >
                 <button
                   type="button"
-                  :class="SECONDARY_BUTTON_CLASS"
+                  :class="[SECONDARY_BUTTON_CLASS, 'aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:hover:bg-transparent']"
                   data-testid="put-in-route-order"
-                  :disabled="!canPutInRouteOrder"
+                  :aria-disabled="canPutInRouteOrder ? undefined : 'true'"
+                  :aria-describedby="routeOrderDescription"
                   @click="handlePutInRouteOrder"
                 >
                   Put in route order
@@ -584,7 +647,17 @@ watch(createdSlug, (created) => {
             </div>
 
             <p
+              v-if="stops.length > 1 && routeOrderHint"
+              :id="routeOrderHintId"
+              hidden
+              data-testid="route-order-hint"
+            >
+              {{ routeOrderHint }}
+            </p>
+
+            <p
               v-if="orderWarning"
+              :id="orderWarningId"
               class="font-body text-caption mt-2 text-error"
               role="alert"
               data-testid="order-warning"
@@ -604,8 +677,9 @@ watch(createdSlug, (created) => {
                 :class="stopRowClass(stop, index)"
                 :aria-current="stop.id === selectedStopId ? 'true' : undefined"
                 data-testid="stop-row"
-                @click="selectStop(stop)"
+                @click="onStopRowClick(stop, $event)"
                 @dragover="onStopDragOver(stop, $event)"
+                @dragleave="onStopDragLeave(stop, $event)"
                 @drop="onStopDrop(index, $event)"
               >
                 <div class="flex items-center gap-2">
@@ -615,7 +689,7 @@ watch(createdSlug, (created) => {
                   -->
                   <span
                     draggable="true"
-                    class="cursor-grab px-0.5 text-ink-faint select-none hover:text-ink-muted active:cursor-grabbing"
+                    class="cursor-grab px-0.5 text-ink-muted select-none hover:text-ink active:cursor-grabbing"
                     title="Drag to reorder"
                     aria-hidden="true"
                     :data-testid="`stop-drag-${index}`"
@@ -710,7 +784,7 @@ watch(createdSlug, (created) => {
               class="font-body text-caption mt-3 text-ink-muted"
               data-testid="stops-empty"
             >
-              No stops yet. Turn on placing below, then click along the route on the map.
+              No stops yet. Choose "Add stops by clicking the map" below, then click along the route.
             </p>
 
             <p
@@ -736,7 +810,7 @@ watch(createdSlug, (created) => {
               :aria-pressed="placingStops"
               @click="placingStops = !placingStops"
             >
-              {{ placingStops ? 'Done adding stops' : 'Add stops by clicking the map' }}
+              Add stops by clicking the map
             </button>
 
             <details
@@ -757,7 +831,7 @@ watch(createdSlug, (created) => {
                   >
                 </label>
                 <label :class="FIELD_LABEL_CLASS">
-                  Lat
+                  Latitude
                   <input
                     v-model.number="newStopLat"
                     :class="FIELD_INPUT_CLASS"
@@ -767,7 +841,7 @@ watch(createdSlug, (created) => {
                   >
                 </label>
                 <label :class="FIELD_LABEL_CLASS">
-                  Lng
+                  Longitude
                   <input
                     v-model.number="newStopLng"
                     :class="FIELD_INPUT_CLASS"

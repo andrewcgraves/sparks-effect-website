@@ -105,12 +105,41 @@ describe('StopActionsMenu', () => {
     expect(wrapper.find('[role="menu"]').exists()).toBe(true)
   })
 
-  it('emits nothing for a move it cannot make', async () => {
+  it('emits nothing for a move it cannot make, and stays open', async () => {
     const wrapper = mountMenu({ first: true })
     await wrapper.get('[data-testid="stop-actions-3"]').trigger('click')
 
     await wrapper.get('[data-testid="stop-up-3"]').trigger('click')
 
     expect(wrapper.emitted('move-up')).toBeUndefined()
+    expect(wrapper.find('[role="menu"]').exists()).toBe(true)
+  })
+
+  // Marked unavailable rather than disabled, so the arrow keys still land on
+  // it and a screen reader hears that the move exists but cannot be made here.
+  it('keeps a move it cannot make in the arrow-key walk, marked unavailable', async () => {
+    const wrapper = mountMenu({ last: true })
+    await wrapper.get('[data-testid="stop-actions-3"]').trigger('click')
+    await flushPromises()
+    const down = wrapper.get('[data-testid="stop-down-3"]')
+    expect(down.attributes('aria-disabled')).toBe('true')
+    expect(down.attributes('disabled')).toBeUndefined()
+    expect(wrapper.get('[data-testid="stop-up-3"]').attributes('aria-disabled')).toBeUndefined()
+
+    expect(document.activeElement).toBe(wrapper.get('[data-testid="stop-up-3"]').element)
+    await wrapper.get('[role="menu"]').trigger('keydown', { key: 'ArrowDown' })
+
+    expect(document.activeElement).toBe(down.element)
+  })
+
+  it('opens on the first move it can make, not on one it cannot', async () => {
+    const wrapper = mountMenu({ first: true })
+
+    await wrapper.get('[data-testid="stop-actions-3"]').trigger('click')
+    await flushPromises()
+
+    expect(document.activeElement).toBe(wrapper.get('[data-testid="stop-down-3"]').element)
+    await wrapper.get('[role="menu"]').trigger('keydown', { key: 'Home' })
+    expect(document.activeElement).toBe(wrapper.get('[data-testid="stop-up-3"]').element)
   })
 })

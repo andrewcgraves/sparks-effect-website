@@ -96,6 +96,20 @@ describe('useStopDrag', () => {
     expect(onHover.mock.calls).toEqual([['0'], ['1'], [null]])
   })
 
+  // Released when the pins go, which no mouseleave reports, so a row
+  // highlighted for a pin that no longer exists would otherwise stay lit.
+  it('reports the hover over once released, and only if a pin was hovered', () => {
+    const onHover = vi.fn()
+    const { map, fire } = makeMockMap()
+    const drag = useStopDrag(map as unknown as Map, { onDrag: vi.fn(), onDragEnd: vi.fn(), idleCursor: () => '', onHover })
+
+    fire('mouseenter', RAW_STOP_LAYER_ID, pinEvent('0', 37.77, -122.41))
+    drag.release()
+    drag.release()
+
+    expect(onHover.mock.calls).toEqual([['0'], [null]])
+  })
+
   it('claims the gesture on mousedown so the map does not pan underneath the pin', () => {
     const { fire, handlers } = setup()
     const down = pinEvent('0', 37.77, -122.41)

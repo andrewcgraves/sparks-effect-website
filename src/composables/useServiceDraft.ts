@@ -135,11 +135,12 @@ export function useServiceDraft(serviceSlug?: string) {
   const selectedRoute = ref<Route | null>(null)
 
   const preview = ref<SnapStopsResponse | null>(null)
-  // The ids of the stops the preview was asked about, in the order it was
-  // asked. Its answers are positional, and the list can be reordered while a
-  // request is out or before the next one is scheduled; reading them through
-  // these ids keeps each answer on the stop it is about.
-  const previewStopIds = ref<string[]>([])
+  // The stops the preview was asked about, in the order it was asked. Its
+  // answers are positional, and the list can be reordered while a request is
+  // out or before the next one is scheduled; reading them through these ids
+  // keeps each answer on the stop it is about. The coordinates are kept too,
+  // because a stop that has moved since may sit somewhere else along the line.
+  const previewAsked = ref<{ id: string; lat: number; lng: number }[]>([])
   const previewLoading = ref(false)
   const previewError = ref(false)
 
@@ -159,6 +160,7 @@ export function useServiceDraft(serviceSlug?: string) {
   let draggingStop = false
   let unwatchDraft: WatchStopHandle | null = null
   const routeLoads = latestAttempt()
+  const previewRuns = latestAttempt()
 
   // The store keeps one service draft, and it is not always this page's: the
   // create draft an edit is opening over, or the one a finished edit handed the
@@ -233,7 +235,7 @@ export function useServiceDraft(serviceSlug?: string) {
 
   const stopSnaps = computed<Map<string, SnappedStopResult>>(() => {
     const answers = preview.value?.stops ?? []
-    return new Map(answers.map((answer, index) => [previewStopIds.value[index], answer]))
+    return new Map(answers.map((answer, index) => [previewAsked.value[index]?.id, answer]))
   })
 
   const stopPreviewPairs = computed<StopPreviewPair[]>(() =>
@@ -256,21 +258,25 @@ export function useServiceDraft(serviceSlug?: string) {
     if (!preview.value || preview.value.order_is_consistent) return null
     const byId = new Map(stops.value.map((stop) => [stop.id, stop.name]))
     const alongLine = preview.value.chainage_order
-      .map((i) => byId.get(previewStopIds.value[i]))
+      .map((i) => byId.get(previewAsked.value[i]?.id))
       .filter((stopName): stopName is string => !!stopName)
     return `Authored order doesn't match the route's direction. Along the route: ${alongLine.join(' → ')}.`
   })
 
   // The along-the-line order as stop ids, or null when the preview has no
-  // complaint or was taken of a different set of stops than the draft now
-  // holds. Applying it is idempotent, which matters because the warning that
-  // offers it outlives the reorder until the next preview lands.
+  // complaint or was taken of different stops than the draft now holds — a stop
+  // added or removed since, or one moved, which may have changed where along
+  // the line it falls. Applying it is idempotent, which matters because the
+  // warning that offers it outlives the reorder until the next preview lands.
   const routeOrder = computed<string[] | null>(() => {
     if (!preview.value || preview.value.order_is_consistent) return null
-    const ids = preview.value.chainage_order.map((i) => previewStopIds.value[i])
-    const current = new Set(stops.value.map((stop) => stop.id))
-    if (ids.length !== current.size || !ids.every((id) => current.has(id))) return null
-    return ids
+    const asked = new Map(previewAsked.value.map((stop) => [stop.id, stop]))
+    const unmoved = stops.value.every((stop) => {
+      const then = asked.get(stop.id)
+      return then !== undefined && then.lat === stop.lat && then.lng === stop.lng
+    })
+    if (!unmoved || asked.size !== stops.value.length) return null
+    return preview.value.chainage_order.map((i) => previewAsked.value[i].id)
   })
 
   const canPutInRouteOrder = computed(() => {
@@ -313,7 +319,7 @@ export function useServiceDraft(serviceSlug?: string) {
     }
     if (current.frequency_windows.length === 0) return false
     if (preview.value) {
-      if (preview.value.stops.some((stop) => stop.off_route)) return false
+      if (current.stops.some((stop) => stopSnaps.value.get(stop.id)?.off_route)) return false
       if (!preview.value.order_is_consistent) return false
     }
     return true
@@ -364,26 +370,32 @@ export function useServiceDraft(serviceSlug?: string) {
     previewTimer = setTimeout(() => void runPreview(), PREVIEW_DEBOUNCE_MS)
   }
 
+  // Numbered because previews overlap whenever the network is slower than the
+  // debounce: only the newest answer describes the stops on screen, and only
+  // the newest request says whether one is still being waited on.
   async function runPreview(): Promise<void> {
+    const attempt = previewRuns.begin()
     const current = draft.value
     if (!current || !current.route_slug || current.stops.length === 0) {
       preview.value = null
+      previewLoading.value = false
       return
     }
     previewLoading.value = true
     previewError.value = false
-    const asked = current.stops.map((stop) => stop.id)
+    const asked = current.stops.map(({ id, lat, lng }) => ({ id, lat, lng }))
     try {
       const answer = await snapStops(
         current.route_slug,
-        current.stops.map((stop) => ({ lat: stop.lat, lng: stop.lng })),
+        asked.map(({ lat, lng }) => ({ lat, lng })),
       )
-      previewStopIds.value = asked
+      if (!previewRuns.isCurrent(attempt)) return
+      previewAsked.value = asked
       preview.value = answer
     } catch {
-      previewError.value = true
+      if (previewRuns.isCurrent(attempt)) previewError.value = true
     } finally {
-      previewLoading.value = false
+      if (previewRuns.isCurrent(attempt)) previewLoading.value = false
     }
   }
 
@@ -474,6 +486,9 @@ export function useServiceDraft(serviceSlug?: string) {
   async function loadRoute(slug: string): Promise<void> {
     const attempt = routeLoads.begin()
     selectedRoute.value = null
+    // A preview still out was asked against the route being left.
+    previewRuns.supersede()
+    previewLoading.value = false
     preview.value = null
     if (!slug) return
     try {

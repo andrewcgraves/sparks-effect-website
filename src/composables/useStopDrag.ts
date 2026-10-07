@@ -125,6 +125,8 @@ export function useStopDrag(map: Map, callbacks: StopDragCallbacks): { release: 
       window.removeEventListener('touchend', endFromWindow)
       window.removeEventListener('touchcancel', endFromWindow)
       draggingId = null
+      // The layer the pointer was over is going, and no mouseleave will say so.
+      setHovered(null)
     },
   }
 }

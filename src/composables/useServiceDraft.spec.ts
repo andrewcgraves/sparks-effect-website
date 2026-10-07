@@ -784,6 +784,111 @@ describe('useServiceDraft', () => {
 
       expect(draft.preview.value).toBeNull()
     })
+
+    describe('when previews overlap', () => {
+      // Each request is held until the test lets it answer, and answers for
+      // the stops it was asked about: chainage by latitude, so A=1 sits
+      // between B=2 and C=3 along the line only when B comes first.
+      const CHAINAGE: Record<number, number> = { 1: 1000, 2: 0, 3: 2000 }
+
+      function heldPreviews() {
+        const held: Array<{ answer: () => void; fail: () => void }> = []
+        vi.mocked(snapStops).mockImplementation((_slug, asked) => {
+          const chain = asked.map((stop) => CHAINAGE[stop.lat])
+          const order = chain.map((_, i) => i).sort((x, y) => chain[x] - chain[y])
+          const consistent = order.every((at, i) => at === i) || order.every((at, i) => at === order.length - 1 - i)
+          const response = snapResponse({
+            stops: asked.map((stop, i) => ({ input: stop, snapped: stop, chainage_m: chain[i], offset_m: 0, off_route: false })),
+            chainage_order: order,
+            order_is_consistent: consistent,
+          })
+          return new Promise((resolve, reject) => {
+            held.push({ answer: () => resolve(response), fail: () => reject(new Error('boom')) })
+          })
+        })
+        return held
+      }
+
+      async function threeStopsOutOfOrder(): Promise<Draft> {
+        const draft = useServiceDraft()
+        await draft.start()
+        await draft.selectRoute('main-line')
+        draft.addStop({ name: 'A', lat: 1, lng: 1 })
+        draft.addStop({ name: 'B', lat: 2, lng: 2 })
+        draft.addStop({ name: 'C', lat: 3, lng: 3 })
+        draft.name.value = 'Northbound Express'
+        draft.addFrequencyWindow({ start_time: '06:00', end_time: '22:00', headway_s: 900 })
+        await vi.advanceTimersByTimeAsync(PREVIEW_DEBOUNCE_MS)
+        return draft
+      }
+
+      function moveInto(draft: Draft, order: string[]): void {
+        for (const [to, stopName] of order.entries()) {
+          draft.moveStopTo(draft.stops.value.find((stop) => stop.name === stopName)!.id, to)
+        }
+      }
+
+      it('keeps the newest answer when an older one lands after it', async () => {
+        const held = heldPreviews()
+        const draft = await threeStopsOutOfOrder()
+        moveInto(draft, ['B', 'A', 'C'])
+        await vi.advanceTimersByTimeAsync(PREVIEW_DEBOUNCE_MS)
+        expect(held).toHaveLength(2)
+
+        held[1].answer()
+        await flushPromises()
+        expect(draft.orderWarning.value).toBeNull()
+        expect(draft.canSubmit.value).toBe(true)
+        expect(draft.previewLoading.value).toBe(false)
+
+        held[0].answer()
+        await flushPromises()
+
+        expect(draft.orderWarning.value).toBeNull()
+        expect(draft.canPutInRouteOrder.value).toBe(false)
+        expect(draft.canSubmit.value).toBe(true)
+        expect(draft.preview.value?.order_is_consistent).toBe(true)
+      })
+
+      it('is still loading while the newest request is out, whatever older ones do', async () => {
+        const held = heldPreviews()
+        const draft = await threeStopsOutOfOrder()
+        draft.reverseStops()
+        await vi.advanceTimersByTimeAsync(PREVIEW_DEBOUNCE_MS)
+        moveInto(draft, ['B', 'A', 'C'])
+        await vi.advanceTimersByTimeAsync(PREVIEW_DEBOUNCE_MS)
+        expect(held).toHaveLength(3)
+
+        held[0].answer()
+        held[1].fail()
+        await flushPromises()
+
+        expect(draft.previewLoading.value).toBe(true)
+        expect(draft.previewError.value).toBe(false)
+        // Neither stale answer is shown while the newest is awaited.
+        expect(draft.preview.value).toBeNull()
+        expect(draft.canPutInRouteOrder.value).toBe(false)
+
+        held[2].answer()
+        await flushPromises()
+        expect(draft.previewLoading.value).toBe(false)
+        expect(draft.orderWarning.value).toBeNull()
+      })
+
+      it('ignores an answer for the route the draft has since left', async () => {
+        const held = heldPreviews()
+        const draft = await threeStopsOutOfOrder()
+        expect(draft.previewLoading.value).toBe(true)
+
+        const leaving = draft.selectRoute('')
+        held[0].answer()
+        await leaving
+        await flushPromises()
+
+        expect(draft.preview.value).toBeNull()
+        expect(draft.previewLoading.value).toBe(false)
+      })
+    })
   })
 
   describe('reordering', () => {
@@ -930,6 +1035,24 @@ describe('useServiceDraft', () => {
       await submittable(draft)
 
       expect(draft.canSubmit.value).toBe(false)
+    })
+
+    // Read through the stops the draft holds now, so a stop taken off for
+    // being off the route stops counting against it straight away.
+    it('is ready once the stop the preview found off the route is removed', async () => {
+      const offRoute = snapResponse()
+      offRoute.stops.push({ ...offRoute.stops[1], off_route: true, offset_m: 620 })
+      vi.mocked(snapStops).mockResolvedValue(offRoute)
+      const draft = useServiceDraft()
+      await submittable(draft)
+      draft.addStop({ name: 'Faraway', lat: 40, lng: -70 })
+      await vi.advanceTimersByTimeAsync(PREVIEW_DEBOUNCE_MS)
+      await flushPromises()
+      expect(draft.canSubmit.value).toBe(false)
+
+      draft.removeStop(2)
+
+      expect(draft.canSubmit.value).toBe(true)
     })
 
     it('is not ready while the preview says the order disagrees', async () => {

@@ -200,17 +200,23 @@ function applyPlacementMode(): void {
 
 watch(() => props.placementArmed, applyPlacementMode)
 
+// Zooms in only as far as a stop can be told from its neighbours, never out.
+function flyToStop(coord: LatLng): void {
+  if (!map) return
+  map.flyTo({
+    center: [coord.lng, coord.lat],
+    zoom: Math.max(map.getZoom(), STOP_FOCUS_ZOOM),
+  })
+}
+
 // Watched by identity, not by value: asking for the same stop again, after
-// panning away from it, has to move the map back. Zooms in only as far as a
-// stop can be told from its neighbours, never out.
+// panning away from it, has to move the map back. A stop asked for before the
+// map has loaded is flown to once it has.
 watch(
   () => props.centerOn,
   (coord) => {
-    if (!coord || !map || !isMapLoaded.value) return
-    map.flyTo({
-      center: [coord.lng, coord.lat],
-      zoom: Math.max(map.getZoom(), STOP_FOCUS_ZOOM),
-    })
+    if (!coord || !isMapLoaded.value) return
+    flyToStop(coord)
   },
 )
 
@@ -279,6 +285,7 @@ onMounted(() => {
     } else {
       fitMapToDefaultView()
     }
+    if (props.centerOn) flyToStop(props.centerOn)
   })
 
   resizeObserver = new ResizeObserver(() => {
