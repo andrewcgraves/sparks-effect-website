@@ -111,6 +111,15 @@ describe('useStopPreviewLayer', () => {
     expect(snappedData.features.find((f: { properties: { id: string } }) => f.properties.id === 'a').properties.offRoute).toBe(false)
   })
 
+  it('tags the selected pair on its raw pin, and no other', () => {
+    const map = makeMockMap()
+    const layer = useStopPreviewLayer(map as unknown as Map)
+    layer.update([pairWithSnap, { ...pairOffRoute, selected: true }])
+
+    const rawData = map.sources[RAW_STOP_SOURCE_ID].setData.mock.calls[0][0]
+    expect(rawData.features.map((f: { properties: { selected: boolean } }) => f.properties.selected)).toEqual([false, true])
+  })
+
   // Every setData rebuilds the layer, which reads on screen as a flicker of the
   // pins and of the basemap labels they collide with. An unrelated form edit
   // hands over an equal-but-new array, and that must not cost a redraw.
@@ -161,6 +170,16 @@ describe('useStopPreviewLayer', () => {
       layer.update([pairWithSnap])
 
       layer.update([{ ...pairWithSnap, offRoute: true }])
+
+      expect(setDataCallCounts(map)).toEqual([2, 2, 2])
+    })
+
+    it('update() redraws when the selection moves', () => {
+      const map = makeMockMap()
+      const layer = useStopPreviewLayer(map as unknown as Map)
+      layer.update([pairWithSnap])
+
+      layer.update([{ ...pairWithSnap, selected: true }])
 
       expect(setDataCallCounts(map)).toEqual([2, 2, 2])
     })

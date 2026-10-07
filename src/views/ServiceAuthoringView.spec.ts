@@ -74,7 +74,10 @@ function mountView() {
   })
 }
 
+// The typed fields sit inside the "Add by coordinates" disclosure, so an
+// author opens it before using them.
 async function addStop(wrapper: ReturnType<typeof mountView>, name: string, lat: number, lng: number) {
+  ;(wrapper.get('[data-testid="add-by-coordinates"]').element as HTMLDetailsElement).open = true
   await wrapper.find('[data-testid="stop-name"]').setValue(name)
   await wrapper.find('[data-testid="stop-lat"]').setValue(lat)
   await wrapper.find('[data-testid="stop-lng"]').setValue(lng)
@@ -101,6 +104,21 @@ function stopRowName(row: DOMWrapper<Element>): string {
 
 function mapStub(wrapper: ReturnType<typeof mountView>) {
   return wrapper.findComponent({ name: 'MapView' })
+}
+
+type StopAction = 'up' | 'down' | 'edit-position' | 'show' | 'remove'
+
+// Every per-stop action sits behind the row's menu, so reaching one takes two
+// clicks: the menu, then the item.
+async function chooseStopAction(wrapper: ReturnType<typeof mountView>, index: number, action: StopAction) {
+  await wrapper.get(`[data-testid="stop-actions-${index}"]`).trigger('click')
+  await flushPromises()
+  await wrapper.get(`[data-testid="stop-${action}-${index}"]`).trigger('click')
+  await flushPromises()
+}
+
+function stopNamesIn(wrapper: ReturnType<typeof mountView>): string[] {
+  return wrapper.findAll('[data-testid="stop-row"]').map(stopRowName)
 }
 
 async function mountWithTwoStops() {
@@ -228,13 +246,13 @@ describe('ServiceAuthoringView', () => {
     expect(wrapper.find('[data-testid="order-warning"]').text()).toContain('B → A')
   })
 
-  it('reorders stops with the up/down controls', async () => {
+  it('reorders stops from the move items in each stop\'s menu', async () => {
     const wrapper = mountView()
     await flushPromises()
     await addStop(wrapper, 'A', 1, 1)
     await addStop(wrapper, 'B', 2, 2)
 
-    await wrapper.find('[data-testid="stop-down-0"]').trigger('click')
+    await chooseStopAction(wrapper, 0, 'down')
     const rows = wrapper.findAll('[data-testid="stop-row"]')
     expect(stopRowName(rows[0])).toBe('B')
     expect(stopRowName(rows[1])).toBe('A')
@@ -259,13 +277,12 @@ describe('ServiceAuthoringView', () => {
       const nameInput = wrapper.get('[data-testid="stop-edit-name-2"]').element as HTMLInputElement
       nameInput.value = 'Charlie West'
 
-      await wrapper.get('[data-testid="stop-down-1"]').trigger('click')
+      await chooseStopAction(wrapper, 1, 'down')
 
-      const charlieRow = wrapper.findAll('[data-testid="stop-row"]').find((row) => {
-        const lat = row.get('[data-testid^="stop-edit-lat-"]').element as HTMLInputElement
-        return Number(lat.value) === 3
-      })
-      expect(charlieRow?.element.contains(nameInput)).toBe(true)
+      const charlieAt = useDraftsStore().serviceDraft!.stops.findIndex((stop) => stop.lat === 3)
+      const charlieRow = wrapper.findAll('[data-testid="stop-row"]')[charlieAt]
+      expect(charlieAt).toBe(1)
+      expect(charlieRow.element.contains(nameInput)).toBe(true)
       expect(nameInput.isConnected).toBe(true)
 
       nameInput.value = 'Charlie West'
@@ -287,8 +304,7 @@ describe('ServiceAuthoringView', () => {
     await addStop(wrapper, 'A', 1, 1)
     await addStop(wrapper, 'B', 2, 2)
 
-    await wrapper.find('[data-testid="stop-remove-0"]').trigger('click')
-    await flushPromises()
+    await chooseStopAction(wrapper, 0, 'remove')
     expect(wrapper.findAll('[data-testid="stop-row"]')).toHaveLength(2)
     expect(hosts.dialogOpen()).toBe(true)
     expect(hosts.dialog().text()).toContain('A')
@@ -302,36 +318,42 @@ describe('ServiceAuthoringView', () => {
   })
 
   it.each([
-    ['the stop that took its place', 0, 'stop-remove-0'],
-    ['the stop before it, when it was last', 1, 'stop-remove-0'],
-  ])('moves focus to %s once a stop is removed', async (_, removed, focused) => {
+    ['the stop that took its place', 0, 'stop-actions-0'],
+    ['the stop before it, when it was last', 1, 'stop-actions-0'],
+  ])('moves focus to the menu of %s once a stop is removed', async (_, removed, focused) => {
     const wrapper = mount(ServiceAuthoringView, { global: { stubs: { MapView: true } }, attachTo: document.body })
     await flushPromises()
     await addStop(wrapper, 'A', 1, 1)
     await addStop(wrapper, 'B', 2, 2)
 
-    const trigger = wrapper.get(`[data-testid="stop-remove-${removed}"]`)
-    ;(trigger.element as HTMLElement).focus()
-    await trigger.trigger('click')
-    await flushPromises()
+    await chooseStopAction(wrapper, removed, 'remove')
     await hosts.confirmButton().trigger('click')
     await flushPromises()
     expect(document.activeElement).toBe(wrapper.get(`[data-testid="${focused}"]`).element)
     wrapper.unmount()
   })
 
-  it('moves focus to the new-stop name once the last stop is removed', async () => {
+  it('moves focus to the way to place a stop once the last stop is removed', async () => {
     const wrapper = mount(ServiceAuthoringView, { global: { stubs: { MapView: true } }, attachTo: document.body })
     await flushPromises()
     await addStop(wrapper, 'A', 1, 1)
 
-    const trigger = wrapper.get('[data-testid="stop-remove-0"]')
-    ;(trigger.element as HTMLElement).focus()
-    await trigger.trigger('click')
-    await flushPromises()
+    await chooseStopAction(wrapper, 0, 'remove')
     await hosts.confirmButton().trigger('click')
     await flushPromises()
-    expect(document.activeElement).toBe(wrapper.get('[data-testid="stop-name"]').element)
+    expect(document.activeElement).toBe(wrapper.get('[data-testid="toggle-place-stops"]').element)
+    wrapper.unmount()
+  })
+
+  it('returns focus to the stop\'s menu when removing it is backed out of', async () => {
+    const wrapper = mount(ServiceAuthoringView, { global: { stubs: { MapView: true } }, attachTo: document.body })
+    await flushPromises()
+    await addStop(wrapper, 'A', 1, 1)
+
+    await chooseStopAction(wrapper, 0, 'remove')
+    await hosts.cancelButton().trigger('click')
+    await flushPromises()
+    expect(document.activeElement).toBe(wrapper.get('[data-testid="stop-actions-0"]').element)
     wrapper.unmount()
   })
 
@@ -340,24 +362,558 @@ describe('ServiceAuthoringView', () => {
     await flushPromises()
     await addStop(wrapper, 'A', 1, 1)
 
-    await wrapper.find('[data-testid="stop-remove-0"]').trigger('click')
-    await flushPromises()
+    await chooseStopAction(wrapper, 0, 'remove')
     await hosts.cancelButton().trigger('click')
     await flushPromises()
     expect(wrapper.findAll('[data-testid="stop-row"]')).toHaveLength(1)
     expect(hosts.toasts()).toEqual([])
   })
 
-  it('edits a stop lat/lng inline via updateStop', async () => {
+  it('edits a stop\'s position once Edit position has revealed it', async () => {
     const wrapper = mountView()
     await flushPromises()
     await addStop(wrapper, 'A', 1, 1)
 
+    await chooseStopAction(wrapper, 0, 'edit-position')
     const latInput = wrapper.find('[data-testid="stop-edit-lat-0"]')
     await latInput.setValue(40)
     await latInput.trigger('change')
 
     expect(useDraftsStore().serviceDraft?.stops[0].lat).toBe(40)
+  })
+
+  describe('the stop list', () => {
+    function threeStopSnap(order: number[], consistent: boolean): SnapStopsResponse {
+      return snapResponse({
+        stops: [1, 2, 3].map((n) => ({
+          input: { lat: n, lng: n },
+          snapped: { lat: n, lng: n },
+          chainage_m: n * 1000,
+          offset_m: 0,
+          off_route: false,
+        })),
+        chainage_order: order,
+        order_is_consistent: consistent,
+      })
+    }
+
+    async function mountWithStops(names: string[], { attach = false } = {}) {
+      const wrapper = mount(ServiceAuthoringView, {
+        global: { stubs: { MapView: true } },
+        ...(attach ? { attachTo: document.body } : {}),
+      })
+      await flushPromises()
+      await wrapper.find('[data-testid="route-select"]').setValue('main-line')
+      await flushPromises()
+      for (const [i, stopName] of names.entries()) await addStop(wrapper, stopName, i + 1, i + 1)
+      await vi.advanceTimersByTimeAsync(400)
+      await flushPromises()
+      return wrapper
+    }
+
+    function rowElements(wrapper: ReturnType<typeof mountView>): Element[] {
+      return wrapper.findAll('[data-testid="stop-row"]').map((row) => row.element)
+    }
+
+    // Enough of the accessible-name computation for the controls these rows
+    // hold: an aria-label wins, then the wrapping label, then the text.
+    function accessibleName(element: Element): string {
+      const named = element.getAttribute('aria-label') ?? element.closest('label')?.textContent ?? element.textContent
+      return (named ?? '').replace(/\s+/g, ' ').trim()
+    }
+
+    it('says how to place the first stop while there are none', async () => {
+      const wrapper = mountView()
+      await flushPromises()
+
+      const empty = wrapper.get('[data-testid="stops-empty"]')
+      const toggle = wrapper.get('[data-testid="toggle-place-stops"]')
+      expect(empty.text()).toContain(`"${toggle.text()}"`)
+      expect(wrapper.find('[data-testid="stops-list"]').exists()).toBe(false)
+    })
+
+    it('shows no latitude or longitude input until a stop\'s position is asked for', async () => {
+      const wrapper = mountView()
+      await flushPromises()
+      mapStub(wrapper).vm.$emit('map-click', { lat: 1, lng: 1 })
+      mapStub(wrapper).vm.$emit('map-click', { lat: 2, lng: 2 })
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="stops-empty"]').exists()).toBe(false)
+      expect(wrapper.findAll('[data-testid="stop-row"]')).toHaveLength(2)
+      expect(wrapper.findAll('[data-testid="stops-list"] input[type="number"]')).toHaveLength(0)
+      // The typed fallback is the only other place coordinates are asked for,
+      // and it stays folded away inside its disclosure.
+      const fallback = wrapper.get('[data-testid="add-by-coordinates"]')
+      expect((fallback.element as HTMLDetailsElement).open).toBe(false)
+      expect(fallback.get('summary').text()).toBe('Add by coordinates')
+      const stopsSection = fallback.element.closest('section')!
+      const coordinateInputs = Array.from(stopsSection.querySelectorAll('input[type="number"]'))
+      expect(coordinateInputs).toHaveLength(2)
+      expect(coordinateInputs.every((input) => fallback.element.contains(input))).toBe(true)
+    })
+
+    it('reveals the latitude and longitude of one stop from Edit position, and folds them away again', async () => {
+      const wrapper = await mountWithStops(['A', 'B'], { attach: true })
+
+      await chooseStopAction(wrapper, 1, 'edit-position')
+
+      expect(wrapper.findAll('[data-testid="stops-list"] input[type="number"]')).toHaveLength(2)
+      expect(wrapper.find('[data-testid="stop-edit-lat-0"]').exists()).toBe(false)
+      const lat = wrapper.get('[data-testid="stop-edit-lat-1"]')
+      expect(Number((lat.element as HTMLInputElement).value)).toBe(2)
+      expect(accessibleName(lat.element)).toBe('Latitude of B')
+      expect(accessibleName(wrapper.get('[data-testid="stop-edit-lng-1"]').element)).toBe('Longitude of B')
+      expect(document.activeElement).toBe(lat.element)
+
+      await wrapper.get('[data-testid="stop-position-done-1"]').trigger('click')
+
+      expect(wrapper.findAll('[data-testid="stops-list"] input[type="number"]')).toHaveLength(0)
+      expect(document.activeElement).toBe(wrapper.get('[data-testid="stop-actions-1"]').element)
+      wrapper.unmount()
+    })
+
+    it('ignores a cleared coordinate rather than moving the stop to zero', async () => {
+      const wrapper = await mountWithStops(['A'])
+      await chooseStopAction(wrapper, 0, 'edit-position')
+
+      const lat = wrapper.get('[data-testid="stop-edit-lat-0"]')
+      await lat.setValue('')
+
+      expect(useDraftsStore().serviceDraft!.stops[0].lat).toBe(1)
+      expect((lat.element as HTMLInputElement).value).toBe('1')
+    })
+
+    it.each([
+      ['lat', 90.5],
+      ['lat', -200],
+      ['lng', 180.1],
+    ] as const)('ignores a %s of %s, which no point on Earth has', async (field, value) => {
+      const wrapper = await mountWithStops(['A'])
+      await chooseStopAction(wrapper, 0, 'edit-position')
+
+      const input = wrapper.get(`[data-testid="stop-edit-${field}-0"]`)
+      await input.setValue(value)
+
+      expect(useDraftsStore().serviceDraft!.stops[0][field]).toBe(1)
+      expect((input.element as HTMLInputElement).value).toBe('1')
+    })
+
+    it('accepts a coordinate at the very edge of the range', async () => {
+      const wrapper = await mountWithStops(['A'])
+      await chooseStopAction(wrapper, 0, 'edit-position')
+
+      await wrapper.get('[data-testid="stop-edit-lng-0"]').setValue(-180)
+
+      expect(useDraftsStore().serviceDraft!.stops[0].lng).toBe(-180)
+    })
+
+    it.each([
+      ['an empty latitude', '', 2],
+      ['a latitude past the pole', 91, 2],
+      ['a longitude past the antimeridian', 2, -181],
+    ])('adds no stop by coordinates with %s', async (_, lat, lng) => {
+      const wrapper = await mountWithStops(['A'])
+
+      ;(wrapper.get('[data-testid="add-by-coordinates"]').element as HTMLDetailsElement).open = true
+      await wrapper.get('[data-testid="stop-name"]').setValue('B')
+      await wrapper.get('[data-testid="stop-lat"]').setValue(lat)
+      await wrapper.get('[data-testid="stop-lng"]').setValue(lng)
+      await wrapper.get('[data-testid="add-stop"]').trigger('click')
+
+      expect(stopNamesIn(wrapper)).toEqual(['A'])
+    })
+
+    it('labels the typed coordinates the way the row editor does', async () => {
+      const wrapper = await mountWithStops(['A'])
+      await chooseStopAction(wrapper, 0, 'edit-position')
+
+      const fallbackLabels = ['stop-lat', 'stop-lng'].map((id) => accessibleName(wrapper.get(`[data-testid="${id}"]`).element))
+      expect(fallbackLabels).toEqual(['Latitude', 'Longitude'])
+      expect(accessibleName(wrapper.get('[data-testid="stop-edit-lat-0"]').element)).toBe('Latitude of A')
+    })
+
+    it('puts the stops in route order in one click, keeping each row, and the warning clears once the preview agrees', async () => {
+      vi.mocked(snapStops)
+        .mockResolvedValueOnce(threeStopSnap([2, 0, 1], false))
+        .mockResolvedValue(threeStopSnap([0, 1, 2], true))
+      const wrapper = await mountWithStops(['A', 'B', 'C'], { attach: true })
+      const [a, b, c] = rowElements(wrapper)
+      const warning = wrapper.get('[data-testid="order-warning"]')
+      expect(warning.text()).toContain('C → A → B')
+      const button = wrapper.get('[data-testid="put-in-route-order"]')
+      expect(button.attributes('aria-disabled')).toBeUndefined()
+      expect(button.attributes('aria-describedby')).toBe(warning.attributes('id'))
+      ;(button.element as HTMLElement).focus()
+
+      await button.trigger('click')
+
+      expect(stopNamesIn(wrapper)).toEqual(['C', 'A', 'B'])
+      expect(rowElements(wrapper)).toEqual([c, a, b])
+      expect(wrapper.get('[data-testid="stop-announcement"]').text()).toBe('Stops put in route order')
+      // Unavailable now until the preview catches up, but still where focus is.
+      expect(button.attributes('aria-disabled')).toBe('true')
+      expect(button.attributes('disabled')).toBeUndefined()
+      expect(document.activeElement).toBe(button.element)
+
+      await vi.advanceTimersByTimeAsync(400)
+      await flushPromises()
+
+      expect(snapStops).toHaveBeenLastCalledWith('main-line', [
+        { lat: 3, lng: 3 },
+        { lat: 1, lng: 1 },
+        { lat: 2, lng: 2 },
+      ])
+      expect(wrapper.find('[data-testid="order-warning"]').exists()).toBe(false)
+      expect(wrapper.get('[data-testid="put-in-route-order"]').attributes('aria-disabled')).toBe('true')
+      wrapper.unmount()
+    })
+
+    it('offers no route order while the stops are already in it, and says when it will', async () => {
+      vi.mocked(snapStops).mockResolvedValue(threeStopSnap([0, 1, 2], true))
+      const wrapper = await mountWithStops(['A', 'B', 'C'])
+      const button = wrapper.get('[data-testid="put-in-route-order"]')
+
+      expect(button.attributes('aria-disabled')).toBe('true')
+      const hint = wrapper.get(`#${button.attributes('aria-describedby')}`)
+      expect(hint.text()).toBe('Available when the check against the route finds the stops out of order.')
+
+      await button.trigger('click')
+
+      expect(stopNamesIn(wrapper)).toEqual(['A', 'B', 'C'])
+      expect(wrapper.get('[data-testid="stop-announcement"]').text()).toBe('')
+    })
+
+    // The route order was worked out for where the stops were. One moved since
+    // may fall somewhere else along the line, so the order waits for the
+    // preview that has seen it.
+    it('offers no route order once a stop has moved since the preview', async () => {
+      vi.mocked(snapStops).mockResolvedValue(threeStopSnap([2, 0, 1], false))
+      const wrapper = await mountWithStops(['A', 'B', 'C'])
+      const button = wrapper.get('[data-testid="put-in-route-order"]')
+      expect(button.attributes('aria-disabled')).toBeUndefined()
+
+      await chooseStopAction(wrapper, 0, 'edit-position')
+      await wrapper.get('[data-testid="stop-edit-lat-0"]').setValue(5)
+
+      expect(button.attributes('aria-disabled')).toBe('true')
+      const described = button.attributes('aria-describedby')!.split(' ').map((id) => wrapper.get(`#${id}`).text())
+      expect(described).toEqual([
+        expect.stringContaining('C → A → B'),
+        'Available again once the check against the route has caught up with your changes.',
+      ])
+      await button.trigger('click')
+      expect(stopNamesIn(wrapper)).toEqual(['A', 'B', 'C'])
+
+      await vi.advanceTimersByTimeAsync(400)
+      await flushPromises()
+      expect(button.attributes('aria-disabled')).toBeUndefined()
+    })
+
+    it('reverses the order of the stops, keeping each row', async () => {
+      const wrapper = await mountWithStops(['A', 'B', 'C'])
+      const [a, b, c] = rowElements(wrapper)
+
+      await wrapper.get('[data-testid="reverse-stops"]').trigger('click')
+
+      expect(stopNamesIn(wrapper)).toEqual(['C', 'B', 'A'])
+      expect(rowElements(wrapper)).toEqual([c, b, a])
+    })
+
+    it('moves a stop from the keyboard, keeping its row and its focus', async () => {
+      const wrapper = await mountWithStops(['A', 'B', 'C'], { attach: true })
+      const [a, b, c] = rowElements(wrapper)
+      const trigger = wrapper.get('[data-testid="stop-actions-2"]')
+      ;(trigger.element as HTMLElement).focus()
+
+      await trigger.trigger('keydown', { key: 'ArrowDown' })
+      expect(document.activeElement).toBe(wrapper.get('[data-testid="stop-up-2"]').element)
+      // The last stop cannot move down; the arrow keys still stop on that
+      // item, and choosing it does nothing and leaves the menu open.
+      const menu = wrapper.get('[data-testid="stop-menu-2"]')
+      await menu.trigger('keydown', { key: 'ArrowDown' })
+      const down = wrapper.get('[data-testid="stop-down-2"]')
+      expect(document.activeElement).toBe(down.element)
+      ;(down.element as HTMLElement).click()
+      await flushPromises()
+      expect(stopNamesIn(wrapper)).toEqual(['A', 'B', 'C'])
+      expect(document.activeElement).toBe(down.element)
+      await menu.trigger('keydown', { key: 'ArrowUp' })
+      expect(document.activeElement).toBe(wrapper.get('[data-testid="stop-up-2"]').element)
+
+      ;(document.activeElement as HTMLElement).click()
+      await flushPromises()
+
+      expect(stopNamesIn(wrapper)).toEqual(['A', 'C', 'B'])
+      expect(rowElements(wrapper)).toEqual([a, c, b])
+      expect(document.activeElement).toBe(trigger.element)
+      expect(wrapper.get('[data-testid="stop-announcement"]').text()).toBe('C is now stop 2 of 3')
+
+      await chooseStopAction(wrapper, 1, 'down')
+      expect(stopNamesIn(wrapper)).toEqual(['A', 'B', 'C'])
+      expect(rowElements(wrapper)).toEqual([a, b, c])
+      wrapper.unmount()
+    })
+
+    it('offers no move past either end of the list', async () => {
+      const wrapper = await mountWithStops(['A', 'B', 'C'])
+
+      await wrapper.get('[data-testid="stop-actions-0"]').trigger('click')
+      expect(wrapper.get('[data-testid="stop-up-0"]').attributes('aria-disabled')).toBe('true')
+      expect(wrapper.get('[data-testid="stop-down-0"]').attributes('aria-disabled')).toBeUndefined()
+      await wrapper.get('[data-testid="stop-actions-2"]').trigger('click')
+      expect(wrapper.get('[data-testid="stop-down-2"]').attributes('aria-disabled')).toBe('true')
+      expect(wrapper.get('[data-testid="stop-up-2"]').attributes('aria-disabled')).toBeUndefined()
+    })
+
+    it('announces a moved stop by its name, not by the position it has just left', async () => {
+      const wrapper = await mountWithStops(['Fresno', 'Merced', 'Fresno'])
+
+      await chooseStopAction(wrapper, 0, 'down')
+
+      expect(stopNamesIn(wrapper)).toEqual(['Merced', 'Fresno', 'Fresno'])
+      expect(wrapper.get('[data-testid="stop-announcement"]').text()).toBe('Fresno is now stop 2 of 3')
+    })
+
+    it('closes a stop\'s menu on Escape, back on its button, and leaves placing armed', async () => {
+      const wrapper = await mountWithStops(['A'], { attach: true })
+      await wrapper.get('[data-testid="toggle-place-stops"]').trigger('click')
+      const trigger = wrapper.get('[data-testid="stop-actions-0"]')
+
+      await trigger.trigger('click')
+      expect(trigger.attributes('aria-expanded')).toBe('true')
+      expect(trigger.attributes('aria-haspopup')).toBe('menu')
+      // A lone stop can move neither way, so focus lands on the first item it can use.
+      expect(document.activeElement).toBe(wrapper.get('[data-testid="stop-edit-position-0"]').element)
+
+      await wrapper.get('[data-testid="stop-menu-0"]').trigger('keydown', { key: 'Escape' })
+
+      expect(wrapper.find('[data-testid="stop-menu-0"]').exists()).toBe(false)
+      expect(trigger.attributes('aria-expanded')).toBe('false')
+      expect(document.activeElement).toBe(trigger.element)
+      expect(mapStub(wrapper).props('placementArmed')).toBe(true)
+      wrapper.unmount()
+    })
+
+    // jsdom has no DataTransfer, so the drag carries a stand-in that records
+    // what the row put on it.
+    function dataTransfer() {
+      return { effectAllowed: '', dropEffect: '', setData: vi.fn(), setDragImage: vi.fn() }
+    }
+
+    const DROP_BELOW = 'shadow-[0_3px_0_var(--color-coral)]'
+    const DROP_ABOVE = 'shadow-[0_-3px_0_var(--color-coral)]'
+
+    it('reorders by dragging a row down by its handle, keeping each row', async () => {
+      const wrapper = await mountWithStops(['A', 'B', 'C'])
+      const [a, b, c] = rowElements(wrapper)
+      const rows = wrapper.findAll('[data-testid="stop-row"]')
+      const transfer = dataTransfer()
+
+      await wrapper.get('[data-testid="stop-drag-0"]').trigger('dragstart', { dataTransfer: transfer })
+      await rows[2].trigger('dragover', { dataTransfer: transfer })
+      expect(rows[2].classes()).toContain(DROP_BELOW)
+      expect(transfer.dropEffect).toBe('move')
+      await rows[2].trigger('drop', { dataTransfer: transfer })
+      await wrapper.get('[data-testid="stop-drag-0"]').trigger('dragend')
+
+      expect(transfer.effectAllowed).toBe('move')
+      // Its own type, not text: a stop let go over a text field is not pasted in.
+      expect(transfer.setData).toHaveBeenCalledWith('application/x-sparks-stop-id', useDraftsStore().serviceDraft!.stops[2].id)
+      expect(transfer.setData).not.toHaveBeenCalledWith('text/plain', expect.anything())
+      expect(transfer.setDragImage).toHaveBeenCalledWith(a, 16, 16)
+      expect(stopNamesIn(wrapper)).toEqual(['B', 'C', 'A'])
+      expect(rowElements(wrapper)).toEqual([b, c, a])
+      expect(useDraftsStore().serviceDraft!.stops.map((stop) => stop.seq)).toEqual([0, 1, 2])
+      expect(wrapper.get('[data-testid="stop-announcement"]').text()).toBe('A is now stop 3 of 3')
+    })
+
+    it('reorders by dragging a row up, marking the drop above the row it lands on', async () => {
+      const wrapper = await mountWithStops(['A', 'B', 'C'])
+      const [a, b, c] = rowElements(wrapper)
+      const rows = wrapper.findAll('[data-testid="stop-row"]')
+      const transfer = dataTransfer()
+
+      await wrapper.get('[data-testid="stop-drag-2"]').trigger('dragstart', { dataTransfer: transfer })
+      await rows[0].trigger('dragover', { dataTransfer: transfer })
+      expect(rows[0].classes()).toContain(DROP_ABOVE)
+      await rows[0].trigger('drop', { dataTransfer: transfer })
+
+      expect(stopNamesIn(wrapper)).toEqual(['C', 'A', 'B'])
+      expect(rowElements(wrapper)).toEqual([c, a, b])
+    })
+
+    it('takes the drop line away when the drag leaves the row, but not for one of its own children', async () => {
+      const wrapper = await mountWithStops(['A', 'B', 'C'])
+      const rows = wrapper.findAll('[data-testid="stop-row"]')
+      const dropLines = () => wrapper.findAll('[data-testid="stop-row"]').filter((row) => row.classes(DROP_BELOW))
+
+      await wrapper.get('[data-testid="stop-drag-0"]').trigger('dragstart', { dataTransfer: dataTransfer() })
+      await rows[2].trigger('dragover')
+      await rows[2].trigger('dragleave', { relatedTarget: rows[2].get('input').element })
+      expect(dropLines()).toHaveLength(1)
+
+      await rows[2].trigger('dragleave', { relatedTarget: document.body })
+      expect(dropLines()).toHaveLength(0)
+
+      await rows[2].trigger('dragover')
+      expect(dropLines()).toHaveLength(1)
+      await wrapper.get('[data-testid="stop-drag-0"]').trigger('dragend')
+      expect(dropLines()).toHaveLength(0)
+      expect(stopNamesIn(wrapper)).toEqual(['A', 'B', 'C'])
+    })
+
+    it('ignores a drop that no handle started', async () => {
+      const wrapper = await mountWithStops(['A', 'B'])
+
+      await wrapper.findAll('[data-testid="stop-row"]')[1].trigger('drop')
+
+      expect(stopNamesIn(wrapper)).toEqual(['A', 'B'])
+    })
+
+    it('gives every control in a row a name of its own that says which stop it is for', async () => {
+      const wrapper = await mountWithStops(['Fresno', 'Merced', 'Fresno'])
+      const names: string[] = []
+
+      for (const [index, stopName] of ['Fresno', 'Merced', 'Fresno'].entries()) {
+        await chooseStopAction(wrapper, index, 'edit-position')
+        await wrapper.get(`[data-testid="stop-actions-${index}"]`).trigger('click')
+        const row = wrapper.findAll('[data-testid="stop-row"]')[index]
+        const controls = row.findAll('input, button')
+        // The name field, the menu and its five items, both coordinates and Done.
+        expect(controls).toHaveLength(10)
+        for (const control of controls) {
+          const accessible = accessibleName(control.element)
+          expect(accessible).toContain(stopName)
+          names.push(accessible)
+        }
+        await wrapper.get(`[data-testid="stop-menu-${index}"]`).trigger('keydown', { key: 'Escape' })
+      }
+
+      expect(new Set(names.map((name) => name.toLowerCase())).size).toBe(names.length)
+      expect(names).toEqual(expect.arrayContaining([
+        'Rename Merced',
+        'Actions for Merced',
+        'Move Merced up',
+        'Move Merced down',
+        'Remove Merced',
+        'Show Merced on map',
+        'Remove Fresno (stop 1)',
+        'Remove Fresno (stop 3)',
+      ]))
+    })
+
+    // A screen reader says "Stop 2" and "stop 2" alike, so a name that differs
+    // only in case is still a name two buttons would share.
+    it('keeps a stop with no name apart from one named for its number', async () => {
+      const wrapper = await mountWithStops(['Stop 2', 'X', 'stop 2'])
+
+      await wrapper.get('[data-testid="stop-edit-name-1"]').setValue('  ')
+
+      const labels = wrapper.findAll('[data-testid^="stop-edit-name-"]').map((input) => input.attributes('aria-label')!)
+      expect(labels).toEqual(['Rename Stop 2 (stop 1)', 'Rename Unnamed stop 2', 'Rename stop 2 (stop 3)'])
+      expect(new Set(labels.map((label) => label.toLowerCase())).size).toBe(3)
+    })
+
+    it('centres the map on a stop when its row is clicked, and marks it on the map and in the list', async () => {
+      const wrapper = await mountWithStops(['A', 'B'])
+      const rows = wrapper.findAll('[data-testid="stop-row"]')
+
+      await rows[1].trigger('click')
+
+      const first = mapStub(wrapper).props('centerOn')
+      expect(first).toEqual({ lat: 2, lng: 2 })
+      expect(rows[1].attributes('aria-current')).toBe('true')
+      expect(rows[0].attributes('aria-current')).toBeUndefined()
+      expect(mapStub(wrapper).props('stopPreviewPairs').map((pair: { selected?: boolean }) => !!pair.selected)).toEqual([false, true])
+
+      // Asked again after the author has panned away, it has to move the map
+      // again, so it is a new request rather than the same one.
+      await rows[1].trigger('click')
+      expect(mapStub(wrapper).props('centerOn')).not.toBe(first)
+      expect(mapStub(wrapper).props('centerOn')).toEqual({ lat: 2, lng: 2 })
+    })
+
+    it('centres the map on a stop from Show on map', async () => {
+      const wrapper = await mountWithStops(['A', 'B'])
+
+      await chooseStopAction(wrapper, 0, 'show')
+
+      expect(mapStub(wrapper).props('centerOn')).toEqual({ lat: 1, lng: 1 })
+      expect(wrapper.findAll('[data-testid="stop-row"]')[0].attributes('aria-current')).toBe('true')
+    })
+
+    it('does not centre the map when a row\'s menu is opened', async () => {
+      const wrapper = await mountWithStops(['A', 'B'])
+
+      await wrapper.get('[data-testid="stop-actions-1"]').trigger('click')
+
+      expect(mapStub(wrapper).props('centerOn')).toBeNull()
+    })
+
+    it('does not centre the map when a row\'s own fields are clicked into', async () => {
+      const wrapper = await mountWithStops(['A', 'B'])
+      await chooseStopAction(wrapper, 1, 'edit-position')
+
+      await wrapper.get('[data-testid="stop-edit-name-1"]').trigger('click')
+      await wrapper.get('[data-testid="stop-edit-lat-1"]').trigger('click')
+      await wrapper.get('[data-testid="stop-position-1"] label').trigger('click')
+      await wrapper.get('[data-testid="stop-position-done-1"]').trigger('click')
+      expect(mapStub(wrapper).props('centerOn')).toBeNull()
+
+      await wrapper.findAll('[data-testid="stop-seq"]')[1].trigger('click')
+      expect(mapStub(wrapper).props('centerOn')).toEqual({ lat: 2, lng: 2 })
+    })
+
+    function hovered(wrapper: ReturnType<typeof mountView>): boolean[] {
+      return wrapper.findAll('[data-testid="stop-row"]').map((row) => row.classes('bg-coral/10'))
+    }
+
+    it('highlights the row of the stop hovered on the map', async () => {
+      const wrapper = await mountWithStops(['A', 'B'])
+
+      mapStub(wrapper).vm.$emit('stop-hover', '1')
+      await flushPromises()
+      expect(hovered(wrapper)).toEqual([false, true])
+
+      mapStub(wrapper).vm.$emit('stop-hover', null)
+      await flushPromises()
+      expect(hovered(wrapper)).toEqual([false, false])
+    })
+
+    it('keeps the highlight on the hovered stop when the list is reordered under it, and drops it when the stop goes', async () => {
+      const wrapper = await mountWithStops(['A', 'B', 'C'])
+
+      mapStub(wrapper).vm.$emit('stop-hover', '2')
+      await flushPromises()
+      await chooseStopAction(wrapper, 2, 'up')
+      expect(stopNamesIn(wrapper)).toEqual(['A', 'C', 'B'])
+      expect(hovered(wrapper)).toEqual([false, true, false])
+
+      await chooseStopAction(wrapper, 1, 'remove')
+      await hosts.confirmButton().trigger('click')
+      await flushPromises()
+      expect(hovered(wrapper)).toEqual([false, false])
+    })
+
+    it('names the stop in the confirmation, and keeps the stop list otherwise intact', async () => {
+      const wrapper = await mountWithStops(['Fresno', 'Merced'])
+
+      await chooseStopAction(wrapper, 1, 'remove')
+
+      expect(hosts.dialog().text()).toContain('Merced comes off the route')
+      await hosts.confirmButton().trigger('click')
+      await flushPromises()
+      expect(stopNamesIn(wrapper)).toEqual(['Fresno'])
+    })
+
+    it('says which of two stops sharing a name the confirmation is about', async () => {
+      const wrapper = await mountWithStops(['Fresno', 'Merced', 'Fresno'])
+
+      await chooseStopAction(wrapper, 2, 'remove')
+
+      expect(hosts.dialog().text()).toContain('Fresno (stop 3) comes off the route')
+    })
   })
 
   describe('a rejected write that names the offending stops', () => {
@@ -737,12 +1293,17 @@ describe('ServiceAuthoringView', () => {
       await flushPromises()
 
       expect(mapStub(wrapper).props('placementArmed')).toBe(false)
+      expect(toggle(wrapper).attributes('aria-pressed')).toBe('false')
 
       await toggle(wrapper).trigger('click')
       expect(mapStub(wrapper).props('placementArmed')).toBe(true)
+      // Pressed says it is on; the label stays what the button does.
+      expect(toggle(wrapper).attributes('aria-pressed')).toBe('true')
+      expect(toggle(wrapper).text()).toBe('Add stops by clicking the map')
 
       await toggle(wrapper).trigger('click')
       expect(mapStub(wrapper).props('placementArmed')).toBe(false)
+      expect(toggle(wrapper).attributes('aria-pressed')).toBe('false')
     })
 
     it('appends a stop at the clicked point, auto-named from a counter', async () => {
@@ -779,8 +1340,7 @@ describe('ServiceAuthoringView', () => {
 
       await clickMap(wrapper, 37.77, -122.41)
       await clickMap(wrapper, 37.33, -121.88)
-      await wrapper.find('[data-testid="stop-remove-1"]').trigger('click')
-      await flushPromises()
+      await chooseStopAction(wrapper, 1, 'remove')
       await hosts.confirmButton().trigger('click')
       await flushPromises()
       await clickMap(wrapper, 38.0, -122.0)
@@ -852,6 +1412,7 @@ describe('ServiceAuthoringView', () => {
 
     it('still redraws the preview when a stop moves', async () => {
       const wrapper = await mountWithTwoStops()
+      await chooseStopAction(wrapper, 0, 'edit-position')
       const before = mapStub(wrapper).props('stopPreviewPairs')
 
       await wrapper.find('[data-testid="stop-edit-lat-0"]').setValue(37.8)
@@ -891,6 +1452,7 @@ describe('ServiceAuthoringView', () => {
       const wrapper = await mountWithTwoStops()
 
       await drag(wrapper, '0', [], { lat: 37.85, lng: -122.35 })
+      await chooseStopAction(wrapper, 0, 'edit-position')
 
       const lat = wrapper.find('[data-testid="stop-edit-lat-0"]').element as HTMLInputElement
       const lng = wrapper.find('[data-testid="stop-edit-lng-0"]').element as HTMLInputElement

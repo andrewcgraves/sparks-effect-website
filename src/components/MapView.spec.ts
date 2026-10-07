@@ -71,6 +71,7 @@ const {
   mockPopupSetDOMContent,
   mockPopupAddTo,
   mockPopupRemove,
+  mockGetZoom,
 } = vi.hoisted(() => {
   const canvas = { style: { cursor: '' } }
   return {
@@ -100,6 +101,7 @@ const {
     mockPopupSetDOMContent: vi.fn(),
     mockPopupAddTo: vi.fn(),
     mockPopupRemove: vi.fn(),
+    mockGetZoom: vi.fn(() => 7),
   }
 })
 
@@ -130,6 +132,7 @@ vi.mock('maplibre-gl', () => ({
     this['queryRenderedFeatures'] = mockQueryRenderedFeatures
     this['setPaintProperty'] = mockSetPaintProperty
     this['setFilter'] = mockSetFilter
+    this['getZoom'] = mockGetZoom
     this['doubleClickZoom'] = {
       enable: mockDoubleClickZoomEnable,
       disable: mockDoubleClickZoomDisable,
@@ -1313,6 +1316,62 @@ describe('MapView', () => {
 
       expect(wrapper.emitted('stop-drag-end')).toHaveLength(1)
       expect(mockCanvas.style.cursor).toBe('crosshair')
+    })
+  })
+
+  describe('stops picked from the list', () => {
+    it('flies to a stop it is asked to centre on, zooming in to tell it apart', async () => {
+      const wrapper = mount(MapView, { props: defaultProps })
+      await triggerMapLoad()
+      mockFlyTo.mockClear()
+
+      await wrapper.setProps({ centerOn: { lat: 36.74, lng: -119.79 } })
+
+      expect(mockFlyTo).toHaveBeenCalledWith({ center: [-119.79, 36.74], zoom: 12 })
+    })
+
+    it('keeps the zoom when the map is already closer in than that', async () => {
+      mockGetZoom.mockReturnValueOnce(15)
+      const wrapper = mount(MapView, { props: defaultProps })
+      await triggerMapLoad()
+
+      await wrapper.setProps({ centerOn: { lat: 36.74, lng: -119.79 } })
+
+      expect(mockFlyTo).toHaveBeenLastCalledWith({ center: [-119.79, 36.74], zoom: 15 })
+    })
+
+    it('flies to a stop asked for before the map had loaded, once it has', async () => {
+      const wrapper = mount(MapView, { props: defaultProps })
+      await wrapper.setProps({ centerOn: { lat: 36.74, lng: -119.79 } })
+      expect(mockFlyTo).not.toHaveBeenCalled()
+
+      await triggerMapLoad()
+
+      expect(mockFlyTo).toHaveBeenLastCalledWith({ center: [-119.79, 36.74], zoom: 12 })
+    })
+
+    it('flies again when asked for the same stop a second time', async () => {
+      const wrapper = mount(MapView, { props: defaultProps })
+      await triggerMapLoad()
+      mockFlyTo.mockClear()
+
+      await wrapper.setProps({ centerOn: { lat: 36.74, lng: -119.79 } })
+      await wrapper.setProps({ centerOn: { lat: 36.74, lng: -119.79 } })
+
+      expect(mockFlyTo).toHaveBeenCalledTimes(2)
+    })
+
+    it('reports the stop pin under the pointer, and when it leaves', async () => {
+      mockGetSource.mockReturnValue({ setData: mockSetData })
+      const wrapper = mount(MapView, {
+        props: { ...defaultProps, stopPreviewPairs: [{ id: '0', raw: { lat: 37.77, lng: -122.41 }, snapped: null }] },
+      })
+      await triggerMapLoad()
+
+      fireLayerEvent('mouseenter', RAW_STOP_LAYER_ID, { features: [{ properties: { id: '0' } }] })
+      fireLayerEvent('mouseleave', RAW_STOP_LAYER_ID, {})
+
+      expect(wrapper.emitted('stop-hover')).toEqual([['0'], [null]])
     })
   })
 

@@ -204,6 +204,39 @@ describe('useDraftsStore', () => {
       expect(drafts.serviceDraft?.stops.map((s) => s.seq)).toEqual([0, 1, 2])
     })
 
+    it('reorderStops puts the stops in the order of the ids given and renumbers', () => {
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft()
+      drafts.addStop(stop('A', 0))
+      drafts.addStop(stop('B', 0))
+      drafts.addStop(stop('C', 0))
+      const [a, b, c] = drafts.serviceDraft!.stops.map((s) => s.id)
+
+      drafts.reorderStops([c, a, b])
+
+      expect(drafts.serviceDraft?.stops.map((s) => [s.id, s.name, s.seq])).toEqual([
+        [c, 'C', 0],
+        [a, 'A', 1],
+        [b, 'B', 2],
+      ])
+    })
+
+    it.each([
+      ['a stop left out', (ids: string[]) => ids.slice(1)],
+      ['a stop named twice', (ids: string[]) => [ids[0], ids[0], ids[1]]],
+      ['an id the draft does not hold', (ids: string[]) => [ids[0], ids[1], 'gone']],
+    ])('reorderStops refuses an order with %s', (_, order) => {
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft()
+      drafts.addStop(stop('A', 0))
+      drafts.addStop(stop('B', 0))
+      drafts.addStop(stop('C', 0))
+
+      drafts.reorderStops(order(drafts.serviceDraft!.stops.map((s) => s.id)))
+
+      expect(drafts.serviceDraft?.stops.map((s) => s.name)).toEqual(['A', 'B', 'C'])
+    })
+
     it('clearServiceDraft discards the draft and its editing target', () => {
       const drafts = useDraftsStore()
       drafts.startServiceDraft(undefined, 'svc-1')
