@@ -211,7 +211,7 @@ const walkedToStub = chainWith(
   routedToStub,
 )
 
-const defaultProps = { isochroneData: null, loading: false, routes: [], stations: [] }
+const defaultProps = { isochroneData: null, loading: false, routes: [], stations: [], label: 'Map' }
 
 const stubRouteCorners = routeBoundsCorners([stubRoute]) as [[number, number], [number, number]]
 

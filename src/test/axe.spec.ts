@@ -13,6 +13,20 @@ describe('seriousA11yViolations', () => {
     expect(violations.map((v) => v.rule)).toContain('button-name')
   })
 
+  it('reports a control named only by a glyph, which axe accepts but a screen reader reads as "multiplication sign"', async () => {
+    const wrapper = mount({
+      template: `<main>
+        <button type="button">✕</button>
+        <a href="/up">↑</a>
+        <button type="button"><span aria-hidden="true">⋯</span></button>
+        <button type="button" aria-label="Remove stop">✕</button>
+        <button type="button"><span aria-hidden="true">📍</span> Pick location</button>
+      </main>`,
+    }, { attachTo: document.body })
+    const glyphs = (await seriousA11yViolations(wrapper)).find((v) => v.rule === 'glyph-name')
+    expect(glyphs?.targets).toEqual(['<button type="button">✕</button>', '<a href="/up">↑</a>'])
+  })
+
   it('passes a labelled button', async () => {
     const wrapper = mount({ template: '<main><button type="button" aria-label="Remove stop">✕</button></main>' }, { attachTo: document.body })
     expect(await seriousA11yViolations(wrapper)).toEqual([])

@@ -16,9 +16,13 @@ const hasSearched = ref(false)
 const activeIndex = ref(-1)
 const listboxId = useId()
 
+function optionId(index: number): string {
+  return `${listboxId}-option-${index}`
+}
+
 const activeOptionId = computed(() =>
   activeIndex.value >= 0 && activeIndex.value < suggestions.value.length
-    ? `${listboxId}-option-${activeIndex.value}`
+    ? optionId(activeIndex.value)
     : undefined,
 )
 
@@ -150,7 +154,7 @@ defineExpose({ setInputValue })
           >
             <li
               v-for="(suggestion, index) in suggestions"
-              :id="`${listboxId}-option-${index}`"
+              :id="optionId(index)"
               :key="`${suggestion.label}-${suggestion.lat}-${suggestion.lng}`"
               class="font-body cursor-pointer border-b border-border px-3 py-2 text-[14px] text-ink not-italic normal-case transition-colors duration-200 ease-(--ease-smooth) last:border-b-0 hover:bg-surface aria-selected:bg-surface aria-selected:outline-2 aria-selected:-outline-offset-2 aria-selected:outline-coral"
               role="option"

@@ -120,7 +120,7 @@ watch(
       class="mt-3"
       :options="props.views.map((_, index) => index)"
       :format-option="(index: number) => props.views[index].label"
-      label="Service"
+      label="Line"
       name="time-remaining-service"
       testid="time-remaining-service"
     />

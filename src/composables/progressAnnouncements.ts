@@ -1,4 +1,4 @@
-import { AUTHORING_NOUN_WORDS, type AuthoringNoun } from '../api/authoringFault'
+import { AUTHORING_NOUN_WORDS, capitalise, type AuthoringNoun } from '../api/authoringFault'
 import type { ChainResponse } from '../fixtures/isochrone'
 
 export const PLOTTING_SPLASH_ZONE = 'Plotting splash zone…'
@@ -8,8 +8,7 @@ export function compilingMessage(noun: AuthoringNoun): string {
 }
 
 export function compiledMessage(noun: AuthoringNoun): string {
-  const word = AUTHORING_NOUN_WORDS[noun]
-  return `${word.charAt(0).toUpperCase()}${word.slice(1)} compiled`
+  return `${capitalise(AUTHORING_NOUN_WORDS[noun])} compiled`
 }
 
 export function splashZoneReadyMessage(data: ChainResponse): string {
