@@ -30,19 +30,21 @@ fetchCoverIndex()
         Sparks Effect
       </h1>
 
-      <p class="font-body text-body mt-6 max-w-[560px] text-ink-muted">
-        Sparks Effect maps the "splash zone" reachable by walking, biking, transit, and driving
-        from a hypothetical transit line. This is a temporary landing page — pick a network or line below
-        to explore its isochrones.
+      <p
+        class="font-body text-body mt-6 max-w-[560px] text-ink-muted"
+        data-testid="cover-lede"
+      >
+        A splash zone is everywhere you could reach by walking, biking, transit, or driving
+        from a hypothetical transit line. Pick a line or network below to see its splash zones.
       </p>
 
       <section class="mt-12">
         <h2 class="font-display text-h2 text-ink-true">
-          Published networks and lines
+          Lines and networks
         </h2>
         <ListSkeleton
           v-if="loading"
-          label="Loading published networks and lines"
+          label="Loading lines and networks"
           class="mt-3 max-w-[420px]"
           data-testid="scenarios-loading"
         />
@@ -52,7 +54,7 @@ fetchCoverIndex()
           role="alert"
           data-testid="scenarios-error"
         >
-          Couldn't load the published networks and lines.
+          Couldn't load the lines and networks.
         </p>
         <template v-else>
           <p
@@ -71,7 +73,7 @@ fetchCoverIndex()
             class="font-body text-caption mt-3 text-ink-muted italic"
             data-testid="scenarios-empty"
           >
-            No published networks or lines yet.
+            No lines or networks yet.
           </p>
           <ul
             v-if="cards.length > 0"

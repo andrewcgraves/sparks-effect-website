@@ -10,7 +10,7 @@ import { ACTION_LINK_CLASS } from '../components/linkStyles'
     <p class="font-body text-body mt-3 text-ink-muted">
       The page you're looking for doesn't exist.
     </p>
-    <!-- Home is where the published networks and lines are listed until an Explore page
+    <!-- Home is where the lines and networks are listed until an Explore page
          exists (SPA-202); then this gains a link there. -->
     <router-link
       to="/"
@@ -18,7 +18,7 @@ import { ACTION_LINK_CLASS } from '../components/linkStyles'
       class="mt-8 inline-block"
       data-testid="not-found-home"
     >
-      ← Home: browse the published networks and lines
+      ← Home: browse the lines and networks
     </router-link>
   </main>
 </template>
