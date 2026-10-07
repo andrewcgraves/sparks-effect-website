@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch, nextTick } from 'vue'
+import { computed, ref, watch, nextTick, useId } from 'vue'
 import SegmentedControl from './SegmentedControl.vue'
 import TooltipPanel from './TooltipPanel.vue'
 import { formatDuration, formatProgressPercent, formatTimeRemaining, laneWidthFor } from './timeRemaining'
@@ -12,6 +12,8 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{ activate: [slug: string | null] }>()
+
+const headingId = useId()
 
 const NODE_BAND_PX = 26
 
@@ -101,9 +103,13 @@ watch(
 <template>
   <section
     class="rounded-(--radius-box) border border-border bg-surface p-4"
+    :aria-labelledby="headingId"
     data-testid="time-remaining"
   >
-    <h2 class="font-display text-h3 text-ink-true">
+    <h2
+      :id="headingId"
+      class="font-display text-h3 text-ink-true"
+    >
       Time remaining
     </h2>
 
@@ -114,6 +120,7 @@ watch(
       class="mt-3"
       :options="props.views.map((_, index) => index)"
       :format-option="(index: number) => props.views[index].label"
+      label="Service"
       name="time-remaining-service"
       testid="time-remaining-service"
     />
@@ -125,7 +132,7 @@ watch(
       <li
         v-for="row in rows"
         :key="row.key"
-        class="flex cursor-default items-stretch gap-3 rounded-(--radius-field) focus:outline-none focus-visible:ring-1 focus-visible:ring-coral"
+        class="flex cursor-default items-stretch gap-3 rounded-(--radius-field) focus-visible:-outline-offset-(--focus-ring-width)"
         :class="isExpanded(row) ? 'bg-white' : ''"
         tabindex="0"
         :data-station-slug="row.slug ?? undefined"

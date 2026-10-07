@@ -29,6 +29,7 @@ vi.mock('../components/MapView.vue', () => ({
 
 import { breadcrumbTrail } from '../test/breadcrumbs'
 import AuthoredScenarioView from './AuthoredScenarioView.vue'
+import { seriousA11yViolations } from '../test/axe'
 import {
   fetchScenario,
   fetchScenarioGraph,
@@ -96,6 +97,21 @@ describe('AuthoredScenarioView', () => {
   afterEach(() => {
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
+  })
+
+  it('has no serious or critical accessibility violations once loaded', async () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/authoring', name: 'authoring', component: Stub },
+        { path: '/authoring/scenarios/:slug', name: 'scenario-detail', component: AuthoredScenarioView, props: true },
+        { path: '/authoring/scenarios/:slug/edit', name: 'edit-scenario', component: Stub },
+      ],
+    })
+    const wrapper = mount(AuthoredScenarioView, { props: { slug: 'ca-hsr' }, global: { plugins: [router] }, attachTo: document.body })
+    await flushPromises()
+    expect(await seriousA11yViolations(wrapper)).toEqual([])
+    wrapper.unmount()
   })
 
   it('shows a page skeleton in the shape of the loaded page, not loading copy, while it loads', () => {

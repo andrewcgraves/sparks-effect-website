@@ -8,6 +8,7 @@ vi.mock('../api/coverIndex', () => ({
 }))
 
 import CoverPage from './CoverPage.vue'
+import { seriousA11yViolations } from '../test/axe'
 import { fetchCoverIndex } from '../api/coverIndex'
 import { busyRegion, visibleText } from '../test/loading'
 
@@ -132,5 +133,15 @@ describe('CoverPage', () => {
     await flushPromises()
     expect(wrapper.get('[data-testid="scenarios-partial"]').text()).toBe("Couldn't load the curated networks.")
     expect(wrapper.find('[data-testid="scenarios-empty"]').exists()).toBe(false)
+  })
+
+  it('has no serious or critical accessibility violations once loaded', async () => {
+    vi.mocked(fetchCoverIndex).mockResolvedValueOnce(index([scenarioCard, serviceCard]))
+    const router = makeRouter()
+    await router.push('/')
+    const wrapper = mount(CoverPage, { global: { plugins: [router] }, attachTo: document.body })
+    await flushPromises()
+    expect(await seriousA11yViolations(wrapper)).toEqual([])
+    wrapper.unmount()
   })
 })

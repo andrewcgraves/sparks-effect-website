@@ -87,6 +87,7 @@ const speedInputId = useId()
       v-model="preset"
       :options="PRESET_CHOICES"
       :format-option="(choice: PresetChoice) => PRESET_LABELS[choice]"
+      label="Vehicle preset"
       name="vehicle-preset"
       testid="vehicle-preset"
       class="self-start"
@@ -104,6 +105,7 @@ const speedInputId = useId()
             v-model="speedUnit"
             :options="SPEED_UNITS"
             :format-option="(unit: SpeedUnit) => SPEED_UNIT_LABELS[unit]"
+            label="Speed unit"
             name="vehicle-speed-unit"
             testid="vehicle-speed-unit"
           />

@@ -22,6 +22,7 @@ vi.mock('vue-router', () => ({
 import { breadcrumbTrail } from '../test/breadcrumbs'
 import { busyRegion, visibleText } from '../test/loading'
 import ScenarioBuilderView from './ScenarioBuilderView.vue'
+import { seriousA11yViolations } from '../test/axe'
 import { fetchMyServices } from '../api/authoring/services'
 import { compileScenario, createScenario, fetchScenario, updateScenario } from '../api/authoring/scenarios'
 import { ApiError, SessionExpiredError } from '../api/authoring/client'
@@ -76,6 +77,14 @@ describe('ScenarioBuilderView', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
+  })
+
+  it('has no serious or critical accessibility violations once services load', async () => {
+    const wrapper = mount(ScenarioBuilderView, { global: { stubs: { RouterLink: RouterLinkStub } }, attachTo: document.body })
+    await flushPromises()
+    await fillAndSelect(wrapper)
+    expect(await seriousA11yViolations(wrapper)).toEqual([])
+    wrapper.unmount()
   })
 
   it('shows where it sits: a new scenario, under My authoring', async () => {

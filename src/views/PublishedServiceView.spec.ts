@@ -27,6 +27,7 @@ vi.mock('../components/MapView.vue', () => ({
 }))
 
 import PublishedServiceView from './PublishedServiceView.vue'
+import { seriousA11yViolations } from '../test/axe'
 import { fetchPublicationIsochrone, fetchServicePublication } from '../api/publications'
 import { compileService, fetchService, fetchServiceGraph, fetchServiceIsochrone } from '../api/authoring/services'
 import { busyRegion, visibleText } from '../test/loading'
@@ -99,6 +100,15 @@ describe('PublishedServiceView', () => {
     // reaching fetch — a compile, a job poll — is a request it must not make.
     fetchSpy.mockReset()
     vi.stubGlobal('fetch', fetchSpy)
+  })
+
+  it('has no serious or critical accessibility violations with a splash zone plotted', async () => {
+    const router = await testRouterAt('/services/northbound-express?at=37.7,-122.4&mode=bike&mins=75')
+    const wrapper = mount(PublishedServiceView, { props: { slug: 'northbound-express' }, global: { plugins: [router] }, attachTo: document.body })
+    await flushPromises()
+    expect(wrapper.findComponent({ name: 'TimeRemaining' }).exists()).toBe(true)
+    expect(await seriousA11yViolations(wrapper)).toEqual([])
+    wrapper.unmount()
   })
 
   it('shows a page skeleton in the shape of the loaded page, not loading copy, while it loads', () => {

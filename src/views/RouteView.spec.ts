@@ -10,6 +10,7 @@ import { fetchRoute } from '../api/authoring/routes'
 import { ApiError } from '../api/authoring/client'
 
 import RouteView from './RouteView.vue'
+import { seriousA11yViolations } from '../test/axe'
 import { busyRegion, visibleText } from '../test/loading'
 
 const stubRoute: Route = {
@@ -125,5 +126,17 @@ describe('RouteView', () => {
     await flushPromises()
     const rows = wrapper.findAll('[data-testid="route-segment-row"]')
     expect(rows[1].text()).toContain('Tangent')
+  })
+
+  it('has no serious or critical accessibility violations once loaded', async () => {
+    vi.mocked(fetchRoute).mockResolvedValueOnce(stubRoute)
+    const wrapper = mount(RouteView, {
+      props: { slug: 'main-line' },
+      global: { plugins: [testRouter()], stubs: { MapView: true } },
+      attachTo: document.body,
+    })
+    await flushPromises()
+    expect(await seriousA11yViolations(wrapper)).toEqual([])
+    wrapper.unmount()
   })
 })

@@ -32,6 +32,7 @@ vi.mock('../components/MapView.vue', () => ({
 
 import { breadcrumbTrail } from '../test/breadcrumbs'
 import AuthoredServiceView from './AuthoredServiceView.vue'
+import { seriousA11yViolations } from '../test/axe'
 import {
   compileService,
   deleteService,
@@ -114,6 +115,22 @@ describe('AuthoredServiceView', () => {
   afterEach(() => {
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
+  })
+
+  it('has no serious or critical accessibility violations once loaded', async () => {
+    vi.mocked(fetchService).mockResolvedValue(stubService)
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/authoring', name: 'authoring', component: Stub },
+        { path: '/authoring/services/:slug', name: 'service-detail', component: AuthoredServiceView, props: true },
+        { path: '/services/:slug', name: 'published-service', component: Stub },
+      ],
+    })
+    const wrapper = mount(AuthoredServiceView, { props: { slug: 'northbound-express' }, global: { plugins: [router] }, attachTo: document.body })
+    await flushPromises()
+    expect(await seriousA11yViolations(wrapper)).toEqual([])
+    wrapper.unmount()
   })
 
   it('shows a page skeleton in the shape of the loaded page, not loading copy, while it loads', () => {

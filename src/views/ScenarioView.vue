@@ -141,6 +141,7 @@ function onPrerenderedSelect(result: ChainResponse) {
     <div class="mt-8 grid grid-cols-1 items-start gap-4 lg:grid-cols-[2fr_1fr]">
       <div class="h-[70vh]">
         <MapView
+          label="Splash zone map"
           :origin="origin"
           :isochrone-data="isochroneData"
           :loading="isLoading"
