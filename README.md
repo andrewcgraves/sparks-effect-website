@@ -127,9 +127,74 @@ Once production serves this, submit `https://sparks-effect.app/sitemap.xml` in
 Google Search Console (and Bing Webmaster Tools, if wanted). That is a manual,
 one-time step; nothing here does it.
 
+## Security headers
+
+`vercel.json` sends these on every path (`/(.*)`), beside the `Cache-Control`
+rules — different keys, so the rules compose rather than compete:
+
+- `Content-Security-Policy-Report-Only` — scripts only from this origin, no
+  inline or `eval`; styles may be inline (Tailwind, Vue `:style`, MapLibre);
+  `connect-src` names the API (staging and production Railway hosts), the tile
+  hosts (OpenFreeMap, and Stadia when `VITE_STADIA_API_KEY` is set) and the
+  geocoder (Nominatim); `worker-src 'self'` for MapLibre's worker, which
+  `MapView.vue` loads from `/assets/`; `img-src data: blob:` for MapLibre's
+  control icons and images.
+- `Strict-Transport-Security`, `X-Content-Type-Options: nosniff`,
+  `Referrer-Policy: strict-origin-when-cross-origin`, and
+  `Permissions-Policy` — geolocation for this origin only ("use my location"),
+  no camera or microphone.
+- `X-Frame-Options: DENY`. `frame-ancestors 'none'` is in the CSP too, but a
+  Report-Only policy enforces nothing, `frame-ancestors` included, so this is
+  what stops framing today.
+
+The pages `middleware.ts` answers are responses it builds itself, and Vercel
+may not apply `vercel.json`'s headers to those. So the middleware copies the
+security headers (and only those — not the shell's caching) from the
+`/index.html` shell it already fetches, which is an ordinary static hit that
+carries them. `vercel.json` stays their one source; `src/securityHeaders.ts`
+holds the list of keys copied, and its spec fails if the catch-all rule gains
+a header the list lacks.
+
+The CSP only reports for now, and no reports are collected: there is no
+`report-uri` until the error tracker lands (SPA-380). So the watch week means
+opening DevTools' console on staging (`dev.sparks-effect.app`) and looking for
+`[Report Only]` violations across the main pages: `/`, a `/scenario/<slug>`, a
+`/services/<slug>`, a `/routes/<slug>`, the authoring pages, login, an address
+search, and "use my location". `curl -sI https://dev.sparks-effect.app/` and a
+`/scenario/<slug>` page (served by `middleware.ts`) should both show the
+headers.
+
+Staging and pull-request previews are preview deployments, so the Vercel
+Toolbar loads there, and its requests (`vercel.live` and the like) will be
+blocked once the CSP is enforced. Before the watch week, turn the Toolbar off
+for preview deployments in the Vercel project settings, rather than
+allowlisting `vercel.live` in `vercel.json`: that file cannot vary per
+environment, so the allowance would ship to production on promotion.
+
+After a clean week, enforce it: set `ENFORCING` to true in
+`src/securityHeaders.spec.ts` and rename the key to `Content-Security-Policy`
+in `vercel.json`. What guards the policy meanwhile:
+
+- `src/securityHeaders.spec.ts` fails CI when the map style URL's origin or the
+  geocoder changes without the CSP following. It checks the style URL's
+  origin only; sprite, glyph and tile URLs inside the remote style JSON are not
+  covered, so a style that moves those to another host needs a manual check.
+- The API hosts come from Vercel's `VITE_API_BASE_URL`, which the repository
+  cannot see. `vite.config.ts` reads `vercel.json` on a Vercel build (where
+  `VERCEL` is set) and fails it when that variable's origin is not in the CSP's
+  `connect-src`, so a misconfigured preview fails visibly instead of the
+  enforced CSP silently blocking every API call. Local and CI builds skip it.
+
+Hosts still to add when they land: the geocoder that replaces Nominatim
+(SPA-370) and the error tracker's ingest host, plus its `report-uri`
+(SPA-380). An embeddable map for other sites (SPA-462) will need its own
+carve-out from `frame-ancestors` and `X-Frame-Options`. MapLibre's RTL text
+plugin, or anything loaded through `importScriptInWorkers`, would need
+`script-src` changes if ever adopted.
+
 ## Project structure
 
-- `middleware.ts` — Vercel Routing Middleware for link previews (above)
+- `middleware.ts` — Vercel Routing Middleware for link previews, carrying the security headers onto the pages it answers (above)
 - `api/` — Vercel Functions for `/robots.txt` and `/sitemap.xml` (above)
 - `src/` — Vue application source
 - `.github/workflows/ci.yml` — CI: a production-dependency `npm audit`, lint + test on every push/PR, then build and upload the `dist`
