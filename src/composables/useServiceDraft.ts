@@ -29,6 +29,10 @@ import type { StopPreviewPair } from './useStopPreviewLayer'
 
 export const PREVIEW_DEBOUNCE_MS = 400
 
+// What the vehicle reads as before the gate opens, so the editor always has
+// four numbers to bind to; the gate also hides the form, so it is never saved.
+const NO_VEHICLE: VehicleParams = { max_speed_kmh: 0, acceleration_ms2: 0, deceleration_ms2: 0, dwell_s: 0 }
+
 // A service read back in the shape the form edits. The fields the server
 // derives are left behind — stop slugs, chainage and offset are re-minted from
 // the stops on every write — and each stop and frequency window gets a
@@ -191,26 +195,16 @@ export function useServiceDraft(serviceSlug?: string) {
     set: (value: string) => drafts.patchServiceDraft({ description: value }),
   })
 
-  function patchVehicle(patch: Partial<VehicleParams>): void {
-    if (!draft.value) return
-    drafts.patchServiceDraft({ vehicle: { ...draft.value.vehicle, ...patch } })
-  }
-
-  function vehicleField(field: keyof VehicleParams) {
-    return computed({
-      get: () => draft.value?.vehicle[field] ?? 0,
-      set: (value: number) => patchVehicle({ [field]: value }),
-    })
-  }
+  // Read and written whole: a preset replaces all four values in one write,
+  // and the fields that make up a vehicle are the editor's concern.
+  const vehicle = computed({
+    get: () => draft.value?.vehicle ?? NO_VEHICLE,
+    set: (value: VehicleParams) => drafts.patchServiceDraft({ vehicle: { ...value } }),
+  })
 
   // An edit whose route could not be recovered opens without one, and cannot be
   // saved until the author picks it again.
   const routeMissing = computed(() => editing.value !== null && ready.value && !routeSlug.value)
-
-  const maxSpeedKmh = vehicleField('max_speed_kmh')
-  const accelerationMs2 = vehicleField('acceleration_ms2')
-  const decelerationMs2 = vehicleField('deceleration_ms2')
-  const dwellS = vehicleField('dwell_s')
 
   const mapRoutes = computed<ScenarioRoute[]>(() => {
     const route = selectedRoute.value
@@ -522,10 +516,7 @@ export function useServiceDraft(serviceSlug?: string) {
     name,
     subtext,
     description,
-    maxSpeedKmh,
-    accelerationMs2,
-    decelerationMs2,
-    dwellS,
+    vehicle,
     routes,
     routesLoading,
     routesError,

@@ -12,6 +12,7 @@ import MapView from '../components/MapView.vue'
 import FieldSkeleton from '../components/FieldSkeleton.vue'
 import LoadingRegion from '../components/LoadingRegion.vue'
 import SkeletonShape from '../components/SkeletonShape.vue'
+import VehicleFields from '../components/VehicleFields.vue'
 import { PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS, TOGGLE_BUTTON_CLASS } from '../components/buttonStyles'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
 import { ACTION_LINK_CLASS } from '../components/linkStyles'
@@ -36,10 +37,7 @@ const {
   name,
   subtext,
   description,
-  maxSpeedKmh,
-  accelerationMs2,
-  decelerationMs2,
-  dwellS,
+  vehicle,
   routes,
   routesLoading,
   routesError,
@@ -564,50 +562,10 @@ watch(createdSlug, (created) => {
             <h3 :class="[SUBHEADING_CLASS, 'mt-3']">
               Vehicle
             </h3>
-            <div class="mt-2 grid grid-cols-2 gap-3">
-              <label :class="FIELD_LABEL_CLASS">
-                Max speed (km/h)
-                <input
-                  v-model.number="maxSpeedKmh"
-                  :class="FIELD_INPUT_CLASS"
-                  data-testid="vehicle-max-speed"
-                  type="number"
-                  min="0"
-                >
-              </label>
-              <label :class="FIELD_LABEL_CLASS">
-                Acceleration (m/s²)
-                <input
-                  v-model.number="accelerationMs2"
-                  :class="FIELD_INPUT_CLASS"
-                  data-testid="vehicle-acceleration"
-                  type="number"
-                  min="0"
-                  step="0.1"
-                >
-              </label>
-              <label :class="FIELD_LABEL_CLASS">
-                Deceleration (m/s²)
-                <input
-                  v-model.number="decelerationMs2"
-                  :class="FIELD_INPUT_CLASS"
-                  data-testid="vehicle-deceleration"
-                  type="number"
-                  min="0"
-                  step="0.1"
-                >
-              </label>
-              <label :class="FIELD_LABEL_CLASS">
-                Dwell (s)
-                <input
-                  v-model.number="dwellS"
-                  :class="FIELD_INPUT_CLASS"
-                  data-testid="vehicle-dwell"
-                  type="number"
-                  min="0"
-                >
-              </label>
-            </div>
+            <VehicleFields
+              v-model="vehicle"
+              class="mt-2"
+            />
 
             <h3 :class="[SUBHEADING_CLASS, 'mt-5']">
               Frequency windows

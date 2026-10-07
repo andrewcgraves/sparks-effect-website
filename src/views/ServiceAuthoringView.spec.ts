@@ -624,6 +624,31 @@ describe('ServiceAuthoringView', () => {
       }))
     })
 
+    it('sends the four vehicle values a preset filled in', async () => {
+      const { wrapper } = await mountNew()
+      await wrapper.find('[data-testid="vehicle-preset-option-regional_rail"]').setValue(true)
+
+      await wrapper.find('form').trigger('submit')
+      await flushPromises()
+
+      expect(createService).toHaveBeenCalledWith(expect.objectContaining({
+        vehicle: { max_speed_kmh: 177, acceleration_ms2: 0.6, deceleration_ms2: 0.7, dwell_s: 45 },
+      }))
+    })
+
+    it('sends km/h even when the speed was typed in mph', async () => {
+      const { wrapper } = await mountNew()
+      await wrapper.find('[data-testid="vehicle-speed-unit-option-mph"]').setValue(true)
+      await wrapper.find('[data-testid="vehicle-max-speed"]').setValue(110)
+
+      await wrapper.find('form').trigger('submit')
+      await flushPromises()
+
+      expect(createService).toHaveBeenCalledWith(expect.objectContaining({
+        vehicle: expect.objectContaining({ max_speed_kmh: 177 }),
+      }))
+    })
+
     it('stays on the form with the draft and the stop faults when the create is refused', async () => {
       vi.mocked(createService).mockRejectedValue(
         new ApiError('POST /api/services failed: 422: rejected', 422, 'stop_placement', {
@@ -996,6 +1021,23 @@ describe('ServiceAuthoringView', () => {
       expect(fieldValue(wrapper, 'vehicle-dwell')).toBe('45')
       expect(wrapper.find('[data-testid="frequency-list"]').text()).toContain('06:00–22:00, every 15 min')
       expect(wrapper.find('[data-testid="submit"]').text()).toBe('Save changes')
+    })
+
+    it('reads the saved vehicle as Custom when it equals no preset', async () => {
+      const { wrapper } = await mountEdit()
+
+      expect(wrapper.get('[data-testid="vehicle-preset-label"]').text()).toBe('Custom')
+    })
+
+    it('reads the saved vehicle as its preset when it equals one', async () => {
+      vi.mocked(fetchService).mockResolvedValue({
+        ...savedService,
+        vehicle: { max_speed_kmh: 320, acceleration_ms2: 0.5, deceleration_ms2: 0.65, dwell_s: 90 },
+      })
+      const { wrapper } = await mountEdit()
+
+      expect(wrapper.get('[data-testid="vehicle-preset-label"]').text()).toBe('High-speed rail')
+      expect(fieldValue(wrapper, 'vehicle-max-speed')).toBe('320')
     })
 
     it('names the tab after the saved service, not the name being typed', async () => {
