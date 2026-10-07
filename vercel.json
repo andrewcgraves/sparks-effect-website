@@ -1,6 +1,8 @@
 {
   "rewrites": [
-    { "source": "/((?!assets/).*)", "destination": "/index.html" }
+    { "source": "/robots.txt", "destination": "/api/robots" },
+    { "source": "/sitemap.xml", "destination": "/api/sitemap" },
+    { "source": "/((?!assets/|robots\\.txt$|sitemap\\.xml$).*)", "destination": "/index.html" }
   ],
   "headers": [
     {
@@ -16,9 +18,16 @@
       ]
     },
     {
-      "source": "/((?!assets/|index\\.html$|$|scenario/|services/|routes/).*)",
+      "source": "/((?!assets/|index\\.html$|$|scenario/|services/|routes/|robots\\.txt$|sitemap\\.xml$).*)",
       "headers": [
         { "key": "Cache-Control", "value": "no-cache" }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "missing": [{ "type": "host", "value": "(www\\.)?sparks-effect\\.app" }],
+      "headers": [
+        { "key": "X-Robots-Tag", "value": "noindex" }
       ]
     }
   ]
