@@ -66,12 +66,29 @@ describe('CoverPage', () => {
     expect(wrapper.get('h1').text()).toBe('Sparks Effect')
   })
 
+  it('says what a splash zone is and what to do, without calling itself temporary', async () => {
+    vi.mocked(fetchCoverIndex).mockResolvedValue(index([]))
+    const { wrapper } = await mountCover()
+    const lede = wrapper.get('[data-testid="cover-lede"]').text()
+    expect(lede).toContain('splash zone')
+    expect(lede).toContain('Pick a line or network below')
+    expect(lede).not.toMatch(/temporary/i)
+    expect(lede).not.toMatch(/isochrone/i)
+  })
+
+  it('heads the list with what it contains', async () => {
+    vi.mocked(fetchCoverIndex).mockResolvedValue(index([]))
+    const { wrapper } = await mountCover()
+    expect(wrapper.get('h2').text()).toBe('Lines and networks')
+  })
+
   it('shows skeleton route cards, not loading copy, before the fetch resolves', async () => {
     vi.mocked(fetchCoverIndex).mockReturnValue(new Promise(() => {}))
     const { wrapper } = await mountCover()
     const region = busyRegion(wrapper, 'scenarios-loading')
     expect(region.findAll('[data-testid="list-card-skeleton"]').length).toBeGreaterThan(0)
     expect(visibleText(region)).toBe('')
+    expect(region.text()).toContain('Loading lines and networks')
   })
 
   it('links a curated scenario to its scenario page', async () => {
@@ -105,7 +122,7 @@ describe('CoverPage', () => {
     vi.mocked(fetchCoverIndex).mockResolvedValue(index([]))
     const { wrapper } = await mountCover()
     await flushPromises()
-    expect(wrapper.find('[data-testid="scenarios-empty"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="scenarios-empty"]').text()).toBe('No lines or networks yet.')
     expect(wrapper.find('[role="alert"]').exists()).toBe(false)
   })
 
@@ -113,7 +130,7 @@ describe('CoverPage', () => {
     vi.mocked(fetchCoverIndex).mockRejectedValue(new Error('boom'))
     const { wrapper } = await mountCover()
     await flushPromises()
-    expect(wrapper.find('[data-testid="scenarios-error"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="scenarios-error"]').text()).toBe("Couldn't load the lines and networks.")
     expect(wrapper.find('[data-testid="scenarios-empty"]').exists()).toBe(false)
   })
 

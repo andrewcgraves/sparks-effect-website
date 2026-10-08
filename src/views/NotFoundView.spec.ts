@@ -12,10 +12,10 @@ describe('NotFoundView', () => {
     expect(wrapper.get('h1').text()).toBe('Page not found')
   })
 
-  it('links home, where the published networks and lines are listed', () => {
+  it('links home, where the lines and networks are listed', () => {
     const wrapper = mountView()
     const home = wrapper.getComponent(RouterLinkStub)
     expect(home.props('to')).toBe('/')
-    expect(home.text()).toContain('published networks and lines')
+    expect(home.text()).toContain('browse the lines and networks')
   })
 })
