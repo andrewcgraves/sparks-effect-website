@@ -136,13 +136,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
         <label class="relative shrink-0">
           <span class="sr-only">Travel time</span>
           <select
-            v-model.number="duration"
             class="font-body text-caption appearance-none rounded-full border border-border bg-surface py-1.5 pr-7 pl-3 text-ink"
+            @change="duration = Number(($event.target as HTMLSelectElement).value)"
           >
             <option
               v-for="d in DURATION_OPTIONS"
               :key="d"
               :value="d"
+              :selected="d === duration"
             >{{ d }} min</option>
           </select>
           <span class="pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2 text-[10px] text-ink-muted">▾</span>
