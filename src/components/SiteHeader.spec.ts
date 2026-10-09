@@ -177,6 +177,33 @@ describe('SiteHeader', () => {
     vi.unstubAllGlobals()
   })
 
+  it('leaves a signed-in page for home without waiting on the revoke', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(() => {})))
+    useAuthStore().signIn('tok-1', { id: 'u1', email: 'a@example.com' })
+    const wrapper = await mountHeader([{ path: '/account', component: Blank }], '/authoring', document.body)
+    await wrapper.get('[data-testid="account-menu-button"]').trigger('click')
+
+    await wrapper.get('[data-testid="nav-sign-out"]').trigger('click')
+    await flushPromises()
+
+    expect(useAuthStore().isAuthenticated).toBe(false)
+    expect(wrapper.vm.$route.path).toBe('/')
+    wrapper.unmount()
+    vi.unstubAllGlobals()
+  })
+
+  it('closes the account menu when the page changes under it', async () => {
+    useAuthStore().signIn('tok-1', { id: 'u1', email: 'a@example.com' })
+    const wrapper = await mountHeader([{ path: '/account', component: Blank }], '/', document.body)
+    await wrapper.get('[data-testid="account-menu-button"]').trigger('click')
+
+    await wrapper.vm.$router.push('/account')
+    await flushPromises()
+
+    expect(wrapper.find('[role="menu"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
   describe('account menu from the keyboard', () => {
     async function mountSignedIn() {
       useAuthStore().signIn('tok-1', { id: 'u1', email: 'a@example.com', is_admin: true })
@@ -334,6 +361,22 @@ describe('SiteHeader', () => {
       expect(wrapper.find('[data-testid="site-menu-sheet"]').exists()).toBe(false)
       expect(document.activeElement).toBe(button.element)
       wrapper.unmount()
+    })
+
+    it('closes when focus is tabbed out of the header', async () => {
+      const outside = document.createElement('button')
+      document.body.append(outside)
+      const wrapper = await mountHeader(PRIMARY_ROUTES, '/', document.body)
+      await wrapper.get('[data-testid="site-menu-button"]').trigger('click')
+      const lastLink = wrapper.get<HTMLElement>('[data-testid="site-menu-sheet"] a:last-of-type')
+      lastLink.element.focus()
+
+      outside.focus()
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="site-menu-sheet"]').exists()).toBe(false)
+      wrapper.unmount()
+      outside.remove()
     })
 
     it('closes once a link is followed', async () => {

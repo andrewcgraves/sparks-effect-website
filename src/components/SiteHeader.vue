@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref, useId, watch } from 'vue'
+import { onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAccountNav } from '../composables/useAccountNav'
+import { useOutsidePointerDown } from '../composables/useOutsidePointerDown'
 import { useRoutedPages } from '../composables/useRoutedPages'
 import { useAuthStore } from '../stores/auth'
 import AccountMenu from './AccountMenu.vue'
@@ -55,25 +56,30 @@ async function signOutFromSheet(): Promise<void> {
   await signOut()
 }
 
-function onPointerDownOutside(event: PointerEvent): void {
-  if (!header.value?.contains(event.target as Node | null)) closeSheet(false)
+function onHeaderFocusout(event: FocusEvent): void {
+  if (!header.value?.contains(event.relatedTarget as Node | null)) closeSheet(false)
 }
+
+useOutsidePointerDown(header, sheetOpen, () => closeSheet(false))
 
 watch(() => route.fullPath, () => closeSheet(false))
 
-watch(sheetOpen, (isOpen) => {
-  if (isOpen) document.addEventListener('pointerdown', onPointerDownOutside, true)
-  else document.removeEventListener('pointerdown', onPointerDownOutside, true)
-})
-
-onBeforeUnmount(() => document.removeEventListener('pointerdown', onPointerDownOutside, true))
+// The sheet is only drawn below sm; one left open there would come back on
+// its own the next time the window narrows.
+const wide = window.matchMedia?.('(min-width: 40rem)')
+function onWideChange(event: MediaQueryListEvent): void {
+  if (event.matches) closeSheet(false)
+}
+onMounted(() => wide?.addEventListener('change', onWideChange))
+onBeforeUnmount(() => wide?.removeEventListener('change', onWideChange))
 </script>
 
 <template>
   <header
     ref="header"
-    class="sticky top-0 z-20 flex h-16 items-center justify-between gap-4 border-b border-border bg-white px-(--page-gutter) whitespace-nowrap"
+    class="sticky top-0 z-30 flex h-16 items-center justify-between gap-4 border-b border-border bg-white px-(--page-gutter) whitespace-nowrap"
     @keydown="onHeaderKeydown"
+    @focusout="onHeaderFocusout"
   >
     <div class="flex h-full items-center gap-8">
       <RouterLink
@@ -124,7 +130,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onPointerDownO
     <div
       v-if="sheetOpen"
       :id="sheetId"
-      class="absolute inset-x-0 top-full flex flex-col divide-y divide-border border-b border-border bg-white px-(--page-gutter) whitespace-normal shadow-(--shadow-panel) sm:hidden"
+      class="absolute inset-x-0 top-full flex max-h-[calc(100svh-4rem)] flex-col overflow-y-auto overscroll-contain divide-y divide-border border-b border-border bg-white px-(--page-gutter) whitespace-normal shadow-(--shadow-panel) sm:hidden"
       data-testid="site-menu-sheet"
     >
       <nav

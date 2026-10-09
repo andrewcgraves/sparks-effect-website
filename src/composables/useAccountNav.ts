@@ -23,8 +23,12 @@ export function useAccountNav() {
   ])
 
   async function signOut(): Promise<void> {
-    await auth.logout()
+    // logout() drops the token before it revokes, so leave at once: a signed-in
+    // page left up while the revoke is in flight would make tokenless requests
+    // and race this navigation to the sign-in page.
+    const revoking = auth.logout()
     await router.push('/')
+    await revoking
   }
 
   return { label, links, signOut }

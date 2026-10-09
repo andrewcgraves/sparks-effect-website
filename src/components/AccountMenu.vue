@@ -1,12 +1,15 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, ref, useId, watch } from 'vue'
+import { nextTick, ref, useId, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useAccountNav } from '../composables/useAccountNav'
+import { useOutsidePointerDown } from '../composables/useOutsidePointerDown'
 import { ACTION_LINK_CLASS } from './linkStyles'
 
 const MENU_ITEM_CLASS =
   'font-body text-caption block w-full cursor-pointer rounded-(--radius-field) px-3 py-1.5 text-left text-ink hover:bg-surface focus:bg-surface focus-visible:-outline-offset-(--focus-ring-width)'
 
-const { label, links, signOut: endSession } = useAccountNav()
+const route = useRoute()
+const { label, links, signOut } = useAccountNav()
 
 const open = ref(false)
 const root = ref<HTMLElement | null>(null)
@@ -66,21 +69,14 @@ function onMenuKeydown(event: KeyboardEvent): void {
   items[next]?.focus()
 }
 
-async function signOut(): Promise<void> {
+async function signOutFromMenu(): Promise<void> {
   close(false)
-  await endSession()
+  await signOut()
 }
 
-function onPointerDownOutside(event: PointerEvent): void {
-  if (!root.value?.contains(event.target as Node | null)) close(false)
-}
+useOutsidePointerDown(root, open, () => close(false))
 
-watch(open, (isOpen) => {
-  if (isOpen) document.addEventListener('pointerdown', onPointerDownOutside, true)
-  else document.removeEventListener('pointerdown', onPointerDownOutside, true)
-})
-
-onBeforeUnmount(() => document.removeEventListener('pointerdown', onPointerDownOutside, true))
+watch(() => route.fullPath, () => close(false))
 </script>
 
 <template>
@@ -145,7 +141,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onPointerDownO
           tabindex="-1"
           :class="MENU_ITEM_CLASS"
           data-testid="nav-sign-out"
-          @click="signOut"
+          @click="signOutFromMenu"
         >
           Sign out
         </button>
