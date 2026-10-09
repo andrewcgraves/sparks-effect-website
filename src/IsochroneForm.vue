@@ -190,7 +190,7 @@ function handleSubmit() {
         :disabled="locating"
         @click="onUseCurrentLocation"
       >
-        📍 Use my location
+        <span aria-hidden="true">📍</span> Use my location
       </button>
       <button
         type="button"
@@ -199,7 +199,12 @@ function handleSubmit() {
         data-testid="pick-on-map"
         @click="pickArmed = !pickArmed"
       >
-        {{ pickArmed ? 'Cancel' : '📍 Pick location on map' }}
+        <template v-if="pickArmed">
+          Cancel
+        </template>
+        <template v-else>
+          <span aria-hidden="true">📍</span> Pick location on map
+        </template>
       </button>
       <p
         v-if="locationError"
@@ -240,16 +245,17 @@ function handleSubmit() {
       </label>
     </div>
 
-    <label :class="FIELD_LABEL_CLASS">
-      Travel time
+    <div :class="FIELD_LABEL_CLASS">
+      <span>Travel time</span>
       <SegmentedControl
         v-model="duration"
         :options="DURATION_OPTIONS"
         :format-option="formatDuration"
+        label="Travel time"
         name="duration"
         testid="duration-slider"
       />
-    </label>
+    </div>
 
     <fieldset class="flex flex-col gap-2 border-0 p-0">
       <legend class="font-body text-micro text-ink-muted italic uppercase">

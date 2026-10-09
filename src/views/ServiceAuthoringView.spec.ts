@@ -18,6 +18,7 @@ vi.mock('../api/authoring/services', () => ({
 }))
 
 import ServiceAuthoringView from './ServiceAuthoringView.vue'
+import { seriousA11yViolations } from '../test/axe'
 import { breadcrumbTrail } from '../test/breadcrumbs'
 import { busyRegion, visibleText } from '../test/loading'
 import { listRoutes, fetchRoute, snapStops } from '../api/authoring/routes'
@@ -68,9 +69,10 @@ const stubService: Service = {
   frequency_windows: [],
 }
 
-function mountView() {
+function mountView(attachTo?: HTMLElement) {
   return mount(ServiceAuthoringView, {
     global: { stubs: { MapView: true } },
+    attachTo,
   })
 }
 
@@ -121,8 +123,8 @@ function stopNamesIn(wrapper: ReturnType<typeof mountView>): string[] {
   return wrapper.findAll('[data-testid="stop-row"]').map(stopRowName)
 }
 
-async function mountWithTwoStops() {
-  const wrapper = mountView()
+async function mountWithTwoStops(attachTo?: HTMLElement) {
+  const wrapper = mountView(attachTo)
   await flushPromises()
   await wrapper.find('[data-testid="route-select"]').setValue('main-line')
   await flushPromises()
@@ -155,6 +157,13 @@ describe('ServiceAuthoringView', () => {
     vi.useRealTimers()
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
+  })
+
+  it('has no serious or critical accessibility violations with two stops placed', async () => {
+    const wrapper = await mountWithTwoStops(document.body)
+    vi.useRealTimers()
+    expect(await seriousA11yViolations(wrapper)).toEqual([])
+    wrapper.unmount()
   })
 
   it('loads the route list and offers it in the picker', async () => {
@@ -1086,6 +1095,16 @@ describe('ServiceAuthoringView', () => {
     await wrapper.find('[data-testid="add-frequency"]').trigger('click')
 
     expect(wrapper.find('[data-testid="submit"]').attributes('disabled')).toBeUndefined()
+  })
+
+  it('names each frequency window\'s remove button after the window, not the ✕ it shows', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.find('[data-testid="frequency-headway"]').setValue(15)
+    await wrapper.find('[data-testid="add-frequency"]').trigger('click')
+
+    const remove = wrapper.get('[data-testid="frequency-remove-0"]')
+    expect(remove.attributes('aria-label')).toBe('Remove the 06:00–22:00 window')
   })
 
   describe('creating a service', () => {

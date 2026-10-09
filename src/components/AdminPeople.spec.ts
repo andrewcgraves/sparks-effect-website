@@ -16,6 +16,7 @@ const toast = vi.fn()
 vi.mock('../composables/useToast', () => ({ useToast: () => ({ show: toast }) }))
 
 import AdminPeople from './AdminPeople.vue'
+import { seriousA11yViolations } from '../test/axe'
 import { createInvite, createResetLink, listUsers, updateUser, type AdminUser } from '../api/admin'
 import { ApiError } from '../api/authoring/client'
 import { useAuthStore } from '../stores/auth'
@@ -267,5 +268,13 @@ describe('AdminPeople', () => {
       expect(wrapper.find('[data-testid="invite-form"]').exists()).toBe(false)
       expect(createInvite).not.toHaveBeenCalled()
     })
+  })
+
+  it('has no serious or critical accessibility violations', async () => {
+    vi.mocked(listUsers).mockResolvedValue([me, bo, cy])
+    const wrapper = mount(AdminPeople, { attachTo: document.body })
+    await flushPromises()
+    expect(await seriousA11yViolations(wrapper)).toEqual([])
+    wrapper.unmount()
   })
 })

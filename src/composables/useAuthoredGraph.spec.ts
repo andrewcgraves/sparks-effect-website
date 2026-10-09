@@ -14,6 +14,7 @@ vi.mock('../analytics/index', () => ({
 }))
 
 import { trackIsochroneError, trackIsochroneRequest } from '../analytics/index'
+import { useToastHost } from './useToast'
 
 const payload = { lat: 37.7, lng: -122.4, duration: 30, mode: 'walk' as const }
 const chain = { features: [] } as unknown as ChainResponse
@@ -731,6 +732,23 @@ describe('useAuthoredGraph', () => {
       expect(compiling.value).toBe(false)
       expect(compileError.value).toBe('')
       expect(fetchSpy).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('announcing to a screen reader', () => {
+    const announced = () => useToastHost().announcement.value?.message
+    afterEach(() => useToastHost().clear())
+
+    it('says the splash zone is being plotted, then that it is ready', async () => {
+      const plotted = deferred<ChainResponse>()
+      isochrone.mockReturnValue(plotted.promise)
+      const { handleIsochroneSubmit } = subject()
+
+      const promise = handleIsochroneSubmit(payload)
+      expect(announced()).toBe('Plotting splash zone…')
+      plotted.release(chain)
+      await promise
+      expect(announced()).toBe('Splash zone ready: no stations reached')
     })
   })
 })

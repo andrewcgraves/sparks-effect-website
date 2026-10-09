@@ -12,6 +12,7 @@ vi.mock('../api/authoring/scenarios', () => ({
 }))
 
 import AuthoringView from './AuthoringView.vue'
+import { seriousA11yViolations } from '../test/axe'
 import { fetchMyServices } from '../api/authoring/services'
 import { fetchMyScenarios } from '../api/authoring/scenarios'
 import { useAuthStore } from '../stores/auth'
@@ -274,5 +275,17 @@ describe('AuthoringView', () => {
 
     expect(auth.isAuthenticated).toBe(false)
     expect(router.currentRoute.value.path).toBe('/login')
+  })
+
+  it('has no serious or critical accessibility violations once both lists load', async () => {
+    vi.mocked(fetchMyServices).mockResolvedValue([stubService])
+    vi.mocked(fetchMyScenarios).mockResolvedValue([stubScenario])
+    const router = makeRouter()
+    useAuthStore().signIn('tok-1', { id: 'u1', email: 'a@example.com' })
+    await router.push('/authoring')
+    const wrapper = mount(AuthoringView, { global: { plugins: [router] }, attachTo: document.body })
+    await flushPromises()
+    expect(await seriousA11yViolations(wrapper)).toEqual([])
+    wrapper.unmount()
   })
 })
