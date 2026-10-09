@@ -16,6 +16,14 @@ declare module 'vue-router' {
 
 export const router = createRouter({
   history: createWebHistory(),
+  scrollBehavior(to, from, savedPosition) {
+    if (savedPosition) return savedPosition
+    if (to.hash) return { el: to.hash }
+    // A plot writes its query to the URL on the same path; jumping to the top
+    // there would scroll the map away from under the visitor.
+    if (to.path !== from.path) return { top: 0 }
+    return false
+  },
   routes: [
     {
       path: '/',
@@ -28,6 +36,12 @@ export const router = createRouter({
       component: () => import('../views/ScenarioView.vue'),
       props: true,
       meta: { title: 'Network' },
+    },
+    {
+      path: '/how-it-works',
+      name: 'how-it-works',
+      component: () => import('../views/HowItWorksView.vue'),
+      meta: { title: 'How it works' },
     },
     {
       path: '/login',

@@ -32,7 +32,7 @@
       ]
     },
     {
-      "source": "/((?!assets/|index\\.html$|$|scenario/|services/|routes/|robots\\.txt$|sitemap\\.xml$).*)",
+      "source": "/((?!assets/|index\\.html$|$|how-it-works$|scenario/|services/|routes/|robots\\.txt$|sitemap\\.xml$).*)",
       "headers": [
         { "key": "Cache-Control", "value": "no-cache" }
       ]

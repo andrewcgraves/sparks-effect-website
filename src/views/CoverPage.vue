@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { fetchCoverIndex, type CoverCard, type CoverSource } from '../api/coverIndex'
-import { INLINE_LINK_CLASS, LIST_CARD_LINK_CLASS } from '../components/linkStyles'
+import { ACTION_LINK_CLASS, INLINE_LINK_CLASS, LIST_CARD_LINK_CLASS } from '../components/linkStyles'
 import ListSkeleton from '../components/ListSkeleton.vue'
 
 const UNAVAILABLE_COPY: Record<CoverSource, string> = {
@@ -38,6 +38,14 @@ fetchCoverIndex()
         by bike, by car, or by riding a hypothetical transit line. Pick a line or network below,
         then choose where to start.
       </p>
+      <router-link
+        to="/how-it-works"
+        :class="ACTION_LINK_CLASS"
+        class="mt-4 inline-block"
+        data-testid="cover-how-it-works"
+      >
+        How it works →
+      </router-link>
 
       <section class="mt-12">
         <h2 class="font-display text-h2 text-ink-true">

@@ -121,11 +121,12 @@ this stack, is in `connect-src` of `vercel.json`'s Content Security Policy.
 
 Link-unfurl crawlers (Slackbot, Discordbot, iMessage, …) run no JavaScript, so a
 shared link's title and description have to be in the HTML. `middleware.ts` is
-Vercel Routing Middleware for the public pages only — `/`, `/scenario/:slug`,
-`/services/:slug`, `/routes/:slug`. It fetches the deployment's own
-`/index.html` and the page's public read (both within 1.5 s, side by side), and
-splices that page's `<title>`, `description`, `og:*` and `twitter:card` tags
-into the head. The tag building lives in `src/share/linkPreview.ts`.
+Vercel Routing Middleware for the public pages only — `/`, `/how-it-works`,
+`/scenario/:slug`, `/services/:slug`, `/routes/:slug`. It fetches the
+deployment's own `/index.html` and the page's public read (both within 1.5 s,
+side by side), and splices that page's `<title>`, `description`, `og:*` and
+`twitter:card` tags into the head. `/how-it-works` reads nothing: its card is
+fixed copy. The tag building lives in `src/share/linkPreview.ts`.
 
 - `og:url` comes from the request's host, never the build, so a build promoted
   from staging names production.

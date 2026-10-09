@@ -61,6 +61,22 @@ describe('renderPreview', () => {
     expect(meta(doc, 'twitter:card')).toBe('summary')
   })
 
+  it('describes How it works with fixed copy, reading nothing', async () => {
+    const html = await renderPreview(new URL('https://www.example.app/how-it-works'), Promise.resolve(SHELL), () => {
+      throw new Error('How it works reads nothing')
+    })
+
+    const doc = parse(html)
+    expect(doc.title).toBe('How it works · Sparks Effect')
+    expect(meta(doc, 'og:title')).toBe('How it works')
+    expect(meta(doc, 'og:description')).toMatch(/splash zone/)
+    // The clock is Transit's alone; walking, biking and driving ignore it.
+    expect(meta(doc, 'og:description')).toMatch(/8 a\.m\. weekday start for transit/)
+    expect(meta(doc, 'og:description')!.length).toBeLessThanOrEqual(200)
+    expect(meta(doc, 'description')).toBe(meta(doc, 'og:description'))
+    expect(meta(doc, 'og:url')).toBe('https://www.example.app/how-it-works')
+  })
+
   it('gives a service whose read fails the site-wide card, whatever the failure', async () => {
     const url = new URL('https://www.example.app/services/draft-line')
     const notFound = await renderPreview(url, Promise.resolve(SHELL), () => Promise.reject(new Error('404')))

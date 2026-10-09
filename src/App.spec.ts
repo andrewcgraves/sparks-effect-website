@@ -57,6 +57,32 @@ describe('App routing', () => {
     expect(wrapper.find('[data-testid="nav-home"]').exists()).toBe(true)
   })
 
+  it('links How it works from the header, signed in or out', async () => {
+    const signedOut = mount(App, { global: { plugins: [router] } })
+    await flushPromises()
+    expect(signedOut.find('header nav[aria-label="Primary"] a[href="/how-it-works"]').exists()).toBe(true)
+
+    useAuthStore().signIn('tok-1', { id: 'u1', email: 'a@example.com' })
+    const signedIn = mount(App, { global: { plugins: [router] } })
+    await flushPromises()
+    expect(signedIn.find('header nav[aria-label="Primary"] a[href="/how-it-works"]').exists()).toBe(true)
+  })
+
+  it('links How it works from the footer', async () => {
+    const wrapper = mount(App, { global: { plugins: [router] } })
+    await flushPromises()
+    const links = wrapper.findAll('[data-testid="footer-links"] a')
+    expect(links.map((link) => [link.text(), link.attributes('href')])).toContainEqual(['How it works', '/how-it-works'])
+  })
+
+  it('renders the How it works page at /how-it-works', async () => {
+    await router.push('/how-it-works')
+    const wrapper = mount(App, { global: { plugins: [router] } })
+    await flushPromises()
+    expect(wrapper.get('h1').text()).toBe('How it works')
+    expect(wrapper.find('[data-testid="how-it-works-diagram"]').exists()).toBe(true)
+  })
+
   it('hosts the shared confirm dialog and toast region on every page', async () => {
     const wrapper = mount(App, { global: { plugins: [router] } })
     await flushPromises()

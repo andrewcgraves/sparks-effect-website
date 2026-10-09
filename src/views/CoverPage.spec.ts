@@ -68,6 +68,12 @@ describe('CoverPage', () => {
     expect(wrapper.get('h1').text()).toBe('Sparks Effect')
   })
 
+  it('links the How it works page', async () => {
+    vi.mocked(fetchCoverIndex).mockResolvedValue(index([]))
+    const { wrapper } = await mountCover()
+    expect(wrapper.get('[data-testid="cover-how-it-works"]').attributes('href')).toBe('/how-it-works')
+  })
+
   it('says what a splash zone is and what to do, without calling itself temporary', async () => {
     vi.mocked(fetchCoverIndex).mockResolvedValue(index([]))
     const { wrapper } = await mountCover()

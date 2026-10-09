@@ -85,9 +85,21 @@ const PUBLIC_PAGES = new Map<string, PublicPage>([
   }],
 ])
 
+// Each name must equal its route's meta.title (src/router/index.ts); the
+// router spec holds them together.
+export const STATIC_PAGES: ReadonlyMap<string, PageMeta> = new Map<string, PageMeta>([
+  ['/how-it-works', {
+    name: 'How it works',
+    description:
+      'What a splash zone assumes: door-to-door minutes with the wait for local transit included, an 8 a.m. weekday start for transit, and where the travel times come from.',
+  }],
+])
+
 const PUBLIC_PATH = /^\/([a-z]+)\/([A-Za-z0-9_-]+)$/
 
 async function readPageMeta(pathname: string, read: ApiRead): Promise<PageMeta> {
+  const fixed = STATIC_PAGES.get(pathname)
+  if (fixed) return fixed
   const match = pathname.match(PUBLIC_PATH)
   const page = match && PUBLIC_PAGES.get(match[1])
   if (!match || !page) return SITE_DEFAULT
