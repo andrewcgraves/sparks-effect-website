@@ -22,6 +22,7 @@ vi.mock('vue-router', () => ({
 import { breadcrumbTrail } from '../test/breadcrumbs'
 import { busyRegion, visibleText } from '../test/loading'
 import ScenarioBuilderView from './ScenarioBuilderView.vue'
+import { seriousA11yViolations } from '../test/axe'
 import { fetchMyServices } from '../api/authoring/services'
 import { compileScenario, createScenario, fetchScenario, updateScenario } from '../api/authoring/scenarios'
 import { ApiError, SessionExpiredError } from '../api/authoring/client'
@@ -78,6 +79,14 @@ describe('ScenarioBuilderView', () => {
     vi.restoreAllMocks()
   })
 
+  it('has no serious or critical accessibility violations once services load', async () => {
+    const wrapper = mount(ScenarioBuilderView, { global: { stubs: { RouterLink: RouterLinkStub } }, attachTo: document.body })
+    await flushPromises()
+    await fillAndSelect(wrapper)
+    expect(await seriousA11yViolations(wrapper)).toEqual([])
+    wrapper.unmount()
+  })
+
   it('shows where it sits: a new scenario, under My authoring', async () => {
     const wrapper = mountView()
     await flushPromises()
@@ -98,6 +107,17 @@ describe('ScenarioBuilderView', () => {
     const wrapper = mountView()
     await flushPromises()
     expect(wrapper.find('[data-testid="services-error"]').exists()).toBe(true)
+  })
+
+  it('with no lines yet, explains a network needs one and links to create it', async () => {
+    vi.mocked(fetchMyServices).mockResolvedValue([])
+    const wrapper = mountView()
+    await flushPromises()
+    const empty = wrapper.get('[data-testid="services-empty"]')
+    expect(empty.text()).toContain('A network is made of lines')
+    const link = empty.getComponent(RouterLinkStub)
+    expect(link.props('to')).toBe('/authoring/services/new')
+    expect(link.text()).toBe('Create a line first')
   })
 
   it('stays loading, not failed, when the services are refused for an expired session', async () => {

@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoutedPages } from '../composables/useRoutedPages'
 import { resolveTileCredit } from '../mapStyle'
-import { FOOTER_LINK_CLASS } from './linkStyles'
+import { INLINE_LINK_CLASS } from './linkStyles'
 
 const FOOTER_PAGES = [
   { label: 'How it works', path: '/how-it-works' },
@@ -12,16 +11,10 @@ const FOOTER_PAGES = [
   { label: 'Report a problem', path: '/report' },
 ]
 
-const router = useRouter()
 const tileCredit = resolveTileCredit()
 const buildVersion = __BUILD_VERSION__
 
-// Each page is linked only once its route lands, so the footer can ship ahead
-// of the pages it points to.
-const links = computed(() => {
-  const paths = new Set(router.getRoutes().map((route) => route.path))
-  return FOOTER_PAGES.filter((page) => paths.has(page.path))
-})
+const links = useRoutedPages(FOOTER_PAGES)
 </script>
 
 <template>
@@ -35,7 +28,7 @@ const links = computed(() => {
         v-for="link in links"
         :key="link.path"
         :to="link.path"
-        :class="FOOTER_LINK_CLASS"
+        :class="INLINE_LINK_CLASS"
       >
         {{ link.label }}
       </RouterLink>

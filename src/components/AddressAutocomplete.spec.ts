@@ -16,6 +16,12 @@ const portlandSuggestion: GeocodingSuggestion = {
   lng: -122.6784,
 }
 
+const chicagoSuggestion: GeocodingSuggestion = {
+  label: 'Chicago, IL, USA',
+  lat: 41.8781,
+  lng: -87.6298,
+}
+
 describe('AddressAutocomplete', () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
@@ -211,7 +217,7 @@ describe('AddressAutocomplete', () => {
     await flushPromises()
 
     expect(geocoding.fetchSuggestions).not.toHaveBeenCalled()
-    expect(wrapper.find('#address-suggestions').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="suggestions"]').exists()).toBe(false)
   })
 
   it('says search is unavailable, not "No results found", when the provider fails', async () => {
@@ -304,5 +310,76 @@ describe('AddressAutocomplete', () => {
     expect(credit.text()).toContain('OpenStreetMap contributors')
     expect(credit.find('a[href="https://stadiamaps.com/attribution/"]').exists()).toBe(true)
     expect(credit.find('a[href="https://www.openstreetmap.org/copyright"]').exists()).toBe(true)
+  })
+
+  describe('as a combobox a keyboard can drive', () => {
+    async function withSuggestions() {
+      vi.mocked(geocoding.fetchSuggestions).mockResolvedValue([portlandMatch, chicagoMatch])
+      const wrapper = mount(AddressAutocomplete)
+      await wrapper.find('input').setValue('Port')
+      await vi.advanceTimersByTimeAsync(350)
+      await flushPromises()
+      return wrapper
+    }
+
+    it('is a combobox that owns the suggestion listbox', async () => {
+      const wrapper = await withSuggestions()
+      const input = wrapper.get('input')
+      expect(input.attributes('role')).toBe('combobox')
+      expect(input.attributes('aria-expanded')).toBe('true')
+      expect(wrapper.get(`#${input.attributes('aria-controls')}`).attributes('role')).toBe('listbox')
+    })
+
+    it('moves the highlighted option with the arrow keys, wrapping at either end', async () => {
+      const wrapper = await withSuggestions()
+      const input = wrapper.get('input')
+      const options = () => wrapper.findAll('[role="option"]')
+      expect(input.attributes('aria-activedescendant')).toBeUndefined()
+
+      await input.trigger('keydown', { key: 'ArrowDown' })
+      expect(input.attributes('aria-activedescendant')).toBe(options()[0].attributes('id'))
+      expect(options()[0].attributes('aria-selected')).toBe('true')
+
+      await input.trigger('keydown', { key: 'ArrowDown' })
+      await input.trigger('keydown', { key: 'ArrowDown' })
+      expect(input.attributes('aria-activedescendant')).toBe(options()[0].attributes('id'))
+
+      await input.trigger('keydown', { key: 'ArrowUp' })
+      expect(input.attributes('aria-activedescendant')).toBe(options()[1].attributes('id'))
+      expect(options()[0].attributes('aria-selected')).toBe('false')
+    })
+
+    it('chooses the highlighted option on Enter', async () => {
+      vi.mocked(geocoding.lookupPlace).mockResolvedValue(chicagoSuggestion)
+      const wrapper = await withSuggestions()
+      const input = wrapper.get('input')
+      await input.trigger('keydown', { key: 'ArrowDown' })
+      await input.trigger('keydown', { key: 'ArrowDown' })
+      await input.trigger('keydown', { key: 'Enter' })
+      await flushPromises()
+
+      expect(geocoding.lookupPlace).toHaveBeenCalledWith(chicagoMatch, expect.any(AbortSignal))
+      expect(wrapper.emitted('select')).toEqual([[chicagoSuggestion]])
+      expect(wrapper.find('[data-testid="suggestions"]').exists()).toBe(false)
+      expect(input.attributes('aria-expanded')).toBe('false')
+    })
+
+    it('searches on Enter when nothing is highlighted, as before', async () => {
+      const wrapper = await withSuggestions()
+      vi.mocked(geocoding.fetchSuggestions).mockClear()
+      await wrapper.get('input').trigger('keydown', { key: 'Enter' })
+      expect(geocoding.fetchSuggestions).toHaveBeenCalledWith('Port', expect.any(AbortSignal))
+      expect(wrapper.emitted('select')).toBeUndefined()
+    })
+
+    it('closes the suggestions on Escape and keeps what was typed', async () => {
+      const wrapper = await withSuggestions()
+      const input = wrapper.get('input')
+      await input.trigger('keydown', { key: 'ArrowDown' })
+      await input.trigger('keydown', { key: 'Escape' })
+      expect(wrapper.find('[data-testid="suggestions"]').exists()).toBe(false)
+      expect(input.attributes('aria-activedescendant')).toBeUndefined()
+      expect((input.element as HTMLInputElement).value).toBe('Port')
+    })
   })
 })

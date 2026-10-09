@@ -3,6 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import LoginView from './LoginView.vue'
+import { seriousA11yViolations } from '../test/axe'
 import { useAuthStore } from '../stores/auth'
 
 const AuthoringStub = { template: '<div>authoring</div>' }
@@ -189,5 +190,13 @@ describe('LoginView', () => {
       const router = await signInWith('/scenario/ca-hsr?origin=1')
       expect(router.currentRoute.value.fullPath).toBe('/scenario/ca-hsr?origin=1')
     })
+  })
+
+  it('has no serious or critical accessibility violations', async () => {
+    const router = makeRouter()
+    await router.push('/login')
+    const wrapper = mount(LoginView, { global: { plugins: [router] }, attachTo: document.body })
+    expect(await seriousA11yViolations(wrapper)).toEqual([])
+    wrapper.unmount()
   })
 })

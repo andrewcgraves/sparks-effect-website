@@ -32,6 +32,7 @@ vi.mock('../components/MapView.vue', () => ({
 
 import { breadcrumbTrail } from '../test/breadcrumbs'
 import AuthoredServiceView from './AuthoredServiceView.vue'
+import { seriousA11yViolations } from '../test/axe'
 import {
   compileService,
   deleteService,
@@ -116,6 +117,22 @@ describe('AuthoredServiceView', () => {
     vi.unstubAllGlobals()
   })
 
+  it('has no serious or critical accessibility violations once loaded', async () => {
+    vi.mocked(fetchService).mockResolvedValue(stubService)
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/authoring', name: 'authoring', component: Stub },
+        { path: '/authoring/services/:slug', name: 'service-detail', component: AuthoredServiceView, props: true },
+        { path: '/services/:slug', name: 'published-service', component: Stub },
+      ],
+    })
+    const wrapper = mount(AuthoredServiceView, { props: { slug: 'northbound-express' }, global: { plugins: [router] }, attachTo: document.body })
+    await flushPromises()
+    expect(await seriousA11yViolations(wrapper)).toEqual([])
+    wrapper.unmount()
+  })
+
   it('shows a page skeleton in the shape of the loaded page, not loading copy, while it loads', () => {
     vi.mocked(fetchService).mockReturnValue(new Promise(() => {}))
     const wrapper = mountView()
@@ -197,8 +214,8 @@ describe('AuthoredServiceView', () => {
     vi.mocked(fetchService).mockResolvedValue({ ...stubService, stops: [], frequency_windows: [] })
     const wrapper = mountView()
     await flushPromises()
-    expect(wrapper.find('[data-testid="service-stops-empty"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="service-windows-empty"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="service-stops-empty"]').text()).toContain('Edit it to place stops along its route.')
+    expect(wrapper.get('[data-testid="service-windows-empty"]').text()).toContain('Edit it to say how often it runs.')
   })
 
   it('shows the vehicle params and frequency windows', async () => {

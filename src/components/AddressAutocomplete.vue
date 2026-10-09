@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, useId } from 'vue'
 import {
   GEOCODER_ATTRIBUTION,
   fetchSuggestions,
@@ -23,6 +23,18 @@ const matches = ref<AddressMatch[]>([])
 const isLoading = ref(false)
 const hasSearched = ref(false)
 const unavailable = ref(false)
+const activeIndex = ref(-1)
+const listboxId = useId()
+
+function optionId(index: number): string {
+  return `${listboxId}-option-${index}`
+}
+
+const activeOptionId = computed(() =>
+  activeIndex.value >= 0 && activeIndex.value < matches.value.length
+    ? optionId(activeIndex.value)
+    : undefined,
+)
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 let inFlight: AbortController | null = null
@@ -59,6 +71,7 @@ function closeFoldout() {
   hasSearched.value = false
   unavailable.value = false
   isLoading.value = false
+  activeIndex.value = -1
 }
 
 async function fetchAndUpdate() {
@@ -74,6 +87,7 @@ async function fetchAndUpdate() {
     const found = await fetchSuggestions(query, request.signal)
     if (request.signal.aborted) return
     matches.value = found
+    activeIndex.value = -1
     unavailable.value = false
   } catch {
     if (request.signal.aborted) return
@@ -89,6 +103,7 @@ async function fetchAndUpdate() {
 }
 
 function onInput() {
+  activeIndex.value = -1
   cancelPending()
   if (!isSearchable(inputValue.value)) {
     closeFoldout()
@@ -97,8 +112,21 @@ function onInput() {
   debounceTimer = setTimeout(() => void fetchAndUpdate(), DEBOUNCE_MS)
 }
 
+function moveActive(step: 1 | -1) {
+  const count = matches.value.length
+  if (count === 0) return
+  activeIndex.value = activeIndex.value < 0 && step < 0
+    ? count - 1
+    : (activeIndex.value + step + count) % count
+}
+
 function onEnter(event: Event) {
   event.preventDefault()
+  const active = matches.value[activeIndex.value]
+  if (active) {
+    void onSelect(active)
+    return
+  }
   if (!isSearchable(inputValue.value)) return
   void fetchAndUpdate()
 }
@@ -139,15 +167,19 @@ defineExpose({ setInputValue })
           type="text"
           placeholder="Start typing a place name"
           autocomplete="off"
+          role="combobox"
           aria-autocomplete="list"
-          aria-controls="address-suggestions"
+          :aria-controls="listboxId"
           :aria-expanded="foldoutOpen"
+          :aria-activedescendant="activeOptionId"
           @input="onInput"
           @keydown.enter="onEnter"
+          @keydown.down.prevent="moveActive(1)"
+          @keydown.up.prevent="moveActive(-1)"
+          @keydown.esc="closeFoldout"
         >
         <div
           v-if="foldoutOpen"
-          id="address-suggestions"
           class="absolute top-[calc(100%+2px)] right-0 left-0 z-10 max-h-[240px] overflow-y-auto rounded-(--radius-field) border border-border bg-white shadow-(--shadow-panel)"
         >
           <p
@@ -167,15 +199,19 @@ defineExpose({ setInputValue })
           </p>
           <ul
             v-else-if="matches.length > 0"
+            :id="listboxId"
             class="m-0 list-none p-0"
             data-testid="suggestions"
             role="listbox"
+            aria-label="Places"
           >
             <li
-              v-for="match in matches"
+              v-for="(match, index) in matches"
+              :id="optionId(index)"
               :key="match.gid"
-              class="font-body cursor-pointer border-b border-border px-3 py-2 text-[14px] text-ink not-italic normal-case transition-colors duration-200 ease-(--ease-smooth) last:border-b-0 hover:bg-surface"
+              class="font-body cursor-pointer border-b border-border px-3 py-2 text-[14px] text-ink not-italic normal-case transition-colors duration-200 ease-(--ease-smooth) last:border-b-0 hover:bg-surface aria-selected:bg-surface aria-selected:outline-2 aria-selected:-outline-offset-2 aria-selected:outline-coral"
               role="option"
+              :aria-selected="index === activeIndex"
               @click="onSelect(match)"
             >
               {{ match.label }}

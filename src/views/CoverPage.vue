@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { fetchCoverIndex, type CoverCard, type CoverSource } from '../api/coverIndex'
-import { LIST_CARD_LINK_CLASS } from '../components/linkStyles'
+import { INLINE_LINK_CLASS, LIST_CARD_LINK_CLASS } from '../components/linkStyles'
 import ListSkeleton from '../components/ListSkeleton.vue'
 
 const UNAVAILABLE_COPY: Record<CoverSource, string> = {
@@ -30,19 +30,22 @@ fetchCoverIndex()
         Sparks Effect
       </h1>
 
-      <p class="font-body text-body mt-6 max-w-[560px] text-ink-muted">
-        Sparks Effect maps the "splash zone" reachable by walking, biking, transit, and driving
-        from a hypothetical transit line. This is a temporary landing page — pick a network or line below
-        to explore its isochrones.
+      <p
+        class="font-body text-body mt-6 max-w-[560px] text-ink-muted"
+        data-testid="cover-lede"
+      >
+        A splash zone is everywhere you can reach from one spot within a time budget, on foot,
+        by bike, by car, or by riding a hypothetical transit line. Pick a line or network below,
+        then choose where to start.
       </p>
 
       <section class="mt-12">
         <h2 class="font-display text-h2 text-ink-true">
-          Published networks and lines
+          Lines and networks
         </h2>
         <ListSkeleton
           v-if="loading"
-          label="Loading published networks and lines"
+          label="Loading lines and networks"
           class="mt-3 max-w-[420px]"
           data-testid="scenarios-loading"
         />
@@ -52,7 +55,7 @@ fetchCoverIndex()
           role="alert"
           data-testid="scenarios-error"
         >
-          Couldn't load the published networks and lines.
+          Couldn't load the lines and networks.
         </p>
         <template v-else>
           <p
@@ -71,7 +74,13 @@ fetchCoverIndex()
             class="font-body text-caption mt-3 text-ink-muted italic"
             data-testid="scenarios-empty"
           >
-            No published networks or lines yet.
+            No lines or networks yet.
+            <router-link
+              to="/how-it-works"
+              :class="['not-italic', INLINE_LINK_CLASS]"
+            >
+              How it works
+            </router-link>
           </p>
           <ul
             v-if="cards.length > 0"

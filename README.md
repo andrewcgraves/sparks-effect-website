@@ -62,6 +62,13 @@ and `<Analytics />` is given a `beforeSend` that rewrites the URL the same way.
 Collection needs Web Analytics enabled for the project in the Vercel dashboard
 (Analytics → Enable), which is what serves `/_vercel/insights/*`.
 
+`package.json`'s `overrides` points `@vercel/analytics`'s optional `vue-router`
+peer at our own `vue-router`. Released `@vercel/analytics` (2.0.1) still peers
+`vue-router@^4`, and the `npm install` Vercel's build runs refuses the conflict
+with ERESOLVE once we are on vue-router 5 (SPA-472). The component only calls
+`useRoute()`, which vue-router 5 keeps. Drop the override once a stable
+`@vercel/analytics` accepts `^5` (its canaries already do).
+
 Custom events (`track()`) are a Pro/Enterprise feature. On a Hobby project, set
 `VITE_VERCEL_CUSTOM_EVENTS=off` so `vercelSink` stops them locally instead of
 posting to an endpoint that will not keep them; page views are unaffected.

@@ -689,7 +689,7 @@ watch(createdSlug, (created) => {
                   >{{ index + 1 }}</span>
                   <input
                     :value="stop.name"
-                    class="min-w-0 flex-1 border-b border-transparent bg-transparent font-medium not-italic normal-case hover:border-border focus:border-border focus:outline-none"
+                    class="min-w-0 flex-1 border-b border-transparent bg-transparent font-medium not-italic normal-case hover:border-border focus:border-border"
                     :aria-label="`Rename ${stopLabels[index]}`"
                     :data-testid="`stop-edit-name-${index}`"
                     type="text"
@@ -866,6 +866,7 @@ watch(createdSlug, (created) => {
             data-testid="map-panel"
           >
             <MapView
+              label="Stop placement map"
               :loading="false"
               :isochrone-data="null"
               :routes="mapRoutes"
@@ -912,10 +913,11 @@ watch(createdSlug, (created) => {
                 <button
                   type="button"
                   class="cursor-pointer px-1 text-ink-muted hover:text-coral"
+                  :aria-label="`Remove the ${window.start_time}–${window.end_time} window`"
                   :data-testid="`frequency-remove-${index}`"
                   @click="removeFrequencyWindow(index)"
                 >
-                  ✕
+                  <span aria-hidden="true">✕</span>
                 </button>
               </li>
             </ul>

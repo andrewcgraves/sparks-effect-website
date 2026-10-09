@@ -3,6 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import WelcomeView from './WelcomeView.vue'
+import { seriousA11yViolations } from '../test/axe'
 import { useAuthStore } from '../stores/auth'
 
 const AuthoringStub = { template: '<div>authoring</div>' }
@@ -215,5 +216,15 @@ describe('WelcomeView', () => {
       expect(router.currentRoute.value.name).toBe('welcome')
       expect(wrapper.find('form').exists()).toBe(true)
     })
+  })
+
+  it('has no serious or critical accessibility violations on a valid invite', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(linkFor('invite'))
+    const router = makeRouter()
+    await router.push('/welcome/tok-1')
+    const wrapper = mount(WelcomeView, { props: { token: 'tok-1' }, global: { plugins: [router] }, attachTo: document.body })
+    await flushPromises()
+    expect(await seriousA11yViolations(wrapper)).toEqual([])
+    wrapper.unmount()
   })
 })
