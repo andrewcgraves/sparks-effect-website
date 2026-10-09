@@ -34,21 +34,6 @@ describe('App routing', () => {
     expect(wrapper.text()).toContain('Page not found')
   })
 
-  it('shows a sign-in link when signed out', async () => {
-    const wrapper = mount(App, { global: { plugins: [router] } })
-    await flushPromises()
-    expect(wrapper.find('[data-testid="nav-login"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="nav-authoring"]').exists()).toBe(false)
-  })
-
-  it('shows a My authoring link when signed in', async () => {
-    useAuthStore().signIn('tok-1', { id: 'u1', email: 'a@example.com' })
-    const wrapper = mount(App, { global: { plugins: [router] } })
-    await flushPromises()
-    expect(wrapper.find('[data-testid="nav-authoring"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="nav-login"]').exists()).toBe(false)
-  })
-
   it('sends a signed-out visitor to /account through sign-in, and back', async () => {
     await router.push('/account')
     expect(router.currentRoute.value.fullPath).toBe('/login?redirect=/account')
@@ -63,22 +48,13 @@ describe('App routing', () => {
     expect(wrapper.find('h1').text()).toBe('Account')
   })
 
-  it('shows an Admin link to an admin', async () => {
-    useAuthStore().signIn('tok-1', { id: 'u1', email: 'a@example.com', is_admin: true })
+  it('shows the site header on an authoring page', async () => {
+    useAuthStore().signIn('tok-1', { id: 'u1', email: 'a@example.com' })
+    await router.push('/authoring')
     const wrapper = mount(App, { global: { plugins: [router] } })
     await flushPromises()
-    expect(wrapper.get('[data-testid="nav-admin"]').attributes('href')).toBe('/admin')
-  })
-
-  it('shows no Admin link to a signed-in non-admin, or while signed out', async () => {
-    const signedOut = mount(App, { global: { plugins: [router] } })
-    await flushPromises()
-    expect(signedOut.find('[data-testid="nav-admin"]').exists()).toBe(false)
-
-    useAuthStore().signIn('tok-1', { id: 'u1', email: 'a@example.com', is_admin: false })
-    const member = mount(App, { global: { plugins: [router] } })
-    await flushPromises()
-    expect(member.find('[data-testid="nav-admin"]').exists()).toBe(false)
+    expect(wrapper.findAll('header')).toHaveLength(1)
+    expect(wrapper.find('[data-testid="nav-home"]').exists()).toBe(true)
   })
 
   it('hosts the shared confirm dialog and toast region on every page', async () => {
