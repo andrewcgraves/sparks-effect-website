@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { fetchCoverIndex, type CoverCard, type CoverSource } from '../api/coverIndex'
-import { FOOTER_LINK_CLASS, LIST_CARD_LINK_CLASS } from '../components/linkStyles'
+import { INLINE_LINK_CLASS, LIST_CARD_LINK_CLASS } from '../components/linkStyles'
 import ListSkeleton from '../components/ListSkeleton.vue'
 
 const UNAVAILABLE_COPY: Record<CoverSource, string> = {
@@ -77,7 +77,7 @@ fetchCoverIndex()
             No lines or networks yet.
             <router-link
               to="/how-it-works"
-              :class="['not-italic', FOOTER_LINK_CLASS]"
+              :class="['not-italic', INLINE_LINK_CLASS]"
             >
               How it works
             </router-link>

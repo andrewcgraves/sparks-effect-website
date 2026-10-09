@@ -337,7 +337,7 @@ async function handleSave(): Promise<void> {
           class="mt-2 flex flex-col items-start gap-3"
           data-testid="services-empty"
         >
-          <p class="font-body text-caption text-ink-muted">
+          <p class="font-body text-caption text-ink-muted italic">
             A network is made of lines, and you haven't created one yet.
           </p>
           <router-link

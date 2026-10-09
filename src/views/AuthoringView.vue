@@ -20,6 +20,8 @@ const LINE_DEFINITION = 'A line is a set of stops along a route, with a vehicle 
 
 // Only a pair of answered, empty reads means a new author: a list still
 // loading or failed is not evidence there is nothing to show.
+const hasLines = computed(() => !servicesLoading.value && !servicesError.value && services.value.length > 0)
+
 const nothingYet = computed(() =>
   !servicesLoading.value && !scenariosLoading.value
   && !servicesError.value && !scenariosError.value
@@ -175,10 +177,20 @@ async function handleSignOut() {
           class="mt-3 flex flex-col items-start gap-4"
           data-testid="scenarios-empty"
         >
-          <p class="font-body text-caption text-ink-muted">
+          <p
+            v-if="hasLines"
+            class="font-body text-caption text-ink-muted italic"
+          >
             Combine your lines into a network so riders can change between them.
           </p>
+          <p
+            v-else
+            class="font-body text-caption text-ink-muted italic"
+          >
+            A network combines lines so riders can change between them.
+          </p>
           <router-link
+            v-if="hasLines"
             to="/authoring/scenarios/new"
             :class="PRIMARY_BUTTON_CLASS"
             data-testid="first-scenario-link"

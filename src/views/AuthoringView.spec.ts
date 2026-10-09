@@ -235,6 +235,16 @@ describe('AuthoringView', () => {
     expect(link.attributes('href')).toBe('/authoring/scenarios/new')
   })
 
+  it('does not invite combining lines it could not load', async () => {
+    vi.mocked(fetchMyServices).mockRejectedValue(new Error('boom'))
+    vi.mocked(fetchMyScenarios).mockResolvedValue([])
+    const { wrapper } = await mountAuthoring()
+    await flushPromises()
+    const empty = wrapper.get('[data-testid="scenarios-empty"]')
+    expect(empty.text()).toContain('A network combines lines so riders can change between them.')
+    expect(empty.find('[data-testid="first-scenario-link"]').exists()).toBe(false)
+  })
+
   it('explains a line in a sentence when there are networks but no lines', async () => {
     vi.mocked(fetchMyServices).mockResolvedValue([])
     vi.mocked(fetchMyScenarios).mockResolvedValue([stubScenario])

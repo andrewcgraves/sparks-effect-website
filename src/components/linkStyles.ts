@@ -7,5 +7,5 @@ export const LIST_CARD_FRAME_CLASS =
 export const LIST_CARD_LINK_CLASS =
   `${LIST_CARD_FRAME_CLASS} bg-surface text-ink transition-colors duration-200 ease-(--ease-smooth) hover:border-coral`
 
-export const FOOTER_LINK_CLASS =
+export const INLINE_LINK_CLASS =
   'underline transition-colors duration-200 ease-(--ease-smooth) hover:text-coral'
