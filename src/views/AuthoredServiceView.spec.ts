@@ -197,8 +197,8 @@ describe('AuthoredServiceView', () => {
     vi.mocked(fetchService).mockResolvedValue({ ...stubService, stops: [], frequency_windows: [] })
     const wrapper = mountView()
     await flushPromises()
-    expect(wrapper.find('[data-testid="service-stops-empty"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="service-windows-empty"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="service-stops-empty"]').text()).toContain('Edit it to place stops along its route.')
+    expect(wrapper.get('[data-testid="service-windows-empty"]').text()).toContain('Edit it to say how often it runs.')
   })
 
   it('shows the vehicle params and frequency windows', async () => {
