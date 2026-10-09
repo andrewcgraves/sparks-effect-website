@@ -42,6 +42,7 @@ const props = defineProps<{
   centerOn?: LatLng | null
   activeStation?: string | null
   remainingSecs?: (slug: string) => number | null
+  label: string
 }>()
 
 const emit = defineEmits<{
@@ -312,7 +313,11 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="map-frame relative h-full min-h-[70vh] w-full rounded-(--radius-box) border border-border">
+  <div
+    class="map-frame relative h-full min-h-[70vh] w-full rounded-(--radius-box) border border-border"
+    role="region"
+    :aria-label="label"
+  >
     <div
       ref="mapContainer"
       class="h-full min-h-[70vh] w-full"

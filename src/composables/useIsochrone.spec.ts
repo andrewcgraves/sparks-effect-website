@@ -23,6 +23,7 @@ vi.mock('../analytics/index', () => ({
 
 import { fetchIsochrone } from '../api/isochrone'
 import { trackIsochroneRequest, trackIsochroneError } from '../analytics/index'
+import { useToastHost } from './useToast'
 
 const request: IsochroneRequest = {
   lat: 37.3382,
@@ -411,6 +412,45 @@ describe('useIsochrone', () => {
       void generate({ ...request, mode: 'bike' })
       reportOlder?.({ status: 'running' })
       expect(progress.value).toBeNull()
+    })
+  })
+
+  describe('announcing to a screen reader', () => {
+    const announced = () => useToastHost().announcement.value?.message
+    const reachingTwo: ChainResponse = {
+      ...stubResponse,
+      metadata: {
+        ...stubResponse.metadata,
+        reachable_stations: [
+          { station_slug: 'a', access_mins: 5, access_secs: 300, remaining_mins: 25, remaining_secs: 1500 },
+          { station_slug: 'b', access_mins: 9, access_secs: 540, remaining_mins: 21, remaining_secs: 1260 },
+        ],
+      },
+    } as ChainResponse
+    afterEach(() => useToastHost().clear())
+
+    it('says the splash zone is being plotted, then how many stations it reaches', async () => {
+      vi.mocked(fetchIsochrone).mockResolvedValue(reachingTwo)
+      const { generate } = useIsochrone()
+
+      const promise = generate(request)
+      expect(announced()).toBe('Plotting splash zone…')
+      await promise
+      expect(announced()).toBe('Splash zone ready: 2 stations reached')
+    })
+
+    it('says so when a ready-made splash zone is shown', () => {
+      const { show } = useIsochrone()
+      show(reachingTwo)
+      expect(announced()).toBe('Splash zone ready: 2 stations reached')
+    })
+
+    it('leaves a failure to the alert that shows it', async () => {
+      vi.mocked(fetchIsochrone).mockRejectedValue(new Error('boom'))
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+      const { generate } = useIsochrone()
+      await generate(request)
+      expect(announced()).toBe('Plotting splash zone…')
     })
   })
 })

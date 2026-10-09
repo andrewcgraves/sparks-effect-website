@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { enableAutoUnmount, mount, flushPromises } from '@vue/test-utils'
 import ScenarioView from './ScenarioView.vue'
+import { seriousA11yViolations } from '../test/axe'
 import { ref } from 'vue'
 import type { Router } from 'vue-router'
 import { testRouter, testRouterAt } from '../test/router'
@@ -136,6 +137,19 @@ describe('ScenarioView', () => {
       services: ref([]),
       loading: ref(false),
     })
+  })
+
+  it('has no serious or critical accessibility violations with a splash zone plotted', async () => {
+    vi.mocked(fetchIsochrone).mockResolvedValue(stubIsochrone)
+    const router = await testRouterAt(`/scenario/ca-hsr?at=${NEARBY_ORIGIN.lat},${NEARBY_ORIGIN.lng}&mode=walk&mins=30`)
+    const wrapper = mount(ScenarioView, {
+      props: { slug: 'ca-hsr' },
+      global: { stubs: { MapView: true }, plugins: [router] },
+      attachTo: document.body,
+    })
+    await flushPromises()
+    expect(fetchIsochrone).toHaveBeenCalled()
+    expect(await seriousA11yViolations(wrapper)).toEqual([])
   })
 
   it('titles the page with the scenario name alone', () => {

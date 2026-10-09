@@ -26,6 +26,14 @@ const countdowns = new Map<number, Countdown>()
 const holds = new Set<HoldReason>()
 let nextId = 1
 
+// Progress a screen reader should hear but nobody needs to see — a compile
+// starting or a splash zone landing — goes through the toasts' live region
+// rather than a second one, so the two never talk over each other. Only the
+// latest is kept: an earlier step is already over by the time a later one is
+// said.
+const announcement = ref<{ id: number; message: string } | null>(null)
+let announcementTimer: ReturnType<typeof setTimeout> | undefined
+
 function dismiss(id: number): void {
   clearTimeout(countdowns.get(id)?.timer)
   countdowns.delete(id)
@@ -57,6 +65,8 @@ function release(reason: HoldReason): void {
 function clear(): void {
   for (const { id } of toasts.value) dismiss(id)
   holds.clear()
+  clearTimeout(announcementTimer)
+  announcement.value = null
 }
 
 export function useToast() {
@@ -72,6 +82,20 @@ export function useToast() {
   return { show }
 }
 
+export function useAnnouncer() {
+  // A fresh id re-renders the line even when the words repeat, which is what
+  // makes a screen reader say them again.
+  function announce(message: string): void {
+    clearTimeout(announcementTimer)
+    announcement.value = { id: nextId++, message }
+    announcementTimer = setTimeout(() => {
+      announcement.value = null
+    }, TOAST_DURATION_MS)
+  }
+
+  return { announce }
+}
+
 export function useToastHost() {
-  return { toasts, dismiss, hold, release, clear }
+  return { toasts, announcement, dismiss, hold, release, clear }
 }

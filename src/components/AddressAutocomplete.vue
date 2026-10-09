@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, useId } from 'vue'
 import { fetchSuggestions, type GeocodingSuggestion } from '../api/geocoding'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from './fieldStyles'
 
@@ -13,6 +13,18 @@ const inputValue = ref('')
 const suggestions = ref<GeocodingSuggestion[]>([])
 const isLoading = ref(false)
 const hasSearched = ref(false)
+const activeIndex = ref(-1)
+const listboxId = useId()
+
+function optionId(index: number): string {
+  return `${listboxId}-option-${index}`
+}
+
+const activeOptionId = computed(() =>
+  activeIndex.value >= 0 && activeIndex.value < suggestions.value.length
+    ? optionId(activeIndex.value)
+    : undefined,
+)
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -33,6 +45,7 @@ async function fetchAndUpdate() {
   isLoading.value = true
   try {
     suggestions.value = await fetchSuggestions(query)
+    activeIndex.value = -1
     hasSearched.value = true
   } finally {
     isLoading.value = false
@@ -40,6 +53,7 @@ async function fetchAndUpdate() {
 }
 
 function onInput() {
+  activeIndex.value = -1
   if (debounceTimer) clearTimeout(debounceTimer)
   if (!inputValue.value.trim()) {
     suggestions.value = []
@@ -49,8 +63,27 @@ function onInput() {
   debounceTimer = setTimeout(() => void fetchAndUpdate(), DEBOUNCE_MS)
 }
 
+function moveActive(step: 1 | -1) {
+  const count = suggestions.value.length
+  if (count === 0) return
+  activeIndex.value = activeIndex.value < 0 && step < 0
+    ? count - 1
+    : (activeIndex.value + step + count) % count
+}
+
+function close() {
+  suggestions.value = []
+  hasSearched.value = false
+  activeIndex.value = -1
+}
+
 function onEnter(event: Event) {
   event.preventDefault()
+  const active = suggestions.value[activeIndex.value]
+  if (active) {
+    onSelect(active)
+    return
+  }
   if (!inputValue.value.trim()) return
   if (debounceTimer) {
     clearTimeout(debounceTimer)
@@ -61,8 +94,7 @@ function onEnter(event: Event) {
 
 function onSelect(suggestion: GeocodingSuggestion) {
   inputValue.value = suggestion.label
-  suggestions.value = []
-  hasSearched.value = false
+  close()
   emit('select', suggestion)
 }
 
@@ -72,8 +104,7 @@ function setInputValue(value: string) {
     debounceTimer = null
   }
   inputValue.value = value
-  suggestions.value = []
-  hasSearched.value = false
+  close()
   isLoading.value = false
 }
 
@@ -91,15 +122,19 @@ defineExpose({ setInputValue })
           type="text"
           placeholder="Start typing a place name"
           autocomplete="off"
+          role="combobox"
           aria-autocomplete="list"
-          aria-controls="address-suggestions"
+          :aria-controls="listboxId"
           :aria-expanded="foldoutOpen"
+          :aria-activedescendant="activeOptionId"
           @input="onInput"
           @keydown.enter="onEnter"
+          @keydown.down.prevent="moveActive(1)"
+          @keydown.up.prevent="moveActive(-1)"
+          @keydown.esc="close"
         >
         <div
           v-if="foldoutOpen"
-          id="address-suggestions"
           class="absolute top-[calc(100%+2px)] right-0 left-0 z-10 max-h-[240px] overflow-y-auto rounded-(--radius-field) border border-border bg-white shadow-(--shadow-panel)"
         >
           <p
@@ -111,15 +146,19 @@ defineExpose({ setInputValue })
           </p>
           <ul
             v-else-if="suggestions.length > 0"
+            :id="listboxId"
             class="m-0 list-none p-0"
             data-testid="suggestions"
             role="listbox"
+            aria-label="Places"
           >
             <li
-              v-for="suggestion in suggestions"
+              v-for="(suggestion, index) in suggestions"
+              :id="optionId(index)"
               :key="`${suggestion.label}-${suggestion.lat}-${suggestion.lng}`"
-              class="font-body cursor-pointer border-b border-border px-3 py-2 text-[14px] text-ink not-italic normal-case transition-colors duration-200 ease-(--ease-smooth) last:border-b-0 hover:bg-surface"
+              class="font-body cursor-pointer border-b border-border px-3 py-2 text-[14px] text-ink not-italic normal-case transition-colors duration-200 ease-(--ease-smooth) last:border-b-0 hover:bg-surface aria-selected:bg-surface aria-selected:outline-2 aria-selected:-outline-offset-2 aria-selected:outline-coral"
               role="option"
+              :aria-selected="index === activeIndex"
               @click="onSelect(suggestion)"
             >
               {{ suggestion.label }}

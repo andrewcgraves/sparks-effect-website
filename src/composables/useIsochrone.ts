@@ -5,6 +5,8 @@ import { isochroneFault, isochroneRangeRefusal, isochroneRequested } from '../ap
 import type { Station } from '../api/scenarios'
 import type { ChainResponse } from '../fixtures/isochrone'
 import { latestAttempt } from './latestAttempt'
+import { useAnnouncer } from './useToast'
+import { PLOTTING_SPLASH_ZONE, splashZoneReadyMessage } from './progressAnnouncements'
 
 export function useIsochrone(getStations: () => Station[] = () => []) {
   const data = ref<ChainResponse | null>(null)
@@ -14,6 +16,7 @@ export function useIsochrone(getStations: () => Station[] = () => []) {
   // A late answer to a question already re-asked — or already answered by
   // show() — writes nothing; requests cannot be recalled, only ignored.
   const attempts = latestAttempt()
+  const { announce } = useAnnouncer()
 
   async function generate(request: IsochroneRequest): Promise<void> {
     // Before the request, not after: an origin with no station near it is a
@@ -37,12 +40,16 @@ export function useIsochrone(getStations: () => Station[] = () => []) {
     loading.value = true
     error.value = null
     progress.value = null
+    announce(PLOTTING_SPLASH_ZONE)
     isochroneRequested(request.mode, request.budget_mins)
     try {
       const result = await fetchIsochrone(request, (latest) => {
         if (attempts.isCurrent(attempt)) progress.value = latest
       })
-      if (attempts.isCurrent(attempt)) data.value = result
+      if (attempts.isCurrent(attempt)) {
+        data.value = result
+        announce(splashZoneReadyMessage(result))
+      }
     } catch (e) {
       console.error(e)
       if (attempts.isCurrent(attempt)) error.value = isochroneFault(e, request.mode, request.budget_mins)
@@ -64,6 +71,7 @@ export function useIsochrone(getStations: () => Station[] = () => []) {
     data.value = result
     error.value = null
     loading.value = false
+    announce(splashZoneReadyMessage(result))
   }
 
   return { data, loading, error, progress, generate, show }

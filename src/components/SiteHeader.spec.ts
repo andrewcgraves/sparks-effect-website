@@ -4,10 +4,11 @@ import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter, type RouteRecordRaw } from 'vue-router'
 import SiteHeader from './SiteHeader.vue'
 import { useAuthStore } from '../stores/auth'
+import { seriousA11yViolations } from '../test/axe'
 
 const Blank = { template: '<div />' }
 
-async function mountHeader(routes: RouteRecordRaw[] = [], at = '/') {
+async function mountHeader(routes: RouteRecordRaw[] = [], at = '/', attachTo?: HTMLElement) {
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [
@@ -20,7 +21,7 @@ async function mountHeader(routes: RouteRecordRaw[] = [], at = '/') {
   })
   await router.push(at)
   await router.isReady()
-  const wrapper = mount(SiteHeader, { global: { plugins: [router] } })
+  const wrapper = mount(SiteHeader, { global: { plugins: [router] }, attachTo })
   await flushPromises()
   return wrapper
 }
@@ -128,5 +129,20 @@ describe('SiteHeader', () => {
     useAuthStore().signIn('tok-1', { id: 'u1', email: 'a@example.com', is_admin: false })
     const member = await mountHeader()
     expect(member.find('[data-testid="nav-admin"]').exists()).toBe(false)
+  })
+
+  it('has no serious or critical accessibility violations with every link showing', async () => {
+    useAuthStore().signIn('tok-1', { id: 'u1', email: 'a@example.com', is_admin: true })
+    const wrapper = await mountHeader(
+      [
+        { path: '/networks', component: Blank },
+        { path: '/lines', component: Blank },
+        { path: '/how-it-works', component: Blank },
+      ],
+      '/lines',
+      document.body,
+    )
+    expect(await seriousA11yViolations(wrapper)).toEqual([])
+    wrapper.unmount()
   })
 })

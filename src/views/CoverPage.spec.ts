@@ -8,6 +8,7 @@ vi.mock('../api/coverIndex', () => ({
 }))
 
 import CoverPage from './CoverPage.vue'
+import { seriousA11yViolations } from '../test/axe'
 import { fetchCoverIndex } from '../api/coverIndex'
 import { busyRegion, visibleText } from '../test/loading'
 
@@ -20,6 +21,7 @@ function makeRouter() {
       { path: '/', name: 'cover', component: CoverPage },
       { path: '/scenario/:slug', name: 'scenario', component: Stub },
       { path: '/services/:slug', name: 'published-service', component: Stub },
+      { path: '/how-it-works', component: Stub },
     ],
   })
 }
@@ -122,8 +124,18 @@ describe('CoverPage', () => {
     vi.mocked(fetchCoverIndex).mockResolvedValue(index([]))
     const { wrapper } = await mountCover()
     await flushPromises()
-    expect(wrapper.get('[data-testid="scenarios-empty"]').text()).toBe('No lines or networks yet.')
+    expect(wrapper.get('[data-testid="scenarios-empty"]').text()).toContain('No lines or networks yet.')
     expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+  })
+
+  it('points an empty cover at how it works', async () => {
+    vi.mocked(fetchCoverIndex).mockResolvedValue(index([]))
+    const { wrapper } = await mountCover()
+    await flushPromises()
+    const links = wrapper.get('[data-testid="scenarios-empty"]').findAll('a')
+    expect(links).toHaveLength(1)
+    expect(links[0]!.text()).toBe('How it works')
+    expect(links[0]!.attributes('href')).toBe('/how-it-works')
   })
 
   it('shows an error state, not an empty one, when neither read answers', async () => {
@@ -149,5 +161,15 @@ describe('CoverPage', () => {
     await flushPromises()
     expect(wrapper.get('[data-testid="scenarios-partial"]').text()).toBe("Couldn't load the curated networks.")
     expect(wrapper.find('[data-testid="scenarios-empty"]').exists()).toBe(false)
+  })
+
+  it('has no serious or critical accessibility violations once loaded', async () => {
+    vi.mocked(fetchCoverIndex).mockResolvedValueOnce(index([scenarioCard, serviceCard]))
+    const router = makeRouter()
+    await router.push('/')
+    const wrapper = mount(CoverPage, { global: { plugins: [router] }, attachTo: document.body })
+    await flushPromises()
+    expect(await seriousA11yViolations(wrapper)).toEqual([])
+    wrapper.unmount()
   })
 })

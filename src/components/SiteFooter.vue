@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useRoutedPages } from '../composables/useRoutedPages'
 import { resolveTileCredit } from '../mapStyle'
-import { FOOTER_LINK_CLASS } from './linkStyles'
+import { INLINE_LINK_CLASS } from './linkStyles'
 
 const FOOTER_PAGES = [
   { label: 'How it works', path: '/how-it-works' },
@@ -28,7 +28,7 @@ const links = useRoutedPages(FOOTER_PAGES)
         v-for="link in links"
         :key="link.path"
         :to="link.path"
-        :class="FOOTER_LINK_CLASS"
+        :class="INLINE_LINK_CLASS"
       >
         {{ link.label }}
       </RouterLink>

@@ -6,6 +6,7 @@ vi.mock('../components/AdminPeople.vue', () => ({ default: { template: '<div dat
 vi.mock('../components/AdminPublished.vue', () => ({ default: { template: '<div data-testid="published-panel" />' } }))
 
 import AdminView from './AdminView.vue'
+import { seriousA11yViolations } from '../test/axe'
 
 function makeRouter() {
   return createRouter({ history: createMemoryHistory(), routes: [{ path: '/admin', component: AdminView }] })
@@ -67,5 +68,10 @@ describe('AdminView', () => {
 
     expect(wrapper.find('[data-testid="published-panel"]').exists()).toBe(true)
     expect(document.activeElement).toBe(wrapper.get('[data-testid="tab-published"]').element)
+  })
+
+  it('has no serious or critical accessibility violations', async () => {
+    const { wrapper } = await mountAt('/admin')
+    expect(await seriousA11yViolations(wrapper)).toEqual([])
   })
 })

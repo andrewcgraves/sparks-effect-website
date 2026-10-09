@@ -5,6 +5,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { useCompileJob } from './useCompileJob'
 import { ApiError } from '../api/authoring/client'
 import type { Job } from '../api/authoring'
+import { useToastHost } from './useToast'
 
 describe('useCompileJob', () => {
   beforeEach(() => {
@@ -134,5 +135,40 @@ describe('useCompileJob', () => {
     const pollTrace = new Headers(vi.mocked(fetch).mock.calls[0][1]?.headers).get('X-Trace-Id')
     expect(compileTrace).toMatch(/^[0-9a-f-]{36}$/)
     expect(pollTrace).toBe(compileTrace)
+  })
+
+  describe('announcing to a screen reader', () => {
+    const announced = () => useToastHost().announcement.value?.message
+    afterEach(() => useToastHost().clear())
+
+    it('says the compile has started, then that it is done', async () => {
+      vi.stubGlobal('fetch', succeedingJobFetch({ services: [] }))
+      const compile = vi.fn().mockResolvedValue({ id: 'job1', kind: 'compile_user_scenario', status: 'queued' } as Job)
+      const { trigger } = useCompileJob(compile, 'scenario')
+
+      const promise = trigger('ca-hsr')
+      expect(announced()).toBe('Compiling network…')
+      await promise
+      expect(announced()).toBe('Network compiled')
+    })
+
+    it('leaves a failure to the alert that shows it', async () => {
+      const { trigger } = useCompileJob(vi.fn().mockRejectedValue(new Error('compile blew up')))
+      await trigger('ca-hsr')
+      expect(announced()).toBe('Compiling line…')
+    })
+
+    it('says nothing when a superseded compile lands', async () => {
+      vi.stubGlobal('fetch', succeedingJobFetch({ services: [] }))
+      let release!: (job: Job) => void
+      const compile = vi.fn().mockReturnValue(new Promise<Job>((resolve) => { release = resolve }))
+      const { trigger, reset } = useCompileJob(compile)
+
+      const promise = trigger('ca-hsr')
+      reset()
+      release({ id: 'job1', kind: 'compile_user_service', status: 'queued' } as Job)
+      await promise
+      expect(announced()).toBe('Compiling line…')
+    })
   })
 })

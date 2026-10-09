@@ -8,6 +8,8 @@ import type { IsochronePayload } from '../isochroneQuery'
 import type { IsochroneProgress, IsochroneProgressListener } from '../api/routingJobs'
 import { useCompileJob } from './useCompileJob'
 import { latestAttempt } from './latestAttempt'
+import { useAnnouncer } from './useToast'
+import { PLOTTING_SPLASH_ZONE, splashZoneReadyMessage } from './progressAnnouncements'
 import { graphRoutes, graphStations } from './scenarioGraphMap'
 
 export const MAX_STALE_GRAPH_RETRIES = 3
@@ -86,6 +88,7 @@ export function useAuthoredGraph<G extends TransitGraph = TransitGraph>(
   // than no answer at all.
   const loads = latestAttempt()
   const plots = latestAttempt()
+  const { announce } = useAnnouncer()
 
   // A 404 means it has never compiled, which is a reason to compile rather than
   // an error to show — unless nothing can compile it, when it is the page's
@@ -147,6 +150,7 @@ export function useAuthoredGraph<G extends TransitGraph = TransitGraph>(
       })
       if (!plots.isCurrent(attempt)) return
       isochroneData.value = data
+      announce(splashZoneReadyMessage(data))
     } catch (err) {
       if (!plots.isCurrent(attempt)) return
       if (compile && err instanceof ApiError && err.code === 'stale_graph' && staleRetries < MAX_STALE_GRAPH_RETRIES) {
@@ -195,6 +199,7 @@ export function useAuthoredGraph<G extends TransitGraph = TransitGraph>(
     }
 
     isochroneRequested(payload.mode, payload.duration)
+    announce(PLOTTING_SPLASH_ZONE)
     await plot(slug, payload, plots.begin(), 1)
   }
 

@@ -3,6 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import AccountView from './AccountView.vue'
+import { seriousA11yViolations } from '../test/axe'
 import { useAuthStore } from '../stores/auth'
 import { setAuthTokenProvider, setUnauthorizedHandler } from '../api/authoring'
 import { mountSharedHosts } from '../test/sharedHosts'
@@ -237,5 +238,12 @@ describe('AccountView', () => {
       expect(auth.isAuthenticated).toBe(true)
       expect(router.currentRoute.value.path).toBe('/account')
     })
+  })
+
+  it('has no serious or critical accessibility violations', async () => {
+    const { wrapper } = await mountAccount()
+    await flushPromises()
+    expect(await seriousA11yViolations(wrapper)).toEqual([])
+    wrapper.unmount()
   })
 })
