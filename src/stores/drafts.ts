@@ -1,11 +1,16 @@
 import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
-import type {
-  FrequencyWindow,
-  ScenarioInput,
-  Stop,
-  VehicleParams,
-} from '../api/authoring'
+import {
+  BOARDING_WAIT_POLICIES,
+  type BoardingWaitOverride,
+  type BoardingWaitPolicy,
+  type FrequencyWindow,
+  type InterchangePair,
+  type ScenarioInput,
+  type Stop,
+  type StopIdentity,
+  type VehicleParams,
+} from '../api/authoring/types'
 import { useAuthStore } from './auth'
 import { readJson, removeKey, writeJson } from './storage'
 
@@ -59,7 +64,7 @@ function emptyServiceDraft(): ServiceDraft {
 }
 
 function emptyScenarioDraft(): ScenarioInput {
-  return { name: '', description: '', service_ids: [] }
+  return { name: '', description: '', service_ids: [], interchange_pairs: [], boarding_wait: null }
 }
 
 const AUTO_STOP_NAME = /^Stop (\d+)$/
@@ -160,14 +165,45 @@ function isServiceInput(value: unknown): value is ServiceDraftSeed {
   )
 }
 
-function isScenarioInput(value: unknown): value is ScenarioInput {
-  const scenario = value as Partial<ScenarioInput> | null
+function isStopIdentity(value: unknown): boolean {
+  const stop = value as Partial<StopIdentity> | null
+  return typeof stop?.service_id === 'string' && typeof stop.slug === 'string'
+}
+
+function isInterchangePair(value: unknown): value is InterchangePair {
+  const pair = value as Partial<InterchangePair> | null
+  return isStopIdentity(pair?.a) && isStopIdentity(pair?.b)
+}
+
+function isBoardingWait(value: unknown): value is BoardingWaitOverride {
+  const wait = value as Partial<BoardingWaitOverride> | null
   return (
+    BOARDING_WAIT_POLICIES.includes(wait?.policy as BoardingWaitPolicy) &&
+    (wait?.secs === undefined || typeof wait.secs === 'number')
+  )
+}
+
+// A draft saved before SPA-404 has neither interchange_pairs nor boarding_wait.
+// It is still a sound draft, so those two are filled in rather than held
+// against it; only a value that is present and malformed sinks it.
+function readScenarioDraft(value: unknown): ScenarioInput | null {
+  const scenario = value as Partial<ScenarioInput> | null
+  const sound =
     typeof scenario?.name === 'string' &&
     typeof scenario.description === 'string' &&
     Array.isArray(scenario.service_ids) &&
-    scenario.service_ids.every((id) => typeof id === 'string')
-  )
+    scenario.service_ids.every((id) => typeof id === 'string') &&
+    (scenario.interchange_pairs === undefined ||
+      (Array.isArray(scenario.interchange_pairs) && scenario.interchange_pairs.every(isInterchangePair))) &&
+    (scenario.boarding_wait === undefined || scenario.boarding_wait === null || isBoardingWait(scenario.boarding_wait))
+  if (!sound) return null
+  return {
+    name: scenario.name!,
+    description: scenario.description!,
+    service_ids: scenario.service_ids!,
+    interchange_pairs: scenario.interchange_pairs ?? [],
+    boarding_wait: scenario.boarding_wait ?? null,
+  }
 }
 
 // Falls back to zero rather than discarding the draft: a lost counter costs a
@@ -189,7 +225,7 @@ function readPersistedDrafts(userId: string): PersistedDrafts {
   // Each draft stands or falls on its own: a corrupt service draft is no reason
   // to throw away a sound scenario sitting beside it.
   const serviceDraft = isServiceInput(parsed.serviceDraft) ? backfillDraftIds(parsed.serviceDraft) : null
-  const scenarioDraft = isScenarioInput(parsed.scenarioDraft) ? parsed.scenarioDraft : null
+  const scenarioDraft = readScenarioDraft(parsed.scenarioDraft)
   const setAsideServiceDraft = readSetAsideServiceDraft(parsed.setAsideServiceDraft)
   const scenario = {
     scenarioDraft,
@@ -347,8 +383,7 @@ export const useDraftsStore = defineStore('drafts', () => {
     serviceDraft.value.stops = stops.map((s, i) => (i === index ? { ...s, ...patch } : s))
   }
 
-  // The reordering the order-fault check asks the user to do by hand, since
-  // map-drag reordering is out of scope.
+  // The keyboard way to reorder; dragging a row goes through reorderStops.
   function moveStop(index: number, direction: -1 | 1): void {
     if (!serviceDraft.value) return
     const stops = serviceDraft.value.stops
@@ -357,6 +392,19 @@ export const useDraftsStore = defineStore('drafts', () => {
     const next = [...stops]
     ;[next[index], next[target]] = [next[target], next[index]]
     serviceDraft.value.stops = renumber(next)
+  }
+
+  // Takes ids rather than positions, so an order worked out against one list —
+  // a preview that has not caught up, a drag that started before a removal —
+  // cannot reshuffle a different one. Anything that is not exactly a
+  // permutation of the current stops is refused whole.
+  function reorderStops(ids: readonly string[]): void {
+    if (!serviceDraft.value) return
+    const byId = new Map(serviceDraft.value.stops.map((stop) => [stop.id, stop]))
+    if (ids.length !== byId.size || new Set(ids).size !== ids.length) return
+    const reordered = ids.map((id) => byId.get(id))
+    if (reordered.some((stop) => !stop)) return
+    serviceDraft.value.stops = renumber(reordered as DraftStop[])
   }
 
   function addFrequencyWindow(window: FrequencyWindow): void {
@@ -433,6 +481,7 @@ export const useDraftsStore = defineStore('drafts', () => {
     removeStop,
     updateStop,
     moveStop,
+    reorderStops,
     addFrequencyWindow,
     removeFrequencyWindow,
     updateFrequencyWindow,

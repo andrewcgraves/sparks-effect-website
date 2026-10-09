@@ -199,4 +199,72 @@ describe('AddressAutocomplete', () => {
 
     expect(geocoding.fetchSuggestions).not.toHaveBeenCalled()
   })
+
+  describe('as a combobox a keyboard can drive', () => {
+    async function withSuggestions() {
+      vi.mocked(geocoding.fetchSuggestions).mockResolvedValue([portlandSuggestion, chicagoSuggestion])
+      const wrapper = mount(AddressAutocomplete)
+      await wrapper.find('input').setValue('Po')
+      await vi.advanceTimersByTimeAsync(350)
+      await flushPromises()
+      return wrapper
+    }
+
+    it('is a combobox that owns the suggestion listbox', async () => {
+      const wrapper = await withSuggestions()
+      const input = wrapper.get('input')
+      expect(input.attributes('role')).toBe('combobox')
+      expect(input.attributes('aria-expanded')).toBe('true')
+      expect(wrapper.get(`#${input.attributes('aria-controls')}`).attributes('role')).toBe('listbox')
+    })
+
+    it('moves the highlighted option with the arrow keys, wrapping at either end', async () => {
+      const wrapper = await withSuggestions()
+      const input = wrapper.get('input')
+      const options = () => wrapper.findAll('[role="option"]')
+      expect(input.attributes('aria-activedescendant')).toBeUndefined()
+
+      await input.trigger('keydown', { key: 'ArrowDown' })
+      expect(input.attributes('aria-activedescendant')).toBe(options()[0].attributes('id'))
+      expect(options()[0].attributes('aria-selected')).toBe('true')
+
+      await input.trigger('keydown', { key: 'ArrowDown' })
+      await input.trigger('keydown', { key: 'ArrowDown' })
+      expect(input.attributes('aria-activedescendant')).toBe(options()[0].attributes('id'))
+
+      await input.trigger('keydown', { key: 'ArrowUp' })
+      expect(input.attributes('aria-activedescendant')).toBe(options()[1].attributes('id'))
+      expect(options()[0].attributes('aria-selected')).toBe('false')
+    })
+
+    it('chooses the highlighted option on Enter', async () => {
+      const wrapper = await withSuggestions()
+      const input = wrapper.get('input')
+      await input.trigger('keydown', { key: 'ArrowDown' })
+      await input.trigger('keydown', { key: 'ArrowDown' })
+      await input.trigger('keydown', { key: 'Enter' })
+
+      expect(wrapper.emitted('select')).toEqual([[chicagoSuggestion]])
+      expect(wrapper.find('[data-testid="suggestions"]').exists()).toBe(false)
+      expect(input.attributes('aria-expanded')).toBe('false')
+    })
+
+    it('searches on Enter when nothing is highlighted, as before', async () => {
+      const wrapper = await withSuggestions()
+      vi.mocked(geocoding.fetchSuggestions).mockClear()
+      await wrapper.get('input').trigger('keydown', { key: 'Enter' })
+      expect(geocoding.fetchSuggestions).toHaveBeenCalledWith('Po')
+      expect(wrapper.emitted('select')).toBeUndefined()
+    })
+
+    it('closes the suggestions on Escape and keeps what was typed', async () => {
+      const wrapper = await withSuggestions()
+      const input = wrapper.get('input')
+      await input.trigger('keydown', { key: 'ArrowDown' })
+      await input.trigger('keydown', { key: 'Escape' })
+      expect(wrapper.find('[data-testid="suggestions"]').exists()).toBe(false)
+      expect(input.attributes('aria-activedescendant')).toBeUndefined()
+      expect((input.element as HTMLInputElement).value).toBe('Po')
+    })
+  })
 })

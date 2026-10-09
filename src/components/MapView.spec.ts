@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { FullscreenControl } from 'maplibre-gl'
 import MapView from './MapView.vue'
+import { seriousA11yViolations } from '../test/axe'
 import {
   ISOCHRONE_SOURCE_ID,
   ISOCHRONE_ORIGIN_LAYER_ID,
@@ -71,6 +72,7 @@ const {
   mockPopupSetDOMContent,
   mockPopupAddTo,
   mockPopupRemove,
+  mockGetZoom,
 } = vi.hoisted(() => {
   const canvas = { style: { cursor: '' } }
   return {
@@ -100,6 +102,7 @@ const {
     mockPopupSetDOMContent: vi.fn(),
     mockPopupAddTo: vi.fn(),
     mockPopupRemove: vi.fn(),
+    mockGetZoom: vi.fn(() => 7),
   }
 })
 
@@ -130,6 +133,7 @@ vi.mock('maplibre-gl', () => ({
     this['queryRenderedFeatures'] = mockQueryRenderedFeatures
     this['setPaintProperty'] = mockSetPaintProperty
     this['setFilter'] = mockSetFilter
+    this['getZoom'] = mockGetZoom
     this['doubleClickZoom'] = {
       enable: mockDoubleClickZoomEnable,
       disable: mockDoubleClickZoomDisable,
@@ -207,7 +211,7 @@ const walkedToStub = chainWith(
   routedToStub,
 )
 
-const defaultProps = { isochroneData: null, loading: false, routes: [], stations: [] }
+const defaultProps = { isochroneData: null, loading: false, routes: [], stations: [], label: 'Map' }
 
 const stubRouteCorners = routeBoundsCorners([stubRoute]) as [[number, number], [number, number]]
 
@@ -246,6 +250,25 @@ describe('MapView', () => {
     mockQueryRenderedFeatures.mockReturnValue([])
     mockPopupSetLngLat.mockReturnValue({ setDOMContent: mockPopupSetDOMContent })
     mockPopupSetDOMContent.mockReturnValue({ addTo: mockPopupAddTo })
+  })
+
+  it('is a region a screen reader can find by name', () => {
+    const wrapper = mount(MapView, { props: defaultProps })
+    const region = wrapper.get('[role="region"]')
+    expect(region.element).toBe(wrapper.element)
+    expect(region.attributes('aria-label')).toBe('Map')
+  })
+
+  it('takes the name its page gives it', () => {
+    const wrapper = mount(MapView, { props: { ...defaultProps, label: 'Splash zone map' } })
+    expect(wrapper.get('[role="region"]').attributes('aria-label')).toBe('Splash zone map')
+  })
+
+  it('has no serious or critical accessibility violations with a splash zone drawn', async () => {
+    const wrapper = mount(MapView, { props: { ...defaultProps, isochroneData: staticIsochroneResponse }, attachTo: document.body })
+    await triggerMapLoad()
+    expect(await seriousA11yViolations(wrapper)).toEqual([])
+    wrapper.unmount()
   })
 
   it('does not add isochrone source or layer on load when no isochroneData prop is provided', async () => {
@@ -1313,6 +1336,62 @@ describe('MapView', () => {
 
       expect(wrapper.emitted('stop-drag-end')).toHaveLength(1)
       expect(mockCanvas.style.cursor).toBe('crosshair')
+    })
+  })
+
+  describe('stops picked from the list', () => {
+    it('flies to a stop it is asked to centre on, zooming in to tell it apart', async () => {
+      const wrapper = mount(MapView, { props: defaultProps })
+      await triggerMapLoad()
+      mockFlyTo.mockClear()
+
+      await wrapper.setProps({ centerOn: { lat: 36.74, lng: -119.79 } })
+
+      expect(mockFlyTo).toHaveBeenCalledWith({ center: [-119.79, 36.74], zoom: 12 })
+    })
+
+    it('keeps the zoom when the map is already closer in than that', async () => {
+      mockGetZoom.mockReturnValueOnce(15)
+      const wrapper = mount(MapView, { props: defaultProps })
+      await triggerMapLoad()
+
+      await wrapper.setProps({ centerOn: { lat: 36.74, lng: -119.79 } })
+
+      expect(mockFlyTo).toHaveBeenLastCalledWith({ center: [-119.79, 36.74], zoom: 15 })
+    })
+
+    it('flies to a stop asked for before the map had loaded, once it has', async () => {
+      const wrapper = mount(MapView, { props: defaultProps })
+      await wrapper.setProps({ centerOn: { lat: 36.74, lng: -119.79 } })
+      expect(mockFlyTo).not.toHaveBeenCalled()
+
+      await triggerMapLoad()
+
+      expect(mockFlyTo).toHaveBeenLastCalledWith({ center: [-119.79, 36.74], zoom: 12 })
+    })
+
+    it('flies again when asked for the same stop a second time', async () => {
+      const wrapper = mount(MapView, { props: defaultProps })
+      await triggerMapLoad()
+      mockFlyTo.mockClear()
+
+      await wrapper.setProps({ centerOn: { lat: 36.74, lng: -119.79 } })
+      await wrapper.setProps({ centerOn: { lat: 36.74, lng: -119.79 } })
+
+      expect(mockFlyTo).toHaveBeenCalledTimes(2)
+    })
+
+    it('reports the stop pin under the pointer, and when it leaves', async () => {
+      mockGetSource.mockReturnValue({ setData: mockSetData })
+      const wrapper = mount(MapView, {
+        props: { ...defaultProps, stopPreviewPairs: [{ id: '0', raw: { lat: 37.77, lng: -122.41 }, snapped: null }] },
+      })
+      await triggerMapLoad()
+
+      fireLayerEvent('mouseenter', RAW_STOP_LAYER_ID, { features: [{ properties: { id: '0' } }] })
+      fireLayerEvent('mouseleave', RAW_STOP_LAYER_ID, {})
+
+      expect(wrapper.emitted('stop-hover')).toEqual([['0'], [null]])
     })
   })
 

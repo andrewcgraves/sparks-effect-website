@@ -2,7 +2,7 @@
 import { ref, watch } from 'vue'
 import { useToastHost } from '../composables/useToast'
 
-const { toasts, dismiss, hold, release } = useToastHost()
+const { toasts, announcement, dismiss, hold, release } = useToastHost()
 
 const stack = ref<HTMLElement | null>(null)
 
@@ -33,6 +33,12 @@ watch(toasts, () => {
       :key="toast.id"
     >
       {{ toast.message }}
+    </p>
+    <p
+      v-if="announcement"
+      :key="`announcement-${announcement.id}`"
+    >
+      {{ announcement.message }}
     </p>
   </div>
   <div

@@ -4,6 +4,7 @@ import ScenarioPreviewPanel from './ScenarioPreviewPanel.vue'
 import { formatTimeRemaining, remainingSecsBySlug, buildTimeRemainingGraph } from './timeRemaining'
 import type { ChainResponse } from '../fixtures/isochrone'
 import type { Station } from '../api/scenarios'
+import type { NearMiss } from '../api/authoring/types'
 
 vi.mock('../api/routingStatus', () => ({ fetchRoutingStatus: vi.fn() }))
 
@@ -187,6 +188,82 @@ describe('ScenarioPreviewPanel', () => {
 
       expect(wrapper.find('[data-testid="routing-status"]').exists()).toBe(false)
       expect(plotButton(wrapper).disabled).toBe(false)
+    })
+  })
+
+  describe('near misses', () => {
+    const nearMiss: NearMiss = {
+      a: { service_id: 'svc1', slug: 'union', name: 'Union' },
+      b: { service_id: 'svc2', slug: 'midtown', name: 'Midtown' },
+      distance_m: 120.4,
+    }
+
+    function mountWithNearMiss(extra: Record<string, unknown> = {}) {
+      return mount(ScenarioPreviewPanel, {
+        props: { ...defaultProps, nearMisses: [nearMiss], ...extra },
+        global: { stubs: { MapView: true, IsochroneForm: true } },
+      })
+    }
+
+    it('only reports them on a page that does not pass its declared pairs', () => {
+      const wrapper = mountWithNearMiss()
+      expect(wrapper.get('[data-testid="near-miss-row"]').text()).toContain('120 m apart')
+      expect(wrapper.find('[data-testid="join-interchange"]').exists()).toBe(false)
+    })
+
+    it('offers Join as interchange beside each, and hands the near miss up', async () => {
+      const wrapper = mountWithNearMiss({ interchangePairs: [] })
+      const button = wrapper.get('[data-testid="join-interchange"]')
+      expect(button.text()).toBe('Join as interchange')
+
+      await button.trigger('click')
+      expect(wrapper.emitted('join')).toEqual([[nearMiss]])
+    })
+
+    it('holds Join while the page is busy saving or compiling', () => {
+      const wrapper = mountWithNearMiss({ interchangePairs: [], interchangeBusy: true })
+      expect(wrapper.get('[data-testid="join-interchange"]').attributes('disabled')).toBeDefined()
+    })
+
+    it('names the pair it would join for assistive technology', () => {
+      const wrapper = mountWithNearMiss({ interchangePairs: [] })
+      expect(wrapper.get('[data-testid="join-interchange"]').attributes('aria-label'))
+        .toBe('Join Union and Midtown as an interchange')
+    })
+
+    // Declared but still a near miss: the graph shown predates the pair, or
+    // the recompile that would realise it failed.
+    it('says a pair declared either way round is not in the compiled network yet, and offers Recompile instead of Join', async () => {
+      const wrapper = mountWithNearMiss({
+        interchangePairs: [{ a: { service_id: 'svc2', slug: 'midtown' }, b: { service_id: 'svc1', slug: 'union' } }],
+      })
+      expect(wrapper.find('[data-testid="join-interchange"]').exists()).toBe(false)
+      expect(wrapper.text()).not.toContain('Joined')
+      expect(wrapper.get('[data-testid="near-miss-declared"]').text()).toBe('Declared — not in the compiled network yet')
+
+      await wrapper.get('[data-testid="recompile-interchange"]').trigger('click')
+      expect(wrapper.emitted('recompile')).toEqual([[]])
+    })
+
+    it('holds Recompile while the page is busy saving or compiling', () => {
+      const wrapper = mountWithNearMiss({
+        interchangePairs: [{ a: { service_id: 'svc1', slug: 'union' }, b: { service_id: 'svc2', slug: 'midtown' } }],
+        interchangeBusy: true,
+      })
+      expect(wrapper.get('[data-testid="recompile-interchange"]').attributes('disabled')).toBeDefined()
+    })
+
+    it('will not join a near miss naming a stop no longer in this network, and says why', async () => {
+      const wrapper = mountWithNearMiss({
+        interchangePairs: [],
+        stopMissing: (stop: { slug: string }) => stop.slug === 'midtown',
+      })
+      const button = wrapper.get('[data-testid="join-interchange"]')
+      expect(button.attributes('disabled')).toBeDefined()
+      expect(button.attributes('title')).toBe('Stop no longer in this network')
+      expect(wrapper.get('[data-testid="near-miss-gone"]').text()).toBe('A stop is no longer in this network')
+      await button.trigger('click')
+      expect(wrapper.emitted('join')).toBeUndefined()
     })
   })
 })

@@ -14,6 +14,7 @@ const toast = vi.fn()
 vi.mock('../composables/useToast', () => ({ useToast: () => ({ show: toast }) }))
 
 import AdminPublished from './AdminPublished.vue'
+import { seriousA11yViolations } from '../test/axe'
 import { listPublishedServices } from '../api/publishedIndex'
 import { unpublishService } from '../api/publications'
 import { ApiError } from '../api/authoring/client'
@@ -122,5 +123,12 @@ describe('AdminPublished', () => {
       expect(console.info).not.toHaveBeenCalled()
       expect(wrapper.find('[data-testid="published-row-coast-line"]').exists()).toBe(true)
     })
+  })
+
+  it('has no serious or critical accessibility violations', async () => {
+    const wrapper = mount(AdminPublished, { global: { stubs: { RouterLink: RouterLinkStub } }, attachTo: document.body })
+    await flushPromises()
+    expect(await seriousA11yViolations(wrapper)).toEqual([])
+    wrapper.unmount()
   })
 })

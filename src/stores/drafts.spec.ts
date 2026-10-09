@@ -20,7 +20,7 @@ function service(name: string): ServiceInput {
 }
 
 function scenario(name: string): ScenarioInput {
-  return { name, description: 'Rush hour', service_ids: ['svc-1'] }
+  return { name, description: 'Rush hour', service_ids: ['svc-1'], interchange_pairs: [], boarding_wait: null }
 }
 
 function reloadAs(userId: string) {
@@ -204,6 +204,39 @@ describe('useDraftsStore', () => {
       expect(drafts.serviceDraft?.stops.map((s) => s.seq)).toEqual([0, 1, 2])
     })
 
+    it('reorderStops puts the stops in the order of the ids given and renumbers', () => {
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft()
+      drafts.addStop(stop('A', 0))
+      drafts.addStop(stop('B', 0))
+      drafts.addStop(stop('C', 0))
+      const [a, b, c] = drafts.serviceDraft!.stops.map((s) => s.id)
+
+      drafts.reorderStops([c, a, b])
+
+      expect(drafts.serviceDraft?.stops.map((s) => [s.id, s.name, s.seq])).toEqual([
+        [c, 'C', 0],
+        [a, 'A', 1],
+        [b, 'B', 2],
+      ])
+    })
+
+    it.each([
+      ['a stop left out', (ids: string[]) => ids.slice(1)],
+      ['a stop named twice', (ids: string[]) => [ids[0], ids[0], ids[1]]],
+      ['an id the draft does not hold', (ids: string[]) => [ids[0], ids[1], 'gone']],
+    ])('reorderStops refuses an order with %s', (_, order) => {
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft()
+      drafts.addStop(stop('A', 0))
+      drafts.addStop(stop('B', 0))
+      drafts.addStop(stop('C', 0))
+
+      drafts.reorderStops(order(drafts.serviceDraft!.stops.map((s) => s.id)))
+
+      expect(drafts.serviceDraft?.stops.map((s) => s.name)).toEqual(['A', 'B', 'C'])
+    })
+
     it('clearServiceDraft discards the draft and its editing target', () => {
       const drafts = useDraftsStore()
       drafts.startServiceDraft(undefined, 'svc-1')
@@ -314,7 +347,9 @@ describe('useDraftsStore', () => {
     it('startScenarioDraft seeds an empty draft', () => {
       const drafts = useDraftsStore()
       drafts.startScenarioDraft()
-      expect(drafts.scenarioDraft).toEqual({ name: '', description: '', service_ids: [] })
+      expect(drafts.scenarioDraft).toEqual({
+        name: '', description: '', service_ids: [], interchange_pairs: [], boarding_wait: null,
+      })
       expect(drafts.hasScenarioDraft).toBe(true)
     })
 
@@ -472,6 +507,8 @@ describe('useDraftsStore', () => {
         name: 'Peak service',
         description: 'Rush hour',
         service_ids: ['svc-1', 'svc-2'],
+        interchange_pairs: [],
+        boarding_wait: null,
       })
       expect(restored.editingScenarioId).toBe('scn-1')
     })
@@ -613,6 +650,42 @@ describe('useDraftsStore', () => {
       const restored = reloadAs('u1')
       expect(restored.serviceDraft).toBeNull()
       expect(restored.scenarioDraft?.name).toBe('Peak service')
+    })
+
+    it('restores a scenario draft stored before scenarios had interchanges or a boarding wait', () => {
+      // Exactly what an older build wrote: neither key at all.
+      window.localStorage.setItem(
+        draftsStorageKey('u1'),
+        JSON.stringify({ scenarioDraft: { name: 'Peak service', description: '', service_ids: ['svc-1'] } }),
+      )
+
+      expect(reloadAs('u1').scenarioDraft).toEqual({
+        name: 'Peak service',
+        description: '',
+        service_ids: ['svc-1'],
+        interchange_pairs: [],
+        boarding_wait: null,
+      })
+    })
+
+    it('restores a scenario draft\'s boarding wait and interchange pairs', () => {
+      const seeded = {
+        ...scenario('Peak service'),
+        interchange_pairs: [{ a: { service_id: 'svc-1', slug: 'union' }, b: { service_id: 'svc-2', slug: 'midtown' } }],
+        boarding_wait: { policy: 'fixed' as const, secs: 300 },
+      }
+      window.localStorage.setItem(draftsStorageKey('u1'), JSON.stringify({ scenarioDraft: seeded }))
+
+      expect(reloadAs('u1').scenarioDraft).toEqual(seeded)
+    })
+
+    it('discards a scenario draft whose boarding wait names no policy the API knows', () => {
+      window.localStorage.setItem(
+        draftsStorageKey('u1'),
+        JSON.stringify({ scenarioDraft: { ...scenario('Peak service'), boarding_wait: { policy: 'eventually' } } }),
+      )
+
+      expect(reloadAs('u1').scenarioDraft).toBeNull()
     })
 
     it('restores a service draft stored before services had prose', () => {

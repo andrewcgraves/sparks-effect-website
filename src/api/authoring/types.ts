@@ -72,21 +72,47 @@ export interface ServiceInput {
   frequency_windows: FrequencyWindow[]
 }
 
+export const BOARDING_WAIT_POLICIES = ['none', 'half_headway', 'full_headway', 'fixed'] as const
+
+export type BoardingWaitPolicy = (typeof BOARDING_WAIT_POLICIES)[number]
+
+export interface BoardingWaitOverride {
+  policy: BoardingWaitPolicy
+  secs?: number
+}
+
+export interface StopIdentity {
+  service_id: string
+  slug: string
+}
+
+export interface InterchangePair {
+  a: StopIdentity
+  b: StopIdentity
+}
+
 export interface Scenario {
   id: string
   slug: string
   name: string
   description: string
   service_ids: string[]
+  interchange_pairs?: InterchangePair[]
+  boarding_wait?: BoardingWaitOverride | null
   owner_id?: string | null
   created_at?: string
   updated_at?: string
 }
 
+// Both are written whole on every PUT: the API replaces interchange_pairs with
+// whatever the body carries (absent included), so an input that left them out
+// would erase pairs set elsewhere. boarding_wait null is "use the default".
 export interface ScenarioInput {
   name: string
   description: string
   service_ids: string[]
+  interchange_pairs: InterchangePair[]
+  boarding_wait: BoardingWaitOverride | null
 }
 
 export const TRAVEL_MODES = ['walk', 'bike', 'drive', 'transit'] as const

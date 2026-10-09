@@ -110,7 +110,7 @@ const PLURAL_VERBS: Record<string, string> = {
   joins: 'join',
 }
 
-function capitalise(text: string): string {
+export function capitalise(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1)
 }
 

@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import AllLinesLink from '../components/AllLinesLink.vue'
-import { FOOTER_LINK_CLASS } from '../components/linkStyles'
+import { INLINE_LINK_CLASS } from '../components/linkStyles'
 
 const LINE_STATES = [
   {
@@ -33,7 +33,7 @@ const hasAttribution = computed(() => router.getRoutes().some((route) => route.p
 
 const SECTION_HEADING_CLASS = 'font-display text-h2 text-ink-true'
 const PROSE_CLASS = 'font-body text-body mt-3 text-ink-muted'
-const PROSE_LINK_CLASS = `${FOOTER_LINK_CLASS} text-ink`
+const PROSE_LINK_CLASS = `${INLINE_LINK_CLASS} text-ink`
 const LIST_CLASS = 'font-body text-body mt-3 flex list-disc flex-col gap-1 pl-6 text-ink-muted'
 </script>
 

@@ -16,6 +16,7 @@ export interface StopPreviewPair {
   raw: LatLng
   snapped?: LatLng | null
   offRoute?: boolean
+  selected?: boolean
 }
 
 function point(coord: LatLng) {
@@ -39,6 +40,7 @@ function samePairs(a: StopPreviewPair[], b: StopPreviewPair[]): boolean {
       (pair, index) =>
         pair.id === b[index].id &&
         !!pair.offRoute === !!b[index].offRoute &&
+        !!pair.selected === !!b[index].selected &&
         sameCoord(pair.raw, b[index].raw) &&
         sameCoord(pair.snapped, b[index].snapped),
     )
@@ -51,6 +53,7 @@ function snapshot(pairs: StopPreviewPair[]): StopPreviewPair[] {
     raw: { ...pair.raw },
     snapped: pair.snapped ? { ...pair.snapped } : null,
     offRoute: !!pair.offRoute,
+    selected: !!pair.selected,
   }))
 }
 
@@ -64,11 +67,13 @@ export function useStopPreviewLayer(map: Map): { update: (pairs: StopPreviewPair
     id: RAW_STOP_LAYER_ID,
     type: 'circle',
     source: RAW_STOP_SOURCE_ID,
+    // The selected stop is the one its row in the list was picked for, so it
+    // is drawn big enough to find again once the map has moved onto it.
     paint: {
-      'circle-radius': 5,
+      'circle-radius': ['case', ['get', 'selected'], 8, 5],
       'circle-color': rawColor,
-      'circle-stroke-width': 2,
-      'circle-stroke-color': '#ffffff',
+      'circle-stroke-width': ['case', ['get', 'selected'], 3, 2],
+      'circle-stroke-color': ['case', ['get', 'selected'], snappedColor, '#ffffff'],
     },
   })
 
@@ -113,7 +118,7 @@ export function useStopPreviewLayer(map: Map): { update: (pairs: StopPreviewPair
       type: 'FeatureCollection',
       features: pairs.map((p) => ({
         type: 'Feature' as const,
-        properties: { id: p.id },
+        properties: { id: p.id, selected: !!p.selected },
         geometry: point(p.raw),
       })),
     })

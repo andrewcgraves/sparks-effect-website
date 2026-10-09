@@ -485,7 +485,7 @@ describe('useServiceDraft', () => {
       ['a stop latitude', (d: Draft) => d.updateStop(0, { lat: 37.7 })],
       ['a stop longitude', (d: Draft) => d.updateStop(1, { lng: -121.8 })],
       ['the stop order', (d: Draft) => d.moveStop(0, 1)],
-      ['the vehicle', (d: Draft) => { d.dwellS.value = 60 }],
+      ['the vehicle', (d: Draft) => { d.vehicle.value = { ...d.vehicle.value, dwell_s: 60 } }],
       ['a frequency window', (d: Draft) => d.addFrequencyWindow({ start_time: '22:00', end_time: '23:00', headway_s: 1800 })],
     ])('counts a change to %s', async (_, change) => {
       const draft = await openedEdit()
@@ -610,6 +610,23 @@ describe('useServiceDraft', () => {
 
       expect(draft.subtext.value).toBe('')
       expect(draft.description.value).toBe('')
+    })
+  })
+
+  describe('vehicle', () => {
+    it('writes the vehicle through to the stored draft whole', async () => {
+      const draft = useServiceDraft()
+      await draft.start()
+
+      draft.vehicle.value = { max_speed_kmh: 177, acceleration_ms2: 0.6, deceleration_ms2: 0.7, dwell_s: 45 }
+
+      expect(useDraftsStore().serviceDraft?.vehicle).toEqual({
+        max_speed_kmh: 177,
+        acceleration_ms2: 0.6,
+        deceleration_ms2: 0.7,
+        dwell_s: 45,
+      })
+      expect(draft.vehicle.value).toEqual(useDraftsStore().serviceDraft?.vehicle)
     })
   })
 
@@ -757,6 +774,24 @@ describe('useServiceDraft', () => {
       expect(draft.orderWarning.value).toContain('B → A')
     })
 
+    it('keeps each answer on the stop it was about when the stops are reordered before the next preview', async () => {
+      vi.mocked(snapStops).mockResolvedValue(snapResponse({
+        stops: [
+          { input: { lat: 37.77, lng: -122.41 }, snapped: { lat: 37.77, lng: -122.41 }, chainage_m: 0, offset_m: 620, off_route: true },
+          { input: { lat: 37.33, lng: -121.88 }, snapped: { lat: 37.33, lng: -121.88 }, chainage_m: 1000, offset_m: 0, off_route: false },
+        ],
+      }))
+      const draft = useServiceDraft()
+      await submittable(draft)
+      const [a, b] = draft.stops.value.map((stop) => stop.id)
+
+      draft.reverseStops()
+
+      expect(draft.stopSnaps.value.get(a)?.off_route).toBe(true)
+      expect(draft.stopSnaps.value.get(b)?.off_route).toBe(false)
+      expect(draft.stopPreviewPairs.value.map((pair) => pair.offRoute)).toEqual([false, true])
+    })
+
     it('drops the preview when the route changes underneath it', async () => {
       const draft = useServiceDraft()
       await submittable(draft)
@@ -765,6 +800,205 @@ describe('useServiceDraft', () => {
       await draft.selectRoute('other-line')
 
       expect(draft.preview.value).toBeNull()
+    })
+
+    describe('when previews overlap', () => {
+      // Each request is held until the test lets it answer, and answers for
+      // the stops it was asked about: chainage by latitude, so A=1 sits
+      // between B=2 and C=3 along the line only when B comes first.
+      const CHAINAGE: Record<number, number> = { 1: 1000, 2: 0, 3: 2000 }
+
+      function heldPreviews() {
+        const held: Array<{ answer: () => void; fail: () => void }> = []
+        vi.mocked(snapStops).mockImplementation((_slug, asked) => {
+          const chain = asked.map((stop) => CHAINAGE[stop.lat])
+          const order = chain.map((_, i) => i).sort((x, y) => chain[x] - chain[y])
+          const consistent = order.every((at, i) => at === i) || order.every((at, i) => at === order.length - 1 - i)
+          const response = snapResponse({
+            stops: asked.map((stop, i) => ({ input: stop, snapped: stop, chainage_m: chain[i], offset_m: 0, off_route: false })),
+            chainage_order: order,
+            order_is_consistent: consistent,
+          })
+          return new Promise((resolve, reject) => {
+            held.push({ answer: () => resolve(response), fail: () => reject(new Error('boom')) })
+          })
+        })
+        return held
+      }
+
+      async function threeStopsOutOfOrder(): Promise<Draft> {
+        const draft = useServiceDraft()
+        await draft.start()
+        await draft.selectRoute('main-line')
+        draft.addStop({ name: 'A', lat: 1, lng: 1 })
+        draft.addStop({ name: 'B', lat: 2, lng: 2 })
+        draft.addStop({ name: 'C', lat: 3, lng: 3 })
+        draft.name.value = 'Northbound Express'
+        draft.addFrequencyWindow({ start_time: '06:00', end_time: '22:00', headway_s: 900 })
+        await vi.advanceTimersByTimeAsync(PREVIEW_DEBOUNCE_MS)
+        return draft
+      }
+
+      function moveInto(draft: Draft, order: string[]): void {
+        for (const [to, stopName] of order.entries()) {
+          draft.moveStopTo(draft.stops.value.find((stop) => stop.name === stopName)!.id, to)
+        }
+      }
+
+      it('keeps the newest answer when an older one lands after it', async () => {
+        const held = heldPreviews()
+        const draft = await threeStopsOutOfOrder()
+        moveInto(draft, ['B', 'A', 'C'])
+        await vi.advanceTimersByTimeAsync(PREVIEW_DEBOUNCE_MS)
+        expect(held).toHaveLength(2)
+
+        held[1].answer()
+        await flushPromises()
+        expect(draft.orderWarning.value).toBeNull()
+        expect(draft.canSubmit.value).toBe(true)
+        expect(draft.previewLoading.value).toBe(false)
+
+        held[0].answer()
+        await flushPromises()
+
+        expect(draft.orderWarning.value).toBeNull()
+        expect(draft.canPutInRouteOrder.value).toBe(false)
+        expect(draft.canSubmit.value).toBe(true)
+        expect(draft.preview.value?.order_is_consistent).toBe(true)
+      })
+
+      it('is still loading while the newest request is out, whatever older ones do', async () => {
+        const held = heldPreviews()
+        const draft = await threeStopsOutOfOrder()
+        draft.reverseStops()
+        await vi.advanceTimersByTimeAsync(PREVIEW_DEBOUNCE_MS)
+        moveInto(draft, ['B', 'A', 'C'])
+        await vi.advanceTimersByTimeAsync(PREVIEW_DEBOUNCE_MS)
+        expect(held).toHaveLength(3)
+
+        held[0].answer()
+        held[1].fail()
+        await flushPromises()
+
+        expect(draft.previewLoading.value).toBe(true)
+        expect(draft.previewError.value).toBe(false)
+        // Neither stale answer is shown while the newest is awaited.
+        expect(draft.preview.value).toBeNull()
+        expect(draft.canPutInRouteOrder.value).toBe(false)
+
+        held[2].answer()
+        await flushPromises()
+        expect(draft.previewLoading.value).toBe(false)
+        expect(draft.orderWarning.value).toBeNull()
+      })
+
+      it('ignores an answer for the route the draft has since left', async () => {
+        const held = heldPreviews()
+        const draft = await threeStopsOutOfOrder()
+        expect(draft.previewLoading.value).toBe(true)
+
+        const leaving = draft.selectRoute('')
+        held[0].answer()
+        await leaving
+        await flushPromises()
+
+        expect(draft.preview.value).toBeNull()
+        expect(draft.previewLoading.value).toBe(false)
+      })
+    })
+  })
+
+  describe('reordering', () => {
+    async function threeStops(response: Partial<SnapStopsResponse>): Promise<Draft> {
+      vi.mocked(snapStops).mockResolvedValue(snapResponse(response))
+      const draft = useServiceDraft()
+      await draft.start()
+      await draft.selectRoute('main-line')
+      draft.addStop({ name: 'A', lat: 1, lng: 1 })
+      draft.addStop({ name: 'B', lat: 2, lng: 2 })
+      draft.addStop({ name: 'C', lat: 3, lng: 3 })
+      await vi.advanceTimersByTimeAsync(PREVIEW_DEBOUNCE_MS)
+      await flushPromises()
+      return draft
+    }
+
+    it('puts the stops in the order the preview found along the route, keeping each stop', async () => {
+      const draft = await threeStops({ order_is_consistent: false, chainage_order: [2, 0, 1] })
+      const ids = draft.stops.value.map((stop) => stop.id)
+      expect(draft.canPutInRouteOrder.value).toBe(true)
+
+      draft.putInRouteOrder()
+
+      expect(draft.stops.value.map((stop) => stop.name)).toEqual(['C', 'A', 'B'])
+      expect(draft.stops.value.map((stop) => stop.id)).toEqual([ids[2], ids[0], ids[1]])
+      expect(draft.stops.value.map((stop) => stop.seq)).toEqual([0, 1, 2])
+    })
+
+    // The warning outlives the reorder until the next preview lands, so a
+    // second click must not apply the permutation to the list it already fixed.
+    it('does nothing more when put in route order twice before the preview catches up', async () => {
+      const draft = await threeStops({ order_is_consistent: false, chainage_order: [2, 0, 1] })
+
+      draft.putInRouteOrder()
+      draft.putInRouteOrder()
+
+      expect(draft.stops.value.map((stop) => stop.name)).toEqual(['C', 'A', 'B'])
+      expect(draft.canPutInRouteOrder.value).toBe(false)
+    })
+
+    it('offers no route order while the preview finds the order consistent', async () => {
+      const draft = await threeStops({ order_is_consistent: true, chainage_order: [0, 1, 2] })
+
+      expect(draft.canPutInRouteOrder.value).toBe(false)
+      draft.putInRouteOrder()
+      expect(draft.stops.value.map((stop) => stop.name)).toEqual(['A', 'B', 'C'])
+    })
+
+    it('offers no route order once a stop has been added since the preview', async () => {
+      const draft = await threeStops({ order_is_consistent: false, chainage_order: [2, 0, 1] })
+
+      draft.addStop({ name: 'D', lat: 4, lng: 4 })
+
+      expect(draft.canPutInRouteOrder.value).toBe(false)
+    })
+
+    it('reverses the stops', async () => {
+      const draft = await threeStops({})
+
+      draft.reverseStops()
+
+      expect(draft.stops.value.map((stop) => [stop.name, stop.seq])).toEqual([['C', 0], ['B', 1], ['A', 2]])
+    })
+
+    it('moves one stop to a new position, by id', async () => {
+      const draft = await threeStops({})
+      const c = draft.stops.value[2].id
+
+      draft.moveStopTo(c, 0)
+
+      expect(draft.stops.value.map((stop) => stop.name)).toEqual(['C', 'A', 'B'])
+    })
+
+    it('ignores a move for a stop that is gone', async () => {
+      const draft = await threeStops({})
+
+      draft.moveStopTo('gone', 0)
+
+      expect(draft.stops.value.map((stop) => stop.name)).toEqual(['A', 'B', 'C'])
+    })
+
+    it('previews again after a reorder', async () => {
+      const draft = await threeStops({})
+      vi.mocked(snapStops).mockClear()
+
+      draft.reverseStops()
+      await vi.advanceTimersByTimeAsync(PREVIEW_DEBOUNCE_MS)
+
+      expect(snapStops).toHaveBeenCalledWith('main-line', [
+        { lat: 3, lng: 3 },
+        { lat: 2, lng: 2 },
+        { lat: 1, lng: 1 },
+      ])
     })
   })
 
@@ -779,7 +1013,8 @@ describe('useServiceDraft', () => {
       ['no name', (d: Draft) => { d.name.value = '  ' }],
       ['one stop', (d: Draft) => { d.removeStop(1) }],
       ['no route', (d: Draft) => { d.routeSlug.value = '' }],
-      ['an impossible vehicle', (d: Draft) => { d.maxSpeedKmh.value = 0 }],
+      ['an impossible vehicle', (d: Draft) => { d.vehicle.value = { ...d.vehicle.value, max_speed_kmh: 0 } }],
+      ['a negative dwell', (d: Draft) => { d.vehicle.value = { ...d.vehicle.value, dwell_s: -1 } }],
     ])('is not ready with %s', async (_label, break_) => {
       const draft = useServiceDraft()
       await submittable(draft)
@@ -818,6 +1053,24 @@ describe('useServiceDraft', () => {
       await submittable(draft)
 
       expect(draft.canSubmit.value).toBe(false)
+    })
+
+    // Read through the stops the draft holds now, so a stop taken off for
+    // being off the route stops counting against it straight away.
+    it('is ready once the stop the preview found off the route is removed', async () => {
+      const offRoute = snapResponse()
+      offRoute.stops.push({ ...offRoute.stops[1], off_route: true, offset_m: 620 })
+      vi.mocked(snapStops).mockResolvedValue(offRoute)
+      const draft = useServiceDraft()
+      await submittable(draft)
+      draft.addStop({ name: 'Faraway', lat: 40, lng: -70 })
+      await vi.advanceTimersByTimeAsync(PREVIEW_DEBOUNCE_MS)
+      await flushPromises()
+      expect(draft.canSubmit.value).toBe(false)
+
+      draft.removeStop(2)
+
+      expect(draft.canSubmit.value).toBe(true)
     })
 
     it('is not ready while the preview says the order disagrees', async () => {

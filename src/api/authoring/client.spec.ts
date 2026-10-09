@@ -11,6 +11,7 @@ import {
   setUnauthorizedHandler,
   stopPlacementFault,
 } from './client'
+import { configureErrorSink, type ErrorReport } from '../../errorReporting'
 
 describe('apiBase', () => {
   afterEach(() => {
@@ -424,5 +425,52 @@ describe('stopPlacementFault', () => {
   it('ignores anything that is not an ApiError', () => {
     expect(stopPlacementFault(new Error('boom'))).toBeNull()
     expect(stopPlacementFault(undefined)).toBeNull()
+  })
+})
+
+describe('apiRequest error reporting', () => {
+  const reports: ErrorReport[] = []
+
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn())
+    reports.length = 0
+    configureErrorSink((report) => reports.push(report))
+  })
+
+  afterEach(() => {
+    configureErrorSink(() => {})
+    vi.restoreAllMocks()
+  })
+
+  function sentTraceId(): string | null {
+    const init = vi.mocked(fetch).mock.calls[0][1] as RequestInit
+    return new Headers(init.headers).get('X-Trace-Id')
+  }
+
+  it('reports a 5xx with the trace id it was sent under, so it links to the API logs', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      json: async () => ({ error: 'internal error' }),
+    } as Response)
+
+    await expect(apiRequest('/api/me/scenarios')).rejects.toBeInstanceOf(ApiError)
+
+    expect(reports).toHaveLength(1)
+    expect(reports[0].error).toBeInstanceOf(ApiError)
+    expect(reports[0].context).toEqual({
+      trace_id: sentTraceId(),
+      status: '500',
+      method: 'GET',
+      path: '/api/me/scenarios',
+    })
+  })
+
+  it('does not report a 4xx: the API answered as designed', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: false, status: 422, json: async () => ({}) } as Response)
+
+    await expect(apiRequest('/api/me/scenarios', { method: 'POST', body: '{}' })).rejects.toBeInstanceOf(ApiError)
+
+    expect(reports).toHaveLength(0)
   })
 })

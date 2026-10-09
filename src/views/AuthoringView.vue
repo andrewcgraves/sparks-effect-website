@@ -1,9 +1,11 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useOwnedList } from '../composables/useOwnedList'
 import { fetchMyServices } from '../api/authoring/services'
 import { fetchMyScenarios } from '../api/authoring/scenarios'
+import { PRIMARY_BUTTON_CLASS } from '../components/buttonStyles'
 import { ACTION_LINK_CLASS, LIST_CARD_LINK_CLASS } from '../components/linkStyles'
 import AllLinesLink from '../components/AllLinesLink.vue'
 import ListSkeleton from '../components/ListSkeleton.vue'
@@ -13,6 +15,18 @@ const router = useRouter()
 
 const { items: services, loading: servicesLoading, error: servicesError } = useOwnedList(fetchMyServices)
 const { items: scenarios, loading: scenariosLoading, error: scenariosError } = useOwnedList(fetchMyScenarios)
+
+const LINE_DEFINITION = 'A line is a set of stops along a route, with a vehicle and a timetable.'
+
+// Only a pair of answered, empty reads means a new author: a list still
+// loading or failed is not evidence there is nothing to show.
+const hasLines = computed(() => !servicesLoading.value && !servicesError.value && services.value.length > 0)
+
+const nothingYet = computed(() =>
+  !servicesLoading.value && !scenariosLoading.value
+  && !servicesError.value && !scenariosError.value
+  && services.value.length === 0 && scenarios.value.length === 0,
+)
 
 async function handleSignOut() {
   await auth.logout()
@@ -52,7 +66,31 @@ async function handleSignOut() {
       </div>
     </div>
 
-    <div class="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-2">
+    <section
+      v-if="nothingYet"
+      class="mt-8 max-w-[560px] rounded-(--radius-box) border border-border bg-surface p-6"
+      data-testid="authoring-empty"
+    >
+      <h2 class="font-display text-h2 text-ink-true">
+        Start by drawing a line
+      </h2>
+      <p class="font-body text-body mt-3 text-ink-muted">
+        {{ LINE_DEFINITION }}
+        A network combines lines so riders can change between them.
+      </p>
+      <router-link
+        to="/authoring/services/new"
+        :class="[PRIMARY_BUTTON_CLASS, 'mt-6 inline-block']"
+        data-testid="first-service-link"
+      >
+        Create your first line
+      </router-link>
+    </section>
+
+    <div
+      v-else
+      class="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-2"
+    >
       <section>
         <div class="flex items-center justify-between gap-3">
           <h2 class="font-display text-h2 text-ink-true">
@@ -85,7 +123,7 @@ async function handleSignOut() {
           class="font-body text-caption mt-3 text-ink-muted italic"
           data-testid="services-empty"
         >
-          You haven't created any lines yet.
+          {{ LINE_DEFINITION }} You haven't created one yet.
         </p>
         <ul
           v-else
@@ -134,13 +172,32 @@ async function handleSignOut() {
         >
           Couldn't load your networks.
         </p>
-        <p
+        <div
           v-else-if="scenarios.length === 0"
-          class="font-body text-caption mt-3 text-ink-muted italic"
+          class="mt-3 flex flex-col items-start gap-4"
           data-testid="scenarios-empty"
         >
-          You haven't created any networks yet.
-        </p>
+          <p
+            v-if="hasLines"
+            class="font-body text-caption text-ink-muted italic"
+          >
+            Combine your lines into a network so riders can change between them.
+          </p>
+          <p
+            v-else
+            class="font-body text-caption text-ink-muted italic"
+          >
+            A network combines lines so riders can change between them.
+          </p>
+          <router-link
+            v-if="hasLines"
+            to="/authoring/scenarios/new"
+            :class="PRIMARY_BUTTON_CLASS"
+            data-testid="first-scenario-link"
+          >
+            Create a network
+          </router-link>
+        </div>
         <ul
           v-else
           class="mt-3 flex flex-col gap-2"

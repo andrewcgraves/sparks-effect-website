@@ -4,6 +4,8 @@ import { latestAttempt } from './latestAttempt'
 import { newTraceId, traceHeaders } from '../api/traceId'
 import type { Job, TransitGraph } from '../api/authoring'
 import { authoringFault, type AuthoringNoun } from '../api/authoringFault'
+import { useAnnouncer } from './useToast'
+import { compiledMessage, compilingMessage } from './progressAnnouncements'
 
 export function useCompileJob(
   compile: (slug: string, init?: RequestInit) => Promise<Job>,
@@ -13,6 +15,7 @@ export function useCompileJob(
   const compiling = ref(false)
   const compileError = ref('')
   const result = ref<TransitGraph | null>(null)
+  const { announce } = useAnnouncer()
 
   // A compile superseded mid-flight must not resurrect itself when it lands —
   // or, worse, report its failure over the newer attempt's result.
@@ -22,6 +25,7 @@ export function useCompileJob(
     const attempt = attempts.begin()
     compiling.value = true
     compileError.value = ''
+    announce(compilingMessage(noun))
     try {
       // One id for the compile POST and every poll of that job (SPA-205).
       const traceId = newTraceId()
@@ -29,6 +33,7 @@ export function useCompileJob(
       const finished = await jobs.track(job.id, { traceId })
       if (!attempts.isCurrent(attempt)) return
       result.value = finished.result ?? null
+      announce(compiledMessage(noun))
     } catch (err) {
       if (!attempts.isCurrent(attempt)) return
       compileError.value = authoringFault(err, noun)

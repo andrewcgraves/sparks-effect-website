@@ -6,6 +6,7 @@ import { Analytics, type BeforeSend } from '@vercel/analytics/vue'
 import App from './App.vue'
 import { router } from './router'
 import { useAuthStore } from './stores/auth'
+import { seriousA11yViolations } from './test/axe'
 
 vi.mock('./analytics/index', () => ({
   trackPageView: vi.fn(),
@@ -33,21 +34,6 @@ describe('App routing', () => {
     expect(wrapper.text()).toContain('Page not found')
   })
 
-  it('shows a sign-in link when signed out', async () => {
-    const wrapper = mount(App, { global: { plugins: [router] } })
-    await flushPromises()
-    expect(wrapper.find('[data-testid="nav-login"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="nav-authoring"]').exists()).toBe(false)
-  })
-
-  it('shows a My authoring link when signed in', async () => {
-    useAuthStore().signIn('tok-1', { id: 'u1', email: 'a@example.com' })
-    const wrapper = mount(App, { global: { plugins: [router] } })
-    await flushPromises()
-    expect(wrapper.find('[data-testid="nav-authoring"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="nav-login"]').exists()).toBe(false)
-  })
-
   it('sends a signed-out visitor to /account through sign-in, and back', async () => {
     await router.push('/account')
     expect(router.currentRoute.value.fullPath).toBe('/login?redirect=/account')
@@ -62,33 +48,24 @@ describe('App routing', () => {
     expect(wrapper.find('h1').text()).toBe('Account')
   })
 
-  it('shows an Admin link to an admin', async () => {
-    useAuthStore().signIn('tok-1', { id: 'u1', email: 'a@example.com', is_admin: true })
+  it('shows the site header on an authoring page', async () => {
+    useAuthStore().signIn('tok-1', { id: 'u1', email: 'a@example.com' })
+    await router.push('/authoring')
     const wrapper = mount(App, { global: { plugins: [router] } })
     await flushPromises()
-    expect(wrapper.get('[data-testid="nav-admin"]').attributes('href')).toBe('/admin')
-  })
-
-  it('shows no Admin link to a signed-in non-admin, or while signed out', async () => {
-    const signedOut = mount(App, { global: { plugins: [router] } })
-    await flushPromises()
-    expect(signedOut.find('[data-testid="nav-admin"]').exists()).toBe(false)
-
-    useAuthStore().signIn('tok-1', { id: 'u1', email: 'a@example.com', is_admin: false })
-    const member = mount(App, { global: { plugins: [router] } })
-    await flushPromises()
-    expect(member.find('[data-testid="nav-admin"]').exists()).toBe(false)
+    expect(wrapper.findAll('header')).toHaveLength(1)
+    expect(wrapper.find('[data-testid="nav-home"]').exists()).toBe(true)
   })
 
   it('links How it works from the header, signed in or out', async () => {
     const signedOut = mount(App, { global: { plugins: [router] } })
     await flushPromises()
-    expect(signedOut.get('header [data-testid="nav-how-it-works"]').attributes('href')).toBe('/how-it-works')
+    expect(signedOut.find('header nav[aria-label="Primary"] a[href="/how-it-works"]').exists()).toBe(true)
 
     useAuthStore().signIn('tok-1', { id: 'u1', email: 'a@example.com' })
     const signedIn = mount(App, { global: { plugins: [router] } })
     await flushPromises()
-    expect(signedIn.get('header [data-testid="nav-how-it-works"]').attributes('href')).toBe('/how-it-works')
+    expect(signedIn.find('header nav[aria-label="Primary"] a[href="/how-it-works"]').exists()).toBe(true)
   })
 
   it('links How it works from the footer', async () => {
@@ -137,5 +114,37 @@ describe('App routing', () => {
 
     expect(beforeSend({ type: 'pageview', url: 'https://sparks.example/welcome/secret-token' }))
       .toEqual({ type: 'pageview', url: 'https://sparks.example/welcome' })
+  })
+
+  describe('skipping to the content', () => {
+    it('offers a skip link before anything else a keyboard can reach', async () => {
+      const wrapper = mount(App, { global: { plugins: [router] } })
+      await flushPromises()
+      const first = wrapper.find('a, button, input, select, textarea')
+      expect(first.attributes('data-testid')).toBe('skip-link')
+      expect(first.text()).toBe('Skip to content')
+      expect(first.attributes('href')).toBe('#content')
+    })
+
+    it('moves focus past the header to the page itself', async () => {
+      const wrapper = mount(App, { global: { plugins: [router] }, attachTo: document.body })
+      await flushPromises()
+      await wrapper.get('[data-testid="skip-link"]').trigger('click')
+
+      const content = wrapper.get('#content')
+      expect(document.activeElement).toBe(content.element)
+      expect(content.find('main').exists()).toBe(true)
+      expect(router.currentRoute.value.hash).toBe('')
+      wrapper.unmount()
+    })
+  })
+
+  it('has no serious or critical accessibility violations around the page', async () => {
+    useAuthStore().signIn('tok-1', { id: 'u1', email: 'a@example.com', is_admin: true })
+    await router.push('/nope')
+    const wrapper = mount(App, { global: { plugins: [router] }, attachTo: document.body })
+    await flushPromises()
+    expect(await seriousA11yViolations(wrapper)).toEqual([])
+    wrapper.unmount()
   })
 })

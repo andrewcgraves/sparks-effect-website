@@ -387,6 +387,14 @@ describe('IsochroneForm', () => {
       expect(button.text()).toContain('Pick location on map')
     })
 
+    it('keeps the pin out of what a screen reader says for either location button', () => {
+      const wrapper = mount(IsochroneForm)
+      for (const button of [pickButton(wrapper), wrapper.get('[data-testid="use-current-location"]')]) {
+        const pin = button.findAll('[aria-hidden="true"]').map((hidden) => hidden.text())
+        expect(pin).toEqual(['📍'])
+      }
+    })
+
     it('arms on click and reports it, so the parent can arm the map', async () => {
       const wrapper = mount(IsochroneForm)
       await pickButton(wrapper).trigger('click')

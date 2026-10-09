@@ -32,6 +32,13 @@ function readPersistedSession(): PersistedSession | null {
   }
 }
 
+// What is persisted right now, read straight from storage, for code that runs
+// outside a component and must not wait on the store: the error tracker's
+// scrubber, which removes this value from anything it sends.
+export function persistedSessionToken(): string | null {
+  return readPersistedSession()?.token ?? null
+}
+
 export const useAuthStore = defineStore('auth', () => {
   const restored = readPersistedSession()
 

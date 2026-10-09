@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import ToastRegion from './ToastRegion.vue'
-import { TOAST_DURATION_MS, useToast, useToastHost } from '../composables/useToast'
+import { TOAST_DURATION_MS, useAnnouncer, useToast, useToastHost } from '../composables/useToast'
 
 describe('ToastRegion', () => {
   let host: VueWrapper
@@ -126,5 +126,43 @@ describe('ToastRegion', () => {
     await stack().trigger('mouseleave')
     await elapse(TOAST_DURATION_MS * 2)
     expect(messages()).toEqual(['Published'])
+  })
+
+  describe('announcing progress without a toast', () => {
+    async function announce(message: string): Promise<void> {
+      useAnnouncer().announce(message)
+      await nextTick()
+    }
+
+    it('says it in the same polite region, and shows nothing', async () => {
+      await announce('Compiling line…')
+      expect(region().text()).toBe('Compiling line…')
+      expect(messages()).toEqual([])
+    })
+
+    it('says only the latest, since an older step is already over', async () => {
+      await announce('Compiling line…')
+      await announce('Line compiled')
+      expect(region().text()).toBe('Line compiled')
+    })
+
+    it('says the same words again when they are announced again', async () => {
+      await announce('Splash zone ready: 3 stations reached')
+      const first = region().get('p').element
+      await announce('Splash zone ready: 3 stations reached')
+      expect(region().get('p').element).not.toBe(first)
+    })
+
+    it('leaves the region once a toast would have gone, so browse mode does not find it later', async () => {
+      await announce('Line compiled')
+      await elapse(TOAST_DURATION_MS)
+      expect(region().text()).toBe('')
+    })
+
+    it('speaks alongside a toast rather than over it', async () => {
+      await show('Published')
+      await announce('Line compiled')
+      expect(region().findAll('p').map((p) => p.text())).toEqual(['Published', 'Line compiled'])
+    })
   })
 })

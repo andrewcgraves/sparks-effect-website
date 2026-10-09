@@ -20,6 +20,8 @@ const stubInput: ScenarioInput = {
   name: 'CA HSR',
   description: 'California High-Speed Rail',
   service_ids: ['svc1', 'svc2'],
+  interchange_pairs: [],
+  boarding_wait: null,
 }
 
 const stubScenario: Scenario = {
@@ -91,6 +93,30 @@ describe('scenarios CRUD', () => {
     expect((init as RequestInit).method).toBe('PUT')
     const body = JSON.parse((init as RequestInit).body as string)
     expect(body.service_ids).toEqual(['svc1', 'svc2'])
+  })
+
+  // The API's userScenarioRequest: pairs of {service_id, slug}, and a
+  // boarding_wait of {policy, secs} where null clears the override.
+  it('updateScenario PUTs interchange pairs and the boarding wait in the API\'s shape', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 200, json: async () => stubScenario } as Response)
+    await updateScenario('ca-hsr', {
+      ...stubInput,
+      interchange_pairs: [{ a: { service_id: 'svc1', slug: 'union' }, b: { service_id: 'svc2', slug: 'midtown' } }],
+      boarding_wait: { policy: 'fixed', secs: 300 },
+    })
+    const body = JSON.parse((vi.mocked(fetch).mock.calls[0][1] as RequestInit).body as string)
+    expect(body.interchange_pairs).toEqual([
+      { a: { service_id: 'svc1', slug: 'union' }, b: { service_id: 'svc2', slug: 'midtown' } },
+    ])
+    expect(body.boarding_wait).toEqual({ policy: 'fixed', secs: 300 })
+  })
+
+  it('updateScenario sends a null boarding wait, which returns the scenario to the default', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 200, json: async () => stubScenario } as Response)
+    await updateScenario('ca-hsr', stubInput)
+    const body = JSON.parse((vi.mocked(fetch).mock.calls[0][1] as RequestInit).body as string)
+    expect(body).toHaveProperty('boarding_wait', null)
+    expect(body.interchange_pairs).toEqual([])
   })
 
   it('deleteScenario DELETEs and resolves void', async () => {
