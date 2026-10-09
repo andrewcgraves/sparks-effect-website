@@ -3,6 +3,26 @@ import { ref } from 'vue'
 import { fetchCoverIndex, type CoverCard, type CoverSource } from '../api/coverIndex'
 import { INLINE_LINK_CLASS, LIST_CARD_LINK_CLASS } from '../components/linkStyles'
 import ListSkeleton from '../components/ListSkeleton.vue'
+// PROTOTYPE (SPA-414) — throwaway variant switcher; see src/views/home-prototype.
+import { computed } from 'vue'
+import { useRoute } from 'vue-router'
+import PrototypeSwitcher from '../components/PrototypeSwitcher.vue'
+import { useHomePrototypeData, type ForcedState } from './home-prototype/homePrototypeData'
+import VariantA from './home-prototype/VariantA.vue'
+import VariantB from './home-prototype/VariantB.vue'
+import VariantC from './home-prototype/VariantC.vue'
+
+const VARIANTS = [
+  { key: '0', label: 'Current page' },
+  { key: 'A', label: 'Map hero' },
+  { key: 'B', label: 'Editorial split' },
+  { key: 'C', label: 'Step-through' },
+]
+const FORCED: ForcedState[] = ['none', 'one-failed', 'both-failed', 'empty']
+const route = useRoute()
+// The existing specs mount this page with no query; they keep seeing the real page.
+const variant = computed(() => (route.query.variant as string | undefined) ?? (import.meta.env.MODE === 'test' ? '0' : 'A'))
+const home = useHomePrototypeData()
 
 const UNAVAILABLE_COPY: Record<CoverSource, string> = {
   scenario: "Couldn't load the curated networks.",
@@ -24,7 +44,41 @@ fetchCoverIndex()
 </script>
 
 <template>
-  <main class="flex flex-1 flex-col p-(--page-padding)">
+  <VariantA
+    v-if="variant === 'A'"
+    :data="home"
+  />
+  <VariantB
+    v-else-if="variant === 'B'"
+    :data="home"
+  />
+  <VariantC
+    v-else-if="variant === 'C'"
+    :data="home"
+  />
+  <PrototypeSwitcher
+    :variants="VARIANTS"
+    :current="variant"
+  >
+    <span class="rounded-full bg-white/15 px-2 py-1">{{ home.loading ? 'loading…' : `${home.source} data` }}</span>
+    <label class="flex items-center gap-1 rounded-full bg-white/15 px-2 py-0.5">
+      state
+      <select
+        v-model="home.forced"
+        class="cursor-pointer bg-transparent text-white [&>option]:text-ink"
+      >
+        <option
+          v-for="f in FORCED"
+          :key="f"
+          :value="f"
+        >{{ f }}</option>
+      </select>
+    </label>
+  </PrototypeSwitcher>
+  <main
+    v-if="!['A', 'B', 'C'].includes(variant)"
+    class="flex flex-1 flex-col p-(--page-padding)"
+  >
     <div class="flex-1">
       <h1 class="font-display text-display text-ink-true">
         Sparks Effect
