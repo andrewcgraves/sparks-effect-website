@@ -100,6 +100,17 @@ describe('ScenarioBuilderView', () => {
     expect(wrapper.find('[data-testid="services-error"]').exists()).toBe(true)
   })
 
+  it('with no lines yet, explains a network needs one and links to create it', async () => {
+    vi.mocked(fetchMyServices).mockResolvedValue([])
+    const wrapper = mountView()
+    await flushPromises()
+    const empty = wrapper.get('[data-testid="services-empty"]')
+    expect(empty.text()).toContain('A network is made of lines')
+    const link = empty.getComponent(RouterLinkStub)
+    expect(link.props('to')).toBe('/authoring/services/new')
+    expect(link.text()).toBe('Create a line first')
+  })
+
   it('stays loading, not failed, when the services are refused for an expired session', async () => {
     vi.mocked(fetchMyServices).mockRejectedValue(new SessionExpiredError('GET /api/services failed: 401'))
     const wrapper = mountView()

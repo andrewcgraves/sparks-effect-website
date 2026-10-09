@@ -332,13 +332,22 @@ async function handleSave(): Promise<void> {
         >
           Couldn't load your lines.
         </p>
-        <p
+        <div
           v-else-if="services.length === 0"
-          class="font-body text-caption mt-2 text-ink-muted italic"
+          class="mt-2 flex flex-col items-start gap-3"
           data-testid="services-empty"
         >
-          You haven't created any lines yet.
-        </p>
+          <p class="font-body text-caption text-ink-muted italic">
+            A network is made of lines, and you haven't created one yet.
+          </p>
+          <router-link
+            to="/authoring/services/new"
+            :class="ACTION_LINK_CLASS"
+            data-testid="first-service-link"
+          >
+            Create a line first
+          </router-link>
+        </div>
         <ul
           v-else
           class="mt-3 flex flex-col gap-2"

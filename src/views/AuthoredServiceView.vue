@@ -209,7 +209,7 @@ watch(service, (loaded) => {
             class="font-body text-caption mt-3 text-ink-muted italic"
             data-testid="service-stops-empty"
           >
-            This line has no stops yet.
+            This line has no stops yet. Edit it to place stops along its route.
           </p>
           <ol
             v-else
@@ -274,7 +274,7 @@ watch(service, (loaded) => {
             class="font-body text-caption mt-3 text-ink-muted italic"
             data-testid="service-windows-empty"
           >
-            No frequency windows yet.
+            This line has no timetable yet. Edit it to say how often it runs.
           </p>
           <ul
             v-else
