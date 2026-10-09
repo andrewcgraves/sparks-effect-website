@@ -89,9 +89,8 @@ async function fetchAndUpdate() {
 }
 
 function onInput() {
-  if (debounceTimer) clearTimeout(debounceTimer)
+  cancelPending()
   if (!isSearchable(inputValue.value)) {
-    cancelPending()
     closeFoldout()
     return
   }

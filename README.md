@@ -141,14 +141,14 @@ Authentication depends on the host:
 
 | Where | How it authenticates |
 |---|---|
-| `sparks-effect.app`, `dev.sparks-effect.app` | Stadia **domain auth**: both hosts are listed under the Stadia property's Authentication Configuration. No key ships, and `VITE_STADIA_API_KEY` stays unset in Vercel's Production scope. |
+| `sparks-effect.app`, `dev.sparks-effect.app` | Stadia **domain auth**: list both hosts under the Stadia property's Authentication Configuration. No key ships, and `VITE_STADIA_API_KEY` stays unset in Vercel's Production scope. |
 | Vercel previews (`*.vercel.app`) | `VITE_STADIA_API_KEY` in Vercel's **Preview** scope only. That key is public in preview bundles; rotate it if abused. It also switches previews to Stadia tiles. |
 | `localhost` | Autocomplete and place details work keyless. Reverse geocoding doesn't, so "use my location" needs `VITE_STADIA_API_KEY` in `.env.local`. |
 
 The geocoder sends `api_key` only when that variable is set. The account is on
 Stadia's free, non-commercial plan, which **stops serving** at its monthly
 credit cap (autocomplete is 1 credit, place details and reverse are 20 each)
-instead of billing overage. A usage alert at about 70% is set in the Stadia
+instead of billing overage, so keep a usage alert at about 70% in the Stadia
 dashboard. Move to Starter if usage stays near the cap or the site starts
 earning money.
 

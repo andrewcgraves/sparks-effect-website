@@ -20,7 +20,7 @@ export interface AttributionPart {
 }
 
 // Stadia's terms require crediting it and the datasets behind its results
-// wherever they are shown; the legal page (SPA-420) reuses the same parts.
+// wherever they are shown; the attribution page (SPA-420) reuses the same parts.
 export const GEOCODER_ATTRIBUTION: AttributionPart[] = [
   { text: '© Stadia Maps', href: 'https://stadiamaps.com/attribution/' },
   { text: '© OpenStreetMap contributors', href: 'https://www.openstreetmap.org/copyright' },
@@ -87,6 +87,12 @@ function labelOf(feature: StadiaFeature): string {
   return [name, coarse_location].filter(Boolean).join(', ')
 }
 
+function coordinatesOf(feature: StadiaFeature | undefined): { lat: number; lng: number } | null {
+  if (!feature?.geometry) return null
+  const [lng, lat] = feature.geometry.coordinates
+  return { lat, lng }
+}
+
 export async function fetchSuggestions(query: string, signal?: AbortSignal): Promise<AddressMatch[]> {
   if (!query.trim()) return []
   const features = await stadiaFeatures(
@@ -109,9 +115,9 @@ export async function fetchSuggestions(query: string, signal?: AbortSignal): Pro
 // made only once the user picks it rather than for every row on every keystroke.
 export async function lookupPlace(match: AddressMatch, signal?: AbortSignal): Promise<GeocodingSuggestion> {
   const [place] = await stadiaFeatures('place_details', { ids: match.gid }, signal)
-  if (!place?.geometry) throw new GeocoderUnavailableError()
-  const [lng, lat] = place.geometry.coordinates
-  return { label: match.label, lat, lng }
+  const point = coordinatesOf(place)
+  if (!point) throw new GeocoderUnavailableError()
+  return { label: match.label, ...point }
 }
 
 export async function reverseGeocode(lat: number, lng: number): Promise<GeocodingSuggestion | null> {
@@ -121,9 +127,8 @@ export async function reverseGeocode(lat: number, lng: number): Promise<Geocodin
       'point.lon': String(lng),
       size: '1',
     })
-    if (!place?.geometry) return null
-    const [placeLng, placeLat] = place.geometry.coordinates
-    return { label: labelOf(place), lat: placeLat, lng: placeLng }
+    const point = coordinatesOf(place)
+    return point ? { label: labelOf(place), ...point } : null
   } catch {
     return null
   }

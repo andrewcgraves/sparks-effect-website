@@ -281,6 +281,21 @@ describe('AddressAutocomplete', () => {
     expect(items.map((item) => item.text())).toEqual(['Chicago, IL, USA'])
   })
 
+  it('cancels the in-flight search on the next keystroke, before its debounce elapses', async () => {
+    let firstSignal: AbortSignal | undefined
+    vi.spyOn(geocoding, 'fetchSuggestions').mockImplementationOnce((_query, signal) => {
+      firstSignal = signal
+      return new Promise(() => {})
+    })
+
+    const wrapper = mount(AddressAutocomplete)
+    await wrapper.find('input').setValue('Chic')
+    await vi.advanceTimersByTimeAsync(350)
+    await wrapper.find('input').setValue('Chica')
+
+    expect(firstSignal?.aborted).toBe(true)
+  })
+
   it('credits the geocoder’s data sources under the box', () => {
     const wrapper = mount(AddressAutocomplete)
 
