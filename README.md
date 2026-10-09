@@ -117,6 +117,45 @@ with as well. Values come from the app's page in Frontend Observability:
 The collector's host, `https://faro-collector-prod-us-west-0.grafana.net` for
 this stack, is in `connect-src` of `vercel.json`'s Content Security Policy.
 
+## Address search
+
+The address box and "use my location" geocode with
+[Stadia Maps Geocoding v2](https://docs.stadiamaps.com/geocoding-search-autocomplete/),
+called straight from the browser (SPA-369 chose it; Stadia's terms forbid
+proxying or caching it). `src/api/geocoding.ts` is the only module that knows
+the provider:
+
+- `fetchSuggestions` calls `/autocomplete`, limited to the US and a
+  California–Nevada box. Its matches carry no coordinates, so `lookupPlace`
+  calls `/place_details` for the one the user picks.
+- `reverseGeocode` calls `/reverse` for "use my location". A failure returns
+  `null`, and the form keeps the coordinates without a name.
+- Any failure (an HTTP error, a 429, the free quota running out, a network
+  error or a malformed body) throws `GeocoderUnavailableError`, and the box
+  says "Address search is unavailable. Click the map to choose a point."
+  instead of "No results found".
+- To save credits, the box waits for three characters and 300 ms of quiet,
+  and aborts a search the next keystroke supersedes.
+
+Authentication depends on the host:
+
+| Where | How it authenticates |
+|---|---|
+| `sparks-effect.app`, `dev.sparks-effect.app` | Stadia **domain auth**: both hosts are listed under the Stadia property's Authentication Configuration. No key ships, and `VITE_STADIA_API_KEY` stays unset in Vercel's Production scope. |
+| Vercel previews (`*.vercel.app`) | `VITE_STADIA_API_KEY` in Vercel's **Preview** scope only. That key is public in preview bundles; rotate it if abused. It also switches previews to Stadia tiles. |
+| `localhost` | Autocomplete and place details work keyless. Reverse geocoding doesn't, so "use my location" needs `VITE_STADIA_API_KEY` in `.env.local`. |
+
+The geocoder sends `api_key` only when that variable is set. The account is on
+Stadia's free, non-commercial plan, which **stops serving** at its monthly
+credit cap (autocomplete is 1 credit, place details and reverse are 20 each)
+instead of billing overage. A usage alert at about 70% is set in the Stadia
+dashboard. Move to Starter if usage stays near the cap or the site starts
+earning money.
+
+The credit under the box comes from `GEOCODER_ATTRIBUTION`, which the
+attribution page (SPA-420) should reuse. `api.stadiamaps.com` is in the CSP's
+`connect-src`.
+
 ## Link previews
 
 Link-unfurl crawlers (Slackbot, Discordbot, iMessage, …) run no JavaScript, so a
@@ -187,7 +226,7 @@ rules — different keys, so the rules compose rather than compete:
   inline or `eval`; styles may be inline (Tailwind, Vue `:style`, MapLibre);
   `connect-src` names the API (staging and production Railway hosts), the tile
   hosts (OpenFreeMap, and Stadia when `VITE_STADIA_API_KEY` is set) and the
-  geocoder (Nominatim); `worker-src 'self'` for MapLibre's worker, which
+  geocoder (Stadia, `api.stadiamaps.com`); `worker-src 'self'` for MapLibre's worker, which
   `MapView.vue` loads from `/assets/`; `img-src data: blob:` for MapLibre's
   control icons and images.
 - `Strict-Transport-Security`, `X-Content-Type-Options: nosniff`,
@@ -236,9 +275,8 @@ in `vercel.json`. What guards the policy meanwhile:
   `connect-src`, so a misconfigured preview fails visibly instead of the
   enforced CSP silently blocking every API call. Local and CI builds skip it.
 
-Hosts still to add when they land: the geocoder that replaces Nominatim
-(SPA-370) and the error tracker's ingest host, plus its `report-uri`
-(SPA-380). An embeddable map for other sites (SPA-462) will need its own
+Hosts still to add when they land: the error tracker's ingest host, plus its
+`report-uri` (SPA-380). An embeddable map for other sites (SPA-462) will need its own
 carve-out from `frame-ancestors` and `X-Frame-Options`. MapLibre's RTL text
 plugin, or anything loaded through `importScriptInWorkers`, would need
 `script-src` changes if ever adopted.
