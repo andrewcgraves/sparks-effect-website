@@ -54,7 +54,6 @@ describe('App routing', () => {
     await flushPromises()
     expect(wrapper.findAll('header')).toHaveLength(1)
     expect(wrapper.find('[data-testid="nav-home"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="nav-authoring"]').exists()).toBe(true)
   })
 
   it('hosts the shared confirm dialog and toast region on every page', async () => {

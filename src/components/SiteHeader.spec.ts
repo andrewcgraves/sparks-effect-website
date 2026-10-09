@@ -77,6 +77,31 @@ describe('SiteHeader', () => {
     expect(networks.attributes('aria-current')).toBeUndefined()
   })
 
+  it('marks a primary link on any page beneath its path', async () => {
+    const wrapper = await mountHeader(
+      [
+        { path: '/lines', component: Blank },
+        { path: '/lines/:slug', component: Blank },
+        { path: '/linesmen', component: Blank },
+      ],
+      '/lines/caltrain',
+    )
+    const [lines] = primaryLinks(wrapper)
+    expect(lines.attributes('aria-current')).toBe('page')
+  })
+
+  it('does not mark a primary link for a page that only shares its prefix', async () => {
+    const wrapper = await mountHeader(
+      [
+        { path: '/lines', component: Blank },
+        { path: '/linesmen', component: Blank },
+      ],
+      '/linesmen',
+    )
+    const [lines] = primaryLinks(wrapper)
+    expect(lines.attributes('aria-current')).toBeUndefined()
+  })
+
   it('shows a sign-in link when signed out', async () => {
     const wrapper = await mountHeader()
     expect(wrapper.find('[data-testid="nav-login"]').attributes('href')).toBe('/login')

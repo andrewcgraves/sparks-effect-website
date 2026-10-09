@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
+import { useRoutedPages } from '../composables/useRoutedPages'
 import { useAuthStore } from '../stores/auth'
 import { SECONDARY_BUTTON_CLASS } from './buttonStyles'
 import { ACTION_LINK_CLASS } from './linkStyles'
@@ -12,20 +12,21 @@ const NAV_PAGES = [
 ]
 
 const PRIMARY_LINK_CLASS =
-  `${ACTION_LINK_CLASS} flex h-full items-center border-b-2 border-transparent [&.router-link-active]:border-coral [&.router-link-active]:text-ink`
+  `${ACTION_LINK_CLASS} flex h-full items-center border-b-2 border-transparent aria-[current=page]:border-coral aria-[current=page]:text-ink`
 
 const auth = useAuthStore()
-const router = useRouter()
+const route = useRoute()
+const navLinks = useRoutedPages(NAV_PAGES)
 
-// As in the footer, each page is linked only once its route lands.
-const navLinks = computed(() => {
-  const paths = new Set(router.getRoutes().map((route) => route.path))
-  return NAV_PAGES.filter((page) => paths.has(page.path))
-})
+// RouterLink only marks an exact match; a primary page stays current on every
+// page beneath it, such as one line under Lines.
+function isCurrent(path: string) {
+  return route.path === path || route.path.startsWith(`${path}/`)
+}
 </script>
 
 <template>
-  <header class="sticky top-0 z-10 flex h-16 items-center justify-between gap-4 border-b border-border bg-white px-(--page-gutter) whitespace-nowrap">
+  <header class="sticky top-0 z-20 flex h-16 items-center justify-between gap-4 border-b border-border bg-white px-(--page-gutter) whitespace-nowrap">
     <div class="flex h-full items-center gap-8">
       <RouterLink
         to="/"
@@ -44,6 +45,7 @@ const navLinks = computed(() => {
           :key="link.path"
           :to="link.path"
           :class="PRIMARY_LINK_CLASS"
+          :aria-current="isCurrent(link.path) ? 'page' : undefined"
         >
           {{ link.label }}
         </RouterLink>
