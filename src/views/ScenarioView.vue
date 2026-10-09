@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, provide, reactive, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import IsochroneForm from '../IsochroneForm.vue'
 import CopyLinkButton from '../components/CopyLinkButton.vue'
 import MapView from '../components/MapView.vue'
@@ -23,6 +24,12 @@ import type { IsochronePayload } from '../isochroneQuery'
 import type { ChainResponse } from '../fixtures/isochrone'
 import LoadingRegion from '../components/LoadingRegion.vue'
 import SkeletonShape from '../components/SkeletonShape.vue'
+// PROTOTYPE (SPA-429) — phone-layout variants; see scenarioPhonePrototype/.
+import PrototypeSwitcher from '../components/PrototypeSwitcher.vue'
+import PhoneVariantA from './scenarioPhonePrototype/VariantA.vue'
+import PhoneVariantB from './scenarioPhonePrototype/VariantB.vue'
+import PhoneVariantC from './scenarioPhonePrototype/VariantC.vue'
+import { PHONE_PAGE, type PhonePage } from './scenarioPhonePrototype/pageContext'
 
 const props = defineProps<{ slug: string }>()
 
@@ -118,10 +125,66 @@ function onPrerenderedSelect(result: ChainResponse) {
   showIsochrone(result)
   void forgetIsochrone()
 }
+// PROTOTYPE (SPA-429) — below `md` the page renders one phone variant chosen
+// by ?variant=; `current` is today's stacked layout, kept as the baseline.
+const PHONE_VARIANTS = [
+  { key: 'A', label: 'Snap sheet' },
+  { key: 'B', label: 'Search on map' },
+  { key: 'C', label: 'Split + tabs' },
+  { key: 'current', label: 'Today (stacked)' },
+]
+const route = useRoute()
+const phoneVariant = computed(() => {
+  const v = route.query.variant
+  return typeof v === 'string' && PHONE_VARIANTS.some((p) => p.key === v) ? v : 'A'
+})
+// Optional-chained: jsdom has no matchMedia, and the specs are desktop.
+const phoneQuery = window.matchMedia?.('(max-width: 767.98px)')
+const isPhone = ref(phoneQuery?.matches ?? false)
+function onPhoneChange(e: MediaQueryListEvent) {
+  isPhone.value = e.matches
+}
+phoneQuery?.addEventListener('change', onPhoneChange)
+onBeforeUnmount(() => phoneQuery?.removeEventListener('change', onPhoneChange))
+
+provide(PHONE_PAGE, reactive({
+  slug: props.slug,
+  name,
+  description,
+  routes,
+  stations,
+  services,
+  origin,
+  isochroneData,
+  isLoading,
+  fetchError,
+  timeRemaining,
+  stationTimeGroups,
+  travelTimesLoading,
+  travelTimesFailed,
+  activeStation,
+  selectedPrerenderedId,
+  submit: handleFormSubmit,
+  setOrigin: onOriginChange,
+  highlight,
+  showIsochrone,
+}) as PhonePage)
 </script>
 
 <template>
-  <main class="flex-1 p-(--page-padding)">
+  <template v-if="isPhone">
+    <PrototypeSwitcher
+      :variants="PHONE_VARIANTS"
+      :current="phoneVariant"
+    />
+    <PhoneVariantA v-if="phoneVariant === 'A'" />
+    <PhoneVariantB v-else-if="phoneVariant === 'B'" />
+    <PhoneVariantC v-else-if="phoneVariant === 'C'" />
+  </template>
+  <main
+    v-if="!isPhone || phoneVariant === 'current'"
+    class="flex-1 p-(--page-padding)"
+  >
     <AllLinesLink />
     <LoadingRegion
       v-if="scenarioLoading"

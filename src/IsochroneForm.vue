@@ -108,7 +108,17 @@ function setOriginFromMap(coord: { lat: number; lng: number }) {
   addressAutocompleteRef.value?.setInputValue('')
 }
 
-defineExpose({ setOriginFromMap })
+// PROTOTYPE (SPA-429): the phone sheet's peek row shows a one-line summary
+// and its own Plot button, so it reads the form's state from outside. If the
+// sheet wins, lift this state properly rather than keeping the expose.
+const summary = computed(() => ({
+  place: selectedLabel.value || (isValid.value ? `${Number(lat.value).toFixed(3)}, ${Number(lng.value).toFixed(3)}` : ''),
+  duration: duration.value,
+  mode: mode.value,
+  canPlot: isValid.value && !props.loading,
+}))
+
+defineExpose({ setOriginFromMap, summary, submit: handleSubmit, armPick: () => (pickArmed.value = true) })
 
 function onAutocompleteSelect(suggestion: GeocodingSuggestion) {
   pickArmed.value = false
