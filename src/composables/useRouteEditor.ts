@@ -51,6 +51,9 @@ export const GRAPH_DEBOUNCE_MS = 250
 export const WALK_MIN_BUDGET_M = 500
 export const WALK_BUDGET_FACTOR = 3
 export const COORDINATE_PRECISION = 9
+// Over the route map's line width, and in the full ink: the route being
+// drawn is the strongest stroke on the map, over every railway it follows.
+export const DRAWN_ROUTE_WIDTH = 3
 // MapLibre's zoom counts 512 px tiles, whatever the vector tiles' extent is.
 const SCREEN_TILE_PX = 512
 const MAX_LAT = 85
@@ -425,7 +428,7 @@ export function useRouteEditor(options: RouteEditorOptions) {
           },
           styles: {
             lineStringColor: ink,
-            lineStringWidth: 3,
+            lineStringWidth: DRAWN_ROUTE_WIDTH,
             snappingPointColor: coral,
             snappingPointWidth: 6,
             snappingPointOutlineColor: white,
@@ -452,7 +455,7 @@ export function useRouteEditor(options: RouteEditorOptions) {
           },
           styles: {
             selectedLineStringColor: ink,
-            selectedLineStringWidth: 3,
+            selectedLineStringWidth: DRAWN_ROUTE_WIDTH,
             selectionPointColor: white,
             selectionPointWidth: 5,
             selectionPointOutlineColor: ink,

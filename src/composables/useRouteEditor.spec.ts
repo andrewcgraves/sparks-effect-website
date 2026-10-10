@@ -186,6 +186,7 @@ import {
 import { ROUTE_EDITOR_LAYER_IDS } from './railLayerIds'
 import { layerStack } from './layerStack'
 import { ROUTE_LINE_WIDTH } from './useRouteLayer'
+import { THEME_TOKEN_FALLBACKS } from '../themeTokens'
 import type { LngLat } from '../rail/railGraph'
 import { RailGraph } from '../rail/railGraph'
 
@@ -428,8 +429,11 @@ describe('useRouteEditor', () => {
       expect(coordinates.value.length).toBeGreaterThan(2)
       expect(route?.properties?.mode).toBe('linestring')
       const styles = draw.modes.linestring.options.styles as { lineStringColor: string; lineStringWidth: number }
-      expect(styles.lineStringColor).toMatch(/^#[0-9a-f]{6}$/i)
-      expect(styles.lineStringWidth).toBeGreaterThanOrEqual(ROUTE_LINE_WIDTH)
+      expect(styles.lineStringColor).toBe(THEME_TOKEN_FALLBACKS['--color-ink'])
+      expect(styles.lineStringWidth).toBeGreaterThan(ROUTE_LINE_WIDTH)
+      const selected = draw.modes.select.options.styles as { selectedLineStringColor: string; selectedLineStringWidth: number }
+      expect(selected.selectedLineStringColor).toBe(styles.lineStringColor)
+      expect(selected.selectedLineStringWidth).toBe(styles.lineStringWidth)
 
       // Nothing sits above the editor's layers in the stack, so the adapter
       // adds them over every layer already on the map, the basemap's included.

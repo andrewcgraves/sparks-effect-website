@@ -22,6 +22,7 @@ import {
   railOverlayModule,
 } from './useRailOverlay'
 import { THEME_TOKEN_FALLBACKS } from '../themeTokens'
+import { ROUTE_LINE_WIDTH } from './useRouteLayer'
 
 const URL = 'https://rail.example.net/rail-latest.pmtiles'
 
@@ -81,7 +82,18 @@ describe('railOverlayModule', () => {
     const [existing, construction, proposed] = map.layers
     expect(existing.filter).toEqual(['match', ['get', 'railway'], ['construction', 'proposed'], false, true])
     expect(existing.paint?.['line-dasharray']).toBeUndefined()
-    expect(existing.paint?.['line-color']).toBe(THEME_TOKEN_FALLBACKS['--color-ink-faint'])
+    // Existing railways are the strongest overlay line and planned ones fade:
+    // muted ink over faint ink, and proposed thinner and lighter again.
+    expect(existing.paint?.['line-color']).toBe(THEME_TOKEN_FALLBACKS['--color-ink-muted'])
+    expect(construction.paint?.['line-color']).toBe(THEME_TOKEN_FALLBACKS['--color-ink-faint'])
+    expect(proposed.paint?.['line-color']).toBe(THEME_TOKEN_FALLBACKS['--color-ink-faint'])
+    const width = (layer: typeof existing) => layer.paint?.['line-width'] as number
+    // Under the route map's line, which the editor's drawn route is wider than.
+    expect(width(existing)).toBeLessThan(ROUTE_LINE_WIDTH)
+    expect(width(existing)).toBeGreaterThanOrEqual(width(construction))
+    expect(width(construction)).toBeGreaterThan(width(proposed))
+    expect(proposed.paint?.['line-opacity']).toBeLessThan(1)
+    expect(construction.paint?.['line-opacity']).toBeUndefined()
     expect(construction.filter).toEqual(['==', ['get', 'railway'], 'construction'])
     expect(proposed.filter).toEqual(['==', ['get', 'railway'], 'proposed'])
     // Long dashes for construction, short for proposed: the two are told
