@@ -139,6 +139,17 @@ describe('AttributionView', () => {
     expect(hrefs(await mountView())).toContain(`mailto:${CONTACT_EMAIL}`)
   })
 
+  it('uses the product words, not the domain ones', async () => {
+    const visible = (await mountView()).text()
+    // Case-sensitive, unlike the other pages' check: an agency's own name
+    // ("UCSC Transportation and Parking Services") is a credit, not copy.
+    for (const word of ['scenarios?', 'services?', 'isochrones?', 'alignments?'].map(
+      (w) => new RegExp(`(?<![\\w-])${w}(?![\\w-])`),
+    )) {
+      expect(visible).not.toMatch(word)
+    }
+  })
+
   it('has no serious or critical accessibility violations', async () => {
     const wrapper = await mountView(document.body)
     expect(await seriousA11yViolations(wrapper)).toEqual([])

@@ -10,7 +10,7 @@ import {
 import { useRoutedPath } from '../composables/useRoutedPages'
 import { CONTACT_EMAIL, CONTACT_MAILTO } from '../legal/contact'
 
-const UPDATED = '2026-10-09'
+const UPDATED = '2026-10-10'
 
 // Both pages are linked only once their routes land (How it works is SPA-418,
 // Report a problem is SPA-421), so these terms can ship ahead of them.

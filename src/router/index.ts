@@ -136,7 +136,6 @@ export const router = createRouter({
       props: true,
       meta: { title: 'Route' },
     },
-    // The legal pages the footer links (SPA-420). Public, static, dated.
     {
       path: '/privacy',
       name: 'privacy',

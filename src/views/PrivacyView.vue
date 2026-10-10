@@ -11,7 +11,7 @@ import {
 } from '../components/proseStyles'
 import { CONTACT_EMAIL, CONTACT_MAILTO } from '../legal/contact'
 
-const UPDATED = '2026-10-09'
+const UPDATED = '2026-10-10'
 
 const PROCESSORS = [
   {
@@ -98,19 +98,21 @@ const PROCESSORS = [
     <p :class="PROSE_P_CLASS">
       We use Vercel Web Analytics to count page views. It sets no cookies and does not identify you;
       it reports the page address, with any sign-in link stripped out first. We also record a few
-      events of our own: that a splash zone was requested, with its mode and time budget; that an
-      address was searched for, with the text typed and how many matches came back; and that a
-      request failed.
+      events of our own: that a splash zone was requested, with its mode and time budget; that the
+      travel mode was switched; that an address search ran, with how many matches came back but
+      never what you typed; and that a request failed.
     </p>
 
     <h3 :class="PROSE_H3_CLASS">
       Error reports
     </h3>
     <p :class="PROSE_P_CLASS">
-      If something goes wrong in your browser, the error is reported to Grafana Cloud with the kind
-      of page it happened on (the page's pattern, never its address), the build version, your
-      browser and screen details, and a random session identifier that lasts your visit. Before anything is sent it is scrubbed of sign-in tokens, passwords and set-password
-      links. Reports leave the browser only on the live site, not in local development.
+      If something goes wrong in your browser, the error is reported to Grafana Cloud with the
+      address of the page it happened on, which includes a plotted starting point, the build
+      version, your browser and screen details, and a random session identifier that lasts your
+      visit. Before anything is sent it is scrubbed of sign-in tokens, passwords and set-password
+      links. Reports leave the browser from deployed builds, the live site and its previews, and
+      never from local development.
     </p>
 
     <h3 :class="PROSE_H3_CLASS">
@@ -161,9 +163,8 @@ const PROCESSORS = [
       </li>
     </ul>
     <p :class="PROSE_P_CLASS">
-      Each of them handles data under its own privacy policy, linked above, and all of them keep it
-      in the United States. We do not sell data, and we share it with no one else unless the law
-      requires it.
+      Each of them handles data under its own privacy policy, linked above. We do not sell data,
+      and we share it with no one else unless the law requires it.
     </p>
 
     <h2

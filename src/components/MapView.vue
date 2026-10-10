@@ -33,9 +33,12 @@ setWorkerUrl(maplibreWorkerUrl)
 // TileJSON still adds the tile host, OpenMapTiles and OpenStreetMap; but giving
 // the control options replaces MapLibre's default list, so MapLibre's own
 // credit is put back here. `compact` is left unset: visible on load, folding
-// behind ⓘ on a phone once the map is touched.
+// behind ⓘ on a phone once the map is touched. San Joaquin RTD's terms want
+// its legend "prominently displayed" while its feeds are ingested; drop that
+// entry (and the page's line) once GTFS_FEED_DENYLIST=886 2180 is set.
 const MAP_CREDITS = [
   '<a href="https://www.511.org" target="_blank" rel="noopener">Data provided by 511.org</a>',
+  'Route and schedule data provided by permission of San Joaquin RTD',
   '<a href="/attribution">Data sources</a>',
   '<a href="https://maplibre.org/" target="_blank" rel="noopener">MapLibre</a>',
 ]

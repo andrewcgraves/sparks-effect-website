@@ -11,9 +11,7 @@ import {
 import { CONTACT_EMAIL, CONTACT_MAILTO } from '../legal/contact'
 import { resolveTileCredit } from '../mapStyle'
 
-// The wording below is what SPA-419 found each licence to require. Change a
-// credit only with that ticket's table open.
-const UPDATED = '2026-10-09'
+const UPDATED = '2026-10-10'
 
 const tileCredit = resolveTileCredit()
 
@@ -52,6 +50,8 @@ const CC_BY_4_FEEDS = inProse([
 ], ', ')
 </script>
 
+<!-- The wording below is what SPA-419 found each licence to require. Change a
+     credit only with that ticket's table open. -->
 <template>
   <ProsePage
     title="Attribution"
@@ -135,8 +135,8 @@ const CC_BY_4_FEEDS = inProse([
     <p :class="PROSE_P_CLASS">
       Other schedules come from the public GTFS feeds of the agencies below, found through the
       <ExternalLink href="https://mobilitydatabase.org">Mobility Database</ExternalLink>. We convert
-      schedules into a routing graph and, where a feed lists service only by date, fill in its
-      weekly calendar. These are changes to the original data.
+      schedules into a routing graph and, where a feed lists its running days one date at a
+      time, fill in its weekly calendar. These are changes to the original data.
     </p>
     <ul :class="PROSE_LIST_CLASS">
       <li>

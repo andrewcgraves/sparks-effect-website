@@ -64,6 +64,16 @@ describe('PrivacyView', () => {
     const text = (await mountView()).text()
     expect(text).toMatch(/Grafana Cloud/)
     expect(text).toMatch(/scrubbed of sign-in tokens/)
+    // Faro keeps the page URL, query and all (scrub.spec.ts), and sends from
+    // every deployed build, so the copy must not claim less.
+    expect(text).toMatch(/address of the page it happened on, which includes a plotted starting point/)
+    expect(text).toMatch(/the live site and its previews/)
+  })
+
+  it('does not claim the typed address search leaves the browser, which the sink keeps', async () => {
+    const text = (await mountView()).text()
+    expect(text).toMatch(/how many matches came back but never what you typed/)
+    expect(text).toMatch(/travel mode was switched/)
   })
 
   it('gives one address for deletion requests', async () => {
