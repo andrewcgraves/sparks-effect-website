@@ -168,16 +168,62 @@ sources. `api.stadiamaps.com` is in the CSP's `connect-src`.
 An author draws their own routes at `/authoring/routes/new` and edits them at
 `/authoring/routes/<slug>` (`RouteBuilderView.vue`, `useRouteDraft.ts`), against
 the API's `/api/me/routes`. The form takes a name, a mode, whether lines can
-run it in both directions, and a description. The shape comes from importing
-a `.geojson`/`.json` file or pasting GeoJSON: a bare `LineString`, a `Feature`
-holding one, or a `FeatureCollection` holding exactly one
-(`normaliseImportedGeoJson` in `src/routeGeometry.ts`). Altitude and
-consecutive repeated points are dropped, since the API refuses a zero-length
-span; a `MultiLineString` is refused for now with "Only a single line can be
-imported." The page shows the point count, the length in km (the last chainage
-of `chainageAlong`) and a read-only `MapView` preview. Drawing on the map is
-a later ticket: the draft keeps `coordinates` as a plain ref with
-`setCoordinates()` for that editor to plug into.
+run it in both directions, and a description. The shape is drawn on the map
+(below) or, in advanced mode, imported from a `.geojson`/`.json` file or
+pasted GeoJSON: a bare `LineString`, a `Feature` holding one, or a
+`FeatureCollection` holding exactly one (`normaliseImportedGeoJson` in
+`src/routeGeometry.ts`). Altitude and consecutive repeated points are dropped,
+since the API refuses a zero-length span; a `MultiLineString` is refused for
+now with "Only a single line can be imported." The page shows the point count
+and the length in km (the last chainage of `chainageAlong`).
+
+**Drawing: easy and advanced.** The builder's `MapView` carries two modules of
+its own (`modules` prop): `useRailOverlay` draws OSM railways from our own
+PMTiles, and `useRouteEditor` wraps one terra-draw instance
+(`terra-draw` 1.37 with `terra-draw-maplibre-gl-adapter` 1.5) configured two
+ways. In **easy mode** each click snaps to the nearest railway within 30 px and
+the railway itself is filled in between consecutive clicks (`RailGraph.walk`
+over the z14 tiles of the viewport, budget three times the straight run and
+at least 500 m). In **advanced mode** a click snaps but appends a straight
+span, Shift places a free point, and terra-draw's select mode lets the author
+drag a point, pull a midpoint out into a new one, or right-click a point to
+remove it; import and paste live here. Where easy mode finds no railway it
+draws the span straight, flags it and offers advanced mode. Switching mode
+keeps the shape. One point drawn in easy mode after another is the editor's
+own gesture, not terra-draw's drawing mode: terra-draw's line-string mode can
+only start lines of its own and resets its drawing state when a line it is
+drawing is rewritten, so the editor takes the click through the mode's
+`pointerEvents.leftClick` gate, snaps it through `snapping.toCustom`, and
+rewrites one committed feature with `updateFeatureGeometry`. Escape finishes
+drawing, as it does stop placement. A route that lines are built on is shown
+but cannot be drawn on. terra-draw, its adapter and `pmtiles` are imported
+inside the modules' `attach`, so they land in the builder's chunk and nowhere
+else.
+
+**Simplify on save.** A traced railway carries a point at every bend and the
+API splits physics per span, so a changed shape is simplified on save with
+Douglas–Peucker at 10 m (`simplifyRoute` in `src/routeGeometry.ts`); the page
+says "N points → M points on save" beforehand, and advanced mode has a
+checkbox to turn it off. A rename never re-vertexes a saved shape.
+
+**`VITE_RAIL_TILES_URL`.** The URL of a PMTiles file of OSM railways
+(source-layer `rail`, z4–14, `railway=rail|construction|proposed|…` with
+`name` and `maxspeed`, OSM way id as the feature id — see
+`docs/rail-data-spike.md` §3 for the osmium + tippecanoe build and
+`docs/route-builder.md` for the hosting plan). It is read with HTTP Range
+requests straight from object storage or nginx, never through the API, so the
+host must send `Accept-Ranges` and CORS headers. Unset, the overlay is
+inert, easy mode is disabled with "Railway snapping isn't configured here —
+drawing freely." and advanced mode works. For local development point it at
+the spike's file served from a folder with CORS, for example:
+
+```sh
+npx serve --cors /path/to/folder-holding-canv-rail.pmtiles   # http://localhost:3000
+echo 'VITE_RAIL_TILES_URL=http://localhost:3000/canv-rail.pmtiles' >> .env.local
+```
+
+Its origin has to be in the CSP's `connect-src` as well (Security headers,
+below).
 
 The builder checks the same rules the API does before submitting
 (`validateRouteInput` mirrors `route.Validate` field for field), and words the
@@ -324,6 +370,13 @@ in `vercel.json`. What guards the policy meanwhile:
   `VERCEL` is set) and fails it when that variable's origin is not in the CSP's
   `connect-src`, so a misconfigured preview fails visibly instead of the
   enforced CSP silently blocking every API call. Local and CI builds skip it.
+- The rail tiles host comes from `VITE_RAIL_TILES_URL` the same way and gets
+  the same build-time check (`railTilesOriginMissingFromCsp`). The policy is
+  static, so the origin is added to `connect-src` by hand when the hosting
+  lands (the cluster's nginx or an R2 bucket — nothing is listed until it
+  exists): the PMTiles file is read with Range requests by the page's
+  `RailGraph` and by MapLibre's `pmtiles` protocol handler on the main thread,
+  so `connect-src` is the one directive it needs.
 
 Hosts still to add when they land: the error tracker's ingest host, plus its
 `report-uri` (SPA-380). An embeddable map for other sites (SPA-462) will need its own

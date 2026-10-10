@@ -10,7 +10,7 @@ import { resolveTilePreconnectOrigin } from './src/tileHost.ts'
 import { safeHttpOrigin } from './src/preconnect.ts'
 import { FARO_APP_NAME } from './src/errorReporting/appName.ts'
 import { withDefaultPreview } from './src/share/linkPreview.ts'
-import { apiOriginMissingFromCsp, type VercelHeaderRule } from './src/securityHeaders.ts'
+import { apiOriginMissingFromCsp, railTilesOriginMissingFromCsp, type VercelHeaderRule } from './src/securityHeaders.ts'
 
 function preconnectTags(apiBaseUrl: string | undefined, stadiaApiKey: string | undefined): HtmlTagDescriptor[] {
   const tags: HtmlTagDescriptor[] = [
@@ -94,15 +94,18 @@ function linkPreviewPlugin(): Plugin {
 export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_')
   const apiBaseUrl = process.env.VITE_API_BASE_URL ?? env.VITE_API_BASE_URL
-  // The API host lives only in Vercel's env settings, out of the repo's sight.
-  // A Vercel build (a PR preview included) whose host vercel.json's CSP does not
-  // name fails here, rather than shipping a page whose every API call the
-  // browser blocks once the CSP is enforced. Local and CI builds skip this.
+  const railTilesUrl = process.env.VITE_RAIL_TILES_URL ?? env.VITE_RAIL_TILES_URL
+  // The API and rail-tile hosts live only in Vercel's env settings, out of the
+  // repo's sight. A Vercel build (a PR preview included) whose host
+  // vercel.json's CSP does not name fails here, rather than shipping a page
+  // whose every request to it the browser blocks once the CSP is enforced.
+  // Local and CI builds skip this.
   if (command === 'build' && process.env.VERCEL) {
     const vercelConfig = JSON.parse(readFileSync(resolve(process.cwd(), 'vercel.json'), 'utf8')) as {
       headers?: VercelHeaderRule[]
     }
-    const problem = apiOriginMissingFromCsp(vercelConfig.headers ?? [], apiBaseUrl)
+    const headers = vercelConfig.headers ?? []
+    const problem = apiOriginMissingFromCsp(headers, apiBaseUrl) ?? railTilesOriginMissingFromCsp(headers, railTilesUrl)
     if (problem) throw new Error(problem)
   }
   const stadiaApiKey = process.env.VITE_STADIA_API_KEY ?? env.VITE_STADIA_API_KEY

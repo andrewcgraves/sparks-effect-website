@@ -65,11 +65,17 @@ once and picked by any number of lines. It is the API's *route* (its
 | **Point** | One position along a route, numbered from one in anything a person reads. A route needs at least two, and two in a row at the same place are one point |
 | **Length** | How far the route runs from its first point to its last, in km to one decimal |
 | **In use** | A route that lines are built on, counting curated and authored lines together. Every stop of such a line is a distance along the route, so the route's shape is frozen while it is in use: its name and details can still change, and it cannot be deleted. A route the API has not said anything about reads as *use unknown* and is treated as free |
-| **Importing** | Giving a route its shape from a GeoJSON line, as a file or pasted text. One line at a time |
+| **Importing** | Giving a route its shape from a GeoJSON line, as a file or pasted text. One line at a time, and only in advanced mode |
+| **Easy mode** | Drawing by clicking along a railway: each click becomes a snapped point, and the railway itself fills in the route between one click and the next. Existing railways count, and so do ones under construction or proposed, drawn in their own patterns. Where there is no railway near a click the span is drawn straight, flagged, and the builder offers advanced mode. There is no dragging or removing of points here |
+| **Advanced mode** | Drawing with every control: a click snaps to a railway but adds a straight span, Shift adds a free point, a point can be dragged, a new one pulled out of the middle of a span, a point removed, and a shape imported. Both modes are one editor; switching keeps the shape |
+| **Snapped point** | A point placed on the nearest railway to where the author clicked. The builder says which railway ("Snapped to BNSF Stockton Subdivision"), or its state when it has no name |
+| **Free point** | A point placed exactly where the author clicked, with no railway under it: by Shift in advanced mode, or because easy mode found none |
+| **Simplify on save** | Dropping, as a shape is saved, every point within 10 m of a straight run between its neighbours. On by default, since a traced railway carries a point at every bend and each point splits the physics; advanced mode can turn it off. The builder says "N points → M points on save" first. A rename never changes a saved shape |
 
 The point count and the length are what the builder tells an author about a
 shape before and after a save; nothing on the site shows a route's segments to
-an author, which stay the API's physics.
+an author, which stay the API's physics. Which railway each snapped span
+followed is kept by the editor for the session and not sent to the API.
 
 ## The time-remaining graph
 

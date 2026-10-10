@@ -34,14 +34,18 @@ export function cspDirectives(policy: string): Map<string, string[]> {
   return directives
 }
 
-export function apiOriginMissingFromCsp(rules: VercelHeaderRule[], apiBaseUrl: string | undefined): string | null {
-  const base = apiBaseUrl?.trim()
+// The hosts the page fetches from live in Vercel's env settings, out of the
+// repository's sight, while the CSP is static in vercel.json. A build checks
+// each variable's origin against connect-src so a host the policy does not
+// name fails the build rather than every request to it once enforced.
+export function originMissingFromCsp(rules: VercelHeaderRule[], variable: string, value: string | undefined): string | null {
+  const base = value?.trim()
   if (!base) return null
   let url: URL
   try {
     url = new URL(base)
   } catch {
-    // A relative base is this origin, which 'self' covers.
+    // A relative value is this origin, which 'self' covers.
     return null
   }
   const policy = catchAllCsp(rules)
@@ -50,7 +54,15 @@ export function apiOriginMissingFromCsp(rules: VercelHeaderRule[], apiBaseUrl: s
   const sources = directives.get('connect-src') ?? directives.get('default-src') ?? []
   if (sources.includes(url.origin)) return null
   return (
-    `VITE_API_BASE_URL's origin ${url.origin} is not in connect-src of vercel.json's Content-Security-Policy. ` +
-    'Add it there, or the browser blocks every API call once the CSP is enforced.'
+    `${variable}'s origin ${url.origin} is not in connect-src of vercel.json's Content-Security-Policy. ` +
+    'Add it there, or the browser blocks every request to it once the CSP is enforced.'
   )
+}
+
+export function apiOriginMissingFromCsp(rules: VercelHeaderRule[], apiBaseUrl: string | undefined): string | null {
+  return originMissingFromCsp(rules, 'VITE_API_BASE_URL', apiBaseUrl)
+}
+
+export function railTilesOriginMissingFromCsp(rules: VercelHeaderRule[], railTilesUrl: string | undefined): string | null {
+  return originMissingFromCsp(rules, 'VITE_RAIL_TILES_URL', railTilesUrl)
 }

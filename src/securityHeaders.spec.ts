@@ -9,6 +9,7 @@ import {
   SECURITY_HEADER_KEYS,
   apiOriginMissingFromCsp,
   cspDirectives as parseCsp,
+  railTilesOriginMissingFromCsp,
   type VercelHeaderRule,
 } from './securityHeaders'
 
@@ -139,5 +140,25 @@ describe('apiOriginMissingFromCsp', () => {
     expect(apiOriginMissingFromCsp(vercelConfig.headers, '  ')).toBeNull()
     expect(apiOriginMissingFromCsp(vercelConfig.headers, '/api')).toBeNull()
     expect(apiOriginMissingFromCsp(rules('X-Frame-Options', 'DENY'), 'https://api.example.com')).toBeNull()
+  })
+})
+
+// The rail PMTiles file is read with Range requests from wherever
+// VITE_RAIL_TILES_URL points, by the page and by MapLibre's protocol handler
+// on the main thread, so its origin belongs in connect-src like the API's.
+describe('railTilesOriginMissingFromCsp', () => {
+  const rules = (policy: string): VercelHeaderRule[] => [{ source: '/(.*)', headers: [{ key: 'Content-Security-Policy', value: policy }] }]
+
+  it('names the variable and the host connect-src does not list, path and all ignored', () => {
+    const problem = railTilesOriginMissingFromCsp(vercelConfig.headers, 'https://rail.example.net/tiles/rail-latest.pmtiles')
+    expect(problem).toContain('VITE_RAIL_TILES_URL')
+    expect(problem).toContain('https://rail.example.net ')
+    expect(problem).toContain('connect-src')
+  })
+
+  it('passes once the host is listed, and a relative or empty URL', () => {
+    expect(railTilesOriginMissingFromCsp(rules("connect-src 'self' https://rail.example.net"), 'https://rail.example.net/rail.pmtiles')).toBeNull()
+    expect(railTilesOriginMissingFromCsp(vercelConfig.headers, '/rail.pmtiles')).toBeNull()
+    expect(railTilesOriginMissingFromCsp(vercelConfig.headers, undefined)).toBeNull()
   })
 })
