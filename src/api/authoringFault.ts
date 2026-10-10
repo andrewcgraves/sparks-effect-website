@@ -1,14 +1,15 @@
 import { ApiError, STOP_PLACEMENT_ERROR_CODE, stopPlacementFault } from './authoring/client'
-import type { StopPlacementFault } from './authoring/types'
+import type { RouteDependents, StopPlacementFault } from './authoring/types'
 import { JobFailedError } from './polling'
 
-export type AuthoringNoun = 'service' | 'scenario'
+export type AuthoringNoun = 'service' | 'scenario' | 'route'
 
 // The product word an author reads for each noun (CONTEXT.md, "Product
 // vocabulary"): the code keeps the domain's names, the copy does not.
 export const AUTHORING_NOUN_WORDS: Record<AuthoringNoun, string> = {
   service: 'line',
   scenario: 'network',
+  route: 'route',
 }
 
 export const GENERIC_AUTHORING_FAULT = 'Something went wrong. Please try again.'
@@ -18,12 +19,14 @@ export const UNREACHABLE_FAULT = "Couldn't reach the server. Your draft is saved
 const COMPILE_ADVICE: Record<AuthoringNoun, string> = {
   service: 'Check its stops and timetable, then try again.',
   scenario: 'Check its lines and interchanges, then try again.',
+  route: 'Check its points, then try again.',
 }
 
 const VALIDATION_ERROR_CODE = 'validation'
 const STALE_GRAPH_CODE = 'stale_graph'
+export const ROUTE_IN_USE_CODE = 'route_in_use'
 
-interface ValidationFault {
+export interface ValidationFault {
   field: string
   index?: number
   rule: string
@@ -156,20 +159,40 @@ function isValidationFault(value: unknown): value is ValidationFault {
   )
 }
 
-function validationSentence(detail: unknown): string | null {
-  const faults = (detail as { faults?: unknown } | null)?.faults
-  if (!Array.isArray(faults)) return null
-
+// Also what the route builder reads its own, pre-submit faults through: it
+// checks the same rules the API does, so the same words describe both.
+export function validationFaultsSentence(faults: ValidationFault[]): string | null {
   // One sentence per field: two windows with the same bad headway are one
   // problem to fix, and the summary line is not the place to list every row.
   const seen = new Set<string>()
   const sentences: string[] = []
-  for (const fault of faults.filter(isValidationFault)) {
+  for (const fault of faults) {
     if (seen.has(fault.field)) continue
     seen.add(fault.field)
     sentences.push(faultSentence(fault))
   }
   return sentences.length ? sentences.join(' ') : null
+}
+
+function validationSentence(detail: unknown): string | null {
+  const faults = (detail as { faults?: unknown } | null)?.faults
+  if (!Array.isArray(faults)) return null
+  return validationFaultsSentence(faults.filter(isValidationFault))
+}
+
+function plural(count: number, word: string): string {
+  return `${count} ${count === 1 ? word : `${word}s`}`
+}
+
+// Lines are what an author can move; segments are physics rows nobody edits
+// here, so they are named only when they are all that holds the route.
+function routeInUseSentence(detail: unknown): string {
+  const counts = (typeof detail === 'object' && detail !== null ? detail : {}) as Partial<RouteDependents>
+  const lines = (counts.services ?? 0) + (counts.user_services ?? 0)
+  const segments = counts.segments ?? 0
+  if (lines > 0) return `Used by ${plural(lines, 'line')}. Move ${lines === 1 ? 'it' : 'them'} to another route first.`
+  if (segments > 0) return `Used by ${plural(segments, 'segment')}. Remove ${segments === 1 ? 'it' : 'them'} first.`
+  return 'This route is still in use. Move its lines to another route first.'
 }
 
 function stopPlacementSentence(fault: StopPlacementFault | null): string {
@@ -200,6 +223,7 @@ function apiFault(err: ApiError, noun: AuthoringNoun): string {
   if (err.status === 409 && err.code === STALE_GRAPH_CODE) {
     return `This ${word} changed since it was last compiled. Compile it again, then retry.`
   }
+  if (err.status === 409 && err.code === ROUTE_IN_USE_CODE) return routeInUseSentence(err.detail)
   if (err.status === 422 && err.code === STOP_PLACEMENT_ERROR_CODE) {
     return stopPlacementSentence(stopPlacementFault(err))
   }

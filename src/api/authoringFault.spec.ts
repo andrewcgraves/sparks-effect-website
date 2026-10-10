@@ -51,6 +51,42 @@ describe('authoringFault', () => {
     )
   })
 
+  it('names a route when the page is about one', () => {
+    expect(authoringFault(new ApiError('GET failed', 404), 'route')).toBe(
+      "This route no longer exists or isn't yours.",
+    )
+  })
+
+  describe('a 409 route_in_use', () => {
+    function inUse(detail: unknown): ApiError {
+      return new ApiError('DELETE /api/me/routes/main failed: 409: in use', 409, 'route_in_use', detail)
+    }
+
+    it('counts the lines built on it, curated and authored together', () => {
+      expect(authoringFault(inUse({ services: 1, user_services: 1, segments: 3 }), 'route')).toBe(
+        'Used by 2 lines. Move them to another route first.',
+      )
+    })
+
+    it('reads singular for one line', () => {
+      expect(authoringFault(inUse({ services: 0, user_services: 1, segments: 0 }), 'route')).toBe(
+        'Used by 1 line. Move it to another route first.',
+      )
+    })
+
+    it('mentions segments only when they are all that holds the route', () => {
+      expect(authoringFault(inUse({ services: 0, user_services: 0, segments: 3 }), 'route')).toBe(
+        'Used by 3 segments. Remove them first.',
+      )
+    })
+
+    it('still says the route is in use when the counts are missing', () => {
+      expect(authoringFault(inUse(undefined), 'route')).toBe(
+        'This route is still in use. Move its lines to another route first.',
+      )
+    })
+  })
+
   it('tells the author to recompile on stale_graph', () => {
     expect(authoringFault(new ApiError('PUT failed: 409: stale', 409, 'stale_graph'))).toBe(
       'This line changed since it was last compiled. Compile it again, then retry.',

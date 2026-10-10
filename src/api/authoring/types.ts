@@ -142,6 +142,7 @@ export interface Route {
   scenario_id?: string | null
   slug: string
   name: string
+  description?: string
   mode: string
   geometry: GeoLineString
   bidirectional: boolean
@@ -151,8 +152,38 @@ export interface Route {
 export interface RouteSummary {
   slug: string
   name: string
+  description?: string
   mode: string
 }
+
+export const ROUTE_MODES = ['rail', 'metro', 'tram', 'bus', 'ferry', 'funicular'] as const
+
+export type RouteMode = (typeof ROUTE_MODES)[number]
+
+export interface RouteInput {
+  type: 'LineString'
+  coordinates: number[][]
+  properties: {
+    name: string
+    description?: string
+    mode: string
+    bidirectional?: boolean
+    scenario_slug?: string
+    segments?: RouteSegment[]
+  }
+}
+
+export interface RouteDependents {
+  services: number
+  user_services: number
+  segments: number
+}
+
+// `dependents` is optional until SPA-481 lands in the API: a route read from
+// an older build has none, and the pages say "unknown" rather than crash.
+export type OwnedRouteSummary = RouteSummary & { id: string; length_m: number; dependents?: RouteDependents }
+
+export type OwnedRoute = Route & { length_m: number; dependents?: RouteDependents }
 
 export interface SnapStopInput {
   id?: string
