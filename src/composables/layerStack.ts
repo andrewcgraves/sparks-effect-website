@@ -19,6 +19,12 @@ import {
   RAW_STOP_LAYER_ID,
   SNAPPED_STOP_LAYER_ID,
 } from './useStopPreviewLayer'
+import {
+  RAIL_CONSTRUCTION_LAYER_ID,
+  RAIL_EXISTING_LAYER_ID,
+  RAIL_PROPOSED_LAYER_ID,
+  ROUTE_EDITOR_LAYER_IDS,
+} from './railLayerIds'
 
 // Built on first read so the layer-id modules can finish evaluating — they
 // import addLayerInStack from this file, and reading their exports at init
@@ -41,20 +47,28 @@ export function layerStack(): readonly string[] {
     LEADER_LAYER_ID,
     RAW_STOP_LAYER_ID,
     SNAPPED_STOP_LAYER_ID,
+    RAIL_EXISTING_LAYER_ID,
+    RAIL_CONSTRUCTION_LAYER_ID,
+    RAIL_PROPOSED_LAYER_ID,
+    ...ROUTE_EDITOR_LAYER_IDS,
   ])
 }
 
-export function addLayerInStack(map: Map, spec: AddLayerObject): void {
+// The nearest stack neighbour above `id` that is already on the map, so a
+// layer that attaches late still lands in stack order rather than on top
+// (SPA-213). Nothing above it yet means append — later neighbours insert
+// themselves underneath when they attach.
+export function layerAboveInStack(map: Map, id: string): string | undefined {
   const order = layerStack()
-  const index = order.indexOf(spec.id)
+  const index = order.indexOf(id)
   if (index === -1) {
-    throw new Error(`${spec.id} is not in the layer stack`)
+    throw new Error(`${id} is not in the layer stack`)
   }
-  // Insert before the next stack neighbour already on the map, so a layer
-  // that attaches late still lands in STACK order rather than appending on
-  // top (SPA-213). If nothing above it exists yet, append — later neighbours
-  // will insert themselves underneath when they attach.
-  const beforeId = order.slice(index + 1).find((id) => map.getLayer(id))
+  return order.slice(index + 1).find((above) => map.getLayer(above))
+}
+
+export function addLayerInStack(map: Map, spec: AddLayerObject): void {
+  const beforeId = layerAboveInStack(map, spec.id)
   if (beforeId) map.addLayer(spec, beforeId)
   else map.addLayer(spec)
 }

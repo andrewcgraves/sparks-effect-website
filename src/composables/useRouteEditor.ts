@@ -1,0 +1,490 @@
+import { computed, ref, watch, type Ref } from 'vue'
+import type { Map } from 'maplibre-gl'
+import type { GeoJSONStoreFeatures, HexColor, TerraDraw, TerraDrawLineStringMode, TerraDrawMouseEvent } from 'terra-draw'
+import type { Position } from 'geojson'
+import type { MapModule } from './mapLifecycle'
+import { layerAboveInStack } from './layerStack'
+import { ROUTE_EDITOR_LAYER_IDS, ROUTE_EDITOR_PREFIX } from './railLayerIds'
+import { chainageAlong } from '../chainage'
+import { RailGraph } from '../rail/railGraph'
+import type { Bbox, LngLat, RailHit, RailState, RailTileSource } from '../rail/railGraph'
+import { metresPerPixel } from '../rail/tileMath'
+import { railTilesUrl } from '../railTilesUrl'
+import { dropRepeatedPoints } from '../routeGeometry'
+import { THEME_TOKEN_FALLBACKS, readThemeToken, type ThemeTokenName } from '../themeTokens'
+
+export type EditorMode = 'easy' | 'advanced'
+
+export interface RailSpan {
+  wayId: number
+  name?: string
+  state: RailState
+}
+
+export type SpanProvenance = RailSpan | 'free'
+
+export interface RouteSpan {
+  from: number
+  to: number
+  provenance: SpanProvenance
+}
+
+export type SnapNote = { kind: 'snapped'; label: string } | { kind: 'free' }
+
+export interface RouteEditorOptions {
+  coordinates: Ref<LngLat[]>
+  setCoordinates: (points: LngLat[]) => void
+  readOnly: () => boolean
+  tilesUrl?: string | null
+}
+
+export { ROUTE_EDITOR_LAYER_IDS, ROUTE_EDITOR_PREFIX } from './railLayerIds'
+export const LINE_MODE = 'linestring'
+export const POINT_MODE = 'point'
+export const SELECT_MODE = 'select'
+export const STATIC_MODE = 'static'
+
+export const SNAP_RADIUS_PX = 30
+export const GRAPH_MIN_ZOOM = 12
+export const GRAPH_MARGIN = 0.2
+export const GRAPH_DEBOUNCE_MS = 250
+export const WALK_MIN_BUDGET_M = 500
+export const WALK_BUDGET_FACTOR = 3
+// MapLibre's zoom counts 512 px tiles, whatever the vector tiles' extent is.
+const SCREEN_TILE_PX = 512
+const MAX_LAT = 85
+
+export function snapLabel(hit: Pick<RailHit, 'name' | 'state'>): string {
+  if (hit.name) return `Snapped to ${hit.name}`
+  switch (hit.state) {
+    case 'construction':
+      return 'Snapped to a railway under construction'
+    case 'proposed':
+      return 'Snapped to a proposed railway'
+    default:
+      return 'Snapped to a railway'
+  }
+}
+
+export function viewportBbox(map: Pick<Map, 'getBounds'>, margin: number): Bbox {
+  const bounds = map.getBounds()
+  const w = bounds.getWest()
+  const s = bounds.getSouth()
+  const e = bounds.getEast()
+  const n = bounds.getNorth()
+  const dx = (e - w) * margin
+  const dy = (n - s) * margin
+  return [
+    Math.max(-180, w - dx),
+    Math.max(-MAX_LAT, s - dy),
+    Math.min(180, e + dx),
+    Math.min(MAX_LAT, n + dy),
+  ]
+}
+
+function samePoint(a: LngLat, b: LngLat): boolean {
+  return a[0] === b[0] && a[1] === b[1]
+}
+
+function sameCoordinates(a: LngLat[], b: LngLat[]): boolean {
+  return a.length === b.length && a.every((p, i) => samePoint(p, b[i]))
+}
+
+function copy(points: number[][]): LngLat[] {
+  return points.map(([lng, lat]) => [lng, lat])
+}
+
+function hexToken(name: ThemeTokenName): HexColor {
+  const value = readThemeToken(name)
+  return (/^#[0-9a-f]{3,8}$/i.test(value) ? value : THEME_TOKEN_FALLBACKS[name]) as HexColor
+}
+
+export function useRouteEditor(options: RouteEditorOptions) {
+  const tilesUrl = options.tilesUrl === undefined ? railTilesUrl() : options.tilesUrl
+  const railAvailable = tilesUrl !== null
+  const mode = ref<EditorMode>(railAvailable ? 'easy' : 'advanced')
+  const drawing = ref(false)
+  const loading = ref(false)
+  const lastSnap = ref<SnapNote | null>(null)
+  const spans = ref<RouteSpan[]>([])
+  const freeSpanCount = computed(() => spans.value.filter((span) => span.provenance === 'free').length)
+
+  let map: Map | null = null
+  let draw: TerraDraw | null = null
+  let routeId: string | number | null = null
+  let pointId: string | number | null = null
+  let points: LngLat[] = []
+  let shiftHeld = false
+  // Bumped on every attach and detach: the terra-draw import and every tile
+  // load are async, and one that lands after the map has gone must do nothing.
+  let generation = 0
+  let source: RailTileSource | null = null
+  let graph: RailGraph | null = null
+  let graphLoad: Promise<RailGraph> | null = null
+  let loadsInFlight = 0
+  let pendingLoad: ReturnType<typeof setTimeout> | null = null
+  // True while this module rewrites the feature itself, so terra-draw's own
+  // finish events for those rewrites are not read back as the author's edits.
+  let applying = false
+
+  function snapRadiusM(lat: number): number {
+    return SNAP_RADIUS_PX * metresPerPixel(lat, map?.getZoom() ?? GRAPH_MIN_ZOOM, SCREEN_TILE_PX)
+  }
+
+  function hitFor(event: Pick<TerraDrawMouseEvent, 'lng' | 'lat' | 'heldKeys'>): RailHit | null {
+    if (!graph) return null
+    if (mode.value === 'advanced' && (shiftHeld || event.heldKeys.includes('Shift'))) return null
+    return graph.nearestPoint([event.lng, event.lat], snapRadiusM(event.lat))
+  }
+
+  // terra-draw's snapping callback: the hover guide follows the railway, and
+  // the click lands where the guide is.
+  function toCustom(event: TerraDrawMouseEvent): Position | undefined {
+    return hitFor(event)?.point
+  }
+
+  // The click is taken here and refused to terra-draw: its line-string mode
+  // can only start a line of its own, and rewriting a line it is drawing
+  // resets its drawing state (afterFeatureUpdated, terra-draw 1.37), so the
+  // route is a committed feature this module appends to instead.
+  function captureClick(event: TerraDrawMouseEvent): boolean {
+    if (!drawing.value) return false
+    const hit = hitFor(event)
+    commitClick(hit ? hit.point : [event.lng, event.lat], hit)
+    return false
+  }
+
+  function commitClick(clicked: LngLat, hit: RailHit | null): void {
+    const previous = points[points.length - 1]
+    if (previous && samePoint(previous, clicked)) return
+    if (!previous) {
+      points = [clicked]
+      lastSnap.value = hit ? { kind: 'snapped', label: snapLabel(hit) } : { kind: 'free' }
+      render()
+      pushToDraft()
+      return
+    }
+    let added: LngLat[] = [clicked]
+    let provenance: SpanProvenance = 'free'
+    if (mode.value === 'easy' && hit && graph) {
+      // Three times the straight run, and never under half a kilometre: a
+      // railway bending round a hill is still the one the author meant, and
+      // a walk that cannot be done in that leaves a straight span, flagged.
+      const straight = chainageAlong([previous, clicked])[1]
+      const path = graph.walk(previous, clicked, Math.max(WALK_MIN_BUDGET_M, WALK_BUDGET_FACTOR * straight))
+      if (path) {
+        added = path.slice(1)
+        provenance = { wayId: hit.wayId, name: hit.name, state: hit.state }
+      }
+    }
+    const from = points.length - 1
+    points = dropRepeatedPoints([...points, ...added])
+    spans.value = [...spans.value, { from, to: points.length - 1, provenance }]
+    lastSnap.value = provenance === 'free'
+      ? hit && mode.value === 'advanced' ? { kind: 'snapped', label: snapLabel(hit) } : { kind: 'free' }
+      : { kind: 'snapped', label: snapLabel(hit!) }
+    render()
+    pushToDraft()
+  }
+
+  function lineFeature(id: string | number): GeoJSONStoreFeatures {
+    return {
+      id,
+      type: 'Feature',
+      geometry: { type: 'LineString', coordinates: points },
+      properties: { mode: LINE_MODE },
+    }
+  }
+
+  function render(): void {
+    if (!draw) return
+    applying = true
+    try {
+      if (pointId !== null && draw.hasFeature(pointId)) draw.removeFeatures([pointId])
+      pointId = null
+      if (points.length >= 2) {
+        if (routeId !== null && draw.hasFeature(routeId)) {
+          draw.updateFeatureGeometry(routeId, { type: 'LineString', coordinates: points })
+        } else {
+          routeId = draw.getFeatureId()
+          draw.addFeatures([lineFeature(routeId)])
+          if (draw.getMode() === SELECT_MODE) draw.selectFeature(routeId)
+        }
+        return
+      }
+      if (routeId !== null && draw.hasFeature(routeId)) draw.removeFeatures([routeId])
+      routeId = null
+      // A route of one point is not yet a line terra-draw will hold, so the
+      // first click is shown as a point until the second makes a line of it.
+      if (points.length === 1) {
+        pointId = draw.getFeatureId()
+        draw.addFeatures([{
+          id: pointId,
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: points[0] },
+          properties: { mode: POINT_MODE },
+        }])
+      }
+    } finally {
+      applying = false
+    }
+  }
+
+  function pushToDraft(): void {
+    options.setCoordinates(points)
+  }
+
+  function adopt(coordinates: number[][]): void {
+    points = dropRepeatedPoints(copy(coordinates))
+    spans.value = []
+    lastSnap.value = null
+    render()
+  }
+
+  function syncFromDraft(): void {
+    const external = options.coordinates.value
+    if (sameCoordinates(external, points)) return
+    adopt(external)
+  }
+
+  // An edit made with terra-draw's own handles: a point dragged, a midpoint
+  // pulled out, a point deleted. The provenance recorded per click cannot
+  // follow indices that moved, so it is dropped rather than left wrong.
+  function syncFromDraw(): void {
+    if (!draw || routeId === null) return
+    const feature = draw.getSnapshotFeature(routeId)
+    if (!feature || feature.geometry.type !== 'LineString') return
+    points = dropRepeatedPoints(copy(feature.geometry.coordinates))
+    spans.value = []
+    lastSnap.value = null
+    pushToDraft()
+  }
+
+  function onFinish(id: string | number): void {
+    if (applying || id !== routeId) return
+    syncFromDraw()
+  }
+
+  function applyMode(): void {
+    if (!draw) return
+    draw.updateModeOptions<typeof TerraDrawLineStringMode>(LINE_MODE, { editable: mode.value === 'advanced' })
+    if (options.readOnly()) {
+      drawing.value = false
+      draw.setMode(STATIC_MODE)
+      return
+    }
+    if (drawing.value) {
+      draw.setMode(LINE_MODE)
+      return
+    }
+    if (mode.value === 'advanced') {
+      draw.setMode(SELECT_MODE)
+      if (routeId !== null && draw.hasFeature(routeId)) draw.selectFeature(routeId)
+    } else {
+      draw.setMode(STATIC_MODE)
+    }
+  }
+
+  function setMode(next: EditorMode): void {
+    if (next === 'easy' && !railAvailable) return
+    mode.value = next
+  }
+
+  function start(): void {
+    if (options.readOnly()) return
+    drawing.value = true
+    applyMode()
+  }
+
+  function finish(): void {
+    drawing.value = false
+    applyMode()
+  }
+
+  function clear(): void {
+    if (options.readOnly()) return
+    points = []
+    spans.value = []
+    lastSnap.value = null
+    render()
+    pushToDraft()
+  }
+
+  function onKey(event: KeyboardEvent): void {
+    // The adapter only hears keys while the canvas has focus, and Shift is
+    // pressed with the pointer on the map and the focus wherever it was.
+    shiftHeld = event.shiftKey
+  }
+
+  function scheduleGraphLoad(delayMs: number): void {
+    if (!map || !source || map.getZoom() < GRAPH_MIN_ZOOM) return
+    if (pendingLoad) clearTimeout(pendingLoad)
+    // Loading from the moment the map settles, not from the fetch: the author
+    // is already clicking, and the wait they see is the whole of it.
+    loading.value = true
+    pendingLoad = setTimeout(() => {
+      pendingLoad = null
+      void loadViewport()
+    }, delayMs)
+  }
+
+  function onMoveEnd(): void {
+    scheduleGraphLoad(GRAPH_DEBOUNCE_MS)
+  }
+
+  // Tiles are fetched for the viewport and a margin round it, only once the
+  // map is close enough for z14 tiles to be few: below that zoom a click
+  // cannot pick one railway from the next anyway. Every tile is kept for the
+  // session, so panning back costs nothing.
+  async function loadViewport(): Promise<void> {
+    if (!map || !source) return
+    const mine = generation
+    const bbox = viewportBbox(map, GRAPH_MARGIN)
+    loadsInFlight++
+    try {
+      if (!graphLoad) {
+        graphLoad = RailGraph.load(source, bbox)
+        graph = await graphLoad
+      } else {
+        await (await graphLoad).extend(source, bbox)
+      }
+    } catch {
+      // A tile that failed leaves snapping as it was; the next move retries.
+    } finally {
+      loadsInFlight--
+      if (mine === generation && loadsInFlight === 0 && pendingLoad === null) loading.value = false
+    }
+  }
+
+  async function setUp(target: Map, mine: number): Promise<void> {
+    const [terraDraw, adapter] = await Promise.all([import('terra-draw'), import('terra-draw-maplibre-gl-adapter')])
+    if (mine !== generation) return
+    const ink = hexToken('--color-ink')
+    const coral = hexToken('--color-coral')
+    const white: HexColor = '#ffffff'
+    const snapping = { toCustom }
+    draw = new terraDraw.TerraDraw({
+      adapter: new adapter.TerraDrawMapLibreGLAdapter({
+        map: target,
+        prefixId: ROUTE_EDITOR_PREFIX,
+        renderBelowLayerId: layerAboveInStack(target, ROUTE_EDITOR_LAYER_IDS[ROUTE_EDITOR_LAYER_IDS.length - 1]),
+      }),
+      modes: [
+        new terraDraw.TerraDrawLineStringMode({
+          snapping,
+          keyEvents: null,
+          editable: mode.value === 'advanced',
+          pointerEvents: {
+            leftClick: captureClick,
+            rightClick: false,
+            contextMenu: false,
+            onDragStart: true,
+            onDrag: true,
+            onDragEnd: true,
+          },
+          styles: {
+            lineStringColor: ink,
+            lineStringWidth: 3,
+            snappingPointColor: coral,
+            snappingPointWidth: 6,
+            snappingPointOutlineColor: white,
+            snappingPointOutlineWidth: 2,
+            coordinatePointColor: white,
+            coordinatePointWidth: 5,
+            coordinatePointOutlineColor: ink,
+            coordinatePointOutlineWidth: 2,
+          },
+        }),
+        new terraDraw.TerraDrawPointMode({
+          styles: { pointColor: white, pointWidth: 5, pointOutlineColor: ink, pointOutlineWidth: 2 },
+        }),
+        new terraDraw.TerraDrawSelectMode({
+          keyEvents: null,
+          allowManualDeselection: false,
+          flags: {
+            [LINE_MODE]: {
+              feature: {
+                draggable: false,
+                coordinates: { midpoints: true, draggable: true, deletable: true, snappable: snapping },
+              },
+            },
+          },
+          styles: {
+            selectedLineStringColor: ink,
+            selectedLineStringWidth: 3,
+            selectionPointColor: white,
+            selectionPointWidth: 5,
+            selectionPointOutlineColor: ink,
+            selectionPointOutlineWidth: 2,
+            midPointColor: coral,
+            midPointWidth: 4,
+            midPointOutlineColor: white,
+            midPointOutlineWidth: 1.5,
+          },
+        }),
+      ],
+    })
+    draw.on('finish', onFinish)
+    draw.start()
+    adopt(options.coordinates.value)
+    applyMode()
+    if (!tilesUrl) return
+    const { pmtilesSource } = await import('../rail/pmtilesSource')
+    if (mine !== generation) return
+    source = pmtilesSource(tilesUrl)
+    scheduleGraphLoad(0)
+  }
+
+  const module: MapModule = {
+    deps: () => [options.coordinates.value, options.readOnly()],
+    isReady: (styleLoaded) => styleLoaded,
+    attach: (target) => {
+      map = target
+      target.on('moveend', onMoveEnd)
+      window.addEventListener('keydown', onKey)
+      window.addEventListener('keyup', onKey)
+      void setUp(target, ++generation)
+    },
+    sync: () => {
+      syncFromDraft()
+      applyMode()
+    },
+    detach: () => {
+      generation++
+      if (pendingLoad) clearTimeout(pendingLoad)
+      pendingLoad = null
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('keyup', onKey)
+      map?.off('moveend', onMoveEnd)
+      draw?.off('finish', onFinish)
+      // stop() takes the adapter's layers and sources off the map.
+      draw?.stop()
+      draw = null
+      map = null
+      routeId = null
+      pointId = null
+      source = null
+      graph = null
+      graphLoad = null
+      drawing.value = false
+      loading.value = false
+    },
+  }
+
+  watch(mode, applyMode)
+
+  return {
+    module,
+    mode,
+    setMode,
+    railAvailable,
+    drawing,
+    loading,
+    lastSnap,
+    spans,
+    freeSpanCount,
+    start,
+    finish,
+    clear,
+  }
+}

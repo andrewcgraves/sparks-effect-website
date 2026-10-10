@@ -1,2 +1,4 @@
 export const ORIGIN_PICK_CUE = 'Click the map to set origin — Esc to cancel'
 export const STOP_PLACEMENT_CUE = 'Click the map to add a stop — Esc when done'
+export const ROUTE_DRAW_CUE = 'Click along the railway to add points — Esc when done'
+export const ROUTE_DRAW_FREE_CUE = 'Click to add points, Shift-click for a free point — Esc when done'

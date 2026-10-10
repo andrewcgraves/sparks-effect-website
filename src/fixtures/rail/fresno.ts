@@ -1,5 +1,6 @@
 /// <reference types="node" />
 import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import type { Bbox, RailTileSource } from '../../rail/railGraph'
 import { pixelToLngLat } from '../../rail/tileMath'
 
@@ -26,7 +27,10 @@ export function fresnoTiles(): RecordingSource {
     async tile(z, x, y) {
       requested.push(`${z}/${x}/${y}`)
       if (z !== FRESNO_ZOOM || x < 2739 || x > 2740 || y < 6391 || y > 6392) return null
-      return new Uint8Array(readFileSync(new URL(`./${z}-${x}-${y}.pbf`, import.meta.url)))
+      // From the project root rather than import.meta.url: under happy-dom
+      // that is an http:// URL, and the tiles are read by specs in both
+      // environments.
+      return new Uint8Array(readFileSync(resolve(process.cwd(), 'src', 'fixtures', 'rail', `${z}-${x}-${y}.pbf`)))
     },
   }
 }
