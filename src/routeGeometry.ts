@@ -235,5 +235,8 @@ export function simplifyRoute(coordinates: [number, number][], toleranceM: numbe
     keep[farthest] = true
     stack.push([first, farthest], [farthest, last])
   }
-  return points.filter((_, i) => keep[i])
+  // Two kept points can be the same place when everything between them was
+  // within tolerance of it, as on a route that doubles back to where it was.
+  const simplified = dropRepeatedPoints(points.filter((_, i) => keep[i]))
+  return simplified.length >= 2 ? simplified : points
 }

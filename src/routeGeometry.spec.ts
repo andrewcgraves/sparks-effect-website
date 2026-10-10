@@ -193,6 +193,12 @@ describe('simplifyRoute', () => {
     expect(simplifyRoute(line, 30)).toEqual([east(0), east(4)])
   })
 
+  it('never leaves a route that doubles back as one point twice', () => {
+    const turn: [number, number] = [east(0)[0], east(0)[1] + metres(5)]
+    expect(simplifyRoute([east(0), turn, east(0)], 10)).toEqual([east(0), turn, east(0)])
+    expect(simplifyRoute([east(0), east(4), turn, east(0)], 10)).toEqual([east(0), east(4), east(0)])
+  })
+
   it('drops repeated points even when nothing else is simplified', () => {
     expect(simplifyRoute([east(0), east(0), east(4), east(4)], 10)).toEqual([east(0), east(4)])
     expect(simplifyRoute([east(0), east(0)], 10)).toEqual([east(0)])
