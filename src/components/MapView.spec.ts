@@ -571,19 +571,45 @@ describe('MapView', () => {
     )
   })
 
-  it('does not add route layer a second time when routes prop updates again', async () => {
+  // SPA-407: the service editor's picker and the route builder hand over a
+  // different route while the map is up, so the source is redrawn in place
+  // rather than added again.
+  it('redraws the route source, without adding it again, when the routes prop changes', async () => {
+    mockGetSource.mockReturnValue({ setData: mockSetData })
     const wrapper = mount(MapView, { props: { ...defaultProps, routes: [stubRoute], stations: [stubStation] } })
     await triggerMapLoad()
+    mockSetData.mockClear()
     const addSourceCallCount = mockAddSource.mock.calls.filter(
       (c: unknown[]) => c[0] === ROUTE_SOURCE_ID,
     ).length
     expect(addSourceCallCount).toBe(1)
 
-    await wrapper.setProps({ routes: [...stubRoute ? [stubRoute] : [], stubRoute] })
+    const branch: Route = { ...stubRoute, id: 'r2', name: 'Branch', geometry: { type: 'LineString', coordinates: [[-121, 37], [-120, 36]] } }
+    await wrapper.setProps({ routes: [stubRoute, branch] })
+
     const addSourceCallCountAfter = mockAddSource.mock.calls.filter(
       (c: unknown[]) => c[0] === ROUTE_SOURCE_ID,
     ).length
     expect(addSourceCallCountAfter).toBe(1)
+    const redrawn = mockSetData.mock.calls
+      .map((c) => c[0] as { features?: { properties: { id: string } }[] })
+      .find((data) => data.features?.some((f) => f.properties.id === 'r2'))
+    expect(redrawn?.features?.map((f) => f.properties.id)).toEqual(['r1', 'r2'])
+  })
+
+  it('does not redraw the route source when the same routes are handed over again', async () => {
+    mockGetSource.mockReturnValue({ setData: mockSetData })
+    const wrapper = mount(MapView, { props: { ...defaultProps, routes: [stubRoute], stations: [stubStation] } })
+    await triggerMapLoad()
+    mockSetData.mockClear()
+
+    await wrapper.setProps({ routes: [{ ...stubRoute }] })
+
+    const routeRedraws = mockSetData.mock.calls.filter((c) => {
+      const data = c[0] as { features?: { geometry: { type: string }; properties: { id?: string } }[] }
+      return data.features?.some((f) => f.properties.id === 'r1' && f.geometry.type === 'LineString')
+    })
+    expect(routeRedraws).toHaveLength(0)
   })
 
   it('still renders isochrone layer when routes prop is empty', async () => {

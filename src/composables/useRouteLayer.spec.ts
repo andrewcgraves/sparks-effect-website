@@ -564,6 +564,41 @@ describe('useRouteLayer', () => {
       )
     })
 
+    it('re-draws the route line on sync when a different route is handed over', () => {
+      const setData = vi.fn()
+      const map = {
+        ...makeMockMap(),
+        setPaintProperty: vi.fn(),
+        getSource: vi.fn((id: string) => (id === ROUTE_SOURCE_ID ? { setData } : undefined)),
+      }
+      let routes: Route[] = [route]
+      const module = routeLayerModule(() => ({ routes, stations: [station] }), () => null, '#f28f29')
+      module.attach(map as unknown as Map)
+
+      routes = [{ ...route, id: 'r2', name: 'Branch', geometry: { type: 'LineString', coordinates: [[-121, 37], [-120, 36]] } }]
+      module.sync(map as unknown as Map)
+
+      expect(setData).toHaveBeenCalledTimes(1)
+      expect(setData.mock.calls[0][0].features.map((f: { properties: { id: string } }) => f.properties.id)).toEqual(['r2'])
+    })
+
+    it('leaves the route line alone on sync when the routes only changed identity', () => {
+      const setData = vi.fn()
+      const map = {
+        ...makeMockMap(),
+        setPaintProperty: vi.fn(),
+        getSource: vi.fn((id: string) => (id === ROUTE_SOURCE_ID ? { setData } : undefined)),
+      }
+      let routes: Route[] = [route]
+      const module = routeLayerModule(() => ({ routes, stations: [station] }), () => null, '#f28f29')
+      module.attach(map as unknown as Map)
+
+      routes = [{ ...route, geometry: { ...route.geometry, coordinates: route.geometry.coordinates.map((c) => [...c]) } }]
+      module.sync(map as unknown as Map)
+
+      expect(setData).not.toHaveBeenCalled()
+    })
+
     it('re-draws the ridden legs on sync, because a new reach rides different ones', () => {
       const setData = vi.fn()
       const map: Pick<Map, 'addSource' | 'addLayer' | 'setPaintProperty'> & {

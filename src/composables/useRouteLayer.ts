@@ -237,6 +237,38 @@ export function routeLineColor(plotted: boolean): string {
   return readThemeToken(plotted ? '--color-ink-faint' : '--color-ink')
 }
 
+export type RouteLines = FeatureCollection<LineString, { id: string; name: string; mode: string }>
+
+export function routeLines(routes: Route[]): RouteLines {
+  return {
+    type: 'FeatureCollection',
+    features: routes.map((r) => ({
+      type: 'Feature' as const,
+      properties: { id: r.id, name: r.name, mode: r.mode },
+      geometry: r.geometry,
+    })),
+  }
+}
+
+function sameCoordinates(a: number[][], b: number[][]): boolean {
+  if (a === b) return true
+  if (a.length !== b.length) return false
+  return a.every((pos, i) => pos[0] === b[i][0] && pos[1] === b[i][1])
+}
+
+export function sameRoutes(a: Route[], b: Route[]): boolean {
+  if (a.length !== b.length) return false
+  return a.every((route, i) => {
+    const other = b[i]
+    return (
+      route.id === other.id &&
+      route.name === other.name &&
+      route.mode === other.mode &&
+      sameCoordinates(route.geometry.coordinates, other.geometry.coordinates)
+    )
+  })
+}
+
 export function useRouteLayer(
   map: Map,
   routes: Route[],
@@ -247,17 +279,7 @@ export function useRouteLayer(
   const ink = readThemeToken('--color-ink')
   const progress = plot?.metadata.trip_progress ?? []
 
-  map.addSource(ROUTE_SOURCE_ID, {
-    type: 'geojson',
-    data: {
-      type: 'FeatureCollection',
-      features: routes.map((r) => ({
-        type: 'Feature' as const,
-        properties: { id: r.id, name: r.name, mode: r.mode },
-        geometry: r.geometry,
-      })),
-    },
-  })
+  map.addSource(ROUTE_SOURCE_ID, { type: 'geojson', data: routeLines(routes) })
 
   addLayerInStack(map, {
     id: ROUTE_LINE_LAYER_ID,
@@ -368,6 +390,12 @@ export function routeLayerModule(
   isochroneData: () => ChainResponse | null,
   highlightColor: string,
 ): MapModule {
+  // What the route source was last given. A page whose routes are fetched
+  // once hands over the same array on every sync, and a redraw of it would
+  // only flash the line; an editor picking another route hands over a
+  // different one, which is the case that was never redrawn (SPA-407).
+  let drawnRoutes: Route[] | null = null
+
   return {
     deps: () => {
       const { routes, stations } = inputs()
@@ -377,15 +405,21 @@ export function routeLayerModule(
     attach: (map) => {
       const { routes, stations } = inputs()
       useRouteLayer(map, routes, stations, isochroneData(), highlightColor)
+      drawnRoutes = routes
     },
-    // The route/station positions are fetched once and do not move under an
-    // open map, but which dots are lit does: the rider can regenerate the
+    // The station positions are fetched once and do not move under an open
+    // map, but which dots are lit does: the rider can regenerate the
     // isochrone with a different reach. The ridden legs and the stubs move for
     // exactly the same reason and at exactly the same moment, which is why they
     // are re-applied here rather than from a module of their own.
     sync: (map) => {
       const { routes, stations } = inputs()
       const plot = isochroneData()
+
+      if (!drawnRoutes || !sameRoutes(drawnRoutes, routes)) {
+        ;(map.getSource(ROUTE_SOURCE_ID) as GeoJSONSource | undefined)?.setData(routeLines(routes))
+        drawnRoutes = routes
+      }
 
       map.setPaintProperty(
         STATION_DOTS_LAYER_ID,
@@ -407,6 +441,6 @@ export function routeLayerModule(
         tripProgressCaps(stubs),
       )
     },
-    detach: () => {},
+    detach: () => { drawnRoutes = null },
   }
 }
