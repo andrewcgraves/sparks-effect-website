@@ -7,9 +7,11 @@ import type { RouteInput } from './api/authoring/types'
 import {
   GeoJsonImportError,
   MULTI_LINE_IMPORT_FAULT,
+  dropRepeatedPoints,
   formatKm,
   normaliseImportedGeoJson,
   routeLengthM,
+  simplifyRoute,
   validateRouteInput,
 } from './routeGeometry'
 
@@ -161,5 +163,50 @@ describe('formatKm', () => {
 
   it('is empty for a length the API did not send', () => {
     expect(formatKm(undefined)).toBe('')
+  })
+})
+
+describe('simplifyRoute', () => {
+  // A line due east along 37°N: a degree of latitude is 111,195 m in the
+  // chainage frame, so the wobbles below are in known metres.
+  const metres = (m: number) => m / 111_195
+  const east = (km: number): [number, number] => [-120 + (km / 111.195) / Math.cos((37 * Math.PI) / 180), 37]
+
+  it('drops the points within the tolerance of a straight run and keeps the ends', () => {
+    const wobbly: [number, number][] = [
+      east(0),
+      [east(1)[0], 37 + metres(4)],
+      [east(2)[0], 37 - metres(6)],
+      [east(3)[0], 37 + metres(9)],
+      east(4),
+    ]
+    expect(simplifyRoute(wobbly, 10)).toEqual([east(0), east(4)])
+  })
+
+  it('keeps a point that leaves the straight run by more than the tolerance, and what it splits off', () => {
+    // Once the bend is kept, its neighbours are measured against the two
+    // halves it splits off, not the original chord: +3 m sits 9.5 m under
+    // the run up to the bend and +12 m sits 0.5 m off the run down from it.
+    const bend: [number, number] = [east(2)[0], 37 + metres(25)]
+    const line: [number, number][] = [east(0), [east(1)[0], 37 + metres(3)], bend, [east(3)[0], 37 + metres(12)], east(4)]
+    expect(simplifyRoute(line, 10)).toEqual([east(0), bend, east(4)])
+    expect(simplifyRoute(line, 30)).toEqual([east(0), east(4)])
+  })
+
+  it('drops repeated points even when nothing else is simplified', () => {
+    expect(simplifyRoute([east(0), east(0), east(4), east(4)], 10)).toEqual([east(0), east(4)])
+    expect(simplifyRoute([east(0), east(0)], 10)).toEqual([east(0)])
+    expect(simplifyRoute([], 10)).toEqual([])
+  })
+
+  it('leaves a line that is already simple alone', () => {
+    const zigzag: [number, number][] = [east(0), [east(1)[0], 37 + metres(50)], [east(2)[0], 37 + metres(20)], [east(3)[0], 37 - metres(50)], east(4)]
+    expect(simplifyRoute(zigzag, 10)).toEqual(zigzag)
+  })
+})
+
+describe('dropRepeatedPoints', () => {
+  it('collapses runs of one position into a single point', () => {
+    expect(dropRepeatedPoints([[1, 1], [1, 1], [2, 2], [2, 2], [1, 1]])).toEqual([[1, 1], [2, 2], [1, 1]])
   })
 })

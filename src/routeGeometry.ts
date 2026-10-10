@@ -1,4 +1,4 @@
-import { chainageAlong } from './chainage'
+import { chainageAlong, planarFrame } from './chainage'
 import { ROUTE_MODES, type RouteInput } from './api/authoring/types'
 
 export interface RouteFault {
@@ -183,4 +183,57 @@ export function routeLengthM(coordinates: number[][]): number {
 export function formatKm(lengthM: number | undefined): string {
   if (lengthM === undefined || !Number.isFinite(lengthM)) return ''
   return `${(lengthM / 1000).toFixed(1)} km`
+}
+
+export const SIMPLIFY_TOLERANCE_M = 10
+
+export function dropRepeatedPoints(coordinates: [number, number][]): [number, number][] {
+  const out: [number, number][] = []
+  for (const [lng, lat] of coordinates) {
+    const last = out[out.length - 1]
+    if (last && last[0] === lng && last[1] === lat) continue
+    out.push([lng, lat])
+  }
+  return out
+}
+
+function segmentOffset(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
+  const dx = bx - ax
+  const dy = by - ay
+  const lengthSq = dx * dx + dy * dy
+  const t = lengthSq > 0 ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lengthSq)) : 0
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy))
+}
+
+// Douglas–Peucker in the same planar frame chainage is measured in, so the
+// tolerance is metres on the ground. A traced route carries a point at every
+// bend of the railway it followed, and the physics splits a span per point;
+// dropping those within toleranceM of a straight run keeps the shape and
+// loses the splits. Ends are always kept, repeats always dropped.
+export function simplifyRoute(coordinates: [number, number][], toleranceM: number): [number, number][] {
+  const points = dropRepeatedPoints(coordinates)
+  if (points.length < 3) return points
+  const { x, y } = planarFrame(points)
+  const xs = points.map(([lng]) => x(lng))
+  const ys = points.map(([, lat]) => y(lat))
+  const keep = new Array<boolean>(points.length).fill(false)
+  keep[0] = true
+  keep[points.length - 1] = true
+  const stack: [number, number][] = [[0, points.length - 1]]
+  while (stack.length > 0) {
+    const [first, last] = stack.pop()!
+    let farthest = -1
+    let farthestOffset = toleranceM
+    for (let i = first + 1; i < last; i++) {
+      const offset = segmentOffset(xs[i], ys[i], xs[first], ys[first], xs[last], ys[last])
+      if (offset > farthestOffset) {
+        farthest = i
+        farthestOffset = offset
+      }
+    }
+    if (farthest === -1) continue
+    keep[farthest] = true
+    stack.push([first, farthest], [farthest, last])
+  }
+  return points.filter((_, i) => keep[i])
 }

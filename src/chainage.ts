@@ -2,14 +2,14 @@ const EARTH_RADIUS_M = 6371000
 
 const toRad = (deg: number): number => (deg * Math.PI) / 180
 
-interface PlanarFrame {
+export interface PlanarFrame {
   x: (lng: number) => number
   y: (lat: number) => number
 }
 
 // The frame the shared fixture pins: equirectangular about the *whole* line's
 // mean latitude, so every leg of one line is measured at the same scale.
-function planarFrame(coordinates: [number, number][]): PlanarFrame {
+export function planarFrame(coordinates: [number, number][]): PlanarFrame {
   const refLatRad = toRad(
     coordinates.reduce((sum, [, lat]) => sum + lat, 0) / coordinates.length,
   )

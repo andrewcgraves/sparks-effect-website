@@ -6,8 +6,10 @@ import type { OwnedRoute, Route, RouteDependents, RouteInput, RouteMode } from '
 import type { Route as ScenarioRoute } from '../api/scenarios'
 import {
   GeoJsonImportError,
+  SIMPLIFY_TOLERANCE_M,
   normaliseImportedGeoJson,
   routeLengthM,
+  simplifyRoute,
   validateRouteInput,
 } from '../routeGeometry'
 
@@ -45,6 +47,7 @@ export function useRouteDraft(routeSlug?: string) {
   const bidirectional = ref(true)
   const description = ref('')
   const coordinates = ref<LngLat[]>([])
+  const simplifyOnSave = ref(true)
 
   const editing = ref<OwnedRoute | null>(null)
   const loading = ref(Boolean(routeSlug))
@@ -79,6 +82,23 @@ export function useRouteDraft(routeSlug?: string) {
   const pointCount = computed(() => coordinates.value.length)
   const lengthM = computed(() => routeLengthM(coordinates.value))
 
+  const shapeChanged = computed(() => editing.value === null || !sameCoordinates(editing.value.geometry.coordinates, coordinates.value))
+
+  // What a save sends for the shape. Only a shape that changed is simplified:
+  // a rename must not quietly re-vertex a route, and a shape that is still the
+  // one read keeps its segments (toInput, below).
+  const savedShape = computed<LngLat[]>(() => {
+    if (!simplifyOnSave.value || geometryLocked.value || !shapeChanged.value) return coordinates.value
+    return simplifyRoute(coordinates.value, SIMPLIFY_TOLERANCE_M)
+  })
+
+  const simplifyNote = computed(() => {
+    const before = coordinates.value.length
+    const after = savedShape.value.length
+    if (after >= before) return ''
+    return `${before} points → ${after} points on save`
+  })
+
   function touchName(): void {
     nameTouched.value = true
   }
@@ -110,7 +130,7 @@ export function useRouteDraft(routeSlug?: string) {
   // unchanged, and are dropped once it is not: the API wants one per span.
   function toInput(): RouteInput {
     const saved = editing.value
-    const points = geometryLocked.value && saved ? saved.geometry.coordinates : coordinates.value
+    const points = geometryLocked.value && saved ? saved.geometry.coordinates : savedShape.value
     const keepSegments = saved !== null && saved.segments.length > 0 && sameCoordinates(saved.geometry.coordinates, points)
     const trimmedDescription = description.value.trim()
     return {
@@ -222,6 +242,8 @@ export function useRouteDraft(routeSlug?: string) {
     description,
     coordinates,
     setCoordinates,
+    simplifyOnSave,
+    simplifyNote,
     importGeoJson,
     importError,
     importNote,

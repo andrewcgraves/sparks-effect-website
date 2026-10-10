@@ -13,6 +13,12 @@ import { ApiError, SessionExpiredError } from '../api/authoring/client'
 
 const sfToSj: [number, number][] = [[-122.4194, 37.7749], [-121.8863, 37.3382]]
 
+// Due east along 37°N with wobbles of a few metres: what a traced railway
+// looks like, and what 10 m of simplification takes down to its two ends.
+const metres = (m: number) => m / 111_195
+const east = (km: number): [number, number] => [-120 + (km / 111.195) / Math.cos((37 * Math.PI) / 180), 37]
+const wobbly: [number, number][] = [east(0), [east(1)[0], 37 + metres(4)], [east(2)[0], 37 - metres(6)], east(3), east(4)]
+
 const lineText = JSON.stringify({ type: 'LineString', coordinates: sfToSj })
 
 const stubRoute: Route = {
@@ -188,6 +194,39 @@ describe('useRouteDraft', () => {
       await draft.submit()
       expect(createRoute).not.toHaveBeenCalled()
     })
+
+    it('simplifies the shape on save by default, saying what that will do to the count', async () => {
+      const draft = useRouteDraft()
+      draft.name.value = 'Valley'
+      draft.setCoordinates(wobbly)
+      expect(draft.simplifyOnSave.value).toBe(true)
+      expect(draft.pointCount.value).toBe(5)
+      expect(draft.simplifyNote.value).toBe('5 points → 2 points on save')
+
+      vi.mocked(createRoute).mockResolvedValue({ ...stubRoute, geometry: { type: 'LineString', coordinates: [east(0), east(4)] } })
+      await draft.submit()
+
+      expect((vi.mocked(createRoute).mock.calls[0][0] as RouteInput).coordinates).toEqual([east(0), east(4)])
+      // The draft takes the saved shape, so the map shows what was kept.
+      expect(draft.coordinates.value).toEqual([east(0), east(4)])
+      expect(draft.simplifyNote.value).toBe('')
+    })
+
+    it('sends every point when simplifying is turned off', async () => {
+      const draft = useRouteDraft()
+      draft.name.value = 'Valley'
+      draft.setCoordinates(wobbly)
+      draft.simplifyOnSave.value = false
+      expect(draft.simplifyNote.value).toBe('')
+      await draft.submit()
+      expect((vi.mocked(createRoute).mock.calls[0][0] as RouteInput).coordinates).toEqual(wobbly)
+    })
+
+    it('says nothing when simplifying would keep every point', () => {
+      const draft = useRouteDraft()
+      draft.setCoordinates(sfToSj)
+      expect(draft.simplifyNote.value).toBe('')
+    })
   })
 
   describe('editing a route', () => {
@@ -256,6 +295,30 @@ describe('useRouteDraft', () => {
       expect(draft.editing.value?.name).toBe('Spine')
       expect(draft.editing.value?.dependents).toEqual({ services: 0, user_services: 0, segments: 1 })
       expect(draft.hasChanges.value).toBe(false)
+    })
+
+    // A rename must not quietly re-vertex a route that was saved with every
+    // point, and a shape still the one read keeps its segments.
+    it('leaves a saved shape alone on a rename, simplify-on-save or not', async () => {
+      vi.mocked(fetchMyRoute).mockResolvedValue(owned({ geometry: { type: 'LineString', coordinates: wobbly }, segments: [] }))
+      const draft = useRouteDraft('main-line')
+      await draft.start()
+      expect(draft.simplifyNote.value).toBe('')
+      expect(draft.hasChanges.value).toBe(false)
+      draft.name.value = 'Spine'
+      await draft.submit()
+      expect((vi.mocked(updateRoute).mock.calls[0][1] as RouteInput).coordinates).toEqual(wobbly)
+    })
+
+    it('simplifies a reshaped route on save', async () => {
+      const draft = useRouteDraft('main-line')
+      await draft.start()
+      draft.setCoordinates(wobbly)
+      expect(draft.simplifyNote.value).toBe('5 points → 2 points on save')
+      await draft.submit()
+      const sent = vi.mocked(updateRoute).mock.calls[0][1] as RouteInput
+      expect(sent.coordinates).toEqual([east(0), east(4)])
+      expect(sent.properties.segments).toBeUndefined()
     })
 
     it('drops the segments once the shape they described has changed', async () => {
