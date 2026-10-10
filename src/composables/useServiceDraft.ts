@@ -4,7 +4,7 @@ import { useCompileJob } from './useCompileJob'
 import { latestAttempt } from './latestAttempt'
 import { ApiError, isSessionExpiry, stopPlacementFault } from '../api/authoring/client'
 import { authoringFault } from '../api/authoringFault'
-import { fetchRoute, listRoutes, snapStops } from '../api/authoring/routes'
+import { fetchMyRoutes, fetchRoute, listRoutes, snapStops } from '../api/authoring/routes'
 import {
   compileService,
   createService,
@@ -132,6 +132,7 @@ export function useServiceDraft(serviceSlug?: string) {
     trigger: triggerCompile,
   } = useCompileJob(compileService)
 
+  const ownedRoutes = ref<RouteSummary[]>([])
   const routes = ref<RouteSummary[]>([])
   const routesLoading = ref(true)
   const routesError = ref(false)
@@ -446,13 +447,18 @@ export function useServiceDraft(serviceSlug?: string) {
     await Promise.all([loadRoutes(), loadRoute(routeSlug.value)])
   }
 
+  // The author's own routes and the curated ones are two lists from two
+  // endpoints, shown as two groups. Either list alone is a picker worth
+  // having, so one failing only loses its group; both failing is an error.
   async function loadRoutes(): Promise<void> {
-    try {
-      routes.value = await listRoutes()
-    } catch (err) {
-      if (isSessionExpiry(err)) return
-      routesError.value = true
+    const [owned, curated] = await Promise.allSettled([fetchMyRoutes(), listRoutes()])
+    if ((owned.status === 'rejected' && isSessionExpiry(owned.reason))
+      || (curated.status === 'rejected' && isSessionExpiry(curated.reason))) {
+      return
     }
+    if (owned.status === 'fulfilled') ownedRoutes.value = owned.value
+    if (curated.status === 'fulfilled') routes.value = curated.value
+    routesError.value = owned.status === 'rejected' && curated.status === 'rejected'
     routesLoading.value = false
   }
 
@@ -584,6 +590,7 @@ export function useServiceDraft(serviceSlug?: string) {
     subtext,
     description,
     vehicle,
+    ownedRoutes,
     routes,
     routesLoading,
     routesError,

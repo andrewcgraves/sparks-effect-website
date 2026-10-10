@@ -6,6 +6,7 @@ import type { Job, Route, RouteSummary, SnapStopsResponse, Service, TransitGraph
 
 vi.mock('../api/authoring/routes', () => ({
   listRoutes: vi.fn(),
+  fetchMyRoutes: vi.fn(),
   fetchRoute: vi.fn(),
   snapStops: vi.fn(),
 }))
@@ -18,7 +19,7 @@ vi.mock('../api/authoring/services', () => ({
 }))
 
 import { PREVIEW_DEBOUNCE_MS, useServiceDraft } from './useServiceDraft'
-import { fetchRoute, listRoutes, snapStops } from '../api/authoring/routes'
+import { fetchMyRoutes, fetchRoute, listRoutes, snapStops } from '../api/authoring/routes'
 import {
   compileService,
   createService,
@@ -110,6 +111,7 @@ describe('useServiceDraft', () => {
     setActivePinia(createPinia())
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     vi.mocked(listRoutes).mockResolvedValue([stubRouteSummary])
+    vi.mocked(fetchMyRoutes).mockResolvedValue([])
     vi.mocked(fetchRoute).mockResolvedValue(stubRoute)
     vi.mocked(snapStops).mockResolvedValue(snapResponse())
     vi.mocked(createService).mockResolvedValue(stubService)
@@ -127,18 +129,47 @@ describe('useServiceDraft', () => {
   })
 
   describe('opening', () => {
-    it('offers the route list once started', async () => {
+    const ownedSummary: RouteSummary = { slug: 'my-spur', name: 'My Spur', mode: 'tram' }
+
+    it('offers the author\'s own routes and the curated ones as two lists once started', async () => {
+      vi.mocked(fetchMyRoutes).mockResolvedValue([{ ...ownedSummary, id: 'rt9', length_m: 1200 }])
       const draft = useServiceDraft()
       expect(draft.routesLoading.value).toBe(true)
 
       await draft.start()
 
+      expect(draft.ownedRoutes.value).toMatchObject([ownedSummary])
       expect(draft.routes.value).toEqual([stubRouteSummary])
       expect(draft.routesLoading.value).toBe(false)
       expect(draft.routesError.value).toBe(false)
     })
 
-    it('reports a route list that fails to load', async () => {
+    it('still offers the curated routes when the author\'s own fail to load', async () => {
+      vi.mocked(fetchMyRoutes).mockRejectedValue(new Error('boom'))
+      const draft = useServiceDraft()
+
+      await draft.start()
+
+      expect(draft.ownedRoutes.value).toEqual([])
+      expect(draft.routes.value).toEqual([stubRouteSummary])
+      expect(draft.routesError.value).toBe(false)
+      expect(draft.routesLoading.value).toBe(false)
+    })
+
+    it('still offers the author\'s own routes when the curated ones fail to load', async () => {
+      vi.mocked(fetchMyRoutes).mockResolvedValue([{ ...ownedSummary, id: 'rt9', length_m: 1200 }])
+      vi.mocked(listRoutes).mockRejectedValue(new Error('boom'))
+      const draft = useServiceDraft()
+
+      await draft.start()
+
+      expect(draft.ownedRoutes.value).toMatchObject([ownedSummary])
+      expect(draft.routes.value).toEqual([])
+      expect(draft.routesError.value).toBe(false)
+    })
+
+    it('reports an error only when both route lists fail to load', async () => {
+      vi.mocked(fetchMyRoutes).mockRejectedValue(new Error('boom'))
       vi.mocked(listRoutes).mockRejectedValue(new Error('boom'))
       const draft = useServiceDraft()
 
@@ -148,7 +179,7 @@ describe('useServiceDraft', () => {
       expect(draft.routesLoading.value).toBe(false)
     })
 
-    it('stays loading, not failed, when the route list is refused for an expired session', async () => {
+    it('stays loading, not failed, when a route list is refused for an expired session', async () => {
       vi.mocked(listRoutes).mockRejectedValue(new SessionExpiredError('GET /api/routes failed: 401'))
       const draft = useServiceDraft()
 

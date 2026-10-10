@@ -6,6 +6,7 @@ import type { Job, Route, RouteSummary, SnapStopsResponse, Service, TransitGraph
 
 vi.mock('../api/authoring/routes', () => ({
   listRoutes: vi.fn(),
+  fetchMyRoutes: vi.fn(),
   fetchRoute: vi.fn(),
   snapStops: vi.fn(),
 }))
@@ -21,7 +22,7 @@ import ServiceAuthoringView from './ServiceAuthoringView.vue'
 import { seriousA11yViolations } from '../test/axe'
 import { breadcrumbTrail } from '../test/breadcrumbs'
 import { busyRegion, visibleText } from '../test/loading'
-import { listRoutes, fetchRoute, snapStops } from '../api/authoring/routes'
+import { listRoutes, fetchMyRoutes, fetchRoute, snapStops } from '../api/authoring/routes'
 import {
   createService,
   compileService,
@@ -145,6 +146,7 @@ describe('ServiceAuthoringView', () => {
     setActivePinia(createPinia())
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     vi.mocked(listRoutes).mockResolvedValue([stubRouteSummary])
+    vi.mocked(fetchMyRoutes).mockResolvedValue([])
     vi.mocked(fetchRoute).mockResolvedValue(stubRoute)
     vi.mocked(snapStops).mockResolvedValue(snapResponse())
     vi.mocked(createService).mockResolvedValue(stubService)
@@ -173,6 +175,47 @@ describe('ServiceAuthoringView', () => {
     expect(options.some((o) => o.text().includes('Main Line'))).toBe(true)
   })
 
+  it('groups the author\'s own routes above the curated ones', async () => {
+    vi.mocked(fetchMyRoutes).mockResolvedValue([{ id: 'rt9', slug: 'my-spur', name: 'My Spur', mode: 'tram', length_m: 1200 }])
+    const wrapper = mountView()
+    await flushPromises()
+    const groups = wrapper.findAll('[data-testid="route-select"] optgroup')
+    expect(groups.map((g) => g.attributes('label'))).toEqual(['Your routes', 'Curated routes'])
+    expect(groups[0].findAll('option').map((o) => o.text())).toEqual(['My Spur (tram)'])
+    expect(groups[1].findAll('option').map((o) => o.text())).toEqual(['Main Line (rail)'])
+  })
+
+  it('leaves out the group an author has nothing in', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="route-group-owned"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="route-group-curated"]').exists()).toBe(true)
+  })
+
+  it('keeps the curated routes, with no error, when the author\'s own fail to load', async () => {
+    vi.mocked(fetchMyRoutes).mockRejectedValue(new Error('boom'))
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="routes-error"]').exists()).toBe(false)
+    expect(wrapper.findAll('[data-testid="route-select"] option').some((o) => o.text().includes('Main Line'))).toBe(true)
+  })
+
+  it('offers to draw a new route, returning here afterwards', async () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/authoring/services/new', name: 'new-service', component: ServiceAuthoringView },
+        { path: '/authoring/routes/new', name: 'new-route', component: { template: '<div>stub</div>' } },
+      ],
+    })
+    await router.push('/authoring/services/new')
+    const wrapper = mount(ServiceAuthoringView, { global: { plugins: [router], stubs: { MapView: true } } })
+    await flushPromises()
+    const link = wrapper.get('[data-testid="draw-route-link"]')
+    expect(link.text()).toBe('Draw a new route…')
+    expect(link.attributes('href')).toBe('/authoring/routes/new?return=/authoring/services/new')
+  })
+
   it('shows a route-picker skeleton, not loading copy, while the routes load', async () => {
     vi.mocked(listRoutes).mockReturnValue(new Promise(() => {}))
     const wrapper = mountView()
@@ -182,8 +225,9 @@ describe('ServiceAuthoringView', () => {
     expect(visibleText(region)).toBe('')
   })
 
-  it('shows an error state when routes fail to load', async () => {
+  it('shows an error state when both route lists fail to load', async () => {
     vi.mocked(listRoutes).mockRejectedValue(new Error('boom'))
+    vi.mocked(fetchMyRoutes).mockRejectedValue(new Error('boom'))
     const wrapper = mountView()
     await flushPromises()
     expect(wrapper.find('[data-testid="routes-error"]').exists()).toBe(true)
@@ -1142,6 +1186,22 @@ describe('ServiceAuthoringView', () => {
         ['My authoring', '/authoring'],
         ['New line', null],
       ])
+    })
+
+    it('picks the route the builder sent back in ?route=, then drops the query', async () => {
+      vi.mocked(fetchMyRoutes).mockResolvedValue([{ id: 'rt9', slug: 'my-spur', name: 'My Spur', mode: 'tram', length_m: 1200 }])
+      vi.mocked(fetchRoute).mockResolvedValue({ ...stubRoute, id: 'rt9', slug: 'my-spur', name: 'My Spur' })
+      const router = createRouter({
+        history: createMemoryHistory(),
+        routes: [{ path: '/authoring/services/new', name: 'new-service', component: ServiceAuthoringView }],
+      })
+      await router.push('/authoring/services/new?route=my-spur')
+      const wrapper = mount(ServiceAuthoringView, { global: { plugins: [router], stubs: { MapView: true } } })
+      await flushPromises()
+
+      expect(fetchRoute).toHaveBeenCalledWith('my-spur')
+      expect((wrapper.get('[data-testid="route-select"]').element as HTMLSelectElement).value).toBe('my-spur')
+      expect(router.currentRoute.value.fullPath).toBe('/authoring/services/new')
     })
 
     it('lands on the new service\'s page, which compiles it, rather than compiling here', async () => {

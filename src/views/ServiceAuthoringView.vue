@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useConfirm } from '../composables/useConfirm'
 import { usePageTitle } from '../composables/usePageTitle'
 import { useServiceDraft } from '../composables/useServiceDraft'
@@ -26,6 +26,7 @@ import { STOP_PLACEMENT_CUE } from '../components/placementCues'
 const props = defineProps<{ slug?: string }>()
 
 const router = useRouter()
+const route = useRoute()
 
 const {
   ready,
@@ -40,6 +41,7 @@ const {
   subtext,
   description,
   vehicle,
+  ownedRoutes,
   routes,
   routesLoading,
   routesError,
@@ -136,9 +138,22 @@ const newWindowHeadwayMin = ref<number | null>(null)
 
 const placingStops = ref(false)
 
-onMounted(() => {
+// The route builder sends the author back here with ?route=<slug> once a new
+// route exists; it is picked and the query is dropped, so a reload or a
+// shared link does not pick it again over whatever was chosen since.
+async function pickRouteFromQuery(): Promise<void> {
+  const picked = route?.query.route
+  if (typeof picked !== 'string' || !picked || !ready.value) return
+  await selectRoute(picked)
+  const rest = { ...route.query }
+  delete rest.route
+  void router.replace({ query: rest })
+}
+
+onMounted(async () => {
   window.addEventListener('keydown', handleKeydown)
-  void start()
+  await start()
+  await pickRouteFromQuery()
 })
 
 onBeforeUnmount(() => {
@@ -569,32 +584,60 @@ watch(createdSlug, (created) => {
             >
               Couldn't load routes.
             </p>
-            <label
+            <div
               v-else
-              :class="[FIELD_LABEL_CLASS, 'mt-3']"
+              class="mt-3 flex flex-wrap items-end gap-x-4 gap-y-2"
             >
-              Pick a route
-              <select
-                :value="routeSlug"
-                :class="FIELD_INPUT_CLASS"
-                data-testid="route-select"
-                @change="selectRoute(($event.target as HTMLSelectElement).value)"
+              <label :class="[FIELD_LABEL_CLASS, 'min-w-0 flex-1']">
+                Pick a route
+                <select
+                  :value="routeSlug"
+                  :class="FIELD_INPUT_CLASS"
+                  data-testid="route-select"
+                  @change="selectRoute(($event.target as HTMLSelectElement).value)"
+                >
+                  <option
+                    value=""
+                    disabled
+                  >
+                    Select a route…
+                  </option>
+                  <optgroup
+                    v-if="ownedRoutes.length"
+                    label="Your routes"
+                    data-testid="route-group-owned"
+                  >
+                    <option
+                      v-for="r in ownedRoutes"
+                      :key="r.slug"
+                      :value="r.slug"
+                    >
+                      {{ r.name }} ({{ r.mode }})
+                    </option>
+                  </optgroup>
+                  <optgroup
+                    v-if="routes.length"
+                    label="Curated routes"
+                    data-testid="route-group-curated"
+                  >
+                    <option
+                      v-for="r in routes"
+                      :key="r.slug"
+                      :value="r.slug"
+                    >
+                      {{ r.name }} ({{ r.mode }})
+                    </option>
+                  </optgroup>
+                </select>
+              </label>
+              <router-link
+                :to="{ path: '/authoring/routes/new', query: { return: route?.fullPath } }"
+                :class="[ACTION_LINK_CLASS, 'pb-2']"
+                data-testid="draw-route-link"
               >
-                <option
-                  value=""
-                  disabled
-                >
-                  Select a route…
-                </option>
-                <option
-                  v-for="r in routes"
-                  :key="r.slug"
-                  :value="r.slug"
-                >
-                  {{ r.name }} ({{ r.mode }})
-                </option>
-              </select>
-            </label>
+                Draw a new route…
+              </router-link>
+            </div>
             <p
               v-if="routeMissing"
               class="font-body text-caption mt-2 text-error"
