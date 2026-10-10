@@ -34,8 +34,8 @@ export function registerPmtilesProtocol(): Promise<void> {
 
 function addRailLayers(map: Map, url: string): void {
   // Railways that are there are the ones a route is drawn along, so they read
-  // strongest: solid, in the muted ink, a step under the drawn route's full
-  // ink. Planned ones fade with how far off they are, construction in the
+  // strongest: solid, in the muted ink, a step under the drawn route's
+  // accent. Planned ones fade with how far off they are, construction in the
   // faint ink and proposed fainter and thinner still.
   const existing = readThemeToken('--color-ink-muted')
   const planned = readThemeToken('--color-ink-faint')

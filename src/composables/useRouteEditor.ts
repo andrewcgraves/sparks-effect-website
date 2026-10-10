@@ -51,8 +51,9 @@ export const GRAPH_DEBOUNCE_MS = 250
 export const WALK_MIN_BUDGET_M = 500
 export const WALK_BUDGET_FACTOR = 3
 export const COORDINATE_PRECISION = 9
-// Over the route map's line width, and in the full ink: the route being
-// drawn is the strongest stroke on the map, over every railway it follows.
+// Over the route map's line width, and in the accent of the primary action:
+// the route being drawn is the strongest stroke on the map, over every
+// railway it follows.
 export const DRAWN_ROUTE_WIDTH = 3
 // MapLibre's zoom counts 512 px tiles, whatever the vector tiles' extent is.
 const SCREEN_TILE_PX = 512
@@ -105,6 +106,19 @@ function roundTo(value: number, factor: number): number {
 export function toDrawPrecision(points: number[][]): LngLat[] {
   const factor = 10 ** COORDINATE_PRECISION
   return points.map(([lng, lat]) => [roundTo(lng, factor), roundTo(lat, factor)])
+}
+
+// The adapter appends its layers once, when terra-draw starts, so anything
+// added after that (the rail overlay once its tiles protocol is in, a late
+// basemap label) would paint over the route. Moving each of ours to the top
+// in turn keeps their own order; already on top is a no-op, which also ends
+// the styledata that moveLayer itself raises.
+export function raiseEditorLayers(map: Pick<Map, 'getLayersOrder' | 'moveLayer'>): void {
+  const order = map.getLayersOrder()
+  const ours = order.filter((id) => id.startsWith(`${ROUTE_EDITOR_PREFIX}-`))
+  const tail = order.slice(order.length - ours.length)
+  if (tail.every((id, i) => id === ours[i])) return
+  for (const id of ours) map.moveLayer(id)
 }
 
 function hexToken(name: ThemeTokenName): HexColor {
@@ -364,6 +378,10 @@ export function useRouteEditor(options: RouteEditorOptions) {
     }, delayMs)
   }
 
+  function onStyleData(): void {
+    if (map && draw) raiseEditorLayers(map)
+  }
+
   function onMoveEnd(): void {
     zoomedOut.value = map !== null && map.getZoom() < GRAPH_MIN_ZOOM
     scheduleGraphLoad(GRAPH_DEBOUNCE_MS)
@@ -403,7 +421,7 @@ export function useRouteEditor(options: RouteEditorOptions) {
     const [terraDraw, adapter] = await Promise.all([import('terra-draw'), import('terra-draw-maplibre-gl-adapter')])
     if (mine !== generation) return
     const ink = hexToken('--color-ink')
-    const coral = hexToken('--color-coral')
+    const accent = hexToken('--color-coral')
     const white: HexColor = '#ffffff'
     const snapping = { toCustom }
     draw = new terraDraw.TerraDraw({
@@ -427,9 +445,9 @@ export function useRouteEditor(options: RouteEditorOptions) {
             onDragEnd: true,
           },
           styles: {
-            lineStringColor: ink,
+            lineStringColor: accent,
             lineStringWidth: DRAWN_ROUTE_WIDTH,
-            snappingPointColor: coral,
+            snappingPointColor: ink,
             snappingPointWidth: 6,
             snappingPointOutlineColor: white,
             snappingPointOutlineWidth: 2,
@@ -454,15 +472,15 @@ export function useRouteEditor(options: RouteEditorOptions) {
             },
           },
           styles: {
-            selectedLineStringColor: ink,
+            selectedLineStringColor: accent,
             selectedLineStringWidth: DRAWN_ROUTE_WIDTH,
             selectionPointColor: white,
             selectionPointWidth: 5,
             selectionPointOutlineColor: ink,
             selectionPointOutlineWidth: 2,
-            midPointColor: coral,
+            midPointColor: white,
             midPointWidth: 4,
-            midPointOutlineColor: white,
+            midPointOutlineColor: ink,
             midPointOutlineWidth: 1.5,
           },
         }),
@@ -470,6 +488,7 @@ export function useRouteEditor(options: RouteEditorOptions) {
     })
     draw.on('finish', onFinish)
     draw.start()
+    raiseEditorLayers(target)
     adopt(options.coordinates.value)
     applyMode()
     if (!tilesUrl) return
@@ -486,6 +505,7 @@ export function useRouteEditor(options: RouteEditorOptions) {
       map = target
       zoomedOut.value = target.getZoom() < GRAPH_MIN_ZOOM
       target.on('moveend', onMoveEnd)
+      target.on('styledata', onStyleData)
       window.addEventListener('keydown', onKey)
       window.addEventListener('keyup', onKey)
       window.addEventListener('blur', onBlur)
@@ -503,6 +523,7 @@ export function useRouteEditor(options: RouteEditorOptions) {
       window.removeEventListener('keyup', onKey)
       window.removeEventListener('blur', onBlur)
       map?.off('moveend', onMoveEnd)
+      map?.off('styledata', onStyleData)
       draw?.off('finish', onFinish)
       // stop() takes the adapter's layers and sources off the map.
       draw?.stop()

@@ -37,8 +37,13 @@ const { fakes, tileSources, tileFailures } = vi.hoisted(() => {
       for (const mode of options.modes) this.modes[mode.mode] = mode
       fakes.instances.push(this)
     }
+    // The adapter adds its layers on top of the map's when it registers.
     start() {
       this.enabled = true
+      const map = (this.adapter as { config: { map?: { addLayer?: (spec: { id: string }) => void } } }).config.map
+      for (const kind of ['polygon', 'polygon-outline', 'linestring', 'point', 'point-marker']) {
+        map?.addLayer?.({ id: `route-editor-${kind}` })
+      }
     }
     stop() {
       this.enabled = false
@@ -131,6 +136,9 @@ const { fakes, tileSources, tileFailures } = vi.hoisted(() => {
   return { fakes, tileSources, tileFailures }
 })
 
+vi.mock('maplibre-gl', () => ({ addProtocol: vi.fn() }))
+vi.mock('pmtiles', () => ({ Protocol: class { tile = vi.fn() } }))
+
 vi.mock('terra-draw', () => ({
   TerraDraw: fakes.FakeTerraDraw,
   TerraDrawLineStringMode: class extends fakes.FakeMode {
@@ -185,6 +193,7 @@ import {
 } from './useRouteEditor'
 import { ROUTE_EDITOR_LAYER_IDS } from './railLayerIds'
 import { layerStack } from './layerStack'
+import { RAIL_EXISTING_LAYER_ID, RAIL_PROPOSED_LAYER_ID, railOverlayModule } from './useRailOverlay'
 import { ROUTE_LINE_WIDTH } from './useRouteLayer'
 import { THEME_TOKEN_FALLBACKS } from '../themeTokens'
 import type { LngLat } from '../rail/railGraph'
@@ -196,22 +205,37 @@ type FakeDraw = InstanceType<typeof fakes.FakeTerraDraw>
 
 function makeMap(zoom = 14, bbox = FRESNO_BBOX) {
   const handlers: Record<string, (() => void)[]> = {}
-  const layers = new Set<string>()
+  // A basemap of its own, labels on top, so ordering is checked against it.
+  const layers = ['background', 'road', 'place-label']
+  const fire = (type: string) => (handlers[type] ?? []).forEach((h) => h())
+  const place = (id: string, before?: string) => {
+    const at = before === undefined ? -1 : layers.indexOf(before)
+    if (at === -1) layers.push(id)
+    else layers.splice(at, 0, id)
+    fire('styledata')
+  }
   return {
     zoom,
     layers,
+    getLayersOrder: () => [...layers],
+    addSource: vi.fn(),
+    addLayer: (spec: { id: string }, before?: string) => place(spec.id, before),
+    moveLayer: vi.fn((id: string, before?: string) => {
+      layers.splice(layers.indexOf(id), 1)
+      place(id, before)
+    }),
     getZoom() {
       return this.zoom
     },
     getBounds: () => ({ getWest: () => bbox[0], getSouth: () => bbox[1], getEast: () => bbox[2], getNorth: () => bbox[3] }),
-    getLayer: (id: string) => (layers.has(id) ? { id } : undefined),
+    getLayer: (id: string) => (layers.includes(id) ? { id } : undefined),
     on: vi.fn((type: string, handler: () => void) => {
       ;(handlers[type] ??= []).push(handler)
     }),
     off: vi.fn((type: string, handler: () => void) => {
       handlers[type] = (handlers[type] ?? []).filter((h) => h !== handler)
     }),
-    fire: (type: string) => (handlers[type] ?? []).forEach((h) => h()),
+    fire,
   }
 }
 
@@ -429,7 +453,7 @@ describe('useRouteEditor', () => {
       expect(coordinates.value.length).toBeGreaterThan(2)
       expect(route?.properties?.mode).toBe('linestring')
       const styles = draw.modes.linestring.options.styles as { lineStringColor: string; lineStringWidth: number }
-      expect(styles.lineStringColor).toBe(THEME_TOKEN_FALLBACKS['--color-ink'])
+      expect(styles.lineStringColor).toBe(THEME_TOKEN_FALLBACKS['--color-coral'])
       expect(styles.lineStringWidth).toBeGreaterThan(ROUTE_LINE_WIDTH)
       const selected = draw.modes.select.options.styles as { selectedLineStringColor: string; selectedLineStringWidth: number }
       expect(selected.selectedLineStringColor).toBe(styles.lineStringColor)
@@ -441,6 +465,23 @@ describe('useRouteEditor', () => {
       const config = (draw.adapter as { config: { renderBelowLayerId?: string; coordinatePrecision?: number } }).config
       expect(config.renderBelowLayerId).toBeUndefined()
       expect(config.coordinatePrecision).toBe(9)
+    })
+
+    it('keeps its layers over every other, the basemap labels and the rail overlay added after it included', async () => {
+      const { map } = await setUp()
+      const editorLast = () => expect(map.layers.slice(-ROUTE_EDITOR_LAYER_IDS.length)).toEqual([...ROUTE_EDITOR_LAYER_IDS])
+      editorLast()
+
+      railOverlayModule(TILES).attach(map as unknown as MapLibreMap)
+      await flushPromises()
+      expect(map.layers).toContain(RAIL_EXISTING_LAYER_ID)
+      expect(map.layers).toContain(RAIL_PROPOSED_LAYER_ID)
+      editorLast()
+
+      map.addLayer({ id: 'late-label' })
+      editorLast()
+      expect(map.layers.indexOf('late-label')).toBeLessThan(map.layers.indexOf(ROUTE_EDITOR_LAYER_IDS[0]))
+      expect(map.layers.indexOf('place-label')).toBeLessThan(map.layers.indexOf(ROUTE_EDITOR_LAYER_IDS[0]))
     })
 
     it('draws a straight span, flagged, where there is no railway to follow', async () => {
