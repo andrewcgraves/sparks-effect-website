@@ -50,6 +50,7 @@ export const GRAPH_MARGIN = 0.2
 export const GRAPH_DEBOUNCE_MS = 250
 export const WALK_MIN_BUDGET_M = 500
 export const WALK_BUDGET_FACTOR = 3
+export const COORDINATE_PRECISION = 9
 // MapLibre's zoom counts 512 px tiles, whatever the vector tiles' extent is.
 const SCREEN_TILE_PX = 512
 const MAX_LAT = 85
@@ -90,8 +91,17 @@ function sameCoordinates(a: LngLat[], b: LngLat[]): boolean {
   return a.length === b.length && a.every((p, i) => samePoint(p, b[i]))
 }
 
-function copy(points: number[][]): LngLat[] {
-  return points.map(([lng, lat]) => [lng, lat])
+function roundTo(value: number, factor: number): number {
+  return Math.round(value * factor) / factor
+}
+
+// terra-draw refuses, without a word, any feature with a coordinate finer
+// than the adapter's precision (addFeatures only returns valid: false), and
+// a point the rail graph hands out is a tile vertex interpolated to full
+// float precision, so every point is cut to that precision before it is kept.
+export function toDrawPrecision(points: number[][]): LngLat[] {
+  const factor = 10 ** COORDINATE_PRECISION
+  return points.map(([lng, lat]) => [roundTo(lng, factor), roundTo(lat, factor)])
 }
 
 function hexToken(name: ThemeTokenName): HexColor {
@@ -160,7 +170,7 @@ export function useRouteEditor(options: RouteEditorOptions) {
     // Railways still arriving: a click on one would read as "no railway
     // here" and be drawn straight, so in easy mode it is not taken yet.
     if (!hit && mode.value === 'easy' && loading.value) return false
-    commitClick(hit ? hit.point : [event.lng, event.lat], hit)
+    commitClick(toDrawPrecision([hit ? hit.point : [event.lng, event.lat]])[0], hit)
     return false
   }
 
@@ -183,7 +193,7 @@ export function useRouteEditor(options: RouteEditorOptions) {
       const straight = chainageAlong([previous, clicked])[1]
       const path = graph.walk(previous, clicked, Math.max(WALK_MIN_BUDGET_M, WALK_BUDGET_FACTOR * straight))
       if (path) {
-        added = path.slice(1)
+        added = toDrawPrecision(path.slice(1))
         provenance = { wayId: hit.wayId, name: hit.name, state: hit.state }
       }
     }
@@ -245,7 +255,7 @@ export function useRouteEditor(options: RouteEditorOptions) {
   }
 
   function adopt(coordinates: number[][]): void {
-    points = dropRepeatedPoints(copy(coordinates))
+    points = dropRepeatedPoints(toDrawPrecision(coordinates))
     spans.value = []
     lastSnap.value = null
     render()
@@ -253,7 +263,7 @@ export function useRouteEditor(options: RouteEditorOptions) {
 
   function syncFromDraft(): void {
     const external = options.coordinates.value
-    if (sameCoordinates(external, points)) return
+    if (sameCoordinates(toDrawPrecision(external), points)) return
     adopt(external)
   }
 
@@ -264,7 +274,7 @@ export function useRouteEditor(options: RouteEditorOptions) {
     if (!draw || routeId === null) return
     const feature = draw.getSnapshotFeature(routeId)
     if (!feature || feature.geometry.type !== 'LineString') return
-    points = dropRepeatedPoints(copy(feature.geometry.coordinates))
+    points = dropRepeatedPoints(toDrawPrecision(feature.geometry.coordinates))
     spans.value = []
     lastSnap.value = null
     pushToDraft()
@@ -397,6 +407,7 @@ export function useRouteEditor(options: RouteEditorOptions) {
       adapter: new adapter.TerraDrawMapLibreGLAdapter({
         map: target,
         prefixId: ROUTE_EDITOR_PREFIX,
+        coordinatePrecision: COORDINATE_PRECISION,
         renderBelowLayerId: layerAboveInStack(target, ROUTE_EDITOR_LAYER_IDS[ROUTE_EDITOR_LAYER_IDS.length - 1]),
       }),
       modes: [

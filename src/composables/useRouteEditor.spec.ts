@@ -61,10 +61,35 @@ const { fakes, tileSources, tileFailures } = vi.hoisted(() => {
     hasFeature(id: string | number) {
       return this.store.has(id)
     }
+    // terra-draw 1.37 validates every feature against its mode: the mode must
+    // be one it was given, and no coordinate may be finer than the adapter's
+    // precision (9 decimals by default). A refused feature is not stored and
+    // nothing is thrown, so a route that fails here is never drawn.
+    validate(feature: Feature): string | undefined {
+      const mode = (feature.properties as { mode?: string } | null)?.mode
+      if (!mode || !this.modes[mode]) return `${mode} mode is not in the list of instantiated modes`
+      const decimals = (n: number) => {
+        let factor = 1
+        let count = 0
+        while (Math.round(n * factor) / factor !== n) {
+          factor *= 10
+          count++
+        }
+        return count
+      }
+      const geometry = feature.geometry as LineString | Point
+      const coordinates = geometry.type === 'Point' ? [geometry.coordinates] : geometry.coordinates
+      if (coordinates.some(([lng, lat]) => decimals(lng) > 9 || decimals(lat) > 9)) {
+        return 'Feature has coordinates with excessive precision'
+      }
+      return undefined
+    }
     addFeatures(features: Feature[]) {
-      for (const feature of features) this.store.set(feature.id!, structuredClone(feature))
-      this.emit('change', features.map((f) => f.id), 'create')
-      return features.map((f) => ({ id: f.id, valid: true }))
+      const results = features.map((f) => ({ id: f.id, reason: this.validate(f) }))
+      const added = features.filter((_, i) => results[i].reason === undefined)
+      for (const feature of added) this.store.set(feature.id!, structuredClone(feature))
+      if (added.length) this.emit('change', added.map((f) => f.id), 'create')
+      return results.map(({ id, reason }) => ({ id, valid: reason === undefined, reason }))
     }
     removeFeatures(ids: (string | number)[]) {
       for (const id of ids) this.store.delete(id)
@@ -74,6 +99,8 @@ const { fakes, tileSources, tileFailures } = vi.hoisted(() => {
       const feature = this.store.get(id)
       if (!feature) throw new Error(`No feature with id ${id} present in store`)
       if (feature.geometry.type !== geometry.type) throw new Error('Geometry type mismatch')
+      const reason = this.validate({ ...feature, geometry })
+      if (reason) throw new Error(`Feature validation failed: ${reason}`)
       feature.geometry = structuredClone(geometry)
       this.emit('change', [id], 'update', { origin: 'api' })
     }
@@ -152,9 +179,13 @@ import {
   GRAPH_DEBOUNCE_MS,
   ROUTE_EDITOR_PREFIX,
   snapLabel,
+  toDrawPrecision,
   useRouteEditor,
   viewportBbox,
 } from './useRouteEditor'
+import { ROUTE_EDITOR_LAYER_IDS } from './railLayerIds'
+import { layerStack } from './layerStack'
+import { ROUTE_LINE_WIDTH } from './useRouteLayer'
 import type { LngLat } from '../rail/railGraph'
 import { RailGraph } from '../rail/railGraph'
 
@@ -208,12 +239,23 @@ async function setUp(options: { tilesUrl?: string | null; readOnly?: boolean; in
   return { editor, map, draw, coordinates, setCoordinates, lock: () => { readOnly = true } }
 }
 
+// The adapter hands modes every pointer position cut to its precision.
+function atPrecision(n: number): number {
+  return Math.round(n * 1e9) / 1e9
+}
+
+// The hover guide is the rail graph's point at full float precision; what the
+// editor keeps of it is that point cut to terra-draw's.
+function onDraw(point: number[] | undefined): LngLat {
+  return toDrawPrecision([point!])[0]
+}
+
 function click(draw: FakeDraw, [lng, lat]: LngLat, shift = false) {
   const line = draw.modes.linestring.options as {
     snapping: { toCustom: (event: unknown, context: unknown) => number[] | undefined }
     pointerEvents: { leftClick: (event: unknown) => boolean }
   }
-  const event = { lng, lat, containerX: 0, containerY: 0, button: 'left', heldKeys: shift ? ['Shift'] : [], isContextMenu: false }
+  const event = { lng: atPrecision(lng), lat: atPrecision(lat), containerX: 0, containerY: 0, button: 'left', heldKeys: shift ? ['Shift'] : [], isContextMenu: false }
   const guide = line.snapping.toCustom(event, {})
   const allowed = line.pointerEvents.leftClick(event)
   return { guide, allowed }
@@ -236,8 +278,9 @@ function pointFeature(draw: FakeDraw): Feature<Point> | undefined {
 // Known railway positions on the Fresno tiles (see railGraph.spec.ts): the
 // BNSF main line either side of the 6391/6392 tile seam, and a spot a little
 // way off the UP Fresno Subdivision.
-const bnsfNorth = fresnoPoint(2740, 6391, 1443, 1411)
-const bnsfSouth = fresnoPoint(2740, 6392, 3064, 914)
+// Each is taken at terra-draw's precision, as a click on it would arrive.
+const bnsfNorth = onDraw(fresnoPoint(2740, 6391, 1443, 1411))
+const bnsfSouth = onDraw(fresnoPoint(2740, 6392, 3064, 914))
 const nearJunction = fresnoPoint(2740, 6392, 2275, 6)
 const nowhere: LngLat = [-119.3, 36.4]
 
@@ -337,10 +380,10 @@ describe('useRouteEditor', () => {
       expect(allowed).toBe(false)
       expect(guide).toBeDefined()
       expect(coordinates.value).toHaveLength(1)
-      expect(coordinates.value[0]).toEqual(guide)
+      expect(coordinates.value[0]).toEqual(onDraw(guide))
       expect(coordinates.value[0]).not.toEqual(nearJunction)
       expect(setCoordinates).toHaveBeenCalledTimes(1)
-      expect(pointFeature(draw)?.geometry.coordinates).toEqual(guide)
+      expect(pointFeature(draw)?.geometry.coordinates).toEqual(onDraw(guide))
       expect(pointFeature(draw)?.properties?.mode).toBe('point')
       expect(routeFeature(draw)).toBeUndefined()
       expect(editor.lastSnap.value).toEqual({ kind: 'snapped', label: 'Snapped to BNSF Stockton Subdivision' })
@@ -354,8 +397,8 @@ describe('useRouteEditor', () => {
 
       const points = coordinates.value
       expect(points.length).toBeGreaterThan(2)
-      expect(points[0]).toEqual(guideFor(draw, bnsfNorth))
-      expect(points[points.length - 1]).toEqual(guideFor(draw, bnsfSouth))
+      expect(points[0]).toEqual(onDraw(guideFor(draw, bnsfNorth)))
+      expect(points[points.length - 1]).toEqual(onDraw(guideFor(draw, bnsfSouth)))
       const graph = await RailGraph.load(fresnoTiles(), FRESNO_BBOX)
       for (const point of points) expect(graph.nearestPoint(point, 1)?.offsetM).toBeLessThan(0.01)
       for (let i = 1; i < points.length; i++) expect(points[i]).not.toEqual(points[i - 1])
@@ -367,6 +410,33 @@ describe('useRouteEditor', () => {
       expect((editor.spans.value[0].provenance as { wayId: number }).wayId).toBeGreaterThan(0)
       expect(editor.freeSpanCount.value).toBe(0)
       expect(editor.lastSnap.value?.kind).toBe('snapped')
+    })
+
+    // SPA-90: the rail graph's points carry full float precision, which
+    // terra-draw refuses without a word, so a traced route was kept in the
+    // draft but never reached the map.
+    it('puts the traced route in terra-draw as a styled line on top of the map', async () => {
+      const { editor, draw, coordinates } = await setUp()
+      editor.start()
+      click(draw, bnsfNorth)
+      expect(pointFeature(draw)?.properties?.mode).toBe('point')
+      click(draw, nearJunction)
+      click(draw, bnsfSouth)
+
+      const route = routeFeature(draw)
+      expect(route?.geometry.coordinates).toEqual(coordinates.value)
+      expect(coordinates.value.length).toBeGreaterThan(2)
+      expect(route?.properties?.mode).toBe('linestring')
+      const styles = draw.modes.linestring.options.styles as { lineStringColor: string; lineStringWidth: number }
+      expect(styles.lineStringColor).toMatch(/^#[0-9a-f]{6}$/i)
+      expect(styles.lineStringWidth).toBeGreaterThanOrEqual(ROUTE_LINE_WIDTH)
+
+      // Nothing sits above the editor's layers in the stack, so the adapter
+      // adds them over every layer already on the map, the basemap's included.
+      expect(layerStack().slice(-ROUTE_EDITOR_LAYER_IDS.length)).toEqual([...ROUTE_EDITOR_LAYER_IDS])
+      const config = (draw.adapter as { config: { renderBelowLayerId?: string; coordinatePrecision?: number } }).config
+      expect(config.renderBelowLayerId).toBeUndefined()
+      expect(config.coordinatePrecision).toBe(9)
     })
 
     it('draws a straight span, flagged, where there is no railway to follow', async () => {
@@ -393,7 +463,7 @@ describe('useRouteEditor', () => {
       await tilesLoaded()
       const { guide } = click(draw, nearJunction)
       expect(guide).toBeDefined()
-      expect(coordinates.value).toEqual([guide])
+      expect(coordinates.value).toEqual([onDraw(guide)])
       expect(editor.lastSnap.value?.kind).toBe('snapped')
     })
 
@@ -410,7 +480,7 @@ describe('useRouteEditor', () => {
       editor.start()
       const { guide } = click(draw, nearJunction)
       expect(guide).toBeDefined()
-      expect(coordinates.value).toEqual([guide])
+      expect(coordinates.value).toEqual([onDraw(guide)])
       expect(editor.zoomedOut.value).toBe(false)
       expect(editor.lastSnap.value).toEqual({ kind: 'snapped', label: 'Snapped to BNSF Stockton Subdivision' })
     })
@@ -440,7 +510,7 @@ describe('useRouteEditor', () => {
       editor.start()
       const { guide } = click(draw, nearJunction, true)
       expect(guide).toBeDefined()
-      expect(coordinates.value[0]).toEqual(guide)
+      expect(coordinates.value[0]).toEqual(onDraw(guide))
     })
 
     it('finishes on request and clicks no longer land', async () => {
@@ -474,12 +544,12 @@ describe('useRouteEditor', () => {
       editor.start()
       const { guide } = click(draw, bnsfNorth)
       expect(guide).toBeDefined()
-      expect(coordinates.value[0]).toEqual(guide)
+      expect(coordinates.value[0]).toEqual(onDraw(guide))
       expect(editor.lastSnap.value?.kind).toBe('snapped')
 
       const shifted = click(draw, bnsfSouth, true)
       expect(shifted.guide).toBeUndefined()
-      expect(coordinates.value).toEqual([guide, bnsfSouth])
+      expect(coordinates.value).toEqual([onDraw(guide), bnsfSouth])
       expect(editor.spans.value).toEqual([{ from: 0, to: 1, provenance: 'free' }])
       expect(editor.lastSnap.value).toEqual({ kind: 'free' })
     })
@@ -501,7 +571,7 @@ describe('useRouteEditor', () => {
       window.dispatchEvent(new Event('blur'))
       const { guide } = click(draw, bnsfSouth)
       expect(guide).toBeDefined()
-      expect(coordinates.value).toEqual([bnsfNorth, guide])
+      expect(coordinates.value).toEqual([bnsfNorth, onDraw(guide)])
 
       const removed = vi.spyOn(window, 'removeEventListener')
       editor.module.detach()
