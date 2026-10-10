@@ -105,6 +105,7 @@ export function useRouteEditor(options: RouteEditorOptions) {
   const mode = ref<EditorMode>(railAvailable ? 'easy' : 'advanced')
   const drawing = ref(false)
   const loading = ref(false)
+  const zoomedOut = ref(false)
   const lastSnap = ref<SnapNote | null>(null)
   const spans = ref<RouteSpan[]>([])
   const freeSpanCount = computed(() => spans.value.filter((span) => span.provenance === 'free').length)
@@ -149,6 +150,12 @@ export function useRouteEditor(options: RouteEditorOptions) {
   // route is a committed feature this module appends to instead.
   function captureClick(event: TerraDrawMouseEvent): boolean {
     if (!drawing.value) return false
+    // Too far out for the railways to load: an easy-mode click would only
+    // ever be drawn straight, so it is refused until the author zooms in.
+    if (mode.value === 'easy' && map && map.getZoom() < GRAPH_MIN_ZOOM) {
+      zoomedOut.value = true
+      return false
+    }
     const hit = hitFor(event)
     // Railways still arriving: a click on one would read as "no railway
     // here" and be drawn straight, so in easy mode it is not taken yet.
@@ -327,6 +334,11 @@ export function useRouteEditor(options: RouteEditorOptions) {
     shiftHeld = event.shiftKey
   }
 
+  // A keyup that lands while another window has focus never arrives.
+  function onBlur(): void {
+    shiftHeld = false
+  }
+
   function scheduleGraphLoad(delayMs: number): void {
     if (!map || !source || map.getZoom() < GRAPH_MIN_ZOOM) return
     if (pendingLoad) clearTimeout(pendingLoad)
@@ -340,6 +352,7 @@ export function useRouteEditor(options: RouteEditorOptions) {
   }
 
   function onMoveEnd(): void {
+    zoomedOut.value = map !== null && map.getZoom() < GRAPH_MIN_ZOOM
     scheduleGraphLoad(GRAPH_DEBOUNCE_MS)
   }
 
@@ -457,9 +470,11 @@ export function useRouteEditor(options: RouteEditorOptions) {
     isReady: (styleLoaded) => styleLoaded,
     attach: (target) => {
       map = target
+      zoomedOut.value = target.getZoom() < GRAPH_MIN_ZOOM
       target.on('moveend', onMoveEnd)
       window.addEventListener('keydown', onKey)
       window.addEventListener('keyup', onKey)
+      window.addEventListener('blur', onBlur)
       void setUp(target, ++generation)
     },
     sync: () => {
@@ -472,6 +487,7 @@ export function useRouteEditor(options: RouteEditorOptions) {
       pendingLoad = null
       window.removeEventListener('keydown', onKey)
       window.removeEventListener('keyup', onKey)
+      window.removeEventListener('blur', onBlur)
       map?.off('moveend', onMoveEnd)
       draw?.off('finish', onFinish)
       // stop() takes the adapter's layers and sources off the map.
@@ -485,6 +501,7 @@ export function useRouteEditor(options: RouteEditorOptions) {
       graphLoad = null
       drawing.value = false
       loading.value = false
+      zoomedOut.value = false
     },
   }
 
@@ -497,6 +514,7 @@ export function useRouteEditor(options: RouteEditorOptions) {
     railAvailable,
     drawing,
     loading,
+    zoomedOut,
     lastSnap,
     spans,
     freeSpanCount,

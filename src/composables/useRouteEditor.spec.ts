@@ -397,6 +397,24 @@ describe('useRouteEditor', () => {
       expect(editor.lastSnap.value?.kind).toBe('snapped')
     })
 
+    it('refuses a click while the map is too far out for railways, and asks to zoom in', async () => {
+      const { editor, draw, coordinates } = await setUp({ zoom: 10 })
+      editor.start()
+      expect(click(draw, nearJunction).allowed).toBe(false)
+      expect(coordinates.value).toEqual([])
+      expect(editor.zoomedOut.value).toBe(true)
+    })
+
+    it('snaps as before once the map is close enough for railways', async () => {
+      const { editor, draw, coordinates } = await setUp({ zoom: 13 })
+      editor.start()
+      const { guide } = click(draw, nearJunction)
+      expect(guide).toBeDefined()
+      expect(coordinates.value).toEqual([guide])
+      expect(editor.zoomedOut.value).toBe(false)
+      expect(editor.lastSnap.value).toEqual({ kind: 'snapped', label: 'Snapped to BNSF Stockton Subdivision' })
+    })
+
     it('keeps terra-draw in its mode across the draft changes each click makes', async () => {
       const { editor, draw, map } = await setUp()
       editor.start()
@@ -464,6 +482,30 @@ describe('useRouteEditor', () => {
       expect(coordinates.value).toEqual([guide, bnsfSouth])
       expect(editor.spans.value).toEqual([{ from: 0, to: 1, provenance: 'free' }])
       expect(editor.lastSnap.value).toEqual({ kind: 'free' })
+    })
+
+    it('takes clicks while the map is too far out for railways', async () => {
+      const { editor, draw, coordinates } = await setUp({ zoom: 10 })
+      editor.setMode('advanced')
+      editor.start()
+      click(draw, nowhere)
+      expect(coordinates.value).toEqual([nowhere])
+    })
+
+    it('forgets a held Shift when the window loses focus, and stops listening on detach', async () => {
+      const { editor, draw, coordinates } = await setUp()
+      editor.setMode('advanced')
+      editor.start()
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Shift', shiftKey: true }))
+      expect(click(draw, bnsfNorth).guide).toBeUndefined()
+      window.dispatchEvent(new Event('blur'))
+      const { guide } = click(draw, bnsfSouth)
+      expect(guide).toBeDefined()
+      expect(coordinates.value).toEqual([bnsfNorth, guide])
+
+      const removed = vi.spyOn(window, 'removeEventListener')
+      editor.module.detach()
+      expect(removed).toHaveBeenCalledWith('blur', expect.any(Function))
     })
 
     it('does not fill in the railway between clicks', async () => {

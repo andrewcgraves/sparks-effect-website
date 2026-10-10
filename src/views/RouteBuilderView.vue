@@ -17,7 +17,7 @@ import PageSkeleton from '../components/PageSkeleton.vue'
 import { AUTHORING_CRUMB, type Crumb } from '../components/crumbs'
 import { PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS, TOGGLE_BUTTON_CLASS } from '../components/buttonStyles'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
-import { ROUTE_DRAW_CUE, ROUTE_DRAW_FREE_CUE } from '../components/placementCues'
+import { ROUTE_DRAW_CUE, ROUTE_DRAW_FREE_CUE, ROUTE_ZOOM_IN_CUE } from '../components/placementCues'
 
 // One view for both writes, as with lines: the form, the import and the map
 // are the same whichever way a draft is headed; only the heading, the
@@ -69,11 +69,14 @@ const editor = useRouteEditor({
   setCoordinates,
   readOnly: () => geometryLocked.value,
 })
-const { mode: editorMode, drawing, railAvailable, lastSnap } = editor
+const { mode: editorMode, drawing, railAvailable, lastSnap, zoomedOut } = editor
 const mapModules = [railOverlayModule(), editor.module]
 const fitCorners = computed(() => routeBoundsCorners(mapRoutes.value))
 
-const placementCue = computed(() => (editorMode.value === 'easy' ? ROUTE_DRAW_CUE : ROUTE_DRAW_FREE_CUE))
+const placementCue = computed(() => {
+  if (editorMode.value === 'advanced') return ROUTE_DRAW_FREE_CUE
+  return zoomedOut.value ? ROUTE_ZOOM_IN_CUE : ROUTE_DRAW_CUE
+})
 
 const modeHint = computed(() =>
   editorMode.value === 'easy'
@@ -364,6 +367,14 @@ watch(savedCount, () => toast('Changes saved'))
                 data-testid="rail-loading"
               >
                 Loading railways…
+              </span>
+              <span
+                v-else-if="drawing && editorMode === 'easy' && zoomedOut"
+                class="font-body text-caption text-ink-muted"
+                role="status"
+                data-testid="rail-zoom-in"
+              >
+                {{ ROUTE_ZOOM_IN_CUE }}
               </span>
             </div>
             <p
