@@ -4,20 +4,29 @@ import { fetchCoverIndex, type CoverCard, type CoverSource } from '../api/coverI
 import { INLINE_LINK_CLASS, LIST_CARD_LINK_CLASS } from '../components/linkStyles'
 import ListSkeleton from '../components/ListSkeleton.vue'
 // PROTOTYPE (SPA-414) — throwaway variant switcher; see src/views/home-prototype.
-import { computed } from 'vue'
+import { computed, type Component } from 'vue'
 import { useRoute } from 'vue-router'
 import PrototypeSwitcher from '../components/PrototypeSwitcher.vue'
 import { useHomePrototypeData, type ForcedState } from './home-prototype/homePrototypeData'
 import VariantA from './home-prototype/VariantA.vue'
 import VariantB from './home-prototype/VariantB.vue'
 import VariantC from './home-prototype/VariantC.vue'
+import VariantD from './home-prototype/VariantD.vue'
+import VariantE from './home-prototype/VariantE.vue'
+import VariantF from './home-prototype/VariantF.vue'
+import VariantG from './home-prototype/VariantG.vue'
 
 const VARIANTS = [
   { key: '0', label: 'Current page' },
   { key: 'A', label: 'Map hero' },
   { key: 'B', label: 'Editorial split' },
   { key: 'C', label: 'Step-through' },
+  { key: 'D', label: 'Single column' },
+  { key: 'E', label: 'Lines first' },
+  { key: 'F', label: 'Picture first' },
+  { key: 'G', label: 'Side by side' },
 ]
+const PROTOTYPES: Record<string, Component> = { A: VariantA, B: VariantB, C: VariantC, D: VariantD, E: VariantE, F: VariantF, G: VariantG }
 const FORCED: ForcedState[] = ['none', 'one-failed', 'both-failed', 'empty']
 const route = useRoute()
 // The existing specs mount this page with no query; they keep seeing the real page.
@@ -44,16 +53,9 @@ fetchCoverIndex()
 </script>
 
 <template>
-  <VariantA
-    v-if="variant === 'A'"
-    :data="home"
-  />
-  <VariantB
-    v-else-if="variant === 'B'"
-    :data="home"
-  />
-  <VariantC
-    v-else-if="variant === 'C'"
+  <component
+    :is="PROTOTYPES[variant]"
+    v-if="PROTOTYPES[variant]"
     :data="home"
   />
   <PrototypeSwitcher
@@ -76,7 +78,7 @@ fetchCoverIndex()
     </label>
   </PrototypeSwitcher>
   <main
-    v-if="!['A', 'B', 'C'].includes(variant)"
+    v-if="!PROTOTYPES[variant]"
     class="flex flex-1 flex-col p-(--page-padding)"
   >
     <div class="flex-1">
