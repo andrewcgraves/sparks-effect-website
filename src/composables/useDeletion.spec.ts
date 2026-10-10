@@ -5,15 +5,17 @@ import type { Scenario } from '../api/authoring/types'
 vi.mock('../api/authoring/services', () => ({ deleteService: vi.fn() }))
 vi.mock('../api/authoring/scenarios', () => ({ deleteScenario: vi.fn(), fetchMyScenarios: vi.fn() }))
 vi.mock('../api/publications', () => ({ fetchServicePublication: vi.fn() }))
+vi.mock('../api/authoring/routes', () => ({ deleteRoute: vi.fn() }))
 
 const push = vi.fn()
 vi.mock('vue-router', () => ({ useRouter: () => ({ push }) }))
 
-import { serviceDeletionBody, useScenarioDeletion, useServiceDeletion } from './useDeletion'
+import { serviceDeletionBody, useRouteDeletion, useScenarioDeletion, useServiceDeletion } from './useDeletion'
 import { useConfirmHost } from './useConfirm'
 import { useToastHost } from './useToast'
 import { deleteService } from '../api/authoring/services'
 import { deleteScenario, fetchMyScenarios } from '../api/authoring/scenarios'
+import { deleteRoute } from '../api/authoring/routes'
 import { fetchServicePublication } from '../api/publications'
 import type { ServicePublication } from '../api/publications'
 
@@ -191,5 +193,54 @@ describe('useScenarioDeletion', () => {
     expect(deleteScenario).toHaveBeenCalledWith('ca-hsr')
     expect(toasts.value.map((t) => t.message)).toEqual(["Deleted 'CA HSR'"])
     expect(push).toHaveBeenCalledWith('/authoring')
+  })
+})
+
+describe('useRouteDeletion', () => {
+  const mainLine = { id: 'rt1', slug: 'main-line', name: 'Main Line' }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    clear()
+    vi.mocked(deleteRoute).mockResolvedValue()
+  })
+
+  afterEach(() => settle(false))
+
+  it('asks first, in route words', async () => {
+    const { confirmAndDelete } = useRouteDeletion()
+    void confirmAndDelete(mainLine)
+    await vi.waitFor(() => expect(pending.value).not.toBeNull())
+    expect(pending.value).toMatchObject({
+      title: "Delete 'Main Line'?",
+      body: "Its shape and details go, and lines can't pick it any more. This can't be undone.",
+      confirmLabel: 'Delete route',
+      destructive: true,
+    })
+  })
+
+  it('deletes, toasts and goes to My authoring when confirmed', async () => {
+    const { confirmAndDelete } = useRouteDeletion()
+    const done = confirmAndDelete(mainLine)
+    await answer(true)
+    expect(await done).toBe(true)
+    expect(deleteRoute).toHaveBeenCalledWith('main-line')
+    expect(toasts.value.map((t) => t.message)).toEqual(["Deleted 'Main Line'"])
+    expect(push).toHaveBeenCalledWith('/authoring')
+  })
+
+  it('toasts the lines still built on it when the API refuses', async () => {
+    vi.mocked(deleteRoute).mockRejectedValue(
+      new ApiError('DELETE failed: 409', 409, 'route_in_use', { services: 0, user_services: 2, segments: 0 }),
+    )
+    const { confirmAndDelete } = useRouteDeletion()
+    const done = confirmAndDelete(mainLine)
+    await answer(true)
+    expect(await done).toBe(false)
+    expect(toasts.value[0]).toMatchObject({
+      kind: 'error',
+      message: 'Not deleted: used by 2 lines. Move them to another route first.',
+    })
+    expect(push).not.toHaveBeenCalled()
   })
 })

@@ -4,6 +4,7 @@ import { ApiError, isSessionExpiry } from '../api/authoring/client'
 import { AUTHORING_NOUN_WORDS, authoringFault, type AuthoringNoun } from '../api/authoringFault'
 import { deleteService } from '../api/authoring/services'
 import { deleteScenario, fetchMyScenarios } from '../api/authoring/scenarios'
+import { deleteRoute } from '../api/authoring/routes'
 import { fetchServicePublication } from '../api/publications'
 import { useConfirm } from './useConfirm'
 import { useToast } from './useToast'
@@ -105,5 +106,16 @@ export function useScenarioDeletion() {
     'scenario',
     async () => `Its compiled graph goes too. Its lines aren't deleted. ${NO_UNDO}`,
     deleteScenario,
+  )
+}
+
+// The API refuses to delete a route that lines are built on (409
+// route_in_use), which authoringFault words, so the confirm need not count
+// them first.
+export function useRouteDeletion() {
+  return useDeletion(
+    'route',
+    async () => `Its shape and details go, and lines can't pick it any more. ${NO_UNDO}`,
+    deleteRoute,
   )
 }

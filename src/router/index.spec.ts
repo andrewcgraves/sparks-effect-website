@@ -12,6 +12,7 @@ vi.mock('../views/AuthoringView.vue', () => ({ default: { template: '<div />' } 
 vi.mock('../views/ServiceAuthoringView.vue', () => ({ default: { props: ['slug'], template: '<div />' } }))
 vi.mock('../views/ScenarioBuilderView.vue', () => ({ default: { props: ['slug'], template: '<div />' } }))
 vi.mock('../views/RouteView.vue', () => ({ default: { props: ['slug'], template: '<div />' } }))
+vi.mock('../views/RouteBuilderView.vue', () => ({ default: { props: ['slug'], template: '<div />' } }))
 vi.mock('../views/AuthoredServiceView.vue', () => ({ default: { props: ['slug'], template: '<div />' } }))
 vi.mock('../views/AuthoredScenarioView.vue', () => ({ default: { props: ['slug'], template: '<div />' } }))
 vi.mock('../views/PublishedServiceView.vue', () => ({ default: { props: ['slug'], template: '<div />' } }))
@@ -143,6 +144,17 @@ describe('router', () => {
       expect(router.currentRoute.value.path).toBe('/login')
     })
 
+    it('gates the route builder behind sign-in, preserving the destination', async () => {
+      await router.push('/authoring/routes/new?return=/authoring/services/new')
+      expect(router.currentRoute.value.path).toBe('/login')
+      expect(router.currentRoute.value.query.redirect).toBe('/authoring/routes/new?return=/authoring/services/new')
+    })
+
+    it('gates editing an authored route behind sign-in', async () => {
+      await router.push('/authoring/routes/main-line')
+      expect(router.currentRoute.value.path).toBe('/login')
+    })
+
     it('lets a signed-out visitor open a published service', async () => {
       await router.push('/services/northbound-express')
       expect(router.currentRoute.value.name).toBe('published-service')
@@ -247,6 +259,19 @@ describe('router', () => {
     it('keeps the new-scenario builder ahead of the slug route', async () => {
       await router.push('/authoring/scenarios/new')
       expect(router.currentRoute.value.name).toBe('new-scenario')
+    })
+
+    it('keeps the new-route builder ahead of the slug route', async () => {
+      await router.push('/authoring/routes/new')
+      expect(router.currentRoute.value.name).toBe('new-route')
+      expect(document.title).toBe('New route · Sparks Effect')
+    })
+
+    it('passes the slug to the route builder for editing', async () => {
+      await router.push('/authoring/routes/main-line')
+      expect(router.currentRoute.value.name).toBe('edit-route')
+      expect(router.currentRoute.value.params.slug).toBe('main-line')
+      expect(document.title).toBe('Edit route · Sparks Effect')
     })
   })
 

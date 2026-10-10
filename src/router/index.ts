@@ -106,6 +106,21 @@ export const router = createRouter({
       props: true,
       meta: { requiresAuth: true, title: 'My network' },
     },
+    // A route has no page of its own apart from its editor, so the slug
+    // path opens the builder directly.
+    {
+      path: '/authoring/routes/new',
+      name: 'new-route',
+      component: () => import('../views/RouteBuilderView.vue'),
+      meta: { requiresAuth: true, title: 'New route' },
+    },
+    {
+      path: '/authoring/routes/:slug',
+      name: 'edit-route',
+      component: () => import('../views/RouteBuilderView.vue'),
+      props: true,
+      meta: { requiresAuth: true, title: 'Edit route' },
+    },
     {
       path: '/admin',
       name: 'admin',
