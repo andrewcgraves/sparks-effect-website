@@ -13,6 +13,7 @@ import type { StopPreviewPair } from '../composables/useStopPreviewLayer'
 import { stopDragModule } from '../composables/useStopDrag'
 import { stationHighlightModule } from '../composables/useStationHighlight'
 import { mapModules } from '../composables/mapLifecycle'
+import type { MapModule } from '../composables/mapLifecycle'
 import { ISOCHRONE_BOUNDS_CORNERS, ISOCHRONE_CENTER, isochroneBoundsCorners } from '../fixtures/isochrone'
 import type { ChainResponse } from '../fixtures/isochrone'
 import { resolveMapStyleUrl } from '../mapStyle'
@@ -42,6 +43,8 @@ const props = defineProps<{
   centerOn?: LatLng | null
   activeStation?: string | null
   remainingSecs?: (slug: string) => number | null
+  modules?: MapModule[]
+  fitTo?: [[number, number], [number, number]] | null
   label: string
 }>()
 
@@ -107,7 +110,11 @@ function fitMapToRoutes(): boolean {
   return fitted
 }
 
+// A page whose shape is not in `routes` — the route builder draws its own
+// through a module — says what to frame instead; otherwise the routes, then
+// the fallback.
 function fitMapToDefaultView(): void {
+  if (props.fitTo && applyBoundsFit(props.fitTo)) return
   if (fitMapToRoutes()) return
   fitMapToStaticFallback()
 }
@@ -166,6 +173,8 @@ const stopDrag = stopDragModule(stopPreviewPairs, {
 })
 stopDrag.requires = [stopPreview]
 
+// A page's own modules go after the built-in ones. Read once: the list is
+// what the map is wired to for its whole life, as the built-in list is.
 const modules = mapModules([
   routeLayer,
   isochroneLayerModule(() => props.isochroneData, isochroneColors),
@@ -174,6 +183,7 @@ const modules = mapModules([
   stationHighlight,
   stopPreview,
   stopDrag,
+  ...(props.modules ?? []),
 ])
 
 function syncModules(): void {

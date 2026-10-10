@@ -11,7 +11,31 @@ vi.mock('../api/authoring/routes', () => ({
   deleteRoute: vi.fn(),
 }))
 
+// The rail tiles URL is a build-time setting; a spec flips it per test. The
+// editor itself is the real composable (it works without a map, which the
+// stubbed MapView never gives it), recorded so a test can feed it a snap.
+const { tiles, editors } = vi.hoisted(() => ({
+  tiles: { url: null as string | null },
+  editors: [] as ReturnType<typeof import('../composables/useRouteEditor').useRouteEditor>[],
+}))
+
+vi.mock('../railTilesUrl', () => ({ railTilesUrl: () => tiles.url }))
+
+vi.mock('../composables/useRouteEditor', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../composables/useRouteEditor')>()
+  return {
+    ...actual,
+    useRouteEditor: (options: Parameters<typeof actual.useRouteEditor>[0]) => {
+      const editor = actual.useRouteEditor(options)
+      editors.push(editor)
+      return editor
+    },
+  }
+})
+
 import RouteBuilderView from './RouteBuilderView.vue'
+import { ROUTE_DRAW_CUE, ROUTE_DRAW_FREE_CUE } from '../components/placementCues'
+import { routeBoundsCorners } from '../composables/useRouteLayer'
 import { seriousA11yViolations } from '../test/axe'
 import { breadcrumbTrail } from '../test/breadcrumbs'
 import { busyRegion, visibleText } from '../test/loading'
@@ -85,6 +109,8 @@ describe('RouteBuilderView', () => {
   beforeEach(() => {
     hosts = mountSharedHosts()
     vi.clearAllMocks()
+    tiles.url = null
+    editors.length = 0
     setActivePinia(createPinia())
     useAuthStore().signIn('tok-1', { id: 'u1', email: 'a@example.com' })
     vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -118,7 +144,7 @@ describe('RouteBuilderView', () => {
       expect((wrapper.get('[data-testid="route-bidirectional"]').element as HTMLInputElement).checked).toBe(true)
     })
 
-    it('reads the pasted GeoJSON into the stats and the map preview', async () => {
+    it('reads the pasted GeoJSON into the stats, the editor and the map frame', async () => {
       const { wrapper } = await mountAt('/authoring/routes/new')
       expect(wrapper.get('[data-testid="route-stats"]').text()).toBe('No shape yet.')
 
@@ -126,9 +152,11 @@ describe('RouteBuilderView', () => {
 
       expect(wrapper.get('[data-testid="route-stats"]').text()).toMatch(/^2 points · 6\d\.\d km$/)
       expect(wrapper.get('[data-testid="import-note"]').text()).toBe('Imported 2 points from the pasted GeoJSON.')
-      const routes = mapStub(wrapper).props('routes') as Route[]
-      expect(routes).toHaveLength(1)
-      expect(routes[0].geometry.coordinates).toEqual(sfToSj)
+      // The editor draws the shape, so the map is handed nothing to draw and
+      // only where to look.
+      expect(mapStub(wrapper).props('routes')).toEqual([])
+      expect(mapStub(wrapper).props('fitTo')).toEqual(routeBoundsCorners([{ ...stubRoute, scenario_id: '' }]))
+      expect(mapStub(wrapper).props('modules')).toHaveLength(2)
       expect((wrapper.get('[data-testid="route-geojson-text"]').element as HTMLTextAreaElement).value).toBe('')
     })
 
@@ -253,6 +281,143 @@ describe('RouteBuilderView', () => {
     it('has no serious or critical accessibility violations with a line imported', async () => {
       const { wrapper } = await mountAt('/authoring/routes/new', undefined, document.body)
       await pasteLine(wrapper)
+      expect(await seriousA11yViolations(wrapper)).toEqual([])
+      wrapper.unmount()
+    })
+  })
+
+  describe('drawing on the map', () => {
+    const RAIL = 'https://rail.example.net/rail.pmtiles'
+
+    function pressed(wrapper: Wrapper, id: string): boolean {
+      return wrapper.get(`[data-testid="${id}"]`).attributes('aria-pressed') === 'true'
+    }
+
+    it('starts in easy mode with the railway tiles configured, keeping import for advanced', async () => {
+      tiles.url = RAIL
+      const { wrapper } = await mountAt('/authoring/routes/new')
+      expect(pressed(wrapper, 'mode-easy')).toBe(true)
+      expect(pressed(wrapper, 'mode-advanced')).toBe(false)
+      expect(wrapper.get('[data-testid="mode-easy"]').attributes('disabled')).toBeUndefined()
+      expect(wrapper.find('[data-testid="rail-unavailable"]').exists()).toBe(false)
+      expect(wrapper.get('[data-testid="mode-hint"]').text()).toContain('Click along a railway')
+      expect(wrapper.find('[data-testid="import-controls"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="simplify-on-save"]').exists()).toBe(false)
+
+      await wrapper.get('[data-testid="mode-advanced"]').trigger('click')
+      expect(pressed(wrapper, 'mode-advanced')).toBe(true)
+      expect(wrapper.get('[data-testid="mode-hint"]').text()).toContain('Shift')
+      expect(wrapper.find('[data-testid="import-controls"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="simplify-on-save"]').exists()).toBe(true)
+    })
+
+    it('draws freely, with easy mode off and the reason given, when no railway tiles are configured', async () => {
+      const { wrapper } = await mountAt('/authoring/routes/new')
+      expect(wrapper.get('[data-testid="mode-easy"]').attributes('disabled')).toBeDefined()
+      expect(pressed(wrapper, 'mode-advanced')).toBe(true)
+      const note = wrapper.get('[data-testid="rail-unavailable"]')
+      expect(note.text()).toBe("Railway snapping isn't configured here — drawing freely.")
+      expect(note.attributes('role')).toBe('status')
+      expect(wrapper.find('[data-testid="import-controls"]').exists()).toBe(true)
+    })
+
+    it('arms the map with the cue for the mode while drawing, and Escape finishes', async () => {
+      tiles.url = RAIL
+      const { wrapper } = await mountAt('/authoring/routes/new')
+      expect(mapStub(wrapper).props('placementArmed')).toBe(false)
+      expect(wrapper.get('[data-testid="toggle-draw"]').text()).toBe('Draw on the map')
+
+      await wrapper.get('[data-testid="toggle-draw"]').trigger('click')
+      expect(pressed(wrapper, 'toggle-draw')).toBe(true)
+      expect(wrapper.get('[data-testid="toggle-draw"]').text()).toBe('Finish drawing')
+      expect(mapStub(wrapper).props('placementArmed')).toBe(true)
+      expect(mapStub(wrapper).props('placementCue')).toBe(ROUTE_DRAW_CUE)
+
+      await wrapper.get('[data-testid="mode-advanced"]').trigger('click')
+      expect(mapStub(wrapper).props('placementCue')).toBe(ROUTE_DRAW_FREE_CUE)
+
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+      await flushPromises()
+      expect(mapStub(wrapper).props('placementArmed')).toBe(false)
+      expect(pressed(wrapper, 'toggle-draw')).toBe(false)
+    })
+
+    it('says which railway the last point snapped to, politely', async () => {
+      tiles.url = RAIL
+      const { wrapper } = await mountAt('/authoring/routes/new')
+      expect(wrapper.find('[data-testid="snap-note"]').exists()).toBe(false)
+      editors[0].lastSnap.value = { kind: 'snapped', label: 'Snapped to BNSF Stockton Subdivision' }
+      await flushPromises()
+      const note = wrapper.get('[data-testid="snap-note"]')
+      expect(note.text()).toBe('Snapped to BNSF Stockton Subdivision')
+      expect(note.attributes('aria-live')).toBe('polite')
+      expect(note.attributes('role')).toBe('status')
+    })
+
+    it('says when a span was drawn straight in easy mode, and offers advanced mode', async () => {
+      tiles.url = RAIL
+      const { wrapper } = await mountAt('/authoring/routes/new')
+      editors[0].lastSnap.value = { kind: 'free' }
+      await flushPromises()
+      const note = wrapper.get('[data-testid="no-railway"]')
+      expect(note.text()).toContain('No railway here — drawn straight. Switch to advanced to shape it.')
+      expect(note.attributes('aria-live')).toBe('polite')
+      expect(wrapper.find('[data-testid="snap-note"]').exists()).toBe(false)
+
+      await note.get('[data-testid="switch-advanced"]').trigger('click')
+      expect(pressed(wrapper, 'mode-advanced')).toBe(true)
+      expect(wrapper.find('[data-testid="no-railway"]').exists()).toBe(false)
+      expect(wrapper.get('[data-testid="snap-note"]').text()).toBe('Placed a free point.')
+    })
+
+    it('clears the shape', async () => {
+      const { wrapper } = await mountAt('/authoring/routes/new')
+      expect(wrapper.get('[data-testid="clear-route"]').attributes('disabled')).toBeDefined()
+      await pasteLine(wrapper)
+      expect(wrapper.get('[data-testid="toggle-draw"]').text()).toBe('Continue drawing')
+      await wrapper.get('[data-testid="clear-route"]').trigger('click')
+      expect(wrapper.get('[data-testid="route-stats"]').text()).toBe('No shape yet.')
+      expect(wrapper.get('[data-testid="clear-route"]').attributes('disabled')).toBeDefined()
+    })
+
+    it('shows what simplifying will do to the count, and sends every point once it is turned off', async () => {
+      const metres = (m: number) => m / 111_195
+      const east = (km: number): [number, number] => [-120 + (km / 111.195) / Math.cos((37 * Math.PI) / 180), 37]
+      const wobbly = [east(0), [east(1)[0], 37 + metres(4)], [east(2)[0], 37 - metres(6)], east(3), east(4)]
+      const { wrapper } = await mountAt('/authoring/routes/new')
+      await pasteLine(wrapper, JSON.stringify({ type: 'LineString', coordinates: wobbly }))
+      await wrapper.get('[data-testid="route-name"]').setValue('Valley')
+      expect(wrapper.get('[data-testid="simplify-note"]').text()).toBe('5 points → 2 points on save')
+
+      await wrapper.get('[data-testid="simplify-on-save"]').setValue(false)
+      expect(wrapper.find('[data-testid="simplify-note"]').exists()).toBe(false)
+
+      await wrapper.get('form').trigger('submit')
+      await flushPromises()
+      expect(vi.mocked(createRoute).mock.calls[0][0].coordinates).toHaveLength(5)
+    })
+
+    it('shows a route that lines are built on without any way to draw', async () => {
+      tiles.url = RAIL
+      vi.mocked(fetchMyRoute).mockResolvedValue(owned({ dependents: { services: 1, user_services: 0, segments: 0 } }))
+      const { wrapper } = await mountAt('/authoring/routes/main-line', 'main-line')
+      expect(wrapper.find('[data-testid="editor-mode"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="toggle-draw"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="clear-route"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="simplify-on-save"]').exists()).toBe(false)
+      expect(mapStub(wrapper).props('placementArmed')).toBe(false)
+      expect(mapStub(wrapper).props('modules')).toHaveLength(2)
+      editors[0].start()
+      await flushPromises()
+      expect(mapStub(wrapper).props('placementArmed')).toBe(false)
+    })
+
+    it('has no serious or critical accessibility violations while drawing in easy mode', async () => {
+      tiles.url = RAIL
+      const { wrapper } = await mountAt('/authoring/routes/new', undefined, document.body)
+      await wrapper.get('[data-testid="toggle-draw"]').trigger('click')
+      editors[0].lastSnap.value = { kind: 'free' }
+      await flushPromises()
       expect(await seriousA11yViolations(wrapper)).toEqual([])
       wrapper.unmount()
     })

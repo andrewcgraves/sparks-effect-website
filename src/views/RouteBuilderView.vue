@@ -1,19 +1,23 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter, type RouteLocationRaw } from 'vue-router'
 import { ROUTE_MODES } from '../api/authoring/types'
 import { usePageTitle } from '../composables/usePageTitle'
 import { useRouteDeletion } from '../composables/useDeletion'
 import { useRouteDraft } from '../composables/useRouteDraft'
+import { railOverlayModule } from '../composables/useRailOverlay'
+import { useRouteEditor } from '../composables/useRouteEditor'
+import { routeBoundsCorners } from '../composables/useRouteLayer'
 import { useToast } from '../composables/useToast'
-import { formatKm } from '../routeGeometry'
+import { SIMPLIFY_TOLERANCE_M, formatKm } from '../routeGeometry'
 import BreadcrumbTrail from '../components/BreadcrumbTrail.vue'
 import DeleteMenu from '../components/DeleteMenu.vue'
 import MapView from '../components/MapView.vue'
 import PageSkeleton from '../components/PageSkeleton.vue'
 import { AUTHORING_CRUMB, type Crumb } from '../components/crumbs'
-import { PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS } from '../components/buttonStyles'
+import { PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS, TOGGLE_BUTTON_CLASS } from '../components/buttonStyles'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
+import { ROUTE_DRAW_CUE, ROUTE_DRAW_FREE_CUE } from '../components/placementCues'
 
 // One view for both writes, as with lines: the form, the import and the map
 // are the same whichever way a draft is headed; only the heading, the
@@ -29,6 +33,10 @@ const {
   mode,
   bidirectional,
   description,
+  coordinates,
+  setCoordinates,
+  simplifyOnSave,
+  simplifyNote,
   importGeoJson,
   importError,
   importNote,
@@ -54,6 +62,48 @@ const {
   submit,
 } = useRouteDraft(props.slug)
 
+// The map is the editor: terra-draw draws the shape through the editor
+// module, so MapView gets no routes of its own and only what to frame.
+const editor = useRouteEditor({
+  coordinates,
+  setCoordinates,
+  readOnly: () => geometryLocked.value,
+})
+const { mode: editorMode, drawing, railAvailable, lastSnap } = editor
+const mapModules = [railOverlayModule(), editor.module]
+const fitCorners = computed(() => routeBoundsCorners(mapRoutes.value))
+
+const placementCue = computed(() => (editorMode.value === 'easy' ? ROUTE_DRAW_CUE : ROUTE_DRAW_FREE_CUE))
+
+const modeHint = computed(() =>
+  editorMode.value === 'easy'
+    ? 'Click along a railway: each point snaps to it and the route follows it between your clicks.'
+    : 'Click to add points. Hold Shift for a free point; drag a point to move it, drag a midpoint to add one, right-click a point to remove it.',
+)
+
+const drawLabel = computed(() => {
+  if (drawing.value) return 'Finish drawing'
+  return pointCount.value > 0 ? 'Continue drawing' : 'Draw on the map'
+})
+
+const snapNote = computed(() => {
+  const snap = lastSnap.value
+  if (!snap) return ''
+  if (snap.kind === 'snapped') return snap.label
+  return editorMode.value === 'advanced' ? 'Placed a free point.' : ''
+})
+
+const noRailway = computed(() => editorMode.value === 'easy' && lastSnap.value?.kind === 'free')
+
+function toggleDrawing(): void {
+  if (drawing.value) editor.finish()
+  else editor.start()
+}
+
+function handleKeydown(event: KeyboardEvent): void {
+  if (event.key === 'Escape' && drawing.value) editor.finish()
+}
+
 // Named after the route as saved, not the name field: the tab should not
 // rename itself on every keystroke.
 usePageTitle(() => (editing.value ? `Edit ${editing.value.name}` : null))
@@ -72,7 +122,12 @@ const pastedGeoJson = ref('')
 const { deleting, confirmAndDelete } = useRouteDeletion()
 
 onMounted(() => {
+  window.addEventListener('keydown', handleKeydown)
   void start()
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleKeydown)
 })
 
 async function handleFile(event: Event): Promise<void> {
@@ -241,20 +296,143 @@ watch(savedCount, () => toast('Changes saved'))
             />
             {{ geometryLockMessage }}
           </p>
-          <p
-            v-else
-            class="font-body text-caption mt-2 text-ink-muted"
-          >
-            Import a GeoJSON line: a LineString, a Feature holding one, or a collection with exactly one.
-          </p>
+          <template v-else>
+            <div
+              class="mt-3 flex flex-wrap gap-2"
+              role="group"
+              aria-label="Drawing mode"
+              data-testid="editor-mode"
+            >
+              <button
+                type="button"
+                :class="TOGGLE_BUTTON_CLASS"
+                :aria-pressed="editorMode === 'easy'"
+                :disabled="!railAvailable"
+                data-testid="mode-easy"
+                @click="editor.setMode('easy')"
+              >
+                Easy · follows railways
+              </button>
+              <button
+                type="button"
+                :class="TOGGLE_BUTTON_CLASS"
+                :aria-pressed="editorMode === 'advanced'"
+                data-testid="mode-advanced"
+                @click="editor.setMode('advanced')"
+              >
+                Advanced
+              </button>
+            </div>
+            <p
+              v-if="!railAvailable"
+              class="font-body text-caption mt-2 text-ink-muted"
+              role="status"
+              data-testid="rail-unavailable"
+            >
+              Railway snapping isn't configured here — drawing freely.
+            </p>
+            <p
+              v-else
+              class="font-body text-caption mt-2 text-ink-muted"
+              data-testid="mode-hint"
+            >
+              {{ modeHint }}
+            </p>
+            <div class="mt-3 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                :class="TOGGLE_BUTTON_CLASS"
+                :aria-pressed="drawing"
+                data-testid="toggle-draw"
+                @click="toggleDrawing"
+              >
+                {{ drawLabel }}
+              </button>
+              <button
+                type="button"
+                :class="SECONDARY_BUTTON_CLASS"
+                data-testid="clear-route"
+                :disabled="pointCount === 0"
+                @click="editor.clear()"
+              >
+                Clear
+              </button>
+              <span
+                v-if="editor.loading.value"
+                class="font-body text-caption text-ink-muted"
+                role="status"
+                data-testid="rail-loading"
+              >
+                Loading railways…
+              </span>
+            </div>
+            <p
+              v-if="snapNote"
+              class="font-body text-caption mt-2 text-ink"
+              role="status"
+              aria-live="polite"
+              data-testid="snap-note"
+            >
+              {{ snapNote }}
+            </p>
+            <p
+              v-if="noRailway"
+              class="font-body text-caption mt-2 flex flex-wrap items-center gap-2 text-ink"
+              role="status"
+              aria-live="polite"
+              data-testid="no-railway"
+            >
+              <span
+                class="size-2 shrink-0 rounded-full bg-apricot"
+                aria-hidden="true"
+              />
+              No railway here — drawn straight. Switch to advanced to shape it.
+              <button
+                type="button"
+                :class="SECONDARY_BUTTON_CLASS"
+                data-testid="switch-advanced"
+                @click="editor.setMode('advanced')"
+              >
+                Switch to advanced
+              </button>
+            </p>
+          </template>
           <p
             class="font-body text-caption mt-2 text-ink"
             data-testid="route-stats"
           >
             {{ stats }}
           </p>
+          <p
+            v-if="simplifyNote"
+            class="font-body text-caption mt-1 text-ink-muted"
+            data-testid="simplify-note"
+          >
+            {{ simplifyNote }}
+          </p>
+          <label
+            v-if="editorMode === 'advanced' && !geometryLocked"
+            class="font-body text-caption mt-2 flex items-center gap-2 text-ink"
+          >
+            <input
+              v-model="simplifyOnSave"
+              type="checkbox"
+              data-testid="simplify-on-save"
+            >
+            Simplify on save — points within {{ SIMPLIFY_TOLERANCE_M }} m of a straight run are dropped
+          </label>
 
-          <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <p
+            v-if="editorMode === 'advanced' || geometryLocked"
+            class="font-body text-caption mt-4 text-ink-muted"
+          >
+            Or import a GeoJSON line: a LineString, a Feature holding one, or a collection with exactly one.
+          </p>
+          <div
+            v-if="editorMode === 'advanced' || geometryLocked"
+            class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2"
+            data-testid="import-controls"
+          >
             <label :class="FIELD_LABEL_CLASS">
               Import a file
               <input
@@ -313,11 +491,15 @@ watch(savedCount, () => toast('Changes saved'))
           data-testid="map-panel"
         >
           <MapView
-            label="Route preview map"
+            label="Route editor map"
             :loading="false"
             :isochrone-data="null"
-            :routes="mapRoutes"
+            :routes="[]"
             :stations="[]"
+            :modules="mapModules"
+            :fit-to="fitCorners"
+            :placement-armed="drawing"
+            :placement-cue="placementCue"
             hide-isochrone-legend
           />
         </div>

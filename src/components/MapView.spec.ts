@@ -42,6 +42,7 @@ import {
 } from '../fixtures/isochrone'
 import type { ChainResponse, StarterWalk } from '../fixtures/isochrone'
 import type { Route, Station } from '../api/scenarios'
+import type { MapModule } from '../composables/mapLifecycle'
 
 const mockSetData = vi.fn()
 
@@ -1602,6 +1603,39 @@ describe('MapView', () => {
 
       fireLayerEvent('mouseleave', STATION_DOTS_LAYER_ID, {})
       expect(mockCanvas.style.cursor).toBe('crosshair')
+    })
+  })
+
+  // SPA-90: the route builder draws its own shape through terra-draw, so it
+  // hands the map a module of its own and says what to frame instead of
+  // routes.
+  describe('a page\'s own modules', () => {
+    function fakeModule(log: string[]): MapModule {
+      return {
+        deps: () => null,
+        isReady: (styleLoaded) => styleLoaded,
+        attach: () => log.push('attach'),
+        sync: () => log.push('sync'),
+        detach: () => log.push('detach'),
+      }
+    }
+
+    it('attaches them once the style is up, and detaches them with the map', async () => {
+      const log: string[] = []
+      const wrapper = mount(MapView, { props: { ...defaultProps, modules: [fakeModule(log)] } })
+      expect(log).toEqual([])
+      await triggerMapLoad()
+      expect(log).toEqual(['attach'])
+      wrapper.unmount()
+      expect(log).toEqual(['attach', 'detach'])
+      expect(mockRemove).toHaveBeenCalled()
+    })
+
+    it('frames what the page asks for when it has no routes to frame', async () => {
+      mount(MapView, { props: { ...defaultProps, fitTo: stubRouteCorners } })
+      await triggerMapLoad()
+      expect(mockFitBounds).toHaveBeenCalledWith(stubRouteCorners, expect.objectContaining({ duration: 0, maxZoom: 11 }))
+      expect(mockFitBounds).not.toHaveBeenCalledWith(ISOCHRONE_BOUNDS_CORNERS, expect.anything())
     })
   })
 })
