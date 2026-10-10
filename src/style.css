@@ -26,10 +26,15 @@ body {
   min-height: 100svh;
 }
 
-*:focus-visible {
-  outline: var(--focus-ring-width) solid var(--color-focus);
-  outline-offset: var(--focus-ring-offset);
-  border-radius: 8px;
+/* A hairline just off the element, so keyboard focus reads as an edge rather
+   than a halo. It lives in the base layer so that focus-visible utilities on
+   individual elements win over it; unlayered, it would beat every utility
+   regardless of specificity, and FIELD_INPUT_CLASS's outline-none would lose. */
+@layer base {
+  *:focus-visible {
+    outline: var(--focus-ring-width) solid var(--color-focus);
+    outline-offset: var(--focus-ring-offset);
+  }
 }
 
 ::selection {

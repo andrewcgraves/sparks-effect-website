@@ -689,7 +689,7 @@ watch(createdSlug, (created) => {
                   >{{ index + 1 }}</span>
                   <input
                     :value="stop.name"
-                    class="min-w-0 flex-1 border-b border-transparent bg-transparent font-medium not-italic normal-case hover:border-border focus:border-border"
+                    class="min-w-0 flex-1 border-b border-transparent bg-transparent font-medium not-italic normal-case hover:border-border focus:border-coral focus-visible:outline-none"
                     :aria-label="`Rename ${stopLabels[index]}`"
                     :data-testid="`stop-edit-name-${index}`"
                     type="text"
