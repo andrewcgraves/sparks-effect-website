@@ -380,6 +380,40 @@ describe('RouteBuilderView', () => {
       expect(wrapper.get('[data-testid="clear-route"]').attributes('disabled')).toBeDefined()
     })
 
+    // MapView is stubbed, so nothing calls the editor module's sync: a test
+    // does, as the map would on a draft change, to land an edit in the editor.
+    async function editorSees(wrapper: Wrapper) {
+      editors[0].module.sync(null as never)
+      await flushPromises()
+      return wrapper
+    }
+
+    it('offers Undo once there is an edit to take back, and takes it back', async () => {
+      const { wrapper } = await mountAt('/authoring/routes/new')
+      const undo = () => wrapper.get('[data-testid="route-undo"]')
+      expect(undo().text()).toBe('Undo')
+      expect(undo().attributes('disabled')).toBeDefined()
+
+      await pasteLine(wrapper)
+      await editorSees(wrapper)
+      expect(undo().attributes('disabled')).toBeUndefined()
+
+      const spy = vi.spyOn(editors[0], 'undo')
+      await undo().trigger('click')
+      await flushPromises()
+      expect(spy).toHaveBeenCalledTimes(1)
+      expect(wrapper.get('[data-testid="route-stats"]').text()).toBe('No shape yet.')
+      expect(undo().attributes('disabled')).toBeDefined()
+    })
+
+    it('has no serious or critical accessibility violations with Undo on offer', async () => {
+      const { wrapper } = await mountAt('/authoring/routes/new', undefined, document.body)
+      await pasteLine(wrapper)
+      await editorSees(wrapper)
+      expect(await seriousA11yViolations(wrapper)).toEqual([])
+      wrapper.unmount()
+    })
+
     it('shows what simplifying will do to the count, and sends every point once it is turned off', async () => {
       const metres = (m: number) => m / 111_195
       const east = (km: number): [number, number] => [-120 + (km / 111.195) / Math.cos((37 * Math.PI) / 180), 37]
@@ -404,6 +438,8 @@ describe('RouteBuilderView', () => {
       expect(wrapper.find('[data-testid="editor-mode"]').exists()).toBe(false)
       expect(wrapper.find('[data-testid="toggle-draw"]').exists()).toBe(false)
       expect(wrapper.find('[data-testid="clear-route"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="route-undo"]').exists()).toBe(false)
+      expect(editors[0].canUndo.value).toBe(false)
       expect(wrapper.find('[data-testid="simplify-on-save"]').exists()).toBe(false)
       expect(mapStub(wrapper).props('placementArmed')).toBe(false)
       expect(mapStub(wrapper).props('modules')).toHaveLength(2)

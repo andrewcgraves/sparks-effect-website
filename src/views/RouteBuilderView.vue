@@ -69,7 +69,7 @@ const editor = useRouteEditor({
   setCoordinates,
   readOnly: () => geometryLocked.value,
 })
-const { mode: editorMode, drawing, railAvailable, lastSnap, zoomedOut } = editor
+const { mode: editorMode, drawing, railAvailable, lastSnap, zoomedOut, canUndo } = editor
 const mapModules = [railOverlayModule(), editor.module]
 const fitCorners = computed(() => routeBoundsCorners(mapRoutes.value))
 
@@ -350,6 +350,16 @@ watch(savedCount, () => toast('Changes saved'))
                 @click="toggleDrawing"
               >
                 {{ drawLabel }}
+              </button>
+              <button
+                type="button"
+                :class="SECONDARY_BUTTON_CLASS"
+                data-testid="route-undo"
+                aria-keyshortcuts="Control+Z Meta+Z"
+                :disabled="!canUndo"
+                @click="editor.undo()"
+              >
+                Undo
               </button>
               <button
                 type="button"

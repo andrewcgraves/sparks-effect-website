@@ -192,6 +192,7 @@ vi.mock('../rail/pmtilesSource', () => ({
 import {
   GRAPH_DEBOUNCE_MS,
   ROUTE_EDITOR_PREFIX,
+  UNDO_LIMIT,
   snapLabel,
   toDrawPrecision,
   useRouteEditor,
@@ -767,6 +768,145 @@ describe('useRouteEditor', () => {
     })
   })
 
+  describe('undo', () => {
+    function ctrlZ(target: EventTarget = window, init: KeyboardEventInit = { ctrlKey: true }) {
+      target.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', bubbles: true, cancelable: true, ...init }))
+    }
+
+    it('takes back a whole walked span per click, with its provenance, and nothing more', async () => {
+      const { editor, draw, coordinates } = await setUp()
+      editor.start()
+      expect(editor.canUndo.value).toBe(false)
+      click(draw, bnsfNorth)
+      expect(editor.canUndo.value).toBe(true)
+      click(draw, nearJunction)
+      click(draw, bnsfSouth)
+      const twoSpans = { coordinates: coordinates.value, spans: editor.spans.value }
+      expect(twoSpans.spans).toHaveLength(2)
+      click(draw, onDraw(fresnoPoint(2740, 6392, 4087, 2140)))
+      expect(editor.spans.value).toHaveLength(3)
+      expect(coordinates.value.length).toBeGreaterThan(twoSpans.coordinates.length + 1)
+
+      editor.undo()
+      expect(coordinates.value).toEqual(twoSpans.coordinates)
+      expect(editor.spans.value).toEqual(twoSpans.spans)
+      expect(routeFeature(draw)?.geometry.coordinates).toEqual(twoSpans.coordinates)
+
+      editor.undo()
+      editor.undo()
+      expect(coordinates.value).toEqual([onDraw(guideFor(draw, bnsfNorth))])
+      expect(pointFeature(draw)).toBeDefined()
+      expect(routeFeature(draw)).toBeUndefined()
+      editor.undo()
+      expect(coordinates.value).toEqual([])
+      expect(draw.getSnapshot()).toEqual([])
+      expect(editor.canUndo.value).toBe(false)
+    })
+
+    it('records no step for its own write-back to the draft', async () => {
+      const { editor, draw, map, coordinates } = await setUp()
+      editor.start()
+      click(draw, bnsfNorth)
+      editor.module.sync(map as unknown as MapLibreMap)
+      click(draw, bnsfSouth)
+      editor.module.sync(map as unknown as MapLibreMap)
+      editor.undo()
+      editor.module.sync(map as unknown as MapLibreMap)
+      expect(coordinates.value).toHaveLength(1)
+      expect(editor.canUndo.value).toBe(true)
+      editor.undo()
+      editor.module.sync(map as unknown as MapLibreMap)
+      expect(coordinates.value).toEqual([])
+      expect(editor.canUndo.value).toBe(false)
+    })
+
+    it('brings a cleared route back', async () => {
+      const { editor, draw, coordinates } = await setUp()
+      editor.start()
+      click(draw, bnsfNorth)
+      click(draw, bnsfSouth)
+      const traced = { coordinates: coordinates.value, spans: editor.spans.value }
+      editor.clear()
+      expect(coordinates.value).toEqual([])
+      editor.undo()
+      expect(coordinates.value).toEqual(traced.coordinates)
+      expect(editor.spans.value).toEqual(traced.spans)
+      expect(routeFeature(draw)?.geometry.coordinates).toEqual(traced.coordinates)
+    })
+
+    it('takes back an import as one step', async () => {
+      const { editor, draw, map, coordinates } = await setUp()
+      editor.setMode('advanced')
+      editor.start()
+      click(draw, bnsfNorth, true)
+      click(draw, bnsfSouth, true)
+      coordinates.value = [[-120, 36], [-120.5, 36.5], [-121, 37]]
+      editor.module.sync(map as unknown as MapLibreMap)
+      editor.undo()
+      expect(coordinates.value).toEqual([bnsfNorth, bnsfSouth])
+      expect(editor.spans.value).toEqual([{ from: 0, to: 1, provenance: 'free' }])
+    })
+
+    it('records one step per drag, at its end', async () => {
+      const { editor, draw, coordinates } = await setUp({ initial: [bnsfNorth, bnsfSouth] })
+      editor.setMode('advanced')
+      await flushPromises()
+      expect(editor.canUndo.value).toBe(false)
+      const route = routeFeature(draw)!
+      const stored = draw.store.get(route.id!)!
+      for (const lat of [36.1, 36.2, 36.3]) {
+        stored.geometry = { type: 'LineString', coordinates: [bnsfNorth, [-119.3, lat], bnsfSouth] }
+        draw.emit('change', [route.id], 'update')
+      }
+      draw.emit('finish', route.id, { mode: 'select', action: 'dragCoordinate' })
+      expect(coordinates.value).toEqual([bnsfNorth, [-119.3, 36.3], bnsfSouth])
+
+      editor.undo()
+      expect(coordinates.value).toEqual([bnsfNorth, bnsfSouth])
+      expect(routeFeature(draw)?.geometry.coordinates).toEqual([bnsfNorth, bnsfSouth])
+      expect(editor.canUndo.value).toBe(false)
+    })
+
+    it(`keeps the last ${UNDO_LIMIT} steps`, async () => {
+      const { editor, draw, coordinates } = await setUp({ zoom: 10 })
+      editor.setMode('advanced')
+      editor.start()
+      for (let i = 0; i < UNDO_LIMIT + 5; i++) click(draw, [-119.3 + i * 0.001, 36.4], true)
+      expect(coordinates.value).toHaveLength(UNDO_LIMIT + 5)
+      for (let i = 0; i < UNDO_LIMIT; i++) editor.undo()
+      expect(coordinates.value).toHaveLength(5)
+      expect(editor.canUndo.value).toBe(false)
+      editor.undo()
+      expect(coordinates.value).toHaveLength(5)
+    })
+
+    it('undoes on Ctrl+Z or Cmd+Z, but not while typing in a field, and stops listening on detach', async () => {
+      const { editor, draw, coordinates } = await setUp()
+      editor.setMode('advanced')
+      editor.start()
+      click(draw, bnsfNorth, true)
+      click(draw, bnsfSouth, true)
+      click(draw, nowhere, true)
+
+      const input = document.createElement('input')
+      document.body.appendChild(input)
+      ctrlZ(input)
+      expect(coordinates.value).toHaveLength(3)
+      input.remove()
+
+      ctrlZ(window, { ctrlKey: true, shiftKey: true })
+      expect(coordinates.value).toHaveLength(3)
+      ctrlZ()
+      expect(coordinates.value).toEqual([bnsfNorth, bnsfSouth])
+      ctrlZ(document.body, { metaKey: true })
+      expect(coordinates.value).toEqual([bnsfNorth])
+
+      editor.module.detach()
+      ctrlZ()
+      expect(coordinates.value).toEqual([bnsfNorth])
+    })
+  })
+
   describe('a route that lines are built on', () => {
     it('shows the shape and takes no drawing', async () => {
       const { editor, draw, coordinates } = await setUp({ initial: [bnsfNorth, bnsfSouth], readOnly: true })
@@ -776,6 +916,9 @@ describe('useRouteEditor', () => {
       expect(draw.mode).toBe('static')
       click(draw, nowhere)
       editor.clear()
+      expect(coordinates.value).toEqual([bnsfNorth, bnsfSouth])
+      expect(editor.canUndo.value).toBe(false)
+      editor.undo()
       expect(coordinates.value).toEqual([bnsfNorth, bnsfSouth])
       editor.setMode('advanced')
       await flushPromises()

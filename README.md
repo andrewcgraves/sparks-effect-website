@@ -195,7 +195,10 @@ only start lines of its own and resets its drawing state when a line it is
 drawing is rewritten, so the editor takes the click through the mode's
 `pointerEvents.leftClick` gate, snaps it through `snapping.toCustom`, and
 rewrites one committed feature with `updateFeatureGeometry`. Escape finishes
-drawing, as it does stop placement. A route that lines are built on is shown
+drawing, as it does stop placement. **Undo** (or Ctrl+Z / Cmd+Z outside a text
+field) takes back the last action — an easy-mode click and the whole span it
+walked, a drag, a midpoint, a removed point, an import or a Clear — from a
+history of the last 50. A route that lines are built on is shown
 but cannot be drawn on. terra-draw, its adapter and `pmtiles` are imported
 inside the modules' `attach`, so they land in the builder's chunk and nowhere
 else.

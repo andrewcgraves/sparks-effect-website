@@ -1,4 +1,4 @@
-import { computed, ref, watch, type Ref } from 'vue'
+import { computed, ref, shallowRef, watch, type Ref } from 'vue'
 import type { Map } from 'maplibre-gl'
 import type { GeoJSONStoreFeatures, HexColor, TerraDraw, TerraDrawLineStringMode, TerraDrawMouseEvent } from 'terra-draw'
 import type { Position } from 'geojson'
@@ -52,6 +52,7 @@ export const WALK_MIN_BUDGET_M = 500
 export const WALK_BUDGET_FACTOR = 3
 export const SNAP_CANDIDATES = 3
 export const COORDINATE_PRECISION = 9
+export const UNDO_LIMIT = 50
 // Over the route map's line width, and in the accent of the primary action:
 // the route being drawn is the strongest stroke on the map, over every
 // railway it follows.
@@ -59,6 +60,11 @@ export const DRAWN_ROUTE_WIDTH = 3
 // MapLibre's zoom counts 512 px tiles, whatever the vector tiles' extent is.
 const SCREEN_TILE_PX = 512
 const MAX_LAT = 85
+
+interface UndoEntry {
+  points: LngLat[]
+  spans: RouteSpan[]
+}
 
 export function snapLabel(hit: Pick<RailHit, 'name' | 'state'>): string {
   if (hit.name) return `Snapped to ${hit.name}`
@@ -122,6 +128,11 @@ export function raiseEditorLayers(map: Pick<Map, 'getLayersOrder' | 'moveLayer'>
   for (const id of ours) map.moveLayer(id)
 }
 
+function isTextEntry(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  return target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
+}
+
 function hexToken(name: ThemeTokenName): HexColor {
   const value = readThemeToken(name)
   return (/^#[0-9a-f]{3,8}$/i.test(value) ? value : THEME_TOKEN_FALLBACKS[name]) as HexColor
@@ -137,6 +148,10 @@ export function useRouteEditor(options: RouteEditorOptions) {
   const lastSnap = ref<SnapNote | null>(null)
   const spans = ref<RouteSpan[]>([])
   const freeSpanCount = computed(() => spans.value.filter((span) => span.provenance === 'free').length)
+  // One entry per author action, taken before it lands: an easy-mode click
+  // that walks a whole span is one step back, not one per point it added.
+  const history = shallowRef<UndoEntry[]>([])
+  const canUndo = computed(() => history.value.length > 0 && !options.readOnly())
 
   let map: Map | null = null
   let draw: TerraDraw | null = null
@@ -222,6 +237,7 @@ export function useRouteEditor(options: RouteEditorOptions) {
   function commitClick(clicked: LngLat, hit: RailHit | null, path: LngLat[] | null): void {
     const previous = points[points.length - 1]
     if (previous && samePoint(previous, clicked)) return
+    record()
     if (!previous) {
       points = [clicked]
       lastSnap.value = hit ? { kind: 'snapped', label: snapLabel(hit) } : { kind: 'free' }
@@ -292,6 +308,25 @@ export function useRouteEditor(options: RouteEditorOptions) {
     options.setCoordinates(points)
   }
 
+  function record(): void {
+    if (options.readOnly()) return
+    history.value = [...history.value, { points, spans: spans.value }].slice(-UNDO_LIMIT)
+  }
+
+  // Put back what the last action replaced. Its write-back to the draft comes
+  // round again through syncFromDraft as the editor's own shape, so it is not
+  // recorded as an action of its own.
+  function undo(): void {
+    if (!canUndo.value) return
+    const entry = history.value[history.value.length - 1]
+    history.value = history.value.slice(0, -1)
+    points = entry.points
+    spans.value = entry.spans
+    lastSnap.value = null
+    render()
+    pushToDraft()
+  }
+
   function adopt(coordinates: number[][]): void {
     points = dropRepeatedPoints(toDrawPrecision(coordinates))
     spans.value = []
@@ -302,6 +337,7 @@ export function useRouteEditor(options: RouteEditorOptions) {
   function syncFromDraft(): void {
     const external = options.coordinates.value
     if (sameCoordinates(toDrawPrecision(external), points)) return
+    record()
     adopt(external)
   }
 
@@ -312,7 +348,11 @@ export function useRouteEditor(options: RouteEditorOptions) {
     if (!draw || routeId === null) return
     const feature = draw.getSnapshotFeature(routeId)
     if (!feature || feature.geometry.type !== 'LineString') return
-    points = dropRepeatedPoints(toDrawPrecision(feature.geometry.coordinates))
+    const edited = dropRepeatedPoints(toDrawPrecision(feature.geometry.coordinates))
+    if (sameCoordinates(edited, points)) return
+    // terra-draw finishes a drag once, at its end, so a drag is one step.
+    record()
+    points = edited
     spans.value = []
     lastSnap.value = null
     pushToDraft()
@@ -369,6 +409,7 @@ export function useRouteEditor(options: RouteEditorOptions) {
 
   function clear(): void {
     if (options.readOnly()) return
+    if (points.length > 0) record()
     points = []
     spans.value = []
     lastSnap.value = null
@@ -380,6 +421,14 @@ export function useRouteEditor(options: RouteEditorOptions) {
     // The adapter only hears keys while the canvas has focus, and Shift is
     // pressed with the pointer on the map and the focus wherever it was.
     shiftHeld = event.shiftKey
+  }
+
+  // Ctrl+Z in a text field is that field's own undo, not the route's.
+  function onUndoKey(event: KeyboardEvent): void {
+    if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey) return
+    if (event.key.toLowerCase() !== 'z' || isTextEntry(event.target)) return
+    event.preventDefault()
+    undo()
   }
 
   // A keyup that lands while another window has focus never arrives.
@@ -528,6 +577,7 @@ export function useRouteEditor(options: RouteEditorOptions) {
       target.on('moveend', onMoveEnd)
       target.on('styledata', onStyleData)
       window.addEventListener('keydown', onKey)
+      window.addEventListener('keydown', onUndoKey)
       window.addEventListener('keyup', onKey)
       window.addEventListener('blur', onBlur)
       void setUp(target, ++generation)
@@ -541,6 +591,7 @@ export function useRouteEditor(options: RouteEditorOptions) {
       if (pendingLoad) clearTimeout(pendingLoad)
       pendingLoad = null
       window.removeEventListener('keydown', onKey)
+      window.removeEventListener('keydown', onUndoKey)
       window.removeEventListener('keyup', onKey)
       window.removeEventListener('blur', onBlur)
       map?.off('moveend', onMoveEnd)
@@ -577,5 +628,7 @@ export function useRouteEditor(options: RouteEditorOptions) {
     start,
     finish,
     clear,
+    canUndo,
+    undo,
   }
 }
