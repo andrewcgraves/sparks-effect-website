@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useOwnedList } from '../composables/useOwnedList'
 import { fetchMyServices } from '../api/authoring/services'
@@ -11,7 +10,6 @@ import AllLinesLink from '../components/AllLinesLink.vue'
 import ListSkeleton from '../components/ListSkeleton.vue'
 
 const auth = useAuthStore()
-const router = useRouter()
 
 const { items: services, loading: servicesLoading, error: servicesError } = useOwnedList(fetchMyServices)
 const { items: scenarios, loading: scenariosLoading, error: scenariosError } = useOwnedList(fetchMyScenarios)
@@ -27,44 +25,19 @@ const nothingYet = computed(() =>
   && !servicesError.value && !scenariosError.value
   && services.value.length === 0 && scenarios.value.length === 0,
 )
-
-async function handleSignOut() {
-  await auth.logout()
-  await router.push('/login')
-}
 </script>
 
 <template>
   <main class="flex-1 p-(--page-padding)">
     <AllLinesLink />
-    <div class="mt-8 flex items-start justify-between gap-4">
-      <hgroup class="flex flex-col gap-2">
-        <h1 class="font-display text-display text-ink-true">
-          My authoring
-        </h1>
-        <p class="font-body text-micro text-ink-muted italic uppercase">
-          Signed in as {{ auth.displayName ?? '…' }}
-        </p>
-      </hgroup>
-      <!-- Until the header account menu (M4) exists, the account page is reached from here. -->
-      <div class="flex gap-4">
-        <router-link
-          to="/account"
-          :class="ACTION_LINK_CLASS"
-          data-testid="account-link"
-        >
-          Account
-        </router-link>
-        <button
-          type="button"
-          :class="ACTION_LINK_CLASS"
-          data-testid="sign-out"
-          @click="handleSignOut"
-        >
-          Sign out
-        </button>
-      </div>
-    </div>
+    <hgroup class="mt-8 flex flex-col gap-2">
+      <h1 class="font-display text-display text-ink-true">
+        My authoring
+      </h1>
+      <p class="font-body text-micro text-ink-muted italic uppercase">
+        Signed in as {{ auth.displayName ?? '…' }}
+      </p>
+    </hgroup>
 
     <section
       v-if="nothingYet"
