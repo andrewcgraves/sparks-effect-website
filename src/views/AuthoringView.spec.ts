@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createMemoryHistory } from 'vue-router'
-import type { Service, Scenario } from '../api/authoring/types'
+import type { OwnedRouteSummary, Service, Scenario } from '../api/authoring/types'
 
 vi.mock('../api/authoring/services', () => ({
   fetchMyServices: vi.fn(),
@@ -10,11 +10,15 @@ vi.mock('../api/authoring/services', () => ({
 vi.mock('../api/authoring/scenarios', () => ({
   fetchMyScenarios: vi.fn(),
 }))
+vi.mock('../api/authoring/routes', () => ({
+  fetchMyRoutes: vi.fn(),
+}))
 
 import AuthoringView from './AuthoringView.vue'
 import { seriousA11yViolations } from '../test/axe'
 import { fetchMyServices } from '../api/authoring/services'
 import { fetchMyScenarios } from '../api/authoring/scenarios'
+import { fetchMyRoutes } from '../api/authoring/routes'
 import { useAuthStore } from '../stores/auth'
 import { busyRegion, visibleText } from '../test/loading'
 
@@ -50,12 +54,23 @@ const stubScenario: Scenario = {
   service_ids: ['svc1'],
 }
 
+const stubRoute: OwnedRouteSummary = {
+  id: 'rt1',
+  slug: 'main-line',
+  name: 'Main Line',
+  mode: 'rail',
+  length_m: 62450,
+  dependents: { services: 0, user_services: 2, segments: 0 },
+}
+
 describe('AuthoringView', () => {
   beforeEach(() => {
     window.localStorage.clear()
     setActivePinia(createPinia())
     vi.mocked(fetchMyServices).mockReset()
     vi.mocked(fetchMyScenarios).mockReset()
+    vi.mocked(fetchMyRoutes).mockReset()
+    vi.mocked(fetchMyRoutes).mockResolvedValue([])
   })
 
   afterEach(() => {
@@ -100,9 +115,11 @@ describe('AuthoringView', () => {
   it.each([
     ['services', 'services-loading'],
     ['scenarios', 'scenarios-loading'],
+    ['routes', 'routes-loading'],
   ])('shows skeleton cards for %s while they load, with no loading copy', async (_, testId) => {
     vi.mocked(fetchMyServices).mockReturnValue(new Promise(() => {}))
     vi.mocked(fetchMyScenarios).mockReturnValue(new Promise(() => {}))
+    vi.mocked(fetchMyRoutes).mockReturnValue(new Promise(() => {}))
     const { wrapper } = await mountAuthoring()
     const region = busyRegion(wrapper, testId)
     expect(region.findAll('[data-testid="list-card-skeleton"]').length).toBeGreaterThan(0)
@@ -173,6 +190,61 @@ describe('AuthoringView', () => {
     expect(link.text()).toContain('ca-hsr')
   })
 
+  describe('my routes', () => {
+    it('links to the route builder', async () => {
+      vi.mocked(fetchMyServices).mockResolvedValue([stubService])
+      vi.mocked(fetchMyScenarios).mockResolvedValue([])
+      const { wrapper } = await mountAuthoring()
+      await flushPromises()
+      expect(wrapper.get('[data-testid="new-route-link"]').attributes('href')).toBe('/authoring/routes/new')
+    })
+
+    it('lists each route with its mode, length and the lines built on it, linking to its editor', async () => {
+      vi.mocked(fetchMyServices).mockResolvedValue([])
+      vi.mocked(fetchMyScenarios).mockResolvedValue([])
+      vi.mocked(fetchMyRoutes).mockResolvedValue([
+        stubRoute,
+        { ...stubRoute, id: 'rt2', slug: 'spur', name: 'Spur', mode: 'tram', length_m: 1200, dependents: { services: 0, user_services: 0, segments: 0 } },
+      ])
+      const { wrapper } = await mountAuthoring()
+      await flushPromises()
+      const links = wrapper.findAll('[data-testid="route-link"]')
+      expect(links).toHaveLength(2)
+      expect(links[0].attributes('href')).toBe('/authoring/routes/main-line')
+      expect(links[0].text().replace(/\s+/g, ' ')).toBe('Main Line rail · 62.5 km · Used by 2 lines')
+      expect(links[1].text().replace(/\s+/g, ' ')).toBe('Spur tram · 1.2 km · Not used yet')
+    })
+
+    it('says use is unknown for a route the API sent without dependents, rather than failing', async () => {
+      vi.mocked(fetchMyServices).mockResolvedValue([])
+      vi.mocked(fetchMyScenarios).mockResolvedValue([])
+      vi.mocked(fetchMyRoutes).mockResolvedValue([{ ...stubRoute, dependents: undefined }])
+      const { wrapper } = await mountAuthoring()
+      await flushPromises()
+      expect(wrapper.get('[data-testid="route-link"]').text()).toContain('Use unknown')
+    })
+
+    it('explains a route when there are none yet', async () => {
+      vi.mocked(fetchMyServices).mockResolvedValue([stubService])
+      vi.mocked(fetchMyScenarios).mockResolvedValue([])
+      const { wrapper } = await mountAuthoring()
+      await flushPromises()
+      const empty = wrapper.get('[data-testid="routes-empty"]')
+      expect(empty.text()).toContain('A route is the shape a line runs along.')
+      expect(empty.text()).toContain("You haven't drawn one yet.")
+    })
+
+    it('shows an error state when fetching routes fails, without blocking the other lists', async () => {
+      vi.mocked(fetchMyServices).mockResolvedValue([stubService])
+      vi.mocked(fetchMyScenarios).mockResolvedValue([])
+      vi.mocked(fetchMyRoutes).mockRejectedValue(new Error('boom'))
+      const { wrapper } = await mountAuthoring()
+      await flushPromises()
+      expect(wrapper.get('[data-testid="routes-error"]').attributes('role')).toBe('alert')
+      expect(wrapper.text()).toContain('Northbound Express')
+    })
+  })
+
   describe('with no lines and no networks', () => {
     async function mountEmpty() {
       vi.mocked(fetchMyServices).mockResolvedValue([])
@@ -181,6 +253,20 @@ describe('AuthoringView', () => {
       await flushPromises()
       return wrapper
     }
+
+    it('still lists a route an author has drawn, rather than claiming there is nothing yet', async () => {
+      vi.mocked(fetchMyRoutes).mockResolvedValue([stubRoute])
+      const wrapper = await mountEmpty()
+      expect(wrapper.find('[data-testid="authoring-empty"]').exists()).toBe(false)
+      expect(wrapper.get('[data-testid="route-link"]').text()).toContain('Main Line')
+      expect(wrapper.find('[data-testid="services-empty"]').exists()).toBe(true)
+    })
+
+    it('does not claim there is nothing yet while the routes are still loading', async () => {
+      vi.mocked(fetchMyRoutes).mockReturnValue(new Promise(() => {}))
+      const wrapper = await mountEmpty()
+      expect(wrapper.find('[data-testid="authoring-empty"]').exists()).toBe(false)
+    })
 
     it('shows one panel explaining a line and a network', async () => {
       const panel = (await mountEmpty()).get('[data-testid="authoring-empty"]')
@@ -263,9 +349,10 @@ describe('AuthoringView', () => {
     expect(wrapper.text()).toContain('CA HSR')
   })
 
-  it('has no serious or critical accessibility violations once both lists load', async () => {
+  it('has no serious or critical accessibility violations once all three lists load', async () => {
     vi.mocked(fetchMyServices).mockResolvedValue([stubService])
     vi.mocked(fetchMyScenarios).mockResolvedValue([stubScenario])
+    vi.mocked(fetchMyRoutes).mockResolvedValue([stubRoute])
     const router = makeRouter()
     useAuthStore().signIn('tok-1', { id: 'u1', email: 'a@example.com' })
     await router.push('/authoring')

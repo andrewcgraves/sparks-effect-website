@@ -4,6 +4,9 @@ import { useAuthStore } from '../stores/auth'
 import { useOwnedList } from '../composables/useOwnedList'
 import { fetchMyServices } from '../api/authoring/services'
 import { fetchMyScenarios } from '../api/authoring/scenarios'
+import { fetchMyRoutes } from '../api/authoring/routes'
+import { usedBySentence } from '../composables/useRouteDraft'
+import { formatKm } from '../routeGeometry'
 import { PRIMARY_BUTTON_CLASS } from '../components/buttonStyles'
 import { ACTION_LINK_CLASS, LIST_CARD_LINK_CLASS } from '../components/linkStyles'
 import AllLinesLink from '../components/AllLinesLink.vue'
@@ -13,17 +16,19 @@ const auth = useAuthStore()
 
 const { items: services, loading: servicesLoading, error: servicesError } = useOwnedList(fetchMyServices)
 const { items: scenarios, loading: scenariosLoading, error: scenariosError } = useOwnedList(fetchMyScenarios)
+const { items: routes, loading: routesLoading, error: routesError } = useOwnedList(fetchMyRoutes)
 
 const LINE_DEFINITION = 'A line is a set of stops along a route, with a vehicle and a timetable.'
+const ROUTE_DEFINITION = 'A route is the shape a line runs along. Draw your own, or pick a curated one when you create a line.'
 
-// Only a pair of answered, empty reads means a new author: a list still
+// Only a set of answered, empty reads means a new author: a list still
 // loading or failed is not evidence there is nothing to show.
 const hasLines = computed(() => !servicesLoading.value && !servicesError.value && services.value.length > 0)
 
 const nothingYet = computed(() =>
-  !servicesLoading.value && !scenariosLoading.value
-  && !servicesError.value && !scenariosError.value
-  && services.value.length === 0 && scenarios.value.length === 0,
+  !servicesLoading.value && !scenariosLoading.value && !routesLoading.value
+  && !servicesError.value && !scenariosError.value && !routesError.value
+  && services.value.length === 0 && scenarios.value.length === 0 && routes.value.length === 0,
 )
 </script>
 
@@ -62,7 +67,7 @@ const nothingYet = computed(() =>
 
     <div
       v-else
-      class="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-2"
+      class="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-3"
     >
       <section>
         <div class="flex items-center justify-between gap-3">
@@ -186,6 +191,62 @@ const nothingYet = computed(() =>
             >
               {{ scenario.name }}
               <span class="text-micro text-ink-muted">{{ scenario.slug }}</span>
+            </router-link>
+          </li>
+        </ul>
+      </section>
+
+      <section>
+        <div class="flex items-center justify-between gap-3">
+          <h2 class="font-display text-h2 text-ink-true">
+            My routes
+          </h2>
+          <router-link
+            to="/authoring/routes/new"
+            :class="ACTION_LINK_CLASS"
+            data-testid="new-route-link"
+          >
+            + New route
+          </router-link>
+        </div>
+        <ListSkeleton
+          v-if="routesLoading"
+          label="Loading your routes"
+          class="mt-3"
+          data-testid="routes-loading"
+        />
+        <p
+          v-else-if="routesError"
+          class="font-body text-caption mt-3 text-error"
+          role="alert"
+          data-testid="routes-error"
+        >
+          Couldn't load your routes.
+        </p>
+        <p
+          v-else-if="routes.length === 0"
+          class="font-body text-caption mt-3 text-ink-muted italic"
+          data-testid="routes-empty"
+        >
+          {{ ROUTE_DEFINITION }} You haven't drawn one yet.
+        </p>
+        <ul
+          v-else
+          class="mt-3 flex flex-col gap-2"
+        >
+          <li
+            v-for="route in routes"
+            :key="route.slug"
+          >
+            <router-link
+              :to="`/authoring/routes/${route.slug}`"
+              :class="LIST_CARD_LINK_CLASS"
+              data-testid="route-link"
+            >
+              {{ route.name }}
+              <span class="text-micro text-ink-muted">
+                {{ route.mode }}<template v-if="formatKm(route.length_m)"> · {{ formatKm(route.length_m) }}</template> · {{ usedBySentence(route.dependents) }}
+              </span>
             </router-link>
           </li>
         </ul>
