@@ -182,16 +182,41 @@ function handleSubmit() {
       <AddressAutocomplete
         ref="addressAutocompleteRef"
         @select="onAutocompleteSelect"
-      />
-      <button
-        type="button"
-        class="font-display text-btn self-start text-ink-muted uppercase transition-colors duration-200 ease-(--ease-smooth) hover:text-coral disabled:cursor-not-allowed disabled:opacity-50"
-        data-testid="use-current-location"
-        :disabled="locating"
-        @click="onUseCurrentLocation"
       >
-        <span aria-hidden="true">📍</span> Use my location
-      </button>
+        <template #trailing>
+          <button
+            type="button"
+            class="flex aspect-square shrink-0 cursor-pointer items-center justify-center rounded-(--radius-field) border border-border bg-white text-ink-muted transition-colors duration-200 ease-(--ease-smooth) hover:border-coral hover:text-coral disabled:cursor-not-allowed disabled:opacity-50"
+            data-testid="use-current-location"
+            aria-label="Use my location"
+            title="Use my location"
+            :aria-busy="locating"
+            :disabled="locating"
+            @click="onUseCurrentLocation"
+          >
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              class="size-5 fill-none stroke-current stroke-2"
+              :class="{ 'animate-pulse': locating }"
+              stroke-linecap="round"
+            >
+              <circle
+                cx="12"
+                cy="12"
+                r="7"
+              />
+              <circle
+                cx="12"
+                cy="12"
+                r="2.5"
+                class="fill-current"
+              />
+              <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+            </svg>
+          </button>
+        </template>
+      </AddressAutocomplete>
       <button
         type="button"
         class="font-display text-btn self-start uppercase transition-colors duration-200 ease-(--ease-smooth) hover:text-coral"

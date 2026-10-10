@@ -15,6 +15,7 @@ const isLoading = ref(false)
 const hasSearched = ref(false)
 const activeIndex = ref(-1)
 const listboxId = useId()
+const inputId = useId()
 
 function optionId(index: number): string {
   return `${listboxId}-option-${index}`
@@ -112,11 +113,17 @@ defineExpose({ setInputValue })
 </script>
 
 <template>
-  <div class="address-autocomplete">
-    <label :class="FIELD_LABEL_CLASS">
+  <div class="address-autocomplete flex flex-col gap-1">
+    <label
+      :for="inputId"
+      :class="FIELD_LABEL_CLASS"
+    >
       Location
-      <div class="relative">
+    </label>
+    <div class="flex items-stretch gap-2">
+      <div class="relative min-w-0 flex-1">
         <input
+          :id="inputId"
           v-model="inputValue"
           :class="[FIELD_INPUT_CLASS, 'w-full placeholder:text-placeholder']"
           type="text"
@@ -173,6 +180,7 @@ defineExpose({ setInputValue })
           </p>
         </div>
       </div>
-    </label>
+      <slot name="trailing" />
+    </div>
   </div>
 </template>

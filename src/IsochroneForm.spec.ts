@@ -225,6 +225,20 @@ describe('IsochroneForm', () => {
     expect(button.attributes('type')).toBe('button')
   })
 
+  it('names the use-current-location icon button for screen readers and hides its icon', () => {
+    const wrapper = mount(IsochroneForm)
+    const button = wrapper.get('[data-testid="use-current-location"]')
+    expect(button.attributes('aria-label')).toBe('Use my location')
+    expect(button.text()).toBe('')
+    expect(button.get('svg').attributes('aria-hidden')).toBe('true')
+  })
+
+  it('sits the use-current-location button in a row with the location input', () => {
+    const wrapper = mount(IsochroneForm)
+    const button = wrapper.get('[data-testid="use-current-location"]')
+    expect(button.element.parentElement?.querySelector('input[role="combobox"]')).not.toBeNull()
+  })
+
   it('fills lat, lng, address, and emits origin-change when use-current-location succeeds', async () => {
     vi.mocked(getCurrentPosition).mockResolvedValue({ lat: 45.5231, lng: -122.6784 })
     const suggestion: GeocodingSuggestion = {
@@ -387,12 +401,10 @@ describe('IsochroneForm', () => {
       expect(button.text()).toContain('Pick location on map')
     })
 
-    it('keeps the pin out of what a screen reader says for either location button', () => {
+    it('keeps the pin out of what a screen reader says for the pick-on-map button', () => {
       const wrapper = mount(IsochroneForm)
-      for (const button of [pickButton(wrapper), wrapper.get('[data-testid="use-current-location"]')]) {
-        const pin = button.findAll('[aria-hidden="true"]').map((hidden) => hidden.text())
-        expect(pin).toEqual(['📍'])
-      }
+      const pin = pickButton(wrapper).findAll('[aria-hidden="true"]').map((hidden) => hidden.text())
+      expect(pin).toEqual(['📍'])
     })
 
     it('arms on click and reports it, so the parent can arm the map', async () => {
