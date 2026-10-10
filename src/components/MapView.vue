@@ -43,6 +43,9 @@ const props = defineProps<{
   activeStation?: string | null
   remainingSecs?: (slug: string) => number | null
   label: string
+  // Fills its box edge to edge — no frame, rounding or minimum height — for a
+  // phone page that gives the map the screen rather than a card.
+  flush?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -314,13 +317,15 @@ onUnmounted(() => {
 
 <template>
   <div
-    class="map-frame relative h-full min-h-[70vh] w-full rounded-(--radius-box) border border-border"
+    class="map-frame relative h-full w-full"
+    :class="flush ? 'map-frame-flush' : 'min-h-[70vh] rounded-(--radius-box) border border-border'"
     role="region"
     :aria-label="label"
   >
     <div
       ref="mapContainer"
-      class="h-full min-h-[70vh] w-full"
+      class="h-full w-full"
+      :class="flush ? '' : 'min-h-[70vh]'"
     />
     <LoadingRegion
       v-if="!isMapLoaded"
@@ -453,6 +458,10 @@ onUnmounted(() => {
 .map-frame {
   overflow: hidden;
   clip-path: inset(0 round var(--radius-box));
+}
+
+.map-frame-flush {
+  clip-path: none;
 }
 
 /* MapLibre renders its own controls and attribution into the map container, so

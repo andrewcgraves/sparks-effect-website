@@ -264,6 +264,18 @@ describe('MapView', () => {
     expect(wrapper.get('[role="region"]').attributes('aria-label')).toBe('Splash zone map')
   })
 
+  it('is a framed card with room for a stacked page by default', () => {
+    const wrapper = mount(MapView, { props: defaultProps })
+    expect(wrapper.classes()).toEqual(expect.arrayContaining(['border', 'min-h-[70vh]']))
+  })
+
+  it('fills its box edge to edge when a phone page asks for it flush', () => {
+    const wrapper = mount(MapView, { props: { ...defaultProps, flush: true } })
+    expect(wrapper.classes()).not.toEqual(expect.arrayContaining(['border']))
+    expect(wrapper.classes()).not.toEqual(expect.arrayContaining(['min-h-[70vh]']))
+    expect(wrapper.find('[class*="min-h-[70vh]"]').exists()).toBe(false)
+  })
+
   it('has no serious or critical accessibility violations with a splash zone drawn', async () => {
     const wrapper = mount(MapView, { props: { ...defaultProps, isochroneData: staticIsochroneResponse }, attachTo: document.body })
     await triggerMapLoad()
