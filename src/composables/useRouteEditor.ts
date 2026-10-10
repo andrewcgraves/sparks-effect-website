@@ -150,6 +150,9 @@ export function useRouteEditor(options: RouteEditorOptions) {
   function captureClick(event: TerraDrawMouseEvent): boolean {
     if (!drawing.value) return false
     const hit = hitFor(event)
+    // Railways still arriving: a click on one would read as "no railway
+    // here" and be drawn straight, so in easy mode it is not taken yet.
+    if (!hit && mode.value === 'easy' && loading.value) return false
     commitClick(hit ? hit.point : [event.lng, event.lat], hit)
     return false
   }
@@ -270,19 +273,27 @@ export function useRouteEditor(options: RouteEditorOptions) {
     draw.updateModeOptions<typeof TerraDrawLineStringMode>(LINE_MODE, { editable: mode.value === 'advanced' })
     if (options.readOnly()) {
       drawing.value = false
-      draw.setMode(STATIC_MODE)
+      enterMode(STATIC_MODE)
       return
     }
     if (drawing.value) {
-      draw.setMode(LINE_MODE)
+      enterMode(LINE_MODE)
       return
     }
     if (mode.value === 'advanced') {
-      draw.setMode(SELECT_MODE)
-      if (routeId !== null && draw.hasFeature(routeId)) draw.selectFeature(routeId)
+      if (enterMode(SELECT_MODE) && routeId !== null && draw.hasFeature(routeId)) draw.selectFeature(routeId)
     } else {
-      draw.setMode(STATIC_MODE)
+      enterMode(STATIC_MODE)
     }
+  }
+
+  // terra-draw's setMode stops and restarts a mode even when it is the one
+  // running, which drops the hover guide and the selection, and applyMode
+  // runs on every draft change, so each click and drag would do that.
+  function enterMode(name: string): boolean {
+    if (!draw || draw.getMode() === name) return false
+    draw.setMode(name)
+    return true
   }
 
   function setMode(next: EditorMode): void {
@@ -341,15 +352,21 @@ export function useRouteEditor(options: RouteEditorOptions) {
     const mine = generation
     const bbox = viewportBbox(map, GRAPH_MARGIN)
     loadsInFlight++
+    const load = graphLoad
     try {
-      if (!graphLoad) {
-        graphLoad = RailGraph.load(source, bbox)
-        graph = await graphLoad
+      if (!load) {
+        const first = RailGraph.load(source, bbox)
+        graphLoad = first
+        const loaded = await first
+        if (mine === generation) graph = loaded
       } else {
-        await (await graphLoad).extend(source, bbox)
+        await (await load).extend(source, bbox)
       }
     } catch {
       // A tile that failed leaves snapping as it was; the next move retries.
+      // A first load that failed is forgotten, or every later extend would
+      // await its rejection and the graph would never come.
+      if (!load && mine === generation && graph === null) graphLoad = null
     } finally {
       loadsInFlight--
       if (mine === generation && loadsInFlight === 0 && pendingLoad === null) loading.value = false

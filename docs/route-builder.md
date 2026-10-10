@@ -41,11 +41,14 @@ API: /api/me/routes  ← validated LineString only
 
 `railGraph.ts` is the heart and is pure TypeScript: given a bbox it fetches the z14 PMTiles tiles
 (`pmtiles` + `@mapbox/vector-tile`), builds an undirected graph keyed by exact coordinates, and
-answers `nearestPoint(p)` and `walk(a, b)` (Dijkstra, bounded by distance). Easy mode calls
-`nearestPoint` from terra-draw's `toCustom` snap and, after each click, replaces the feature's
-geometry with the previous geometry + `walk(prev, clicked)`; a failed walk inserts the straight
-span and flags it. Advanced mode keeps the same snap but lets Shift bypass it and exposes
-terra-draw's select mode (drag, midpoint, delete).
+answers `nearestPoint(p)` and `walk(a, b)` (Dijkstra, bounded by distance). terra-draw's
+line-string mode never draws the route itself: it only starts lines of its own and resets when
+one it is drawing is rewritten, so `useRouteEditor` takes each click through the mode's
+`pointerEvents.leftClick` gate (answering `false`), snaps it with the same `nearestPoint` that
+backs the `toCustom` hover guide, and in easy mode appends `walk(prev, clicked)` to one committed
+feature with `updateFeatureGeometry` (a lone first point is shown as a point feature); a failed
+walk inserts the straight span and flags it. Advanced mode keeps the same snap but lets Shift
+bypass it, appends straight spans, and exposes terra-draw's select mode (drag, midpoint, delete).
 
 ## Phases (dependency order, all post-launch)
 

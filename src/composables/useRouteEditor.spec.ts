@@ -12,7 +12,7 @@ import type { RecordingSource } from '../fixtures/rail/fresno'
 // options, which are what a click goes through. `click` below replays the
 // order the real mode uses: the snap callback for the hover guide, then the
 // pointer-event gate for the click itself.
-const { fakes, tileSources } = vi.hoisted(() => {
+const { fakes, tileSources, tileFailures } = vi.hoisted(() => {
   type Listener = (...args: unknown[]) => void
   type Options = Record<string, unknown>
   class FakeMode {
@@ -100,7 +100,8 @@ const { fakes, tileSources } = vi.hoisted(() => {
   }
   const fakes = { FakeTerraDraw, FakeMode, instances: [] as InstanceType<typeof FakeTerraDraw>[] }
   const tileSources: RecordingSource[] = []
-  return { fakes, tileSources }
+  const tileFailures = { remaining: 0 }
+  return { fakes, tileSources, tileFailures }
 })
 
 vi.mock('terra-draw', () => ({
@@ -134,6 +135,14 @@ vi.mock('terra-draw-maplibre-gl-adapter', () => ({
 vi.mock('../rail/pmtilesSource', () => ({
   pmtilesSource: () => {
     const source = fresnoTiles()
+    const tile = source.tile.bind(source)
+    source.tile = async (z, x, y) => {
+      if (tileFailures.remaining > 0) {
+        tileFailures.remaining--
+        throw new Error('tile fetch failed')
+      }
+      return tile(z, x, y)
+    }
     tileSources.push(source)
     return source
   },
@@ -236,6 +245,7 @@ describe('useRouteEditor', () => {
   beforeEach(() => {
     fakes.instances.length = 0
     tileSources.length = 0
+    tileFailures.remaining = 0
   })
 
   afterEach(() => {
@@ -276,6 +286,16 @@ describe('useRouteEditor', () => {
       const { editor, map } = await setUp({ zoom: 10 })
       map.fire('moveend')
       expect(editor.loading.value).toBe(false)
+    })
+
+    it('loads the railways on the next move after the first load failed', async () => {
+      tileFailures.remaining = 1
+      const { editor, draw, map } = await setUp()
+      editor.start()
+      expect(click(draw, nearJunction).guide).toBeUndefined()
+      map.fire('moveend')
+      await tilesLoaded()
+      expect(guideFor(draw, nearJunction)).toBeDefined()
     })
 
     it('does nothing to a map it was detached from before terra-draw had loaded', async () => {
@@ -360,6 +380,33 @@ describe('useRouteEditor', () => {
       expect(editor.spans.value).toEqual([{ from: 0, to: 1, provenance: 'free' }])
       expect(editor.freeSpanCount.value).toBe(1)
       expect(editor.lastSnap.value).toEqual({ kind: 'free' })
+    })
+
+    it('takes no click off the railways while they are still loading, and snaps once they are in', async () => {
+      const { editor, draw, map, coordinates } = await setUp({ zoom: 10 })
+      editor.start()
+      map.zoom = 14
+      map.fire('moveend')
+      expect(editor.loading.value).toBe(true)
+      expect(click(draw, nearJunction).allowed).toBe(false)
+      expect(coordinates.value).toEqual([])
+      await tilesLoaded()
+      const { guide } = click(draw, nearJunction)
+      expect(guide).toBeDefined()
+      expect(coordinates.value).toEqual([guide])
+      expect(editor.lastSnap.value?.kind).toBe('snapped')
+    })
+
+    it('keeps terra-draw in its mode across the draft changes each click makes', async () => {
+      const { editor, draw, map } = await setUp()
+      editor.start()
+      const setMode = vi.spyOn(draw, 'setMode')
+      click(draw, bnsfNorth)
+      editor.module.sync(map as unknown as MapLibreMap)
+      click(draw, bnsfSouth)
+      editor.module.sync(map as unknown as MapLibreMap)
+      expect(setMode).not.toHaveBeenCalled()
+      expect(draw.mode).toBe('linestring')
     })
 
     it('ignores a click on the point just placed', async () => {
