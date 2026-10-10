@@ -28,7 +28,6 @@ function makeRouter() {
       { path: '/authoring/services/:slug', name: 'service-detail', component: LoginStub },
       { path: '/authoring/scenarios/:slug', name: 'scenario-detail', component: LoginStub },
       { path: '/login', name: 'login', component: LoginStub },
-      { path: '/account', name: 'account', component: LoginStub },
     ],
   })
 }
@@ -89,12 +88,15 @@ describe('AuthoringView', () => {
     expect(wrapper.text()).toContain('Signed in as Ada')
   })
 
-  it('links to the account page', async () => {
+  it('leaves account and sign-out to the site header, and says where they are', async () => {
     vi.mocked(fetchMyServices).mockResolvedValue([])
     vi.mocked(fetchMyScenarios).mockResolvedValue([])
     const { wrapper } = await mountAuthoring()
     await flushPromises()
-    expect(wrapper.get('[data-testid="account-link"]').attributes('href')).toBe('/account')
+    expect(wrapper.find('a[href="/account"]').exists()).toBe(false)
+    expect(wrapper.findAll('button').map((b) => b.text())).not.toContain('Sign out')
+    expect(wrapper.get('[data-testid="account-menu-hint"]').text())
+      .toBe('Account settings and sign out are in the menu at the top right.')
   })
 
   it.each([
@@ -261,20 +263,6 @@ describe('AuthoringView', () => {
     await flushPromises()
     expect(wrapper.find('[data-testid="services-error"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('CA HSR')
-  })
-
-  it('signs out and returns to /login', async () => {
-    vi.mocked(fetchMyServices).mockResolvedValue([])
-    vi.mocked(fetchMyScenarios).mockResolvedValue([])
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 204 } as Response))
-    const { wrapper, router, auth } = await mountAuthoring()
-    await flushPromises()
-
-    await wrapper.find('[data-testid="sign-out"]').trigger('click')
-    await flushPromises()
-
-    expect(auth.isAuthenticated).toBe(false)
-    expect(router.currentRoute.value.path).toBe('/login')
   })
 
   it('has no serious or critical accessibility violations once both lists load', async () => {
