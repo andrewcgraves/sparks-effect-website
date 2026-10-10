@@ -8,16 +8,21 @@ export function useOwnedList<T>(fetcher: () => Promise<T[]>) {
   const loading = ref(true)
   const error = ref(false)
 
-  fetcher()
-    .then((result) => {
-      items.value = result
+  // A reload leaves `loading` alone, so the list on screen stays put until its
+  // replacement arrives instead of collapsing into a skeleton and back.
+  async function reload(): Promise<void> {
+    try {
+      items.value = await fetcher()
+      error.value = false
       loading.value = false
-    })
-    .catch((err: unknown) => {
+    } catch (err) {
       if (isSessionExpiry(err)) return
       error.value = true
       loading.value = false
-    })
+    }
+  }
 
-  return { items, loading, error }
+  void reload()
+
+  return { items, loading, error, reload }
 }

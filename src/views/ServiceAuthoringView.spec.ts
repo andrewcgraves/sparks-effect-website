@@ -1821,6 +1821,21 @@ describe('ServiceAuthoringView', () => {
       expect(wrapper.find('form').exists()).toBe(false)
     })
 
+    it('explains that a line transferred away mid-edit can\'t be saved, and drops the form', async () => {
+      vi.mocked(updateService).mockRejectedValue(new ApiError('service not found', 404))
+      const { wrapper } = await mountEdit()
+      await wrapper.find('[data-testid="service-name"]').setValue('Southbound Express')
+
+      await wrapper.find('form').trigger('submit')
+      await flushPromises()
+
+      const notice = wrapper.get('[data-testid="service-transferred"]')
+      expect(notice.text()).toContain("This line now belongs to someone else. Your unsaved changes can't be saved.")
+      expect(notice.attributes('role')).toBe('alert')
+      expect(wrapper.get('[data-testid="back-to-authoring"]').attributes('href')).toBe('/authoring')
+      expect(wrapper.find('form').exists()).toBe(false)
+    })
+
     it('shows a not-found state for a service that is not the caller\'s', async () => {
       vi.mocked(fetchService).mockRejectedValue(new ApiError('service not found', 404))
       const { wrapper } = await mountEdit('someone-elses')

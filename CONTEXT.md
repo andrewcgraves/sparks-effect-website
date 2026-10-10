@@ -32,6 +32,7 @@ not renamed to match, and URLs are tidied separately (SPA-456).
 | **Network** | scenario | A set of lines, curated or authored: the cover page, the network page, authoring ("My networks", "+ New network", "Network name"), the network builder's list of member lines, and errors and confirmations about one |
 | **Route** | route | The geometry a line runs along. Only authors see it: picking a route for a line, stops sitting on or off the route, the route page. Never use it for a line or a network, and never say *alignment* or *track* in copy |
 | **Splash zone** | isochrone | See [Splash zone](#splash-zone) |
+| **Transfer** | handover | Moving a line to another author: "Transfer…" on a line's page, "Incoming transfers" and the "Transfer pending" badge on My authoring, and the confirms and toasts about one. The API reserves *transfer* for a rider changing service, but copy never uses it that way (a rider's change reads "Changed from"), so the product word is free. Code, test ids and API calls say *handover* |
 
 The words are kept apart because the API's two senses of *scenario* and
 *service* (its `CONTEXT.md`, "The one that catches everyone") are a code

@@ -4,15 +4,33 @@ import { useAuthStore } from '../stores/auth'
 import { useOwnedList } from '../composables/useOwnedList'
 import { fetchMyServices } from '../api/authoring/services'
 import { fetchMyScenarios } from '../api/authoring/scenarios'
-import { PRIMARY_BUTTON_CLASS } from '../components/buttonStyles'
+import { PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS } from '../components/buttonStyles'
+import { expiryDate, useHandovers } from '../composables/useHandovers'
+import type { IncomingHandover } from '../api/authoring/handovers'
 import { ACTION_LINK_CLASS, LIST_CARD_LINK_CLASS } from '../components/linkStyles'
 import AllLinesLink from '../components/AllLinesLink.vue'
 import ListSkeleton from '../components/ListSkeleton.vue'
 
 const auth = useAuthStore()
 
-const { items: services, loading: servicesLoading, error: servicesError } = useOwnedList(fetchMyServices)
+const {
+  items: services,
+  loading: servicesLoading,
+  error: servicesError,
+  reload: reloadServices,
+} = useOwnedList(fetchMyServices)
 const { items: scenarios, loading: scenariosLoading, error: scenariosError } = useOwnedList(fetchMyScenarios)
+
+const handovers = useHandovers()
+const { incoming, busy: handoverBusy, refusals } = handovers
+
+const transferPending = computed(() => new Set(handovers.outgoing.value.map((handover) => handover.service_slug)))
+
+// The accepted line is the recipient's now, so their list is read again to
+// show it rather than having a row made up for it here.
+async function accept(handover: IncomingHandover): Promise<void> {
+  if (await handovers.accept(handover)) await reloadServices()
+}
 
 const LINE_DEFINITION = 'A line is a set of stops along a route, with a vehicle and a timetable.'
 
@@ -38,6 +56,65 @@ const nothingYet = computed(() =>
         Signed in as {{ auth.displayName ?? '…' }}
       </p>
     </hgroup>
+
+    <section
+      v-if="incoming.length"
+      class="mt-8 rounded-(--radius-box) border border-coral bg-surface p-4"
+      aria-labelledby="incoming-transfers-heading"
+      data-testid="incoming-transfers"
+    >
+      <h2
+        id="incoming-transfers-heading"
+        class="font-display text-h3 text-ink-true"
+      >
+        Incoming transfers
+      </h2>
+      <ul class="mt-3 flex flex-col gap-3">
+        <li
+          v-for="handover in incoming"
+          :key="handover.id"
+          class="flex flex-col gap-2"
+          data-testid="incoming-transfer"
+        >
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <p class="font-body text-body flex flex-col text-ink">
+              {{ handover.service_name }}
+              <span class="text-caption text-ink-muted">
+                From {{ handover.from_name }} · Expires {{ expiryDate(handover) }}
+              </span>
+            </p>
+            <div class="flex gap-3">
+              <button
+                type="button"
+                :class="SECONDARY_BUTTON_CLASS"
+                :disabled="handoverBusy"
+                data-testid="decline-transfer"
+                @click="handovers.decline(handover)"
+              >
+                Decline
+              </button>
+              <button
+                type="button"
+                :class="PRIMARY_BUTTON_CLASS"
+                :disabled="handoverBusy"
+                data-testid="accept-transfer"
+                @click="accept(handover)"
+              >
+                Accept
+              </button>
+            </div>
+          </div>
+          <p
+            v-if="refusals[handover.id]"
+            class="font-body text-caption text-error"
+            role="alert"
+            data-testid="transfer-refusal"
+          >
+            {{ refusals[handover.id] }}
+          </p>
+        </li>
+      </ul>
+    </section>
 
     <section
       v-if="nothingYet"
@@ -113,6 +190,11 @@ const nothingYet = computed(() =>
             >
               {{ service.name }}
               <span class="text-micro text-ink-muted">{{ service.slug }}</span>
+              <span
+                v-if="transferPending.has(service.slug)"
+                class="font-body text-micro self-start rounded-(--radius-field) border border-apricot px-1.5 text-ink uppercase"
+                data-testid="transfer-pending"
+              >Transfer pending</span>
             </router-link>
           </li>
         </ul>
