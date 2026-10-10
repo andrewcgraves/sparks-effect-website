@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { resolveTilePreconnectOrigin } from './tileHost'
-import { fetchSuggestions, reverseGeocode } from './api/geocoding'
+import { fetchSuggestions, lookupPlace, reverseGeocode } from './api/geocoding'
 import {
   SECURITY_HEADER_KEYS,
   apiOriginMissingFromCsp,
@@ -33,9 +33,11 @@ function cspDirectives(): Map<string, string[]> {
 }
 
 async function geocoderOrigins(): Promise<string[]> {
-  const fetchMock = vi.fn(async () => new Response('[]', { status: 200 }))
+  const place = { type: 'Feature', geometry: { type: 'Point', coordinates: [-119.75, 39.53] }, properties: { gid: 'g' } }
+  const fetchMock = vi.fn(async () => new Response(JSON.stringify({ type: 'FeatureCollection', features: [place] })))
   vi.stubGlobal('fetch', fetchMock)
   await fetchSuggestions('Sparks')
+  await lookupPlace({ label: 'Sparks', gid: 'g' })
   await reverseGeocode(39.53, -119.75)
   return fetchMock.mock.calls.map((call: unknown[]) => new URL(String(call[0])).origin)
 }
@@ -97,7 +99,7 @@ describe('vercel.json security headers', () => {
 
   it('allows the geocoder the search box calls', async () => {
     const origins = await geocoderOrigins()
-    expect(origins).toHaveLength(2)
+    expect(origins).toHaveLength(3)
     for (const origin of origins) {
       expect(cspDirectives().get('connect-src'), origin).toContain(origin)
     }

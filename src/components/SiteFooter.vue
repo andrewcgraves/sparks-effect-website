@@ -45,7 +45,13 @@ const links = useRoutedPages(FOOTER_PAGES)
         target="_blank"
         rel="noopener noreferrer"
         data-testid="tile-credit"
-      >{{ tileCredit.name }}</a>
+      >{{ tileCredit.name }}</a> · Search by <a
+        class="underline"
+        href="https://stadiamaps.com/attribution/"
+        target="_blank"
+        rel="noopener noreferrer"
+        data-testid="geocoder-credit"
+      >Stadia Maps</a>
     </p>
     <p data-testid="build-version">
       Build {{ buildVersion }}
