@@ -37,13 +37,6 @@ const nothingYet = computed(() =>
       <p class="font-body text-micro text-ink-muted italic uppercase">
         Signed in as {{ auth.displayName ?? '…' }}
       </p>
-      <!-- Account and sign-out live only in the site header, so this page says where rather than repeating them. -->
-      <p
-        class="font-body text-caption text-ink-muted"
-        data-testid="account-menu-hint"
-      >
-        Account settings and sign out are in the menu at the top right.
-      </p>
     </hgroup>
 
     <section

@@ -88,15 +88,13 @@ describe('AuthoringView', () => {
     expect(wrapper.text()).toContain('Signed in as Ada')
   })
 
-  it('leaves account and sign-out to the site header, and says where they are', async () => {
+  it('leaves account and sign-out to the site header', async () => {
     vi.mocked(fetchMyServices).mockResolvedValue([])
     vi.mocked(fetchMyScenarios).mockResolvedValue([])
     const { wrapper } = await mountAuthoring()
     await flushPromises()
     expect(wrapper.find('a[href="/account"]').exists()).toBe(false)
     expect(wrapper.findAll('button').map((b) => b.text())).not.toContain('Sign out')
-    expect(wrapper.get('[data-testid="account-menu-hint"]').text())
-      .toBe('Account settings and sign out are in the menu at the top right.')
   })
 
   it.each([
