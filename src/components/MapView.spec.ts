@@ -800,6 +800,18 @@ describe('MapView', () => {
     expect(options.style).toBe('https://tiles.openfreemap.org/styles/positron')
   })
 
+  it('credits 511 on the map itself and links the data sources, keeping MapLibre\'s own credit', async () => {
+    const { Map } = await import('maplibre-gl')
+    mount(MapView, { props: defaultProps })
+    const options = (Map as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    const credits: string[] = options.attributionControl.customAttribution
+    expect(credits).toHaveLength(3)
+    expect(credits[0]).toContain('href="https://www.511.org"')
+    expect(credits[0]).toContain('>Data provided by 511.org<')
+    expect(credits[1]).toContain('href="/attribution"')
+    expect(credits[2]).toContain('href="https://maplibre.org/"')
+  })
+
   it('fits bounds to all isochrone segments after load', async () => {
     mount(MapView, { props: defaultProps })
     await triggerMapLoad()
