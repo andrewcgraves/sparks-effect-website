@@ -266,16 +266,18 @@ watch(savedCount, () => toast('Changes saved'))
                 @change="handleFile"
               >
             </label>
-            <label :class="FIELD_LABEL_CLASS">
-              Or paste GeoJSON
-              <textarea
-                v-model="pastedGeoJson"
-                :class="FIELD_INPUT_CLASS"
-                data-testid="route-geojson-text"
-                rows="3"
-                :disabled="geometryLocked"
-                placeholder="A LineString, a Feature, or a FeatureCollection"
-              />
+            <div class="flex flex-col gap-1">
+              <label :class="FIELD_LABEL_CLASS">
+                Or paste GeoJSON
+                <textarea
+                  v-model="pastedGeoJson"
+                  :class="FIELD_INPUT_CLASS"
+                  data-testid="route-geojson-text"
+                  rows="3"
+                  :disabled="geometryLocked"
+                  placeholder="A LineString, a Feature, or a FeatureCollection"
+                />
+              </label>
               <button
                 type="button"
                 :class="[SECONDARY_BUTTON_CLASS, 'self-start']"
@@ -285,7 +287,7 @@ watch(savedCount, () => toast('Changes saved'))
               >
                 Use pasted GeoJSON
               </button>
-            </label>
+            </div>
           </div>
 
           <p

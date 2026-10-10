@@ -189,6 +189,24 @@ describe('RouteBuilderView', () => {
       expect(router.currentRoute.value.path).toBe('/authoring/routes/main-line')
     })
 
+    // The router keeps this page up for the editor path it replaces to, so
+    // the page itself has to turn into the created route's editor.
+    it('is the created route\'s editor afterwards: nothing to save, deletable, and never created twice', async () => {
+      const { wrapper } = await mountAt('/authoring/routes/new')
+      await pasteLine(wrapper)
+      await wrapper.get('[data-testid="route-name"]').setValue('Main Line')
+      await wrapper.get('form').trigger('submit')
+      await flushPromises()
+
+      expect(wrapper.get('[data-testid="submit"]').attributes('disabled')).toBeDefined()
+      expect(wrapper.find('[data-testid="route-actions"]').exists()).toBe(true)
+
+      await wrapper.get('form').trigger('submit')
+      await flushPromises()
+      expect(createRoute).toHaveBeenCalledTimes(1)
+      expect(updateRoute).not.toHaveBeenCalled()
+    })
+
     it('goes back where it was sent from, with the new route picked, when a return path is given', async () => {
       const { wrapper, router } = await mountAt('/authoring/routes/new?return=%2Fauthoring%2Fservices%2Fnew')
       await pasteLine(wrapper)

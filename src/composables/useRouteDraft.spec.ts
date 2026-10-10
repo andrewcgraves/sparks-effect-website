@@ -141,6 +141,24 @@ describe('useRouteDraft', () => {
       expect(draft.submitError.value).toBe('')
     })
 
+    it('becomes the created route\'s editor, so a second save is a PUT of it rather than another create', async () => {
+      const draft = useRouteDraft()
+      draft.importGeoJson(lineText)
+      draft.name.value = 'Main Line'
+      await draft.submit()
+
+      expect(draft.editing.value?.slug).toBe('main-line')
+      expect(draft.hasChanges.value).toBe(false)
+      expect(draft.canSave.value).toBe(false)
+
+      draft.name.value = 'Spine'
+      expect(draft.canSave.value).toBe(true)
+      await draft.submit()
+
+      expect(createRoute).toHaveBeenCalledTimes(1)
+      expect(updateRoute).toHaveBeenCalledWith('main-line', expect.objectContaining({ properties: expect.objectContaining({ name: 'Spine' }) }))
+    })
+
     it('sends a description when one was typed', async () => {
       const draft = useRouteDraft()
       draft.importGeoJson(lineText)

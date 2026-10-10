@@ -143,7 +143,7 @@ export function useRouteDraft(routeSlug?: string) {
     return fingerprint(toInput()) !== savedFingerprint.value
   })
 
-  const canSave = computed(() => !submitting.value && faults.value.length === 0 && (!routeSlug || hasChanges.value))
+  const canSave = computed(() => !submitting.value && faults.value.length === 0 && (editing.value === null || hasChanges.value))
 
   const mapRoutes = computed<ScenarioRoute[]>(() => {
     if (coordinates.value.length < 2) return []
@@ -201,7 +201,12 @@ export function useRouteDraft(routeSlug?: string) {
         adoptSaved(await updateRoute(editing.value.slug, input))
         savedCount.value += 1
       } else {
-        createdSlug.value = (await createRoute(input)).slug
+        // The router reuses this page as the new route's editor, so the
+        // draft becomes that route here: a second save must PUT it, not
+        // POST a twin.
+        const created = await createRoute(input)
+        adoptSaved(created)
+        createdSlug.value = created.slug
       }
     } catch (err) {
       submitError.value = authoringFault(err, 'route')
