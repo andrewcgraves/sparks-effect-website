@@ -585,7 +585,7 @@ describe('AuthoredServiceView', () => {
     async function openTransfer() {
       const wrapper = mountView()
       await flushPromises()
-      await wrapper.get('[data-testid="transfer-service"]').trigger('click')
+      await wrapper.get('[data-testid="offer-handover"]').trigger('click')
       await flushPromises()
       return wrapper
     }
@@ -593,7 +593,7 @@ describe('AuthoredServiceView', () => {
     it('offers a Transfer… action beside Edit', async () => {
       const wrapper = mountView()
       await flushPromises()
-      expect(wrapper.get('[data-testid="transfer-service"]').text()).toBe('Transfer…')
+      expect(wrapper.get('[data-testid="offer-handover"]').text()).toBe('Transfer…')
     })
 
     it('asks for their email and says plainly what a transfer does', async () => {
@@ -633,10 +633,10 @@ describe('AuthoredServiceView', () => {
       vi.mocked(fetchMyHandovers).mockResolvedValue({ incoming: [], outgoing: [pendingOffer] })
       const wrapper = mountView()
       await flushPromises()
-      const pending = wrapper.get('[data-testid="pending-transfer"]')
+      const pending = wrapper.get('[data-testid="pending-handover"]')
       expect(pending.text()).toContain('Waiting for Ada to accept this line.')
       expect(pending.text()).toMatch(/expires .*2026/i)
-      expect(wrapper.find('[data-testid="transfer-service"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="offer-handover"]').exists()).toBe(false)
     })
 
     it('ignores pending offers for other lines', async () => {
@@ -646,14 +646,14 @@ describe('AuthoredServiceView', () => {
       })
       const wrapper = mountView()
       await flushPromises()
-      expect(wrapper.find('[data-testid="pending-transfer"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="pending-handover"]').exists()).toBe(false)
     })
 
     it('asks before cancelling a pending offer, and keeps it when declined', async () => {
       vi.mocked(fetchMyHandovers).mockResolvedValue({ incoming: [], outgoing: [pendingOffer] })
       const wrapper = mountView()
       await flushPromises()
-      await wrapper.get('[data-testid="cancel-transfer"]').trigger('click')
+      await wrapper.get('[data-testid="cancel-handover"]').trigger('click')
       await flushPromises()
       expect(hosts.dialog().text()).toContain('Ada')
       await hosts.cancelButton().trigger('click')
@@ -667,14 +667,14 @@ describe('AuthoredServiceView', () => {
       const wrapper = mountView()
       await flushPromises()
       vi.mocked(fetchMyHandovers).mockResolvedValue({ incoming: [], outgoing: [] })
-      await wrapper.get('[data-testid="cancel-transfer"]').trigger('click')
+      await wrapper.get('[data-testid="cancel-handover"]').trigger('click')
       await flushPromises()
       await hosts.confirmButton().trigger('click')
       await flushPromises()
       expect(cancelHandover).toHaveBeenCalledWith('h1')
       expect(hosts.toasts()).toEqual(['Transfer cancelled'])
-      expect(wrapper.find('[data-testid="pending-transfer"]').exists()).toBe(false)
-      expect(wrapper.find('[data-testid="transfer-service"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="pending-handover"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="offer-handover"]').exists()).toBe(true)
     })
 
     it('explains, without sending a second offer, when one is already pending', async () => {

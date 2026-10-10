@@ -334,7 +334,7 @@ describe('useServiceDraft', () => {
 
       await draft.submit()
 
-      expect(draft.transferredAway.value).toBe(true)
+      expect(draft.handedOver.value).toBe(true)
       expect(useDraftsStore().editingServiceId).toBeNull()
       expect(useDraftsStore().serviceDraft).toBeNull()
       expect(compileService).not.toHaveBeenCalled()

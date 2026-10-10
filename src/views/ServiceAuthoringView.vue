@@ -32,7 +32,7 @@ const {
   editing,
   editNotFound,
   editLoadFailed,
-  transferredAway,
+  handedOver,
   routeMissing,
   stops,
   frequencyWindows,
@@ -467,13 +467,13 @@ watch(createdSlug, (created) => {
     </h1>
 
     <div
-      v-if="transferredAway"
+      v-if="handedOver"
       class="mt-3 flex flex-col items-start gap-3"
     >
       <p
         class="font-body text-body text-ink"
         role="alert"
-        data-testid="service-transferred"
+        data-testid="service-handed-over"
       >
         This line now belongs to someone else. Your unsaved changes can't be saved.
       </p>

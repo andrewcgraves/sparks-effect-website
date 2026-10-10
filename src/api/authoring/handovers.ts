@@ -52,12 +52,11 @@ export async function acceptHandover(id: string): Promise<IncomingHandover> {
   return apiRequest<IncomingHandover>(`/api/handovers/${id}/accept`, { method: 'POST' })
 }
 
-// The slugs of the sender's scenarios that still hold the service, or null when
-// the failure is anything but that refusal. A refusal whose detail this build
-// cannot read is still that refusal, just without names.
 export function handoverBlockingScenarios(err: unknown): string[] | null {
   if (!(err instanceof ApiError) || err.code !== SERVICE_IN_SCENARIOS_CODE) return null
   const scenarios = (err.detail as { scenarios?: unknown } | null)?.scenarios
+  // A refusal whose detail this build cannot read is still that refusal, just
+  // without names.
   if (!Array.isArray(scenarios)) return []
   return scenarios.filter((slug): slug is string => typeof slug === 'string')
 }

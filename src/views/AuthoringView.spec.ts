@@ -336,21 +336,21 @@ describe('AuthoringView', () => {
     it('shows no transfers banner when nothing is offered to the user', async () => {
       const { wrapper } = await mountAuthoring()
       await flushPromises()
-      expect(wrapper.find('[data-testid="incoming-transfers"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="incoming-handovers"]').exists()).toBe(false)
     })
 
     it('lists each incoming offer with the line, who sent it and when it expires', async () => {
       withHandovers({ incoming: [offered] })
       const { wrapper } = await mountAuthoring()
       await flushPromises()
-      const banner = wrapper.get('[data-testid="incoming-transfers"]')
+      const banner = wrapper.get('[data-testid="incoming-handovers"]')
       expect(banner.get('h2').text()).toBe('Incoming transfers')
-      const row = banner.get('[data-testid="incoming-transfer"]')
+      const row = banner.get('[data-testid="incoming-handover"]')
       expect(row.text()).toContain('Coast Line')
       expect(row.text()).toContain('From Grace')
       expect(row.text()).toMatch(/expires .*2026/i)
-      expect(row.get('[data-testid="accept-transfer"]').text()).toBe('Accept')
-      expect(row.get('[data-testid="decline-transfer"]').text()).toBe('Decline')
+      expect(row.get('[data-testid="accept-handover"]').text()).toBe('Accept')
+      expect(row.get('[data-testid="decline-handover"]').text()).toBe('Decline')
     })
 
     it('still shows an incoming offer to someone with no lines of their own', async () => {
@@ -358,7 +358,7 @@ describe('AuthoringView', () => {
       withHandovers({ incoming: [offered] })
       const { wrapper } = await mountAuthoring()
       await flushPromises()
-      expect(wrapper.find('[data-testid="incoming-transfer"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="incoming-handover"]').exists()).toBe(true)
     })
 
     it('accepts an offer, after which the line is in the user\'s list and the offer is gone', async () => {
@@ -369,12 +369,12 @@ describe('AuthoringView', () => {
       withHandovers({})
       vi.mocked(fetchMyServices).mockResolvedValue([stubService, coastLine])
 
-      await wrapper.get('[data-testid="accept-transfer"]').trigger('click')
+      await wrapper.get('[data-testid="accept-handover"]').trigger('click')
       await flushPromises()
 
       expect(acceptHandover).toHaveBeenCalledWith('h-in')
       expect(hosts.toasts()).toEqual(['Transfer accepted'])
-      expect(wrapper.find('[data-testid="incoming-transfers"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="incoming-handovers"]').exists()).toBe(false)
       expect(wrapper.findAll('[data-testid="service-link"]').map((link) => link.attributes('href')))
         .toContain('/authoring/services/coast-line')
     })
@@ -387,10 +387,10 @@ describe('AuthoringView', () => {
       const { wrapper } = await mountAuthoring()
       await flushPromises()
 
-      await wrapper.get('[data-testid="accept-transfer"]').trigger('click')
+      await wrapper.get('[data-testid="accept-handover"]').trigger('click')
       await flushPromises()
 
-      const refusal = wrapper.get('[data-testid="transfer-refusal"]')
+      const refusal = wrapper.get('[data-testid="handover-refusal"]')
       expect(refusal.text()).toBe('Grace has to take this line out of their networks first: bay-loop, peninsula.')
       expect(refusal.attributes('role')).toBe('alert')
       expect(hosts.toasts()).toEqual([])
@@ -402,10 +402,10 @@ describe('AuthoringView', () => {
       const { wrapper } = await mountAuthoring()
       await flushPromises()
 
-      await wrapper.get('[data-testid="accept-transfer"]').trigger('click')
+      await wrapper.get('[data-testid="accept-handover"]').trigger('click')
       await flushPromises()
 
-      expect(wrapper.get('[data-testid="transfer-refusal"]').text())
+      expect(wrapper.get('[data-testid="handover-refusal"]').text())
         .toBe('Grace has to take this line out of their networks before you can accept it.')
     })
 
@@ -416,11 +416,11 @@ describe('AuthoringView', () => {
       await flushPromises()
       withHandovers({})
 
-      await wrapper.get('[data-testid="accept-transfer"]').trigger('click')
+      await wrapper.get('[data-testid="accept-handover"]').trigger('click')
       await flushPromises()
 
       expect(hosts.toasts()).toEqual(['That offer is no longer open.'])
-      expect(wrapper.find('[data-testid="incoming-transfer"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="incoming-handover"]').exists()).toBe(false)
     })
 
     it('asks before declining, and keeps the offer when backed out of', async () => {
@@ -428,14 +428,14 @@ describe('AuthoringView', () => {
       const { wrapper } = await mountAuthoring()
       await flushPromises()
 
-      await wrapper.get('[data-testid="decline-transfer"]').trigger('click')
+      await wrapper.get('[data-testid="decline-handover"]').trigger('click')
       await flushPromises()
       expect(hosts.dialog().text()).toContain("Decline 'Coast Line'?")
       await hosts.cancelButton().trigger('click')
       await flushPromises()
 
       expect(declineHandover).not.toHaveBeenCalled()
-      expect(wrapper.find('[data-testid="incoming-transfer"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="incoming-handover"]').exists()).toBe(true)
     })
 
     it('declines once confirmed, and the offer goes', async () => {
@@ -445,14 +445,14 @@ describe('AuthoringView', () => {
       await flushPromises()
       withHandovers({})
 
-      await wrapper.get('[data-testid="decline-transfer"]').trigger('click')
+      await wrapper.get('[data-testid="decline-handover"]').trigger('click')
       await flushPromises()
       await hosts.confirmButton().trigger('click')
       await flushPromises()
 
       expect(declineHandover).toHaveBeenCalledWith('h-in')
       expect(hosts.toasts()).toEqual(['Transfer declined'])
-      expect(wrapper.find('[data-testid="incoming-transfers"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="incoming-handovers"]').exists()).toBe(false)
     })
 
     it('badges a line the user has offered to someone as transfer pending', async () => {
@@ -460,13 +460,13 @@ describe('AuthoringView', () => {
       const { wrapper } = await mountAuthoring()
       await flushPromises()
       const link = wrapper.get('[data-testid="service-link"]')
-      expect(link.get('[data-testid="transfer-pending"]').text()).toBe('Transfer pending')
+      expect(link.get('[data-testid="handover-pending"]').text()).toBe('Transfer pending')
     })
 
     it('does not badge a line with no pending offer', async () => {
       const { wrapper } = await mountAuthoring()
       await flushPromises()
-      expect(wrapper.find('[data-testid="transfer-pending"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="handover-pending"]').exists()).toBe(false)
     })
 
     it('has no serious or critical accessibility violations with an incoming offer and a badge', async () => {

@@ -47,9 +47,8 @@ function refusalSentence(handover: IncomingHandover, scenarios: string[]): strin
   return `${sender} has to take this line out of their ${noun} first: ${named}.`
 }
 
-// One read of the caller's pending handovers, and every action on them. The
-// lists are re-read after each action rather than patched, because an accept
-// or a cancel can race the other party's own decision.
+// The lists are re-read after each action rather than patched, because an
+// accept or a cancel can race the other party's own decision.
 export function useHandovers() {
   const { confirm, confirmWithEmail } = useConfirm()
   const { show: toast } = useToast()
@@ -59,8 +58,6 @@ export function useHandovers() {
   const loading = ref(true)
   const error = ref(false)
   const busy = ref(false)
-  // Faults that have to outlive a toast, keyed by handover id: a refusal the
-  // recipient can only clear by asking the sender to act.
   const refusals = ref<Record<string, string>>({})
 
   async function reload(): Promise<void> {

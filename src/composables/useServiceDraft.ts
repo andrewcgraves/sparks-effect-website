@@ -151,7 +151,7 @@ export function useServiceDraft(serviceSlug?: string) {
   const editing = ref<Service | null>(null)
   const editNotFound = ref(false)
   const editLoadFailed = ref(false)
-  const transferredAway = ref(false)
+  const handedOver = ref(false)
 
   const savedFingerprint = ref<string | null>(null)
 
@@ -562,7 +562,7 @@ export function useServiceDraft(serviceSlug?: string) {
       // under an edit nobody can save.
       if (drafts.editingServiceId !== null && err instanceof ApiError && err.status === 404) {
         drafts.clearServiceDraft()
-        transferredAway.value = true
+        handedOver.value = true
         return
       }
       submitError.value = authoringFault(err)
@@ -585,7 +585,7 @@ export function useServiceDraft(serviceSlug?: string) {
     editing,
     editNotFound,
     editLoadFailed,
-    transferredAway,
+    handedOver,
     routeMissing,
     draft,
     stops,

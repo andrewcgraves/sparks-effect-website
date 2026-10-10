@@ -24,7 +24,7 @@ const { items: scenarios, loading: scenariosLoading, error: scenariosError } = u
 const handovers = useHandovers()
 const { incoming, busy: handoverBusy, refusals } = handovers
 
-const transferPending = computed(() => new Set(handovers.outgoing.value.map((handover) => handover.service_slug)))
+const handoverPending = computed(() => new Set(handovers.outgoing.value.map((handover) => handover.service_slug)))
 
 // The accepted line is the recipient's now, so their list is read again to
 // show it rather than having a row made up for it here.
@@ -60,11 +60,11 @@ const nothingYet = computed(() =>
     <section
       v-if="incoming.length"
       class="mt-8 rounded-(--radius-box) border border-coral bg-surface p-4"
-      aria-labelledby="incoming-transfers-heading"
-      data-testid="incoming-transfers"
+      aria-labelledby="incoming-handovers-heading"
+      data-testid="incoming-handovers"
     >
       <h2
-        id="incoming-transfers-heading"
+        id="incoming-handovers-heading"
         class="font-display text-h3 text-ink-true"
       >
         Incoming transfers
@@ -74,7 +74,7 @@ const nothingYet = computed(() =>
           v-for="handover in incoming"
           :key="handover.id"
           class="flex flex-col gap-2"
-          data-testid="incoming-transfer"
+          data-testid="incoming-handover"
         >
           <div class="flex flex-wrap items-center justify-between gap-3">
             <p class="font-body text-body flex flex-col text-ink">
@@ -88,7 +88,7 @@ const nothingYet = computed(() =>
                 type="button"
                 :class="SECONDARY_BUTTON_CLASS"
                 :disabled="handoverBusy"
-                data-testid="decline-transfer"
+                data-testid="decline-handover"
                 @click="handovers.decline(handover)"
               >
                 Decline
@@ -97,7 +97,7 @@ const nothingYet = computed(() =>
                 type="button"
                 :class="PRIMARY_BUTTON_CLASS"
                 :disabled="handoverBusy"
-                data-testid="accept-transfer"
+                data-testid="accept-handover"
                 @click="accept(handover)"
               >
                 Accept
@@ -108,7 +108,7 @@ const nothingYet = computed(() =>
             v-if="refusals[handover.id]"
             class="font-body text-caption text-error"
             role="alert"
-            data-testid="transfer-refusal"
+            data-testid="handover-refusal"
           >
             {{ refusals[handover.id] }}
           </p>
@@ -191,9 +191,9 @@ const nothingYet = computed(() =>
               {{ service.name }}
               <span class="text-micro text-ink-muted">{{ service.slug }}</span>
               <span
-                v-if="transferPending.has(service.slug)"
+                v-if="handoverPending.has(service.slug)"
                 class="font-body text-micro self-start rounded-(--radius-field) border border-apricot px-1.5 text-ink uppercase"
-                data-testid="transfer-pending"
+                data-testid="handover-pending"
               >Transfer pending</span>
             </router-link>
           </li>

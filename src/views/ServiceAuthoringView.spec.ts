@@ -1829,7 +1829,7 @@ describe('ServiceAuthoringView', () => {
       await wrapper.find('form').trigger('submit')
       await flushPromises()
 
-      const notice = wrapper.get('[data-testid="service-transferred"]')
+      const notice = wrapper.get('[data-testid="service-handed-over"]')
       expect(notice.text()).toContain("This line now belongs to someone else. Your unsaved changes can't be saved.")
       expect(notice.attributes('role')).toBe('alert')
       expect(wrapper.get('[data-testid="back-to-authoring"]').attributes('href')).toBe('/authoring')

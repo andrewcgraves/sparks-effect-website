@@ -68,7 +68,7 @@ async function recompile(slug: string): Promise<boolean> {
 const { deleting, confirmAndDelete } = useServiceDeletion()
 
 const handovers = useHandovers()
-const pendingTransfer = computed(() => handovers.outgoingFor(props.slug))
+const pendingHandover = computed(() => handovers.outgoingFor(props.slug))
 
 watch(service, (loaded) => {
   if (loaded) void loadGraph(loaded.slug)
@@ -139,11 +139,11 @@ watch(service, (loaded) => {
             Edit
           </router-link>
           <button
-            v-if="!pendingTransfer"
+            v-if="!pendingHandover"
             type="button"
             :class="ACTION_LINK_CLASS"
             :disabled="handovers.busy.value"
-            data-testid="transfer-service"
+            data-testid="offer-handover"
             @click="handovers.offer(service)"
           >
             Transfer…
@@ -164,20 +164,20 @@ watch(service, (loaded) => {
       </p>
 
       <div
-        v-if="pendingTransfer"
+        v-if="pendingHandover"
         class="mt-6 flex max-w-[720px] flex-wrap items-center justify-between gap-3 rounded-(--radius-box) border border-border bg-surface p-4"
-        data-testid="pending-transfer"
+        data-testid="pending-handover"
       >
         <p class="font-body text-caption text-ink">
-          Waiting for {{ pendingTransfer.to_name }} to accept this line.
-          The offer expires {{ expiryDate(pendingTransfer) }}.
+          Waiting for {{ pendingHandover.to_name }} to accept this line.
+          The offer expires {{ expiryDate(pendingHandover) }}.
         </p>
         <button
           type="button"
           :class="SECONDARY_BUTTON_CLASS"
           :disabled="handovers.busy.value"
-          data-testid="cancel-transfer"
-          @click="handovers.cancel(pendingTransfer)"
+          data-testid="cancel-handover"
+          @click="handovers.cancel(pendingHandover)"
         >
           Cancel transfer
         </button>
