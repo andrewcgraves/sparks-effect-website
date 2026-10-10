@@ -64,6 +64,7 @@ watch(
       :style="{ top: `${TOP_BAR}px` }"
     >
       <MapView
+        label="Splash zone map"
         :origin="page.origin"
         :isochrone-data="page.isochroneData"
         :loading="page.isLoading"

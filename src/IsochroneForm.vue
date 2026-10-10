@@ -106,11 +106,13 @@ function setOriginFromMap(coord: { lat: number; lng: number }) {
   lat.value = String(coord.lat)
   lng.value = String(coord.lng)
   addressAutocompleteRef.value?.setInputValue('')
+  selectedLabel.value = ''
 }
 
 // PROTOTYPE (SPA-429): the phone sheet's peek row shows a one-line summary
 // and its own Plot button, so it reads the form's state from outside. If the
 // sheet wins, lift this state properly rather than keeping the expose.
+const selectedLabel = ref('')
 const summary = computed(() => ({
   place: selectedLabel.value || (isValid.value ? `${Number(lat.value).toFixed(3)}, ${Number(lng.value).toFixed(3)}` : ''),
   duration: duration.value,
@@ -124,6 +126,7 @@ function onAutocompleteSelect(suggestion: GeocodingSuggestion) {
   pickArmed.value = false
   lat.value = String(suggestion.lat)
   lng.value = String(suggestion.lng)
+  selectedLabel.value = suggestion.label
 }
 
 async function onUseCurrentLocation() {

@@ -79,6 +79,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   <div class="fixed inset-0 z-10 bg-white">
     <div class="phone-map absolute inset-0">
       <MapView
+        label="Splash zone map"
         :origin="page.origin"
         :isochrone-data="page.isochroneData"
         :loading="page.isLoading"

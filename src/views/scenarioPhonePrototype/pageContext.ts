@@ -7,11 +7,12 @@
 // variant only decides where things go on screen.
 import type { InjectionKey } from 'vue'
 import type { Route, Service, Station } from '../../api/scenarios'
+import type { TravelMode } from '../../api/authoring/types'
 import type { ChainResponse } from '../../fixtures/isochrone'
 import type { TimeRemainingGraph } from '../../components/timeRemaining'
 import type { segmentStationTimeGroups } from '../../components/stationTimes'
 
-export type Mode = 'walk' | 'bike' | 'drive'
+export type Mode = TravelMode
 export type PlotPayload = { lat: number; lng: number; duration: number; mode: Mode }
 export type LatLng = { lat: number; lng: number }
 
@@ -41,4 +42,4 @@ export interface PhonePage {
 export const PHONE_PAGE: InjectionKey<PhonePage> = Symbol('phone-page')
 
 export const DURATION_OPTIONS = [45, 60, 75, 120, 180, 240]
-export const MODE_LABEL: Record<Mode, string> = { walk: 'Walk', bike: 'Bike', drive: 'Drive' }
+export const MODE_LABEL: Record<Mode, string> = { walk: 'Walk', bike: 'Bike', drive: 'Drive', transit: 'Transit' }

@@ -59,6 +59,7 @@ watch(
 
     <div class="phone-map relative min-h-0 flex-1">
       <MapView
+        label="Splash zone map"
         :origin="page.origin"
         :isochrone-data="page.isochroneData"
         :loading="page.isLoading"
