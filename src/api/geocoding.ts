@@ -14,22 +14,6 @@ interface StadiaFeature {
   properties: { gid: string; name?: string; coarse_location?: string }
 }
 
-export interface AttributionPart {
-  text: string
-  href?: string
-}
-
-// Stadia's terms require crediting it and the datasets behind its results
-// wherever they are shown; the attribution page (SPA-420) reuses the same parts.
-export const GEOCODER_ATTRIBUTION: AttributionPart[] = [
-  { text: '© Stadia Maps', href: 'https://stadiamaps.com/attribution/' },
-  { text: '© OpenStreetMap contributors', href: 'https://www.openstreetmap.org/copyright' },
-  { text: 'OpenAddresses' },
-  { text: 'GeoNames (CC BY 4.0)' },
-  { text: 'Who’s On First' },
-  { text: 'Foursquare OS Places' },
-]
-
 export class GeocoderUnavailableError extends Error {
   readonly status?: number
 

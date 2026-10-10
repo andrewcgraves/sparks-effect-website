@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, useId } from 'vue'
 import {
-  GEOCODER_ATTRIBUTION,
   fetchSuggestions,
   lookupPlace,
   type AddressMatch,
@@ -227,27 +226,5 @@ defineExpose({ setInputValue })
         </div>
       </div>
     </label>
-    <p
-      class="font-body text-caption mt-1 text-ink-muted"
-      data-testid="geocoder-attribution"
-    >
-      Address search
-      <template
-        v-for="(part, index) in GEOCODER_ATTRIBUTION"
-        :key="part.text"
-      >
-        {{ index > 0 ? '·' : '' }}
-        <a
-          v-if="part.href"
-          class="underline"
-          :href="part.href"
-          target="_blank"
-          rel="noopener noreferrer"
-        >{{ part.text }}</a>
-        <template v-else>
-          {{ part.text }}
-        </template>
-      </template>
-    </p>
   </div>
 </template>

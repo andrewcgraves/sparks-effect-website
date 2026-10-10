@@ -302,16 +302,6 @@ describe('AddressAutocomplete', () => {
     expect(firstSignal?.aborted).toBe(true)
   })
 
-  it('credits the geocoder’s data sources under the box', () => {
-    const wrapper = mount(AddressAutocomplete)
-
-    const credit = wrapper.find('[data-testid="geocoder-attribution"]')
-    expect(credit.text()).toContain('Stadia Maps')
-    expect(credit.text()).toContain('OpenStreetMap contributors')
-    expect(credit.find('a[href="https://stadiamaps.com/attribution/"]').exists()).toBe(true)
-    expect(credit.find('a[href="https://www.openstreetmap.org/copyright"]').exists()).toBe(true)
-  })
-
   describe('as a combobox a keyboard can drive', () => {
     async function withSuggestions() {
       vi.mocked(geocoding.fetchSuggestions).mockResolvedValue([portlandMatch, chicagoMatch])

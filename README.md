@@ -159,9 +159,9 @@ instead of billing overage, so keep a usage alert at about 70% in the Stadia
 dashboard. Move to Starter if usage stays near the cap or the site starts
 earning money.
 
-The credit under the box comes from `GEOCODER_ATTRIBUTION`, which the
-attribution page (SPA-420) should reuse. `api.stadiamaps.com` is in the CSP's
-`connect-src`.
+Stadia's terms ask for a credit wherever its results are used; the footer's
+"Search by Stadia Maps" links to its attribution page, which lists the data
+sources. `api.stadiamaps.com` is in the CSP's `connect-src`.
 
 ## Link previews
 

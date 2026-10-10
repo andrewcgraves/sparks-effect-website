@@ -37,6 +37,15 @@ describe('SiteFooter', () => {
     expect(credit.attributes('href')).toBe('https://stadiamaps.com')
   })
 
+  // Address search runs on Stadia whichever tiles are shown; its attribution
+  // page lists the data sources behind the results.
+  it('credits Stadia Maps for address search', () => {
+    vi.stubEnv('VITE_STADIA_API_KEY', '')
+    const credit = mountFooter().get('[data-testid="geocoder-credit"]')
+    expect(credit.text()).toBe('Stadia Maps')
+    expect(credit.attributes('href')).toBe('https://stadiamaps.com/attribution/')
+  })
+
   it('shows the build version', () => {
     expect(mountFooter().get('[data-testid="build-version"]').text()).toBe(`Build ${__BUILD_VERSION__}`)
   })
