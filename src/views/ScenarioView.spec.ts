@@ -1349,4 +1349,141 @@ describe('ScenarioView', () => {
       expect(wrapper.find('[data-testid="copy-link"]').exists()).toBe(false)
     })
   })
+
+  // SPA-429: below md the page gives the screen to the map and moves its
+  // controls into a tabbed panel, so a shared link opened on a phone can be
+  // plotted and read without scrolling.
+  describe('on a phone', () => {
+    const reachedIsochrone: ChainResponse = {
+      ...stubIsochrone,
+      metadata: {
+        ...stubIsochrone.metadata,
+        reachable_stations: [
+          { station_slug: 'sf', access_mins: 5, access_secs: 300, remaining_mins: 25, remaining_secs: 1500 },
+        ],
+      },
+    }
+
+    beforeEach(() => {
+      window.innerWidth = 390
+    })
+
+    afterEach(() => {
+      window.innerWidth = 1024
+    })
+
+    function tabLabels(wrapper: ReturnType<typeof mountScenarioView>) {
+      return wrapper.findAll('[role="tab"]').map((tab) => tab.text())
+    }
+
+    function tabNamed(wrapper: ReturnType<typeof mountScenarioView>, label: string) {
+      return wrapper.findAll('[role="tab"]').find((tab) => tab.text() === label)!
+    }
+
+    it('has no serious or critical accessibility violations with a splash zone plotted', async () => {
+      vi.mocked(fetchIsochrone).mockResolvedValue(reachedIsochrone)
+      const router = await testRouterAt(`/scenario/ca-hsr?at=${NEARBY_ORIGIN.lat},${NEARBY_ORIGIN.lng}&mode=walk&mins=30`)
+      const wrapper = mount(ScenarioView, {
+        props: { slug: 'ca-hsr' },
+        global: { stubs: { MapView: true }, plugins: [router] },
+        attachTo: document.body,
+      })
+      await flushPromises()
+      expect(wrapper.find('[data-testid="phone-map-page"]').exists()).toBe(true)
+      expect(await seriousA11yViolations(wrapper)).toEqual([])
+    })
+
+    it('shows the map with the controls in a tabbed panel instead of the stacked page', () => {
+      const wrapper = mountScenarioView()
+      expect(wrapper.find('[data-testid="phone-map-page"]').exists()).toBe(true)
+      expect(wrapper.get('h1').text()).toBe('CA HSR')
+      expect(tabLabels(wrapper)).toEqual(['Plot', 'Results', 'Stations', 'About'])
+      expect(wrapper.findComponent({ name: 'MapView' }).exists()).toBe(true)
+      expect(wrapper.findComponent({ name: 'IsochroneForm' }).exists()).toBe(true)
+      expect(wrapper.findAll('h2').map((h) => h.text())).not.toContain('Description')
+    })
+
+    it('holds the title line with a skeleton until the network loads', () => {
+      mockUseScenario.mockReturnValue({
+        name: ref(''),
+        description: ref(''),
+        routes: ref([]),
+        stations: ref([]),
+        services: ref([]),
+        loading: ref(true),
+      })
+      const wrapper = mountScenarioView()
+      expect(wrapper.find('h1').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="phone-map-page"] [aria-busy="true"]').exists()).toBe(true)
+    })
+
+    it('keeps the stacked page on a desktop', () => {
+      window.innerWidth = 1024
+      const wrapper = mountScenarioView()
+      expect(wrapper.find('[data-testid="phone-map-page"]').exists()).toBe(false)
+      expect(wrapper.findAll('h2').map((h) => h.text())).toContain('Description')
+    })
+
+    it('opens on Plot with Results waiting on a splash zone, then shows the reached stations', async () => {
+      vi.mocked(fetchIsochrone).mockResolvedValue(reachedIsochrone)
+      const wrapper = mountScenarioView()
+      expect(tabNamed(wrapper, 'Plot').attributes('aria-selected')).toBe('true')
+      expect(tabNamed(wrapper, 'Results').attributes('disabled')).toBeDefined()
+
+      await wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('submit', {
+        ...NEARBY_ORIGIN,
+        duration: 30,
+        mode: 'walk',
+      })
+      await flushPromises()
+
+      expect(tabNamed(wrapper, 'Results').attributes('disabled')).toBeUndefined()
+      expect(tabNamed(wrapper, 'Results').attributes('aria-selected')).toBe('true')
+      const results = wrapper.get('[data-testid="time-remaining"]')
+      expect(results.text()).toContain('San Francisco')
+      expect((results.element.closest('[role="tabpanel"]') as HTMLElement).style.display).not.toBe('none')
+    })
+
+    // A refused plot clears the splash zone and says why in the form, so a
+    // panel left on an empty Results tab would hide the explanation.
+    it('returns to Plot when a later plot is refused', async () => {
+      vi.mocked(fetchIsochrone).mockResolvedValue(reachedIsochrone)
+      const wrapper = mountScenarioView()
+      const form = wrapper.findComponent({ name: 'IsochroneForm' })
+      await form.vm.$emit('submit', { ...NEARBY_ORIGIN, duration: 30, mode: 'walk' })
+      await flushPromises()
+      expect(tabNamed(wrapper, 'Results').attributes('aria-selected')).toBe('true')
+
+      await form.vm.$emit('submit', { ...DISTANT_ORIGIN, duration: 30, mode: 'walk' })
+      await flushPromises()
+
+      expect(tabNamed(wrapper, 'Plot').attributes('aria-selected')).toBe('true')
+      expect(tabNamed(wrapper, 'Results').attributes('disabled')).toBeDefined()
+      expect(form.props('error')).toContain('nearest station')
+    })
+
+    it('puts the time between stations behind the Stations tab', async () => {
+      const wrapper = mountScenarioView()
+      await flushPromises()
+      await tabNamed(wrapper, 'Stations').trigger('click')
+      const card = wrapper.get('[data-testid="time-between-stations"]')
+      expect((card.element.closest('[role="tabpanel"]') as HTMLElement).style.display).not.toBe('none')
+    })
+
+    it('puts the description behind the About tab, and drops the tab without one', async () => {
+      const wrapper = mountScenarioView()
+      await tabNamed(wrapper, 'About').trigger('click')
+      expect(wrapper.text()).toContain('California High-Speed Rail')
+
+      mockUseScenario.mockReturnValue({
+        name: ref('CA HSR'),
+        description: ref('   '),
+        routes: ref([]),
+        stations: ref(stubStations),
+        services: ref([]),
+        loading: ref(false),
+      })
+      expect(tabLabels(mountScenarioView())).toEqual(['Plot', 'Results', 'Stations'])
+    })
+  })
 })

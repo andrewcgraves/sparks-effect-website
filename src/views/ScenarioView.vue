@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, provide, reactive, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, ref } from 'vue'
 import IsochroneForm from '../IsochroneForm.vue'
 import CopyLinkButton from '../components/CopyLinkButton.vue'
 import MapView from '../components/MapView.vue'
@@ -24,12 +23,9 @@ import type { IsochronePayload } from '../isochroneQuery'
 import type { ChainResponse } from '../fixtures/isochrone'
 import LoadingRegion from '../components/LoadingRegion.vue'
 import SkeletonShape from '../components/SkeletonShape.vue'
-// PROTOTYPE (SPA-429) — phone-layout variants; see scenarioPhonePrototype/.
-import PrototypeSwitcher from '../components/PrototypeSwitcher.vue'
-import PhoneVariantA from './scenarioPhonePrototype/VariantA.vue'
-import PhoneVariantB from './scenarioPhonePrototype/VariantB.vue'
-import PhoneVariantC from './scenarioPhonePrototype/VariantC.vue'
-import { PHONE_PAGE, type PhonePage } from './scenarioPhonePrototype/pageContext'
+import PhoneMapPage from '../components/PhoneMapPage.vue'
+import { usePhoneMapTabs } from '../components/phoneMapTabs'
+import { useIsPhone } from '../composables/useIsPhone'
 
 const props = defineProps<{ slug: string }>()
 
@@ -125,64 +121,102 @@ function onPrerenderedSelect(result: ChainResponse) {
   showIsochrone(result)
   void forgetIsochrone()
 }
-// PROTOTYPE (SPA-429) — below `md` the page renders one phone variant chosen
-// by ?variant=; `current` is today's stacked layout, kept as the baseline.
-const PHONE_VARIANTS = [
-  { key: 'A', label: 'Snap sheet' },
-  { key: 'B', label: 'Search on map' },
-  { key: 'C', label: 'Split + tabs' },
-  { key: 'current', label: 'Today (stacked)' },
-]
-const route = useRoute()
-const phoneVariant = computed(() => {
-  const v = route.query.variant
-  return typeof v === 'string' && PHONE_VARIANTS.some((p) => p.key === v) ? v : 'A'
-})
-// Optional-chained: jsdom has no matchMedia, and the specs are desktop.
-const phoneQuery = window.matchMedia?.('(max-width: 767.98px)')
-const isPhone = ref(phoneQuery?.matches ?? false)
-function onPhoneChange(e: MediaQueryListEvent) {
-  isPhone.value = e.matches
-}
-phoneQuery?.addEventListener('change', onPhoneChange)
-onBeforeUnmount(() => phoneQuery?.removeEventListener('change', onPhoneChange))
 
-provide(PHONE_PAGE, reactive({
-  slug: props.slug,
-  name,
-  description,
-  routes,
-  stations,
-  services,
-  origin,
-  isochroneData,
-  isLoading,
-  fetchError,
-  timeRemaining,
-  stationTimeGroups,
-  travelTimesLoading,
-  travelTimesFailed,
-  activeStation,
-  selectedPrerenderedId,
-  submit: handleFormSubmit,
-  setOrigin: onOriginChange,
-  highlight,
-  showIsochrone,
-}) as PhonePage)
+const isPhone = useIsPhone()
+
+const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
+  results: () => timeRemaining.value.views.length > 0,
+  extra: () => [
+    ...(travelTimesFailed.value ? [] : [{ key: 'stations', label: 'Stations' }]),
+    ...(description.value.trim() ? [{ key: 'about', label: 'About' }] : []),
+  ],
+})
 </script>
 
 <template>
-  <template v-if="isPhone">
-    <PrototypeSwitcher
-      :variants="PHONE_VARIANTS"
-      :current="phoneVariant"
-    />
-    <PhoneVariantA v-if="phoneVariant === 'A'" />
-    <PhoneVariantB v-else-if="phoneVariant === 'B'" />
-    <PhoneVariantC v-else-if="phoneVariant === 'C'" />
-  </template>
   <main
-    v-if="!isPhone || phoneVariant === 'current'"
+    v-if="isPhone"
+    class="flex-1"
+  >
+    <PhoneMapPage
+      v-model:tab="phoneTab"
+      :title="name"
+      :tabs="phoneTabs"
+      :pick-armed="pickArmed"
+    >
+      <template #map>
+        <MapView
+          label="Splash zone map"
+          flush
+          :origin="origin"
+          :isochrone-data="isochroneData"
+          :loading="isLoading"
+          :loading-message="isochroneWaitMessage(isochroneProgress)"
+          :routes="routes"
+          :stations="stations"
+          :placement-armed="pickArmed"
+          :placement-cue="ORIGIN_PICK_CUE"
+          :active-station="activeStation?.slug ?? null"
+          :remaining-secs="remainingSecs"
+          @map-click="onMapClick"
+          @station-hover="highlight($event, true)"
+        />
+      </template>
+      <template #panel-plot>
+        <RoutingStatusBanner
+          :status="routingStatus"
+          :has-examples="hasExamples"
+        />
+        <PrerenderedIsochrones
+          v-if="offline"
+          v-model:selected-id="selectedPrerenderedId"
+          :slug="props.slug"
+          @select="onPrerenderedSelect"
+          @available="hasExamples = $event"
+        />
+        <IsochroneForm
+          ref="isochroneForm"
+          :error="fetchError"
+          :loading="isLoading"
+          :offline="offline"
+          :initial="linkedIsochrone"
+          @submit="submitIsochrone"
+          @origin-change="onOriginChange"
+          @pick-armed="pickArmed = $event"
+        />
+        <CopyLinkButton v-if="shareable" />
+        <PrerenderedIsochrones
+          v-if="!offline"
+          v-model:selected-id="selectedPrerenderedId"
+          :slug="props.slug"
+          @select="onPrerenderedSelect"
+          @available="hasExamples = $event"
+        />
+      </template>
+      <template #panel-results>
+        <TimeRemaining
+          v-if="timeRemaining.views.length"
+          :views="timeRemaining.views"
+          :active-slug="activeStation?.slug ?? null"
+          :active-from-map="activeStation?.fromMap ?? false"
+          @activate="highlight($event, false)"
+        />
+      </template>
+      <template #panel-stations>
+        <TimeBetweenStations
+          :groups="stationTimeGroups"
+          :loading="travelTimesLoading"
+        />
+      </template>
+      <template #panel-about>
+        <p class="font-body text-body text-ink-muted">
+          {{ description }}
+        </p>
+      </template>
+    </PhoneMapPage>
+  </main>
+  <main
+    v-else
     class="flex-1 p-(--page-padding)"
   >
     <AllLinesLink />
