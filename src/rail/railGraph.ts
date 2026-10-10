@@ -51,6 +51,10 @@ const GRID_CELL_PX = 256
 const BOUNDARY_MERGE_PX = 2
 const ON_GRAPH_TOLERANCE_M = 1
 const COINCIDENT_PX = 1e-6
+const LINK_RADIUS_M = 8
+const LINK_MAX_ANGLE_DEG = 20
+const LINK_ENDPOINT_M = 2
+const LINK_WAY = -1
 
 export class RailGraph {
   readonly zoom: number
@@ -71,6 +75,8 @@ export class RailGraph {
   private readonly wayIndex = new Map<number, number>()
   private readonly grid = new Map<string, number[]>()
   private readonly loadedTiles = new Set<string>()
+  private readonly linkedWays = new Map<number, Set<number>>()
+  private links = 0
 
   private constructor(zoom: number) {
     this.zoom = zoom
@@ -87,7 +93,11 @@ export class RailGraph {
   }
 
   get edgeCount(): number {
-    return this.edgeA.length
+    return this.edgeA.length - this.links
+  }
+
+  get linkCount(): number {
+    return this.links
   }
 
   async extend(source: RailTileSource, bbox: Bbox): Promise<void> {
@@ -102,33 +112,53 @@ export class RailGraph {
     // Adding a tile is idempotent (every node and edge is keyed), so two
     // overlapping extend() calls racing on the same tile cost time, not
     // correctness; tiles are marked loaded only once their edges are in.
+    let added = false
     tiles.forEach((data, i) => {
       const [x, y] = wanted[i]
-      if (data) this.addTile(x, y, data)
+      if (data) {
+        this.addTile(x, y, data)
+        added = true
+      }
       this.loadedTiles.add(`${x}/${y}`)
     })
+    if (added) this.linkParallelTracks()
   }
 
   nearestPoint(p: LngLat, maxOffsetM: number): RailHit | null {
+    return this.nearestPoints(p, maxOffsetM, 1)[0] ?? null
+  }
+
+  nearestPoints(p: LngLat, maxOffsetM: number, limit: number): RailHit[] {
     const [px, py] = lngLatToPixel(p, this.zoom, this.extent)
     const scale = metresPerPixel(p[1], this.zoom, this.extent)
-    let best: EdgePoint | null = null
+    // One hit per way: the two tracks of a double-track railway are two ways,
+    // and the edges either side of a vertex on the nearer one would otherwise
+    // crowd the farther one out.
+    const bestByWay = new Map<number, { point: EdgePoint; order: number }>()
+    let order = 0
     for (const candidate of this.edgePointsNear(px, py, maxOffsetM / scale)) {
+      order++
+      const way = this.edgeWay[candidate.edge]
+      const best = bestByWay.get(way)
       // Ties keep the earlier edge, as projectOntoAlignment keeps the earlier
       // leg: a point abeam a junction projects onto every edge meeting there.
-      if (best && candidate.offsetPx >= best.offsetPx) continue
-      best = candidate
+      if (best && candidate.offsetPx >= best.point.offsetPx) continue
+      bestByWay.set(way, { point: candidate, order })
     }
-    if (!best) return null
-    const way = this.ways[this.edgeWay[best.edge]]
-    return {
-      point: pixelToLngLat(this.pointOnEdge(best.edge, best.fraction), this.zoom, this.extent),
-      offsetM: best.offsetPx * scale,
-      wayId: way.wayId,
-      name: way.name,
-      state: way.state,
-      maxspeed: way.maxspeed,
-    }
+    return [...bestByWay.values()]
+      .sort((a, b) => a.point.offsetPx - b.point.offsetPx || a.order - b.order)
+      .slice(0, limit)
+      .map(({ point }) => {
+        const way = this.ways[this.edgeWay[point.edge]]
+        return {
+          point: pixelToLngLat(this.pointOnEdge(point.edge, point.fraction), this.zoom, this.extent),
+          offsetM: point.offsetPx * scale,
+          wayId: way.wayId,
+          name: way.name,
+          state: way.state,
+          maxspeed: way.maxspeed,
+        }
+      })
   }
 
   walk(a: LngLat, b: LngLat, maxLengthM: number): LngLat[] | null {
@@ -286,6 +316,12 @@ export class RailGraph {
     )
     this.adjacency[a].push(id)
     this.adjacency[b].push(id)
+    this.index(id)
+  }
+
+  private index(edge: number): void {
+    const a = this.edgeA[edge]
+    const b = this.edgeB[edge]
     const cx0 = Math.floor(Math.min(this.nodeX[a], this.nodeX[b]) / GRID_CELL_PX)
     const cx1 = Math.floor(Math.max(this.nodeX[a], this.nodeX[b]) / GRID_CELL_PX)
     const cy0 = Math.floor(Math.min(this.nodeY[a], this.nodeY[b]) / GRID_CELL_PX)
@@ -294,10 +330,118 @@ export class RailGraph {
       for (let cy = cy0; cy <= cy1; cy++) {
         const cell = `${cx},${cy}`
         const edges = this.grid.get(cell)
-        if (edges) edges.push(id)
-        else this.grid.set(cell, [id])
+        if (edges) edges.push(edge)
+        else this.grid.set(cell, [edge])
       }
     }
+  }
+
+  private linkParallelTracks(): void {
+    // OSM draws each track of a double-track railway as its own way, a few
+    // metres from the other and joined only at the crossovers, so a walk
+    // between points on the two tracks had to go round by a crossover, often
+    // beyond the budget or the loaded tiles. Each node is linked to the
+    // nearest point of every other way running alongside it, at the real
+    // distance across, so the shortest path keeps to one track and crosses
+    // only where it has to.
+    //
+    // 8 m: the Fresno double track is mapped 4–5 m centre to centre, as US
+    // main lines generally are (13–15 ft), and sidings and third tracks run
+    // up to 7.6 m (25 ft), with half a metre of z14 pixel rounding on top.
+    // 12 m would also reach past the next track to the one beyond, which the
+    // links already reach through the middle one, and towards separate
+    // railways sharing a corridor. 20°: tracks meet at a turnout or crossover
+    // at a few degrees, and still link there; a crossing does not, nor a
+    // junction leg once it has turned away.
+    //
+    // Every node is offered again on each extend, since a new tile can bring
+    // the other track. A node is never linked to one way twice, and the node
+    // a link lands on counts as linked to the ways it came from, so it does
+    // not link straight back.
+    const maxSin = Math.sin((LINK_MAX_ANGLE_DEG * Math.PI) / 180)
+    for (let n = 0; n < this.nodeX.length; n++) {
+      const own = this.adjacency[n].filter((edge) => this.edgeWay[edge] !== LINK_WAY)
+      if (own.length === 0) continue
+      const ownWays = new Set(own.map((edge) => this.edgeWay[edge]))
+      const linked = this.linkedWays.get(n)
+      const lat = pixelToLngLat([this.nodeX[n], this.nodeY[n]], this.zoom, this.extent)[1]
+      const scale = metresPerPixel(lat, this.zoom, this.extent)
+      const nearest = new Map<number, EdgePoint>()
+      for (const candidate of this.edgePointsNear(this.nodeX[n], this.nodeY[n], LINK_RADIUS_M / scale)) {
+        const way = this.edgeWay[candidate.edge]
+        if (ownWays.has(way) || linked?.has(way)) continue
+        if (!own.some((edge) => this.sinBetween(edge, candidate.edge) <= maxSin)) continue
+        const best = nearest.get(way)
+        if (!best || candidate.offsetPx < best.offsetPx) nearest.set(way, candidate)
+      }
+      for (const [way, candidate] of nearest) {
+        const target = this.nodeOnEdge(candidate, scale)
+        if (target !== n) this.addLink(n, ownWays, target, way)
+      }
+    }
+  }
+
+  private sinBetween(e: number, f: number): number {
+    const ex = this.nodeX[this.edgeB[e]] - this.nodeX[this.edgeA[e]]
+    const ey = this.nodeY[this.edgeB[e]] - this.nodeY[this.edgeA[e]]
+    const fx = this.nodeX[this.edgeB[f]] - this.nodeX[this.edgeA[f]]
+    const fy = this.nodeY[this.edgeB[f]] - this.nodeY[this.edgeA[f]]
+    return Math.abs(ex * fy - ey * fx) / (Math.hypot(ex, ey) * Math.hypot(fx, fy))
+  }
+
+  private nodeOnEdge({ edge, fraction }: EdgePoint, scale: number): number {
+    // A link landing within a couple of metres of a vertex goes to the vertex
+    // rather than cutting a sliver off the edge beside it.
+    const a = this.edgeA[edge]
+    const b = this.edgeB[edge]
+    const lengthPx = Math.hypot(this.nodeX[b] - this.nodeX[a], this.nodeY[b] - this.nodeY[a])
+    if (fraction * lengthPx * scale <= LINK_ENDPOINT_M) return a
+    if ((1 - fraction) * lengthPx * scale <= LINK_ENDPOINT_M) return b
+    // The edge is cut in place, so it keeps its key (a tile that brings it
+    // again still adds nothing) and its grid cells, which cover the first
+    // piece as they covered the whole; only the second piece is new.
+    const [mx, my] = this.pointOnEdge(edge, fraction)
+    const m = this.newNode(mx, my, false)
+    const length = this.edgeLengthM[edge]
+    this.edgeB[edge] = m
+    this.edgeLengthM[edge] = fraction * length
+    this.adjacency[m].push(edge)
+    const rest = this.edgeA.length
+    this.edgeA.push(m)
+    this.edgeB.push(b)
+    this.edgeWay.push(this.edgeWay[edge])
+    this.edgeLengthM.push((1 - fraction) * length)
+    this.adjacency[m].push(rest)
+    this.adjacency[b][this.adjacency[b].indexOf(edge)] = rest
+    this.index(rest)
+    return m
+  }
+
+  private addLink(n: number, ownWays: Set<number>, target: number, way: number): void {
+    const id = this.edgeA.length
+    this.edgeA.push(n)
+    this.edgeB.push(target)
+    this.edgeWay.push(LINK_WAY)
+    const midLat = pixelToLngLat([(this.nodeX[n] + this.nodeX[target]) / 2, (this.nodeY[n] + this.nodeY[target]) / 2], this.zoom, this.extent)[1]
+    this.edgeLengthM.push(
+      Math.hypot(this.nodeX[target] - this.nodeX[n], this.nodeY[target] - this.nodeY[n]) * metresPerPixel(midLat, this.zoom, this.extent),
+    )
+    // Not in the grid: a link is not track, so nothing snaps to one.
+    this.adjacency[n].push(id)
+    this.adjacency[target].push(id)
+    this.links++
+    this.linkedTo(n).add(way)
+    const back = this.linkedTo(target)
+    for (const from of ownWays) back.add(from)
+  }
+
+  private linkedTo(node: number): Set<number> {
+    let ways = this.linkedWays.get(node)
+    if (!ways) {
+      ways = new Set()
+      this.linkedWays.set(node, ways)
+    }
+    return ways
   }
 
   private wayFor(wayId: number, props: Record<string, unknown>): number {
@@ -380,7 +524,9 @@ export class RailGraph {
     for (const n of nodes) {
       // Tile-edge crossings are the graph's own seams, not track vertices,
       // and an end that is a vertex is already in the list as a or b.
-      if (this.nodeSynthetic[n]) continue
+      // Unless a link lands on one: there the path changes track, and leaving
+      // it out would draw a chord between the two.
+      if (this.nodeSynthetic[n] && !this.linkedWays.has(n)) continue
       if (Math.hypot(this.nodeX[n] - ax, this.nodeY[n] - ay) < COINCIDENT_PX) continue
       if (Math.hypot(this.nodeX[n] - bx, this.nodeY[n] - by) < COINCIDENT_PX) continue
       out.push(pixelToLngLat([this.nodeX[n], this.nodeY[n]], this.zoom, this.extent))

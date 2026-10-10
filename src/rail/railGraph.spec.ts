@@ -197,6 +197,96 @@ describe('RailGraph on hand-built tiles', () => {
   })
 })
 
+// Double track as OSM maps it: two ways 10 px (≈4.8 m) apart for ≈1 km,
+// sharing no node. Track B's vertices sit halfway between track A's.
+const trackA: SyntheticWay = {
+  id: 11,
+  props: { railway: 'rail', name: 'Track A' },
+  pixels: Array.from({ length: 22 }, (_, i) => g(1000 + 100 * i, 1000)),
+}
+const trackB: SyntheticWay = {
+  id: 12,
+  props: { railway: 'rail', name: 'Track B' },
+  pixels: [g(1000, 1010), ...Array.from({ length: 21 }, (_, i) => g(1050 + 100 * i, 1010)), g(3100, 1010)],
+}
+// A road-like crossing, square to both, ending a few metres short of B.
+const across: SyntheticWay = {
+  id: 13,
+  props: { railway: 'rail', name: 'Across' },
+  pixels: [g(2050, 1018), g(2050, 1600)],
+}
+// In the next tile and nowhere near the tracks: loading it re-offers every
+// node for linking without bringing anything to link to.
+const elsewhere: SyntheticWay = {
+  id: 14,
+  props: { railway: 'rail' },
+  pixels: [g(EXTENT + 1000, 3000), g(EXTENT + 3000, 3000)],
+}
+
+function doubleTrack(ways: SyntheticWay[]) {
+  return syntheticSource({
+    [`${ZOOM}/${L}/${Y}`]: encodeTile(L, Y, ways),
+    [`${ZOOM}/${R}/${Y}`]: encodeTile(R, Y, ways),
+  })
+}
+
+describe('RailGraph on double track', () => {
+  it('offers the nearest point of each track, nearest first', async () => {
+    const graph = await RailGraph.load(doubleTrack([trackA, trackB]), leftBbox)
+    const hits = graph.nearestPoints(at(2000, 1004), 20, 3)
+    expect(hits.map((h) => h.wayId)).toEqual([11, 12])
+    expect(hits.map((h) => h.name)).toEqual(['Track A', 'Track B'])
+    expect(pixelsOf(hits.map((h) => h.point))).toEqual([[2000, 1000], [2000, 1010]])
+    expect(hits[0].offsetM).toBeLessThan(hits[1].offsetM)
+    expect(graph.nearestPoints(at(2000, 1004), 20, 1).map((h) => h.wayId)).toEqual([11])
+    expect(graph.nearestPoint(at(2000, 1006), 20)?.wayId).toBe(12)
+  })
+
+  it('walks from one track to the other, crossing once, and keeps to one track when it can', async () => {
+    const graph = await RailGraph.load(doubleTrack([trackA, trackB]), leftBbox)
+    expect(graph.linkCount).toBeGreaterThan(0)
+    const a = graph.nearestPoint(at(1230, 1000), 1)!
+    const b = graph.nearestPoint(at(2770, 1010), 1)!
+    expect([a.wayId, b.wayId]).toEqual([11, 12])
+    const across = graph.walk(a.point, b.point, 10_000)!
+    expect(across).not.toBeNull()
+    for (const vertex of across) expect(graph.nearestPoint(vertex, 1)?.offsetM).toBeLessThan(0.01)
+    const scale = metresPerPixel(a.point[1], ZOOM, EXTENT)
+    const straight = chainageAlong([a.point, b.point]).at(-1)!
+    expect(chainageAlong(across).at(-1)! - straight).toBeCloseTo(10 * scale, 0)
+    const changes = pixelsOf(across).filter(([, y], i, path) => i > 0 && y !== path[i - 1][1])
+    expect(changes).toHaveLength(1)
+
+    const c = graph.nearestPoint(at(2770, 1000), 1)!
+    const along = graph.walk(a.point, c.point, 10_000)!
+    expect(pixelsOf(along).every(([, y]) => y === 1000)).toBe(true)
+    expect(chainageAlong(along).at(-1)!).toBeCloseTo(chainageAlong([a.point, c.point]).at(-1)!, 6)
+  })
+
+  it('links no way that crosses the tracks', async () => {
+    const parallel = await RailGraph.load(doubleTrack([trackA, trackB]), leftBbox)
+    const crossed = await RailGraph.load(doubleTrack([trackA, trackB, across]), leftBbox)
+    expect(parallel.linkCount).toBeGreaterThan(0)
+    expect(crossed.linkCount).toBe(parallel.linkCount)
+    const onAcross = crossed.nearestPoint(at(2050, 1300), 1)!
+    expect(onAcross.wayId).toBe(13)
+    const onB = crossed.nearestPoint(at(2050, 1010), 1)!
+    expect(crossed.walk(onAcross.point, onB.point, 10_000)).toBeNull()
+  })
+
+  it('links each node once however often the graph is extended', async () => {
+    const source = doubleTrack([trackA, trackB, elsewhere])
+    const graph = await RailGraph.load(source, leftBbox)
+    const links = graph.linkCount
+    expect(links).toBeGreaterThan(0)
+    await graph.extend(source, rightBbox)
+    expect(graph.nearestPoint(at(EXTENT + 2000, 3000), 1)?.wayId).toBe(14)
+    expect(graph.linkCount).toBe(links)
+    await graph.extend(source, bothBbox)
+    expect(graph.linkCount).toBe(links)
+  })
+})
+
 describe('RailGraph on the Fresno tiles', () => {
   it('loads exactly the z14 tiles covering the bbox', async () => {
     const source = fresnoTiles()
@@ -254,5 +344,21 @@ describe('RailGraph on the Fresno tiles', () => {
     for (const vertex of path) expect(graph.nearestPoint(vertex, 1)?.offsetM).toBeLessThan(0.01)
     const straight = chainageAlong([a.point, b.point]).at(-1)!
     expect(chainageAlong(path).at(-1)!).toBeLessThan(straight * 1.1)
+  })
+
+  it('walks across the double-tracked BNSF Stockton Subdivision without going round by a crossover', async () => {
+    const graph = await RailGraph.load(fresnoTiles(), FRESNO_BBOX)
+    expect(graph.linkCount).toBeGreaterThan(0)
+    // Found by probing every vertex pair of the two tracks: unlinked, the
+    // nearest crossover put this 120 m hop beyond the editor's 500 m budget.
+    const a = graph.nearestPoint(fresnoPoint(2740, 6392, 4087, 2140), 1)!
+    const b = graph.nearestPoint(fresnoPoint(2740, 6392, 3955, 1930), 1)!
+    expect([a.wayId, b.wayId]).toEqual([641020480, 221323617])
+    expect([a.name, b.name]).toEqual(['BNSF Stockton Subdivision', 'BNSF Stockton Subdivision'])
+    const path = graph.walk(a.point, b.point, 500)!
+    expect(path).not.toBeNull()
+    for (const vertex of path) expect(graph.nearestPoint(vertex, 1)?.offsetM).toBeLessThan(0.01)
+    const straight = chainageAlong([a.point, b.point]).at(-1)!
+    expect(chainageAlong(path).at(-1)!).toBeLessThan(straight + 10)
   })
 })
