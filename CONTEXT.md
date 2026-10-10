@@ -50,6 +50,21 @@ The product-facing name for an isochrone — the area reachable from a point
 within a time budget. Used on the cover page and in copy aimed at readers; the
 code says *isochrone*.
 
+## The phone map page
+
+Below `md` (Tailwind's 48rem) a map page — the network page and a published
+line's page — stops stacking a card map above its cards and becomes a **phone
+map page** (`src/components/PhoneMapPage.vue`): the map on top, a **panel**
+fixed to the bottom, and the panel's content behind **tabs**. Nothing is
+dragged; a header button switches the panel between **tall** (room to read)
+and **short** (room to aim), and arming tap-to-pick shortens it. Every phone
+map page has a **Plot** tab (the splash-zone form and whatever plots with it)
+and a **Results** tab (the time-remaining graph), disabled until a plot reaches
+a station; the page adds its own after them — Stations and About on the network
+page, Stops and About on a line's page, Interchanges where stops did not
+connect. Plotting turns the panel to Results. Authoring pages are desktop
+pages for launch and keep the stacked layout at any width.
+
 ## The time-remaining graph
 
 `src/components/timeRemaining.ts` turns a chain response into a branching

@@ -34,10 +34,8 @@ const props = defineProps<{
   stopMissing?: (stop: StopIdentity) => boolean
   // The host decides when the page is a phone page: it is the host whose
   // heading, links and cards the phone layout replaces, and which fills the
-  // panel's extra tabs through its `phone-<key>` slots.
-  phone?: boolean
-  title?: string
-  phoneTabs?: PhoneMapTab[]
+  // tabs it adds through `panel-<key>` slots, as PhoneMapPage has them.
+  phone?: { title: string; tabs?: PhoneMapTab[] }
 }>()
 
 defineEmits<{
@@ -76,10 +74,11 @@ const hasInterchanges = computed(
 )
 
 const { tabs: allPhoneTabs, tab: phoneTab } = usePhoneMapTabs({
+  plot: () => props.isochroneData,
   results: () => timeRemaining.value.views.length > 0,
   extra: () => [
     ...(hasInterchanges.value ? [{ key: 'interchanges', label: 'Interchanges' }] : []),
-    ...(props.phoneTabs ?? []),
+    ...(props.phone?.tabs ?? []),
   ],
 })
 </script>
@@ -88,7 +87,7 @@ const { tabs: allPhoneTabs, tab: phoneTab } = usePhoneMapTabs({
   <PhoneMapPage
     v-if="props.phone"
     v-model:tab="phoneTab"
-    :title="props.title ?? ''"
+    :title="props.phone.title"
     :tabs="allPhoneTabs"
     :pick-armed="pickArmed"
   >
@@ -155,11 +154,11 @@ const { tabs: allPhoneTabs, tab: phoneTab } = usePhoneMapTabs({
       <slot name="interchanges" />
     </template>
     <template
-      v-for="tab in props.phoneTabs ?? []"
+      v-for="tab in props.phone.tabs ?? []"
       :key="tab.key"
       #[`panel-${tab.key}`]
     >
-      <slot :name="`phone-${tab.key}`" />
+      <slot :name="`panel-${tab.key}`" />
     </template>
   </PhoneMapPage>
 

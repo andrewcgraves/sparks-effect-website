@@ -29,12 +29,14 @@ export function tabForKey(tabs: readonly PhoneMapTab[], current: string, key: st
 
 // The tabs of a page that plots, and the chosen one. Every such page has Plot
 // and Results, Results waiting on a splash zone with stations to read; the
-// host adds its own after them. The panel opens on Plot, turns to Results as
-// soon as there are results — a plot is what the visitor came for — and comes
-// back to Plot when the tab it was on goes away or is disabled: a refused plot
-// clears the splash zone and explains why in the form, so an empty Results
-// tab would hide the explanation.
+// host adds its own after them. The panel opens on Plot, turns to Results on
+// every plot that reaches a station — a plot is what the visitor came for, and
+// a second one made from the Plot tab replaces the first rather than adding to
+// it — and comes back to Plot when the tab it was on goes away or is disabled:
+// a refused plot clears the splash zone and explains why in the form, so an
+// empty Results tab would hide the explanation.
 export function usePhoneMapTabs(options: {
+  plot: () => unknown
   results: () => boolean
   extra: () => PhoneMapTab[]
 }): { tabs: ComputedRef<PhoneMapTab[]>; tab: Ref<string> } {
@@ -45,8 +47,8 @@ export function usePhoneMapTabs(options: {
   ])
   const tab = ref('plot')
 
-  watch(options.results, (hasResults) => {
-    if (hasResults) tab.value = 'results'
+  watch(options.plot, (plot) => {
+    if (plot && options.results()) tab.value = 'results'
   })
 
   watch(tabs, (current) => {

@@ -279,7 +279,7 @@ describe('ScenarioPreviewPanel', () => {
 
     function mountPhone(props: Record<string, unknown> = {}, slots: Record<string, string> = {}) {
       return mount(ScenarioPreviewPanel, {
-        props: { ...defaultProps, phone: true, title: 'Northbound Express', ...props },
+        props: { ...defaultProps, phone: { title: 'Northbound Express' }, ...props },
         slots,
         global: { stubs: { MapView: true } },
       })
@@ -347,8 +347,8 @@ describe('ScenarioPreviewPanel', () => {
 
     it("adds the host's tabs after its own, filled from the host's slots", async () => {
       const wrapper = mountPhone(
-        { phoneTabs: [{ key: 'stops', label: 'Stops' }] },
-        { 'phone-stops': '<ol data-testid="host-stops"><li>Union</li></ol>' },
+        { phone: { title: 'Northbound Express', tabs: [{ key: 'stops', label: 'Stops' }] } },
+        { 'panel-stops': '<ol data-testid="host-stops"><li>Union</li></ol>' },
       )
       expect(tabLabels(wrapper)).toEqual(['Plot', 'Results', 'Stops'])
 

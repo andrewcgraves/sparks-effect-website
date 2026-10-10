@@ -76,14 +76,10 @@ const { initial: linkedIsochrone, submit: submitIsochrone, shareable } = useIsoc
 
 const isPhone = useIsPhone()
 
-const PHONE_TABS: PhoneMapTab[] = [
+const phoneTabs = computed<PhoneMapTab[]>(() => [
   { key: 'stops', label: 'Stops' },
-  { key: 'about', label: 'About' },
-]
-
-const phoneTabs = computed(() =>
-  PHONE_TABS.filter((tab) => tab.key !== 'about' || publication.value?.description),
-)
+  ...(publication.value?.subtext || publication.value?.description ? [{ key: 'about', label: 'About' }] : []),
+])
 
 void loadGraph(props.slug)
 </script>
@@ -136,9 +132,7 @@ void loadGraph(props.slug)
 
     <template v-else-if="publication && isPhone">
       <ScenarioPreviewPanel
-        phone
-        :title="publication.name"
-        :phone-tabs="phoneTabs"
+        :phone="{ title: publication.name, tabs: phoneTabs }"
         :origin="origin"
         :isochrone-data="isochroneData"
         :loading="isochroneFormLoading"
@@ -156,11 +150,11 @@ void loadGraph(props.slug)
         <template #after-form>
           <CopyLinkButton v-if="shareable" />
         </template>
-        <template #phone-stops>
+        <template #panel-stops>
           <ServiceStops :stops="stops" />
           <TimeBetweenStations :groups="stationTimeGroups" />
         </template>
-        <template #phone-about>
+        <template #panel-about>
           <p
             v-if="publication.subtext"
             class="font-body text-micro text-ink-muted italic uppercase"
@@ -169,6 +163,7 @@ void loadGraph(props.slug)
             {{ publication.subtext }}
           </p>
           <p
+            v-if="publication.description"
             class="font-body text-body whitespace-pre-line text-ink-muted"
             data-testid="service-description"
           >

@@ -43,8 +43,7 @@ const props = defineProps<{
   activeStation?: string | null
   remainingSecs?: (slug: string) => number | null
   label: string
-  // Fills its box edge to edge — no frame, rounding or minimum height — for a
-  // phone page that gives the map the screen rather than a card.
+  // For a phone page that gives the map the screen rather than a card.
   flush?: boolean
 }>()
 

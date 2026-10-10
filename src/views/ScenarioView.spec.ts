@@ -1462,6 +1462,29 @@ describe('ScenarioView', () => {
       expect(form.props('error')).toContain('nearest station')
     })
 
+    it('turns back to Results for a second plot made from the Plot tab', async () => {
+      vi.mocked(fetchIsochrone).mockResolvedValue(reachedIsochrone)
+      const wrapper = mountScenarioView()
+      await wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('submit', {
+        ...NEARBY_ORIGIN,
+        duration: 30,
+        mode: 'walk',
+      })
+      await flushPromises()
+      await tabNamed(wrapper, 'Plot').trigger('click')
+      expect(tabNamed(wrapper, 'Plot').attributes('aria-selected')).toBe('true')
+
+      vi.mocked(fetchIsochrone).mockResolvedValue({ ...reachedIsochrone, features: [] })
+      await wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('submit', {
+        ...NEARBY_ORIGIN,
+        duration: 45,
+        mode: 'walk',
+      })
+      await flushPromises()
+
+      expect(tabNamed(wrapper, 'Results').attributes('aria-selected')).toBe('true')
+    })
+
     it('puts the time between stations behind the Stations tab', async () => {
       const wrapper = mountScenarioView()
       await flushPromises()

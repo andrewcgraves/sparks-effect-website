@@ -125,6 +125,7 @@ function onPrerenderedSelect(result: ChainResponse) {
 const isPhone = useIsPhone()
 
 const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
+  plot: () => isochroneData.value,
   results: () => timeRemaining.value.views.length > 0,
   extra: () => [
     ...(travelTimesFailed.value ? [] : [{ key: 'stations', label: 'Stations' }]),

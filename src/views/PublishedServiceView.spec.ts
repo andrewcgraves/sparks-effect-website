@@ -380,6 +380,24 @@ describe('PublishedServiceView', () => {
       expect((description.element.closest('[role="tabpanel"]') as HTMLElement).style.display).not.toBe('none')
     })
 
+    it('keeps the subtext under About when the line has no description', async () => {
+      vi.mocked(fetchServicePublication).mockResolvedValue({ ...publication, description: '' })
+      const wrapper = mountView()
+      await flushPromises()
+      await tabNamed(wrapper, 'About').trigger('click')
+
+      expect(wrapper.get('[data-testid="service-subtext"]').text()).toBe('Electrified · Regional rail')
+      expect(wrapper.find('[data-testid="service-description"]').exists()).toBe(false)
+    })
+
+    it('drops About when the line has neither subtext nor description', async () => {
+      vi.mocked(fetchServicePublication).mockResolvedValue({ ...publication, subtext: '', description: '' })
+      const wrapper = mountView()
+      await flushPromises()
+
+      expect(wrapper.findAll('[role="tab"]').map((tab) => tab.text())).toEqual(['Plot', 'Results', 'Stops'])
+    })
+
     it('turns to Results once a plot lands', async () => {
       const wrapper = mountView()
       await flushPromises()

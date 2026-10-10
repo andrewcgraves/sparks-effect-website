@@ -25,18 +25,18 @@ function tabpanelId(key: string): string {
 }
 
 // 'tall' gives the panel room to read; 'short' gives the map room to aim.
-const panel = ref<'short' | 'tall'>('tall')
+const panelSize = ref<'short' | 'tall'>('tall')
 
 watch(
   () => props.pickArmed,
   (armed) => {
-    panel.value = armed ? 'short' : 'tall'
+    panelSize.value = armed ? 'short' : 'tall'
   },
 )
 
 function choose(key: string): void {
   tab.value = key
-  panel.value = 'tall'
+  panelSize.value = 'tall'
 }
 
 // Selection follows focus, as the tabs pattern has it: the chosen tab is the
@@ -71,12 +71,12 @@ function onListKeydown(event: KeyboardEvent): void {
       <button
         type="button"
         :class="`${ACTION_LINK_CLASS} shrink-0`"
-        :aria-expanded="panel === 'tall'"
+        :aria-expanded="panelSize === 'tall'"
         :aria-controls="panelId"
         data-testid="phone-panel-toggle"
-        @click="panel = panel === 'tall' ? 'short' : 'tall'"
+        @click="panelSize = panelSize === 'tall' ? 'short' : 'tall'"
       >
-        {{ panel === 'tall' ? 'More map' : 'More panel' }}
+        {{ panelSize === 'tall' ? 'More map' : 'More panel' }}
       </button>
     </header>
 
@@ -89,7 +89,7 @@ function onListKeydown(event: KeyboardEvent): void {
     <section
       :id="panelId"
       class="flex shrink-0 flex-col border-t border-border bg-white transition-[height] duration-300 ease-(--ease-smooth)"
-      :style="{ height: panel === 'tall' ? '52%' : '24%' }"
+      :style="{ height: panelSize === 'tall' ? '52%' : '24%' }"
       data-testid="phone-panel"
     >
       <div
