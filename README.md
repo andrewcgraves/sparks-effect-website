@@ -163,6 +163,49 @@ Stadia's terms ask for a credit wherever its results are used; the footer's
 "Search by Stadia Maps" links to its attribution page, which lists the data
 sources. `api.stadiamaps.com` is in the CSP's `connect-src`.
 
+## Route builder
+
+An author draws their own routes at `/authoring/routes/new` and edits them at
+`/authoring/routes/<slug>` (`RouteBuilderView.vue`, `useRouteDraft.ts`), against
+the API's `/api/me/routes`. The form takes a name, a mode, whether lines can
+run it in both directions, and a description. The shape comes from importing
+a `.geojson`/`.json` file or pasting GeoJSON: a bare `LineString`, a `Feature`
+holding one, or a `FeatureCollection` holding exactly one
+(`normaliseImportedGeoJson` in `src/routeGeometry.ts`). Altitude and
+consecutive repeated points are dropped, since the API refuses a zero-length
+span; a `MultiLineString` is refused for now with "Only a single line can be
+imported." The page shows the point count, the length in km (the last chainage
+of `chainageAlong`) and a read-only `MapView` preview. Drawing on the map is
+a later ticket: the draft keeps `coordinates` as a plain ref with
+`setCoordinates()` for that editor to plug into.
+
+The builder checks the same rules the API does before submitting
+(`validateRouteInput` mirrors `route.Validate` field for field), and words the
+faults through the same `authoringFault` table, so "The route needs at least
+two points." reads identically whether it was caught here or sent back as a
+422.
+
+**The in-use rule.** Every stop of a line is a chainage along its route, so
+moving a route under its lines would move their stops. A route the API reports
+as used by lines (`dependents.services + dependents.user_services > 0`) keeps
+its shape: the import controls are disabled with "Used by N lines — the shape
+can't change while lines are built on it. Name and details can.", and the body
+sent is always the shape as read, never the draft's. The API's own 409
+`route_in_use` — on a delete, or on a PUT once SPA-481 adds the check — is
+still worded ("Used by 2 lines. Move them to another route first."). A route
+whose `dependents` the API did not send reads as "Use unknown" on the authoring
+page and leaves the shape editable.
+
+**The picker and the round trip.** The line editor's route picker lists the
+author's own routes under "Your routes" above the curated ones under "Curated
+routes", omitting an empty group; one list failing only loses its group, and
+the error state appears only when both fail. "Draw a new route…" beside the
+picker opens the builder with `?return=<the editor's path>`. On a create the
+builder goes back to that path with `?route=<slug>` instead of on to the
+route's editor; the line editor picks that route once its draft has started
+and drops the query, so a reload or a shared link does not pick it again over
+whatever was chosen since. Only a path on this site is followed back.
+
 ## Link previews
 
 Link-unfurl crawlers (Slackbot, Discordbot, iMessage, …) run no JavaScript, so a

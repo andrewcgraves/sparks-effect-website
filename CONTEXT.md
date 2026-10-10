@@ -30,7 +30,9 @@ not renamed to match, and URLs are tidied separately (SPA-456).
 | --- | --- | --- |
 | **Line** | service | Everywhere a person reads about one stopping pattern: the cover page, a published line's page, authoring ("My lines", "+ New line", "Line name", "Delete line"), publication status, admin's published list, and errors and confirmations about one |
 | **Network** | scenario | A set of lines, curated or authored: the cover page, the network page, authoring ("My networks", "+ New network", "Network name"), the network builder's list of member lines, and errors and confirmations about one |
-| **Route** | route | The geometry a line runs along. Only authors see it: picking a route for a line, stops sitting on or off the route, the route page. Never use it for a line or a network, and never say *alignment* or *track* in copy |
+| **Route** | route | The geometry a line runs along — a drawn LineString. Only authors see it: picking a route for a line, stops sitting on or off the route, the route page, authoring ("My routes", "+ New route", "Route name", "Delete route"). Never use it for a line or a network, and never say *alignment* or *track* in copy. See [Routes an author draws](#routes-an-author-draws) |
+| **Point** | coordinate, vertex | One position along a route. The builder counts them ("2 points"), a fault names one ("Point 3"), and never says *vertex* or *coordinate* in copy |
+| **In use** | dependents | A route that lines are built on. Read "Used by N lines"; a route with none is "Not used yet". See [Routes an author draws](#routes-an-author-draws) |
 | **Splash zone** | isochrone | See [Splash zone](#splash-zone) |
 
 The words are kept apart because the API's two senses of *scenario* and
@@ -49,6 +51,25 @@ below). That is a word for developers about drawing, not copy.
 The product-facing name for an isochrone — the area reachable from a point
 within a time budget. Used on the cover page and in copy aimed at readers; the
 code says *isochrone*.
+
+## Routes an author draws
+
+A **route** is the shape a line runs along: an ordered list of points, drawn
+once and picked by any number of lines. It is the API's *route* (its
+`CONTEXT.md`), and this site adds only the words an author reads.
+
+| Term | Definition |
+| --- | --- |
+| **Your routes** | The routes the signed-in author drew. Only they can see, edit or delete them, and only they and the lines they author can pick them |
+| **Curated routes** | The routes the site ships with, which anyone's line may pick. An author cannot edit them |
+| **Point** | One position along a route, numbered from one in anything a person reads. A route needs at least two, and two in a row at the same place are one point |
+| **Length** | How far the route runs from its first point to its last, in km to one decimal |
+| **In use** | A route that lines are built on, counting curated and authored lines together. Every stop of such a line is a distance along the route, so the route's shape is frozen while it is in use: its name and details can still change, and it cannot be deleted. A route the API has not said anything about reads as *use unknown* and is treated as free |
+| **Importing** | Giving a route its shape from a GeoJSON line, as a file or pasted text. One line at a time |
+
+The point count and the length are what the builder tells an author about a
+shape before and after a save; nothing on the site shows a route's segments to
+an author, which stay the API's physics.
 
 ## The time-remaining graph
 
