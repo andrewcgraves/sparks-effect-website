@@ -50,6 +50,7 @@ export const GRAPH_MARGIN = 0.2
 export const GRAPH_DEBOUNCE_MS = 250
 export const WALK_MIN_BUDGET_M = 500
 export const WALK_BUDGET_FACTOR = 3
+export const SNAP_CANDIDATES = 3
 export const COORDINATE_PRECISION = 9
 // Over the route map's line width, and in the accent of the primary action:
 // the route being drawn is the strongest stroke on the map, over every
@@ -187,11 +188,38 @@ export function useRouteEditor(options: RouteEditorOptions) {
     // Railways still arriving: a click on one would read as "no railway
     // here" and be drawn straight, so in easy mode it is not taken yet.
     if (!hit && mode.value === 'easy' && loading.value) return false
-    commitClick(toDrawPrecision([hit ? hit.point : [event.lng, event.lat]])[0], hit)
+    const choice = chooseSnap(event, hit)
+    commitClick(choice.clicked, choice.hit, choice.path)
     return false
   }
 
-  function commitClick(clicked: LngLat, hit: RailHit | null): void {
+  function walkBudgetM(from: LngLat, to: LngLat): number {
+    // Three times the straight run, and never under half a kilometre: a
+    // railway bending round a hill is still the one the author meant, and
+    // a walk that cannot be done in that leaves a straight span, flagged.
+    return Math.max(WALK_MIN_BUDGET_M, WALK_BUDGET_FACTOR * chainageAlong([from, to])[1])
+  }
+
+  function chooseSnap(
+    event: Pick<TerraDrawMouseEvent, 'lng' | 'lat'>,
+    hit: RailHit | null,
+  ): { clicked: LngLat; hit: RailHit | null; path: LngLat[] | null } {
+    const clickedAt = (h: RailHit | null): LngLat => toDrawPrecision([h ? h.point : [event.lng, event.lat]])[0]
+    const previous = points[points.length - 1]
+    if (mode.value !== 'easy' || !graph || !hit || !previous) return { clicked: clickedAt(hit), hit, path: null }
+    // The nearest railway is not always the one the route can reach: beside
+    // double track, or a siding, the click often lands nearer the other
+    // track, so the nearest few ways are tried in turn and the first the
+    // route can walk to wins. The guide still shows the nearest.
+    for (const candidate of graph.nearestPoints([event.lng, event.lat], snapRadiusM(event.lat), SNAP_CANDIDATES)) {
+      const clicked = clickedAt(candidate)
+      const path = graph.walk(previous, clicked, walkBudgetM(previous, clicked))
+      if (path) return { clicked, hit: candidate, path }
+    }
+    return { clicked: clickedAt(hit), hit, path: null }
+  }
+
+  function commitClick(clicked: LngLat, hit: RailHit | null, path: LngLat[] | null): void {
     const previous = points[points.length - 1]
     if (previous && samePoint(previous, clicked)) return
     if (!previous) {
@@ -203,16 +231,9 @@ export function useRouteEditor(options: RouteEditorOptions) {
     }
     let added: LngLat[] = [clicked]
     let provenance: SpanProvenance = 'free'
-    if (mode.value === 'easy' && hit && graph) {
-      // Three times the straight run, and never under half a kilometre: a
-      // railway bending round a hill is still the one the author meant, and
-      // a walk that cannot be done in that leaves a straight span, flagged.
-      const straight = chainageAlong([previous, clicked])[1]
-      const path = graph.walk(previous, clicked, Math.max(WALK_MIN_BUDGET_M, WALK_BUDGET_FACTOR * straight))
-      if (path) {
-        added = toDrawPrecision(path.slice(1))
-        provenance = { wayId: hit.wayId, name: hit.name, state: hit.state }
-      }
+    if (path && hit) {
+      added = toDrawPrecision(path.slice(1))
+      provenance = { wayId: hit.wayId, name: hit.name, state: hit.state }
     }
     const from = points.length - 1
     points = dropRepeatedPoints([...points, ...added])

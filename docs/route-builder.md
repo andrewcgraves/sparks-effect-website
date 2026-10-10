@@ -49,6 +49,10 @@ backs the `toCustom` hover guide, and in easy mode appends `walk(prev, clicked)`
 feature with `updateFeatureGeometry` (a lone first point is shown as a point feature); a failed
 walk inserts the straight span and flags it. Advanced mode keeps the same snap but lets Shift
 bypass it, appends straight spans, and exposes terra-draw's select mode (drag, midpoint, delete).
+Because OSM maps each track of double track as its own way, the graph links every node to the
+nearest point of any other way running parallel within 8 m (at the real distance across, so a
+walk crosses only where it must), and an easy-mode click tries the nearest point of each of the
+three nearest ways (`nearestPoints`) in turn, keeping the first that `walk` can reach.
 
 ## Phases (dependency order, all post-launch)
 

@@ -5,6 +5,9 @@ import type { Map as MapLibreMap } from 'maplibre-gl'
 import type { Feature, LineString, Point } from 'geojson'
 import { FRESNO_BBOX, fresnoPoint, fresnoTiles } from '../fixtures/rail/fresno'
 import type { RecordingSource } from '../fixtures/rail/fresno'
+import { encodeTile, syntheticSource } from '../fixtures/rail/mvt'
+import type { RailTileSource } from '../rail/railGraph'
+import { pixelToLngLat } from '../rail/tileMath'
 
 // A fake of the terra-draw 1.37 surface the editor relies on: a store of
 // features keyed by id, the mode registry, select/finish events, and the
@@ -12,7 +15,7 @@ import type { RecordingSource } from '../fixtures/rail/fresno'
 // options, which are what a click goes through. `click` below replays the
 // order the real mode uses: the snap callback for the hover guide, then the
 // pointer-event gate for the click itself.
-const { fakes, tileSources, tileFailures } = vi.hoisted(() => {
+const { fakes, tileSources, tileFailures, tileOverride } = vi.hoisted(() => {
   type Listener = (...args: unknown[]) => void
   type Options = Record<string, unknown>
   class FakeMode {
@@ -133,7 +136,9 @@ const { fakes, tileSources, tileFailures } = vi.hoisted(() => {
   const fakes = { FakeTerraDraw, FakeMode, instances: [] as InstanceType<typeof FakeTerraDraw>[] }
   const tileSources: RecordingSource[] = []
   const tileFailures = { remaining: 0 }
-  return { fakes, tileSources, tileFailures }
+  // Hand-built tiles served in place of the Fresno ones, for one spec.
+  const tileOverride = { source: null as RailTileSource | null }
+  return { fakes, tileSources, tileFailures, tileOverride }
 })
 
 vi.mock('maplibre-gl', () => ({ addProtocol: vi.fn() }))
@@ -176,6 +181,7 @@ vi.mock('../rail/pmtilesSource', () => ({
         tileFailures.remaining--
         throw new Error('tile fetch failed')
       }
+      if (tileOverride.source) return tileOverride.source.tile(z, x, y)
       return tile(z, x, y)
     }
     tileSources.push(source)
@@ -314,6 +320,7 @@ describe('useRouteEditor', () => {
     fakes.instances.length = 0
     tileSources.length = 0
     tileFailures.remaining = 0
+    tileOverride.source = null
   })
 
   afterEach(() => {
@@ -495,6 +502,47 @@ describe('useRouteEditor', () => {
       expect(editor.spans.value).toEqual([{ from: 0, to: 1, provenance: 'free' }])
       expect(editor.freeSpanCount.value).toBe(1)
       expect(editor.lastSnap.value).toEqual({ kind: 'free' })
+    })
+
+    // SPA-90: OSM maps double track as two ways that meet only at crossovers,
+    // and a click nearer the other track used to be drawn straight, flagged.
+    it('follows the railway when the next click lands on the other track of double track', async () => {
+      const { editor, draw, coordinates } = await setUp()
+      editor.start()
+      click(draw, onDraw(fresnoPoint(2740, 6392, 4087, 2140)))
+      click(draw, onDraw(fresnoPoint(2740, 6392, 3955, 1930)))
+
+      const points = coordinates.value
+      expect(points.length).toBeGreaterThan(2)
+      const graph = await RailGraph.load(fresnoTiles(), FRESNO_BBOX)
+      for (const point of points) expect(graph.nearestPoint(point, 1)?.offsetM).toBeLessThan(0.01)
+      expect(editor.spans.value).toHaveLength(1)
+      expect(editor.spans.value[0].provenance).toMatchObject({ wayId: 221323617, name: 'BNSF Stockton Subdivision' })
+      expect(editor.freeSpanCount.value).toBe(0)
+      expect(editor.lastSnap.value).toEqual({ kind: 'snapped', label: 'Snapped to BNSF Stockton Subdivision' })
+    })
+
+    it('snaps a click to the railway the route can reach when one it cannot is nearer', async () => {
+      // Two tracks 40 px (≈19 m) apart, too far to be linked, never meeting.
+      const g = (x: number, y: number): [number, number] => [2740 * 4096 + x, 6391 * 4096 + y]
+      const at = (x: number, y: number): LngLat => onDraw(pixelToLngLat(g(x, y), 14, 4096))
+      const ways = [
+        { id: 21, props: { railway: 'rail', name: 'First Line' }, pixels: [g(1000, 1000), g(2000, 1000), g(3000, 1000)] },
+        { id: 22, props: { railway: 'rail', name: 'Second Line' }, pixels: [g(1000, 1040), g(2000, 1040), g(3000, 1040)] },
+      ]
+      tileOverride.source = syntheticSource({ '14/2740/6391': encodeTile(2740, 6391, ways) })
+      const { editor, draw, coordinates } = await setUp()
+      editor.start()
+      click(draw, at(1200, 1000))
+      const { guide } = click(draw, at(2500, 1025))
+
+      const graph = await RailGraph.load(tileOverride.source, FRESNO_BBOX)
+      expect(onDraw(guide)).toEqual(onDraw(graph.nearestPoint(at(2500, 1040), 1)!.point))
+      expect(coordinates.value.at(-1)).toEqual(onDraw(graph.nearestPoint(at(2500, 1000), 1)!.point))
+      expect(editor.spans.value).toHaveLength(1)
+      expect(editor.spans.value[0].provenance).toMatchObject({ wayId: 21, name: 'First Line' })
+      expect(editor.freeSpanCount.value).toBe(0)
+      expect(editor.lastSnap.value).toEqual({ kind: 'snapped', label: 'Snapped to First Line' })
     })
 
     it('takes no click off the railways while they are still loading, and snaps once they are in', async () => {
