@@ -254,8 +254,8 @@ describe('IsochroneForm', () => {
 
     expect((wrapper.find('input[data-testid="lat"]').element as HTMLInputElement).value).toBe('45.5231')
     expect((wrapper.find('input[data-testid="lng"]').element as HTMLInputElement).value).toBe('-122.6784')
-    expect(wrapper.find('[data-testid="selected-label"]').text()).toBe(suggestion.label)
     expect(wrapper.find('.address-autocomplete input').element as HTMLInputElement).toHaveProperty('value', suggestion.label)
+    expect(wrapper.find('[data-testid="selected-label"]').exists()).toBe(false)
 
     const emissions = wrapper.emitted<[{ lat: number; lng: number } | null]>('origin-change')!
     const lastEmit = emissions[emissions.length - 1][0]
@@ -272,7 +272,6 @@ describe('IsochroneForm', () => {
 
     expect((wrapper.find('input[data-testid="lat"]').element as HTMLInputElement).value).toBe('45.5231')
     expect((wrapper.find('input[data-testid="lng"]').element as HTMLInputElement).value).toBe('-122.6784')
-    expect(wrapper.find('[data-testid="selected-label"]').exists()).toBe(false)
     expect((wrapper.find('.address-autocomplete input').element as HTMLInputElement).value).toBe('')
   })
 
@@ -466,20 +465,19 @@ describe('IsochroneForm', () => {
       expect(wrapper.emitted('submit')).toBeUndefined()
     })
 
-    it('clears the address field and label on a map pick, so no stale name contradicts the coords', async () => {
+    it('clears the address field on a map pick, so no stale name contradicts the coords', async () => {
       vi.mocked(getCurrentPosition).mockResolvedValue({ lat: 51.5074, lng: -0.1278 })
       vi.mocked(reverseGeocode).mockResolvedValue({ label: 'London, England', lat: 51.5074, lng: -0.1278 })
 
       const wrapper = mount(IsochroneForm)
       await wrapper.find('[data-testid="use-current-location"]').trigger('click')
       await flushPromises()
-      expect(wrapper.find('[data-testid="selected-label"]').exists()).toBe(true)
+      expect((wrapper.find('.address-autocomplete input').element as HTMLInputElement).value).toBe('London, England')
 
       await pickButton(wrapper).trigger('click')
 
       await pickOnMap(wrapper, { lat: 45.5231, lng: -122.6784 })
 
-      expect(wrapper.find('[data-testid="selected-label"]').exists()).toBe(false)
       expect((wrapper.find('.address-autocomplete input').element as HTMLInputElement).value).toBe('')
     })
 

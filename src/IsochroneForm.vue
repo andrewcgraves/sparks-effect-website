@@ -50,7 +50,6 @@ const { initial } = props
 const lat = ref(initial.lat === undefined ? '' : String(initial.lat))
 const lng = ref(initial.lng === undefined ? '' : String(initial.lng))
 const duration = ref(initial.duration ?? DEFAULT_DURATION)
-const selectedLabel = ref('')
 const locationError = ref('')
 const locating = ref(false)
 const mode = ref<TravelMode>(initial.mode ?? DEFAULT_MODE)
@@ -106,7 +105,6 @@ function setOriginFromMap(coord: { lat: number; lng: number }) {
   pickArmed.value = false
   lat.value = String(coord.lat)
   lng.value = String(coord.lng)
-  selectedLabel.value = ''
   addressAutocompleteRef.value?.setInputValue('')
 }
 
@@ -116,7 +114,6 @@ function onAutocompleteSelect(suggestion: GeocodingSuggestion) {
   pickArmed.value = false
   lat.value = String(suggestion.lat)
   lng.value = String(suggestion.lng)
-  selectedLabel.value = suggestion.label
 }
 
 async function onUseCurrentLocation() {
@@ -135,13 +132,7 @@ async function onUseCurrentLocation() {
     const suggestion = await reverseGeocode(position.lat, position.lng)
     if (requestId !== locationRequestId) return
     if (lat.value !== String(position.lat) || lng.value !== String(position.lng)) return
-    if (suggestion) {
-      selectedLabel.value = suggestion.label
-      addressAutocompleteRef.value?.setInputValue(suggestion.label)
-    } else {
-      selectedLabel.value = ''
-      addressAutocompleteRef.value?.setInputValue('')
-    }
+    addressAutocompleteRef.value?.setInputValue(suggestion?.label ?? '')
   } catch {
     if (requestId !== locationRequestId) return
     locationError.value = 'Unable to get your current location.'
@@ -237,13 +228,6 @@ function handleSubmit() {
         data-testid="location-error"
       >
         {{ locationError }}
-      </p>
-      <p
-        v-if="selectedLabel"
-        class="font-body text-caption text-ink-muted italic"
-        data-testid="selected-label"
-      >
-        {{ selectedLabel }}
       </p>
     </div>
 
