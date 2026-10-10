@@ -12,10 +12,14 @@ export interface RecordingSource extends RailTileSource {
 
 export function fresnoTiles(): RecordingSource {
   // The four z14 tiles 2739–2740 × 6391–6392 of the spike's canv-rail.pmtiles
-  // (CA+NV, Geofabrik 2026-10-09, osmium + tippecanoe 2.72 per
-  // spike-rail-data.md §3, decompressed with PMTiles.getZxy): downtown Fresno,
-  // where the UP Fresno Subdivision, BNSF Stockton Subdivision and the CAHSR
-  // Construction Package 1 alignment all cross the tile boundaries.
+  // (CA+NV, Geofabrik 2026-10-09; osmium tags-filter/export with "id": true,
+  // then tippecanoe 2.72 `-l rail -Z 4 -z 14 --use-attribute-for-id=@id
+  // --simplify-only-low-zooms --no-feature-limit --no-tile-size-limit` at the
+  // default 5/256 buffer; each tile decompressed with PMTiles.getZxy):
+  // downtown Fresno, where the UP Fresno Subdivision, BNSF Stockton
+  // Subdivision and the CAHSR Construction Package 1 alignment all cross the
+  // tile boundaries. z14 being unsimplified is what keeps the two tiles'
+  // crossings of one way within RailGraph's merge distance of each other.
   const requested: string[] = []
   return {
     requested,

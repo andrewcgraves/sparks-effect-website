@@ -153,6 +153,35 @@ describe('RailGraph on hand-built tiles', () => {
     expect(graph.walk(a, at(2000, 2100), 1_000_000)).toBeNull()
   })
 
+  it('adds nothing for a way that only touches a tile at its edge or corner', async () => {
+    // A vertex exactly on the L/R seam: L sees the way leave from it and R
+    // sees it arrive, and neither piece has any length inside the square.
+    const onSeam: SyntheticWay = {
+      id: 5,
+      props: { railway: 'rail' },
+      pixels: [g(3500, 1000), g(EXTENT, 1000), g(EXTENT + 500, 1000)],
+    }
+    // Passes through L's south-east corner without entering it.
+    const corner: SyntheticWay = {
+      id: 6,
+      props: { railway: 'rail' },
+      pixels: [g(EXTENT + 100, EXTENT - 100), g(EXTENT - 100, EXTENT + 100)],
+    }
+    const source = syntheticSource({
+      [`${ZOOM}/${L}/${Y}`]: encodeTile(L, Y, [onSeam, corner]),
+      [`${ZOOM}/${R}/${Y}`]: encodeTile(R, Y, [onSeam]),
+    })
+    const left = await RailGraph.load(source, leftBbox)
+    expect(left.nodeCount).toBe(2)
+    expect(left.edgeCount).toBe(1)
+    const both = await RailGraph.load(source, bothBbox)
+    expect(both.nodeCount).toBe(3)
+    expect(both.edgeCount).toBe(2)
+    const a = both.nearestPoint(at(3600, 1000), 10)!.point
+    const b = both.nearestPoint(at(EXTENT + 400, 1000), 10)!.point
+    expect(pixelsOf(both.walk(a, b, 10_000)!)).toEqual([[3600, 1000], [EXTENT, 1000], [EXTENT + 400, 1000]])
+  })
+
   it('fetches each tile once across load and extend', async () => {
     const requested: string[] = []
     const counting = {

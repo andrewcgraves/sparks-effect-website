@@ -218,14 +218,17 @@ export class RailGraph {
     const [t0, t1] = span
     const dx = bx - ax
     const dy = by - ay
-    const ox = tileX * this.extent
-    const oy = tileY * this.extent
-    const nodeA = t0 === 0
-      ? this.vertexNode(ox + ax, oy + ay)
-      : this.boundaryNode(way, ox + ax + t0 * dx, oy + ay + t0 * dy)
-    const nodeB = t1 === 1
-      ? this.vertexNode(ox + bx, oy + by)
-      : this.boundaryNode(way, ox + ax + t1 * dx, oy + ay + t1 * dy)
+    const x0 = tileX * this.extent + ax + t0 * dx
+    const y0 = tileY * this.extent + ay + t0 * dy
+    const x1 = tileX * this.extent + ax + t1 * dx
+    const y1 = tileY * this.extent + ay + t1 * dy
+    // A way that only touches the square — a vertex on its edge with the way
+    // leaving from there, or a pass through a corner — has nothing inside it.
+    // A vertex and a crossing at one spot are different nodes, so the check is
+    // on the points, before either node exists.
+    if (Math.hypot(x1 - x0, y1 - y0) < COINCIDENT_PX) return
+    const nodeA = t0 === 0 ? this.vertexNode(x0, y0) : this.boundaryNode(way, x0, y0)
+    const nodeB = t1 === 1 ? this.vertexNode(x1, y1) : this.boundaryNode(way, x1, y1)
     if (nodeA === nodeB) return
     this.addEdge(way, nodeA, nodeB)
   }
