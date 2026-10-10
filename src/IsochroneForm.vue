@@ -186,7 +186,7 @@ function handleSubmit() {
         <template #trailing>
           <button
             type="button"
-            class="flex aspect-square shrink-0 cursor-pointer items-center justify-center rounded-(--radius-field) border border-border bg-white text-ink-muted transition-colors duration-200 ease-(--ease-smooth) hover:border-coral hover:text-coral disabled:cursor-not-allowed disabled:opacity-50"
+            class="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-(--radius-field) border border-border bg-white text-ink-muted transition-colors duration-200 ease-(--ease-smooth) hover:border-coral hover:text-coral disabled:cursor-not-allowed disabled:opacity-50"
             data-testid="use-current-location"
             aria-label="Use my location"
             title="Use my location"

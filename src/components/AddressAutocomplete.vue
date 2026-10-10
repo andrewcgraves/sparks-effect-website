@@ -120,12 +120,12 @@ defineExpose({ setInputValue })
     >
       Location
     </label>
-    <div class="flex items-stretch gap-2">
+    <div class="flex items-center gap-2">
       <div class="relative min-w-0 flex-1">
         <input
           :id="inputId"
           v-model="inputValue"
-          :class="[FIELD_INPUT_CLASS, 'w-full placeholder:text-placeholder']"
+          :class="[FIELD_INPUT_CLASS, 'h-9 w-full placeholder:text-placeholder']"
           type="text"
           placeholder="Start typing a place name"
           autocomplete="off"
