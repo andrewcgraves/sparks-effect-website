@@ -11,7 +11,7 @@
   --color-apricot: #ef9261;
   --color-slate: #1e293b;
 
-  --color-focus: var(--color-coral);
+  --color-focus: var(--color-ink);
 
   --color-data-origin: #1034b1;
   --color-data-egress: #f28f29;
@@ -67,5 +67,5 @@
   --page-padding: 32px var(--page-gutter) 96px;
   --ease-smooth: cubic-bezier(0.2, 0.8, 0.2, 1);
   --focus-ring-width: 2px;
-  --focus-ring-offset: 3px;
+  --focus-ring-offset: 2px;
 }
