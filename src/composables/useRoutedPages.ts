@@ -1,4 +1,4 @@
-import { computed } from 'vue'
+import { computed, type ComputedRef } from 'vue'
 import { useRouter } from 'vue-router'
 
 export interface SitePage {
@@ -14,4 +14,11 @@ export function useRoutedPages(pages: readonly SitePage[]) {
     const paths = new Set(router.getRoutes().map((route) => route.path))
     return pages.filter((page) => paths.has(page.path))
   })
+}
+
+// The same rule for one page mentioned in prose: the sentence linking it
+// appears only once there is a page to link.
+export function useRoutedPath(path: string): ComputedRef<boolean> {
+  const router = useRouter()
+  return computed(() => router.getRoutes().some((route) => route.path === path))
 }

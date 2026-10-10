@@ -16,6 +16,14 @@ declare module 'vue-router' {
 
 export const router = createRouter({
   history: createWebHistory(),
+  scrollBehavior(to, from, savedPosition) {
+    if (savedPosition) return savedPosition
+    if (to.hash) return { el: to.hash }
+    // A plot writes its query to the URL on the same path; jumping to the top
+    // there would scroll the map away from under the visitor.
+    if (to.path !== from.path) return { top: 0 }
+    return false
+  },
   routes: [
     {
       path: '/',
@@ -127,6 +135,24 @@ export const router = createRouter({
       component: () => import('../views/RouteView.vue'),
       props: true,
       meta: { title: 'Route' },
+    },
+    {
+      path: '/privacy',
+      name: 'privacy',
+      component: () => import('../views/PrivacyView.vue'),
+      meta: { title: 'Privacy policy' },
+    },
+    {
+      path: '/terms',
+      name: 'terms',
+      component: () => import('../views/TermsView.vue'),
+      meta: { title: 'Terms of use' },
+    },
+    {
+      path: '/attribution',
+      name: 'attribution',
+      component: () => import('../views/AttributionView.vue'),
+      meta: { title: 'Attribution' },
     },
     {
       path: '/:pathMatch(.*)*',

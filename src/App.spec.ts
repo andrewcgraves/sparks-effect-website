@@ -57,6 +57,26 @@ describe('App routing', () => {
     expect(wrapper.find('[data-testid="nav-home"]').exists()).toBe(true)
   })
 
+  it('links Privacy, Terms and Attribution from the footer', async () => {
+    const wrapper = mount(App, { global: { plugins: [router] } })
+    await flushPromises()
+    const links = wrapper.findAll('[data-testid="footer-links"] a').map((link) => [link.text(), link.attributes('href')])
+    expect(links).toContainEqual(['Privacy', '/privacy'])
+    expect(links).toContainEqual(['Terms', '/terms'])
+    expect(links).toContainEqual(['Attribution', '/attribution'])
+    expect(wrapper.get('[data-testid="agencies-link"]').attributes('href')).toBe('/attribution#transit-schedules')
+  })
+
+  it('renders each legal page, dated, to a signed-out visitor', async () => {
+    for (const [path, heading] of [['/privacy', 'Privacy policy'], ['/terms', 'Terms of use'], ['/attribution', 'Attribution']]) {
+      await router.push(path)
+      const wrapper = mount(App, { global: { plugins: [router] } })
+      await flushPromises()
+      expect(wrapper.get('h1').text()).toBe(heading)
+      expect(wrapper.find('[data-testid="page-updated"] time').exists()).toBe(true)
+    }
+  })
+
   it('hosts the shared confirm dialog and toast region on every page', async () => {
     const wrapper = mount(App, { global: { plugins: [router] } })
     await flushPromises()
