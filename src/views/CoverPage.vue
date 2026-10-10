@@ -15,6 +15,8 @@ import VariantD from './home-prototype/VariantD.vue'
 import VariantE from './home-prototype/VariantE.vue'
 import VariantF from './home-prototype/VariantF.vue'
 import VariantG from './home-prototype/VariantG.vue'
+import VariantH from './home-prototype/VariantH.vue'
+import VariantI from './home-prototype/VariantI.vue'
 
 const VARIANTS = [
   { key: '0', label: 'Current page' },
@@ -25,8 +27,10 @@ const VARIANTS = [
   { key: 'E', label: 'Lines first' },
   { key: 'F', label: 'Picture first' },
   { key: 'G', label: 'Side by side' },
+  { key: 'H', label: 'Post' },
+  { key: 'I', label: 'Cover' },
 ]
-const PROTOTYPES: Record<string, Component> = { A: VariantA, B: VariantB, C: VariantC, D: VariantD, E: VariantE, F: VariantF, G: VariantG }
+const PROTOTYPES: Record<string, Component> = { A: VariantA, B: VariantB, C: VariantC, D: VariantD, E: VariantE, F: VariantF, G: VariantG, H: VariantH, I: VariantI }
 const FORCED: ForcedState[] = ['none', 'one-failed', 'both-failed', 'empty']
 const route = useRoute()
 // The existing specs mount this page with no query; they keep seeing the real page.
