@@ -26,9 +26,9 @@ body {
   min-height: 100svh;
 }
 
-/* A thin ink ring just off the element, so keyboard focus reads as an edge
-   rather than a halo. Text fields opt out in FIELD_INPUT_CLASS and darken
-   their own border instead. */
+/* A hairline just off the element, so keyboard focus reads as an edge rather
+   than a halo. Text fields opt out in FIELD_INPUT_CLASS and darken their own
+   border instead. */
 *:focus-visible {
   outline: var(--focus-ring-width) solid var(--color-focus);
   outline-offset: var(--focus-ring-offset);
