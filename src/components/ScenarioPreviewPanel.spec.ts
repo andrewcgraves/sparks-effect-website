@@ -266,4 +266,104 @@ describe('ScenarioPreviewPanel', () => {
       expect(wrapper.emitted('join')).toBeUndefined()
     })
   })
+
+  // SPA-429: a host page that gives the screen to the map asks for the phone
+  // layout; the panel itself does not read the window, so the authored detail
+  // pages — desktop pages for launch — keep the stacked layout at any width.
+  describe('on a phone', () => {
+    const nearMiss: NearMiss = {
+      a: { service_id: 'svc-1', slug: 'union', name: 'Union' },
+      b: { service_id: 'svc-2', slug: 'union-square', name: 'Union Square' },
+      distance_m: 140,
+    }
+
+    function mountPhone(props: Record<string, unknown> = {}, slots: Record<string, string> = {}) {
+      return mount(ScenarioPreviewPanel, {
+        props: { ...defaultProps, phone: true, title: 'Northbound Express', ...props },
+        slots,
+        global: { stubs: { MapView: true } },
+      })
+    }
+
+    function tabNamed(wrapper: ReturnType<typeof mountPhone>, label: string) {
+      return wrapper.findAll('[role="tab"]').find((tab) => tab.text() === label)
+    }
+
+    function tabLabels(wrapper: ReturnType<typeof mountPhone>) {
+      return wrapper.findAll('[role="tab"]').map((tab) => tab.text())
+    }
+
+    it('shows the map with the plot form and results in a tabbed panel, titled by the host', () => {
+      const wrapper = mountPhone()
+      expect(wrapper.find('[data-testid="phone-map-page"]').exists()).toBe(true)
+      expect(wrapper.get('h1').text()).toBe('Northbound Express')
+      expect(tabLabels(wrapper)).toEqual(['Plot', 'Results'])
+      expect(wrapper.find('form').exists()).toBe(true)
+      expect(tabNamed(wrapper, 'Results')!.attributes('disabled')).toBeDefined()
+    })
+
+    it('stays stacked unless the host asks for the phone layout', () => {
+      window.innerWidth = 390
+      try {
+        expect(mountPanel({ MapView: true }).find('[data-testid="phone-map-page"]').exists()).toBe(false)
+      } finally {
+        window.innerWidth = 1024
+      }
+    })
+
+    it('turns to Results once a splash zone is plotted', async () => {
+      const wrapper = mountPhone({ mapStations: stations })
+      await wrapper.setProps({ isochroneData })
+
+      expect(tabNamed(wrapper, 'Results')!.attributes('aria-selected')).toBe('true')
+      const card = wrapper.get('[data-testid="time-remaining"]')
+      expect(card.text()).toContain('San Francisco')
+      expect((card.element.closest('[role="tabpanel"]') as HTMLElement).style.display).not.toBe('none')
+    })
+
+    // A refused plot clears the splash zone and says why in the form, so a
+    // panel left on an empty Results tab would hide the explanation.
+    it('returns to Plot when the splash zone is cleared', async () => {
+      const wrapper = mountPhone({ mapStations: stations })
+      await wrapper.setProps({ isochroneData })
+      expect(tabNamed(wrapper, 'Results')!.attributes('aria-selected')).toBe('true')
+
+      await wrapper.setProps({ isochroneData: null })
+
+      expect(tabNamed(wrapper, 'Plot')!.attributes('aria-selected')).toBe('true')
+      expect(tabNamed(wrapper, 'Results')!.attributes('disabled')).toBeDefined()
+    })
+
+    it('adds an Interchanges tab when stops did not connect', async () => {
+      const wrapper = mountPhone({ nearMisses: [nearMiss], services: [{ id: 'svc-1', name: 'Red' }, { id: 'svc-2', name: 'Blue' }] })
+      expect(tabLabels(wrapper)).toEqual(['Plot', 'Results', 'Interchanges'])
+
+      await tabNamed(wrapper, 'Interchanges')!.trigger('click')
+
+      const list = wrapper.get('[data-testid="near-miss-list"]')
+      expect(list.text()).toContain('Union (Red) and Union Square (Blue)')
+      expect((list.element.closest('[role="tabpanel"]') as HTMLElement).style.display).not.toBe('none')
+    })
+
+    it("adds the host's tabs after its own, filled from the host's slots", async () => {
+      const wrapper = mountPhone(
+        { phoneTabs: [{ key: 'stops', label: 'Stops' }] },
+        { 'phone-stops': '<ol data-testid="host-stops"><li>Union</li></ol>' },
+      )
+      expect(tabLabels(wrapper)).toEqual(['Plot', 'Results', 'Stops'])
+
+      await tabNamed(wrapper, 'Stops')!.trigger('click')
+
+      const stops = wrapper.get('[data-testid="host-stops"]')
+      expect((stops.element.closest('[role="tabpanel"]') as HTMLElement).style.display).not.toBe('none')
+    })
+
+    it('gives the map room while the visitor picks an origin on it', async () => {
+      const wrapper = mountPhone()
+      await wrapper.find('[data-testid="pick-on-map"]').trigger('click')
+
+      expect(wrapper.findComponent({ name: 'MapView' }).props('placementArmed')).toBe(true)
+      expect(wrapper.get('[data-testid="phone-panel-toggle"]').attributes('aria-expanded')).toBe('false')
+    })
+  })
 })

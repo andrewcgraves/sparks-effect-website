@@ -324,4 +324,70 @@ describe('PublishedServiceView', () => {
       expect(wrapper.find('[data-testid="copy-link"]').exists()).toBe(true)
     })
   })
+
+  // SPA-429: a shared link is mostly opened on a phone, where the page is the
+  // map with everything else behind the panel's tabs.
+  describe('on a phone', () => {
+    beforeEach(() => {
+      window.innerWidth = 390
+    })
+
+    afterEach(() => {
+      window.innerWidth = 1024
+    })
+
+    function tabNamed(wrapper: ReturnType<typeof mountView>, label: string) {
+      return wrapper.findAll('[role="tab"]').find((tab) => tab.text() === label)!
+    }
+
+    it('has no serious or critical accessibility violations with a splash zone plotted', async () => {
+      const router = await testRouterAt('/services/northbound-express?at=37.7,-122.4&mode=bike&mins=75')
+      const wrapper = mount(PublishedServiceView, { props: { slug: 'northbound-express' }, global: { plugins: [router] }, attachTo: document.body })
+      await flushPromises()
+      expect(wrapper.find('[data-testid="phone-map-page"]').exists()).toBe(true)
+      expect(wrapper.findComponent({ name: 'TimeRemaining' }).exists()).toBe(true)
+      expect(await seriousA11yViolations(wrapper)).toEqual([])
+      wrapper.unmount()
+    })
+
+    it('shows the line as a map with Plot, Results, Stops and About tabs', async () => {
+      const wrapper = mountView()
+      await flushPromises()
+      expect(wrapper.get('h1').text()).toBe('Northbound Express')
+      expect(wrapper.findAll('[role="tab"]').map((tab) => tab.text())).toEqual(['Plot', 'Results', 'Stops', 'About'])
+      expect(wrapper.findAll('h1')).toHaveLength(1)
+    })
+
+    it('lists the stops and the time between them behind the Stops tab', async () => {
+      const wrapper = mountView()
+      await flushPromises()
+      await tabNamed(wrapper, 'Stops').trigger('click')
+
+      const rows = wrapper.findAll('[data-testid="service-stop-row"]')
+      expect(rows.map((row) => row.text())).toEqual(['1. Union', '2. Midtown', '3. Uptown'])
+      const panel = rows[0].element.closest('[role="tabpanel"]') as HTMLElement
+      expect(panel.style.display).not.toBe('none')
+      expect(panel.querySelector('[data-testid="time-between-stations"]')).not.toBeNull()
+    })
+
+    it('keeps the description behind the About tab', async () => {
+      const wrapper = mountView()
+      await flushPromises()
+      await tabNamed(wrapper, 'About').trigger('click')
+
+      const description = wrapper.get('[data-testid="service-description"]')
+      expect(description.text()).toContain('Runs the spine.')
+      expect((description.element.closest('[role="tabpanel"]') as HTMLElement).style.display).not.toBe('none')
+    })
+
+    it('turns to Results once a plot lands', async () => {
+      const wrapper = mountView()
+      await flushPromises()
+      await wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('submit', submit)
+      await flushPromises()
+
+      expect(tabNamed(wrapper, 'Results').attributes('aria-selected')).toBe('true')
+      expect(wrapper.findComponent({ name: 'TimeRemaining' }).exists()).toBe(true)
+    })
+  })
 })
