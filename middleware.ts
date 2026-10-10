@@ -19,9 +19,15 @@ interface Shell {
   headers: Headers
 }
 
+// Redirects are not followed: a protected preview deployment answers this
+// fetch with a 302 to Vercel's sign-in, and following it would splice the
+// login page in as the shell.
 async function fetchShell(request: Request): Promise<Shell | null> {
   try {
-    const res = await fetch(new URL('/index.html', request.url), { signal: AbortSignal.timeout(TIMEOUT_MS) })
+    const res = await fetch(new URL('/index.html', request.url), {
+      redirect: 'manual',
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    })
     return res.ok ? { html: await res.text(), headers: res.headers } : null
   } catch {
     return null
@@ -33,8 +39,8 @@ export default async function middleware(request: Request): Promise<Response | u
   const read = anonymousApiRead(process.env.VITE_API_BASE_URL, TIMEOUT_MS)
   const shell = fetchShell(request)
   const html = await renderPreview(new URL(request.url), shell.then((s) => s?.html ?? null), read)
-  // No shell to splice into — a protected preview deployment answers its
-  // fetch 401 — so fall through to the plain rewrite: the page still loads,
+  // No shell to splice into — a protected preview deployment redirects its
+  // fetch to sign-in — so fall through to the plain rewrite: the page still loads,
   // with the build's default card.
   if (html === null) return undefined
   const headers = new Headers({
