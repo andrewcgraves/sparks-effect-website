@@ -81,4 +81,19 @@ describe('middleware', () => {
     expect(res!.body).toBeNull()
     expect(res!.headers.get('X-Frame-Options')).toBe('DENY')
   })
+
+  // A protected preview answers the shell fetch with a 302 to Vercel's sign-in,
+  // whose login page is a 200. Following it would serve that page as ours.
+  it('falls through when the shell fetch is redirected to a sign-in page', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL, init?: RequestInit) => {
+      if (new URL(String(input)).pathname !== '/index.html') return new Response('{}', { status: 404 })
+      if (init?.redirect === 'manual') {
+        return new Response(null, { status: 302, headers: { location: 'https://vercel.com/sso-api' } })
+      }
+      return new Response('<title>Login – Vercel</title>', { headers: { 'content-type': 'text/html' } })
+    }))
+    const res = await middleware(new Request('https://preview.example.app/'))
+
+    expect(res).toBeUndefined()
+  })
 })
