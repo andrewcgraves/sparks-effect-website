@@ -24,6 +24,24 @@ export function formatRunTime(total: number): string {
   return `${minutes}:${String(seconds).padStart(2, '0')}`
 }
 
+export function directionStops(direction: StationTimeDirection): string[] {
+  const { rows } = direction
+  if (!rows.length) return []
+  return [rows[0].from, ...rows.map((row) => row.to)]
+}
+
+export function directionSeconds(direction: StationTimeDirection): number {
+  return direction.rows.reduce((sum, row) => sum + row.seconds, 0)
+}
+
+export function formatTotalTime(total: number): string {
+  // A whole line is summarised to the minute; the hop rows keep m:ss.
+  const minutes = Math.round(total / 60)
+  const hours = Math.floor(minutes / 60)
+  if (!hours) return `${minutes} min`
+  return `${hours} h ${String(minutes % 60).padStart(2, '0')} min`
+}
+
 function nameResolver(entries: [string, string][]): (slug: string) => string {
   const names = new Map(entries)
   return (slug) => names.get(slug) ?? slug

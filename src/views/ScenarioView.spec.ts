@@ -46,6 +46,7 @@ import type { PrerenderedIsochrone } from '../api/prerenderedIsochrones'
 import type { ChainResponse } from '../fixtures/isochrone'
 import { formatTimeRemaining } from '../components/timeRemaining'
 import { busyRegion, visibleText } from '../test/loading'
+import { hopCells } from '../test/stationTimes'
 
 const stubStations: Station[] = [
   {
@@ -419,17 +420,16 @@ describe('ScenarioView', () => {
     expect(fetchScenarioTravelTimes).toHaveBeenCalledWith('ca-hsr')
     expect(wrapper.text()).not.toContain('Speed graph')
     const section = wrapper.get('[data-testid="time-between-stations"]')
-    expect(section.get('[data-testid="station-time-row"]').findAll('td').map((td) => td.text()))
-      .toEqual(['San Francisco', 'San Jose', '40:45'])
+    expect(hopCells(section)[0]).toEqual(['San Francisco', 'San Jose', '40:45'])
   })
 
   // The fixture is one symmetric hop on one route: nothing to toggle between,
-  // and one table needs no heading to be told apart from its neighbours.
-  it('offers no direction toggle or heading for a scenario of one symmetric corridor', async () => {
+  // and with no route name the group is titled by the stations at its ends.
+  it('offers no direction toggle for a scenario of one symmetric corridor', async () => {
     const wrapper = mountScenarioView()
     await flushPromises()
     expect(wrapper.find('[data-testid="direction-toggle"]').exists()).toBe(false)
-    expect(wrapper.find('[data-testid="station-time-group-label"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="station-time-group-label"]').text()).toBe('San Francisco – San Jose')
   })
 
   // The shape the seeded ca-hsr payload actually has: a mainline, then a spur
@@ -486,7 +486,7 @@ describe('ScenarioView', () => {
       })
     })
 
-    it('draws one table per route, each headed with the line it belongs to', async () => {
+    it('draws one group per route, each headed with the line it belongs to', async () => {
       const wrapper = mountScenarioView()
       await flushPromises()
       const groups = wrapper.findAll('[data-testid="station-time-group"]')
@@ -498,9 +498,9 @@ describe('ScenarioView', () => {
       const wrapper = mountScenarioView()
       await flushPromises()
       const groups = wrapper.findAll('[data-testid="station-time-group"]')
-      expect(groups[0].findAll('[data-testid="direction-toggle"]').map((b) => b.text()))
+      expect(groups[0].findAll('[data-testid="direction-toggle"] label').map((b) => b.text()))
         .toEqual(['To Anaheim', 'To San Francisco'])
-      expect(groups[1].findAll('[data-testid="direction-toggle"]').map((b) => b.text()))
+      expect(groups[1].findAll('[data-testid="direction-toggle"] label').map((b) => b.text()))
         .toEqual(['To Las Vegas', 'To Palmdale'])
     })
 
@@ -510,9 +510,8 @@ describe('ScenarioView', () => {
       const wrapper = mountScenarioView()
       await flushPromises()
       const mainline = wrapper.findAll('[data-testid="station-time-group"]')[0]
-      await mainline.findAll('[data-testid="direction-toggle"]')[1].trigger('click')
-      expect(mainline.findAll('[data-testid="station-time-row"]')
-        .map((row) => row.findAll('td').map((td) => td.text())))
+      await mainline.get('[data-testid="direction-toggle-option-1"]').setValue(true)
+      expect(hopCells(mainline))
         .toEqual([
           ['Anaheim', 'Palmdale', '20:00'],
           ['Palmdale', 'San Jose', '40:00'],

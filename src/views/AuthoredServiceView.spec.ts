@@ -53,6 +53,7 @@ import { useConfirmHost } from '../composables/useConfirm'
 import { fetchServicePublication, publishService, type ServicePublication } from '../api/publications'
 import { PUBLISH_COMPILE_FAILED } from '../composables/usePublication'
 import { busyRegion, visibleText } from '../test/loading'
+import { hopCells } from '../test/stationTimes'
 
 const Stub = { template: '<div>stub</div>' }
 
@@ -290,8 +291,7 @@ describe('AuthoredServiceView', () => {
 
     const section = wrapper.get('[data-testid="time-between-stations"]')
     expect(section.get('[data-testid="station-time-group-label"]').text()).toBe('Northbound Express')
-    expect(section.get('[data-testid="station-time-row"]').findAll('td').map((td) => td.text()))
-      .toEqual(['Union', 'Midtown', '1:00'])
+    expect(hopCells(section)[0]).toEqual(['Union', 'Midtown', '1:00'])
   })
 
   it('keeps the run times beside the stops and vehicle cards, not below them', async () => {
@@ -319,9 +319,8 @@ describe('AuthoredServiceView', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    await wrapper.findAll('[data-testid="direction-toggle"]')[1].trigger('click')
-    expect(wrapper.get('[data-testid="station-time-row"]').findAll('td').map((td) => td.text()))
-      .toEqual(['Midtown', 'Union', '1:15'])
+    await wrapper.get('[data-testid="direction-toggle-option-1"]').setValue(true)
+    expect(hopCells(wrapper)[0]).toEqual(['Midtown', 'Union', '1:15'])
   })
 
   it('draws the service along its route alignment, not chords between stops', async () => {
