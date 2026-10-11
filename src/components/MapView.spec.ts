@@ -891,6 +891,49 @@ describe('MapView', () => {
     expect(mockFitBounds).not.toHaveBeenCalled()
   })
 
+  it('offers no recenter button before the map has loaded', () => {
+    const wrapper = mount(MapView, { props: { ...defaultProps, routes: [stubRoute] } })
+    expect(wrapper.find('[data-testid="map-recenter"]').exists()).toBe(false)
+  })
+
+  it('offers no recenter button when there is no route to recenter on', async () => {
+    const wrapper = mount(MapView, { props: defaultProps })
+    await triggerMapLoad()
+    expect(wrapper.find('[data-testid="map-recenter"]').exists()).toBe(false)
+  })
+
+  it('animates the map back to the route frame when recenter is pressed', async () => {
+    const wrapper = mount(MapView, { props: { ...defaultProps, routes: [stubRoute] } })
+    await triggerMapLoad()
+    mockFitBounds.mockClear()
+
+    const button = wrapper.get('[data-testid="map-recenter"]')
+    expect(button.attributes('aria-label')).toBe('Recenter map on the route')
+    await button.trigger('click')
+
+    expect(mockFitBounds).toHaveBeenCalledOnce()
+    expect(mockFitBounds).toHaveBeenCalledWith(
+      stubRouteCorners,
+      expect.objectContaining({
+        duration: 800,
+        maxZoom: 11,
+        padding: expect.objectContaining({ top: 56, bottom: 112, left: 56, right: 56 }),
+      }),
+    )
+  })
+
+  it('recenters on the route rather than the plot when a plot is drawn', async () => {
+    const wrapper = mount(MapView, {
+      props: { ...defaultProps, routes: [stubRoute], isochroneData: staticIsochroneResponse },
+    })
+    await triggerMapLoad()
+    mockFitBounds.mockClear()
+
+    await wrapper.get('[data-testid="map-recenter"]').trigger('click')
+
+    expect(mockFitBounds).toHaveBeenCalledWith(stubRouteCorners, expect.anything())
+  })
+
   it('prefers the isochrone frame over route bounds when isochroneData is also provided', async () => {
     mount(MapView, {
       props: { ...defaultProps, routes: [stubRoute], isochroneData: staticIsochroneResponse },

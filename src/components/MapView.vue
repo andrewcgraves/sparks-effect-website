@@ -124,6 +124,20 @@ function fitMapToRoutes(): boolean {
   return fitted
 }
 
+// The rider asked for it, so the frame moves visibly rather than jumping, and
+// it is the network's frame even with a plot drawn: that is what was asked for.
+function recenterOnRoutes(): void {
+  const corners = routeBoundsCorners(props.routes)
+  if (!map || !corners) return
+  map.fitBounds(corners, {
+    padding: MAP_FIT_PADDING,
+    duration: 800,
+    maxZoom: 11,
+  })
+}
+
+const canRecenter = computed(() => isMapLoaded.value && props.routes.length > 0)
+
 function fitMapToDefaultView(): void {
   if (fitMapToRoutes()) return
   fitMapToStaticFallback()
@@ -367,6 +381,37 @@ onUnmounted(() => {
       <span>{{ loadingMessage ?? 'Waiting…' }}</span>
     </div>
     
+    <!-- Sits in MapLibre's top-right control column, one 29px button and its
+         10px margin below the fullscreen control. -->
+    <button
+      v-if="canRecenter"
+      type="button"
+      class="absolute top-[49px] right-2.5 z-1 flex size-[29px] cursor-pointer items-center justify-center rounded-(--radius-field) bg-white text-ink shadow-(--shadow-panel) hover:text-coral"
+      aria-label="Recenter map on the route"
+      title="Recenter on the route"
+      data-testid="map-recenter"
+      @click="recenterOnRoutes"
+    >
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 20 20"
+        class="size-[18px] fill-none stroke-current stroke-[1.75]"
+      >
+        <circle
+          cx="10"
+          cy="10"
+          r="5.5"
+        />
+        <circle
+          cx="10"
+          cy="10"
+          r="1.5"
+          class="fill-current"
+        />
+        <path d="M10 1.5v3M10 15.5v3M1.5 10h3M15.5 10h3" />
+      </svg>
+    </button>
+
     <p
       v-if="placementArmed && placementCue"
       class="font-body text-caption pointer-events-none absolute top-3 left-3 z-1 rounded-(--radius-field) bg-white/92 px-3 py-2 text-ink shadow-(--shadow-panel)"
