@@ -1,7 +1,7 @@
 # sparks-effect-website
 
 Vue (Vite) frontend for the Sparks Effect isochrone map — visualizing "splash zones" reachable by
-walking, biking, transit, and driving from an imaginary transit route, talking to a Go API proxy.
+walking, biking, transit, and driving from an imaginary transit line, talking to a Go API proxy.
 
 ## Branching and releases
 
