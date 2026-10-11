@@ -18,9 +18,25 @@ describe('SiteFooter', () => {
     vi.unstubAllEnvs()
   })
 
-  it('credits OpenStreetMap for the map data', () => {
-    const osm = mountFooter().get('a[href="https://www.openstreetmap.org/copyright"]')
+  it('credits OpenStreetMap for the map data, naming its licence', () => {
+    const footer = mountFooter()
+    const osm = footer.get('a[href="https://www.openstreetmap.org/copyright"]')
     expect(osm.text()).toBe('OpenStreetMap')
+    const odbl = footer.get('a[href="https://opendatacommons.org/licenses/odbl/1-0/"]')
+    expect(odbl.text()).toBe('ODbL')
+  })
+
+  it('credits 511 in its required words, whatever else is on the page', () => {
+    const credit = mountFooter().get('[data-testid="credit-511"]')
+    expect(credit.text()).toBe('Data provided by 511.org')
+    expect(credit.attributes('href')).toBe('https://www.511.org')
+  })
+
+  it('points at the agency list once the attribution page exists', () => {
+    expect(mountFooter().find('[data-testid="agencies-link"]').exists()).toBe(false)
+    const link = mountFooter([{ path: '/attribution', component: Blank }]).get('[data-testid="agencies-link"]')
+    expect(link.text()).toBe('these agencies')
+    expect(link.attributes('href')).toBe('/attribution#transit-schedules')
   })
 
   it('credits OpenFreeMap for tiles when no Stadia key is configured', () => {
