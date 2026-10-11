@@ -18,6 +18,12 @@ vi.mock('../api/authoring/scenarios', () => ({
   fetchMyScenarios: vi.fn(),
   deleteScenario: vi.fn(),
 }))
+vi.mock('../api/authoring/handovers', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../api/authoring/handovers')>()),
+  fetchMyHandovers: vi.fn(),
+  offerHandover: vi.fn(),
+  cancelHandover: vi.fn(),
+}))
 vi.mock('../api/publications', () => ({
   fetchServicePublication: vi.fn(),
   publishService: vi.fn(),
@@ -41,6 +47,8 @@ import {
   fetchServiceIsochrone,
 } from '../api/authoring/services'
 import { fetchMyScenarios } from '../api/authoring/scenarios'
+import { cancelHandover, fetchMyHandovers, offerHandover, type OutgoingHandover } from '../api/authoring/handovers'
+import { mountSharedHosts } from '../test/sharedHosts'
 import { useConfirmHost } from '../composables/useConfirm'
 import { fetchServicePublication, publishService, type ServicePublication } from '../api/publications'
 import { PUBLISH_COMPILE_FAILED } from '../composables/usePublication'
@@ -104,6 +112,9 @@ describe('AuthoredServiceView', () => {
     vi.mocked(publishService).mockReset()
     vi.mocked(deleteService).mockReset().mockResolvedValue()
     vi.mocked(fetchMyScenarios).mockReset().mockResolvedValue([])
+    vi.mocked(fetchMyHandovers).mockReset().mockResolvedValue({ incoming: [], outgoing: [] })
+    vi.mocked(offerHandover).mockReset().mockResolvedValue()
+    vi.mocked(cancelHandover).mockReset()
     // useCompileJob polls the job endpoint through the jobs store.
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
@@ -545,5 +556,143 @@ describe('AuthoredServiceView', () => {
     await flushPromises()
     expect(deleteService).toHaveBeenCalledWith('northbound-express')
     expect(wrapper.vm.$router.currentRoute.value.path).toBe('/authoring')
+  })
+
+  describe('transferring the line', () => {
+    let hosts: ReturnType<typeof mountSharedHosts>
+
+    const pendingOffer: OutgoingHandover = {
+      id: 'h1',
+      service_slug: 'northbound-express',
+      service_name: 'Northbound Express',
+      to_name: 'Ada',
+      status: 'pending',
+      created_at: '2026-10-01T12:00:00Z',
+      expires_at: '2026-10-15T12:00:00Z',
+    }
+
+    const OFFER_SENT = "Offer sent. If they have an account, they'll see it on their authoring page."
+
+    beforeEach(() => {
+      vi.mocked(fetchService).mockResolvedValue(stubService)
+      hosts = mountSharedHosts()
+    })
+
+    afterEach(() => {
+      hosts.unmount()
+    })
+
+    async function openTransfer() {
+      const wrapper = mountView()
+      await flushPromises()
+      await wrapper.get('[data-testid="offer-handover"]').trigger('click')
+      await flushPromises()
+      return wrapper
+    }
+
+    it('offers a Transfer… action beside Edit', async () => {
+      const wrapper = mountView()
+      await flushPromises()
+      expect(wrapper.get('[data-testid="offer-handover"]').text()).toBe('Transfer…')
+    })
+
+    it('asks for their email and says plainly what a transfer does', async () => {
+      await openTransfer()
+      expect(hosts.dialogOpen()).toBe(true)
+      expect(hosts.dialog().text()).toContain(
+        "They'll see this on their authoring page and can accept it. The public page keeps its address. You'll lose access once they accept.",
+      )
+      expect((hosts.email().element as HTMLInputElement).type).toBe('email')
+    })
+
+    it('sends nothing when the dialog is cancelled', async () => {
+      await openTransfer()
+      await hosts.cancelButton().trigger('click')
+      await flushPromises()
+      expect(offerHandover).not.toHaveBeenCalled()
+      expect(hosts.toasts()).toEqual([])
+    })
+
+    // The API answers an unknown address exactly as it answers a real one, and
+    // so must the page.
+    it.each([
+      ['an account', { incoming: [], outgoing: [pendingOffer] }],
+      ['no account', { incoming: [], outgoing: [] }],
+    ])('says the same thing once sent, whether the address has %s', async (_, afterwards) => {
+      const wrapper = await openTransfer()
+      vi.mocked(fetchMyHandovers).mockResolvedValue(afterwards)
+      await hosts.email().setValue('someone@example.com')
+      await hosts.confirmButton().trigger('click')
+      await flushPromises()
+      expect(offerHandover).toHaveBeenCalledWith('northbound-express', 'someone@example.com')
+      expect(hosts.toasts()).toEqual([OFFER_SENT])
+      expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+    })
+
+    it('shows a pending offer with who it is waiting on and when it expires, in place of Transfer…', async () => {
+      vi.mocked(fetchMyHandovers).mockResolvedValue({ incoming: [], outgoing: [pendingOffer] })
+      const wrapper = mountView()
+      await flushPromises()
+      const pending = wrapper.get('[data-testid="pending-handover"]')
+      expect(pending.text()).toContain('Waiting for Ada to accept this line.')
+      expect(pending.text()).toMatch(/expires .*2026/i)
+      expect(wrapper.find('[data-testid="offer-handover"]').exists()).toBe(false)
+    })
+
+    it('ignores pending offers for other lines', async () => {
+      vi.mocked(fetchMyHandovers).mockResolvedValue({
+        incoming: [],
+        outgoing: [{ ...pendingOffer, service_slug: 'another-line' }],
+      })
+      const wrapper = mountView()
+      await flushPromises()
+      expect(wrapper.find('[data-testid="pending-handover"]').exists()).toBe(false)
+    })
+
+    it('asks before cancelling a pending offer, and keeps it when declined', async () => {
+      vi.mocked(fetchMyHandovers).mockResolvedValue({ incoming: [], outgoing: [pendingOffer] })
+      const wrapper = mountView()
+      await flushPromises()
+      await wrapper.get('[data-testid="cancel-handover"]').trigger('click')
+      await flushPromises()
+      expect(hosts.dialog().text()).toContain('Ada')
+      await hosts.cancelButton().trigger('click')
+      await flushPromises()
+      expect(cancelHandover).not.toHaveBeenCalled()
+    })
+
+    it('cancels a pending offer once confirmed, and offers Transfer… again', async () => {
+      vi.mocked(fetchMyHandovers).mockResolvedValue({ incoming: [], outgoing: [pendingOffer] })
+      vi.mocked(cancelHandover).mockResolvedValue({ ...pendingOffer, status: 'cancelled' })
+      const wrapper = mountView()
+      await flushPromises()
+      vi.mocked(fetchMyHandovers).mockResolvedValue({ incoming: [], outgoing: [] })
+      await wrapper.get('[data-testid="cancel-handover"]').trigger('click')
+      await flushPromises()
+      await hosts.confirmButton().trigger('click')
+      await flushPromises()
+      expect(cancelHandover).toHaveBeenCalledWith('h1')
+      expect(hosts.toasts()).toEqual(['Transfer cancelled'])
+      expect(wrapper.find('[data-testid="pending-handover"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="offer-handover"]').exists()).toBe(true)
+    })
+
+    it('explains, without sending a second offer, when one is already pending', async () => {
+      vi.mocked(offerHandover).mockRejectedValue(new ApiError('conflict', 409))
+      await openTransfer()
+      await hosts.email().setValue('someone@example.com')
+      await hosts.confirmButton().trigger('click')
+      await flushPromises()
+      expect(hosts.toasts()).toEqual(['Not sent: this line already has a transfer waiting to be accepted.'])
+    })
+
+    it('explains an offer to the owner\'s own address', async () => {
+      vi.mocked(offerHandover).mockRejectedValue(new ApiError('unprocessable', 422))
+      await openTransfer()
+      await hosts.email().setValue('me@example.com')
+      await hosts.confirmButton().trigger('click')
+      await flushPromises()
+      expect(hosts.toasts()).toEqual(["Not sent: that's your own address."])
+    })
   })
 })

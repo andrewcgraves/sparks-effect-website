@@ -7,11 +7,13 @@ import { isochroneWaitMessage } from '../api/isochroneFault'
 import { useAuthoredGraph } from '../composables/useAuthoredGraph'
 import { usePageTitle } from '../composables/usePageTitle'
 import { useServiceDeletion } from '../composables/useDeletion'
+import { expiryDate, useHandovers } from '../composables/useHandovers'
 import ScenarioPreviewPanel from '../components/ScenarioPreviewPanel.vue'
 import PublicationControl from '../components/PublicationControl.vue'
 import TimeBetweenStations from '../components/TimeBetweenStations.vue'
 import { graphStationTimeGroups } from '../components/stationTimes'
 import { ACTION_LINK_CLASS } from '../components/linkStyles'
+import { SECONDARY_BUTTON_CLASS } from '../components/buttonStyles'
 import BreadcrumbTrail from '../components/BreadcrumbTrail.vue'
 import { AUTHORING_CRUMB } from '../components/crumbs'
 import DeleteMenu from '../components/DeleteMenu.vue'
@@ -64,6 +66,9 @@ async function recompile(slug: string): Promise<boolean> {
 }
 
 const { deleting, confirmAndDelete } = useServiceDeletion()
+
+const handovers = useHandovers()
+const pendingHandover = computed(() => handovers.outgoingFor(props.slug))
 
 watch(service, (loaded) => {
   if (loaded) void loadGraph(loaded.slug)
@@ -133,6 +138,16 @@ watch(service, (loaded) => {
           >
             Edit
           </router-link>
+          <button
+            v-if="!pendingHandover"
+            type="button"
+            :class="ACTION_LINK_CLASS"
+            :disabled="handovers.busy.value"
+            data-testid="offer-handover"
+            @click="handovers.offer(service)"
+          >
+            Transfer…
+          </button>
           <DeleteMenu
             noun="service"
             :deleting="deleting"
@@ -147,6 +162,26 @@ watch(service, (loaded) => {
       >
         {{ service.description }}
       </p>
+
+      <div
+        v-if="pendingHandover"
+        class="mt-6 flex max-w-[720px] flex-wrap items-center justify-between gap-3 rounded-(--radius-box) border border-border bg-surface p-4"
+        data-testid="pending-handover"
+      >
+        <p class="font-body text-caption text-ink">
+          Waiting for {{ pendingHandover.to_name }} to accept this line.
+          The offer expires {{ expiryDate(pendingHandover) }}.
+        </p>
+        <button
+          type="button"
+          :class="SECONDARY_BUTTON_CLASS"
+          :disabled="handovers.busy.value"
+          data-testid="cancel-handover"
+          @click="handovers.cancel(pendingHandover)"
+        >
+          Cancel transfer
+        </button>
+      </div>
 
       <PublicationControl
         :slug="service.slug"

@@ -12,8 +12,13 @@ export interface ConfirmWithNoteOptions extends ConfirmOptions {
   noteLabel: string
 }
 
+export interface ConfirmWithEmailOptions extends ConfirmOptions {
+  emailLabel: string
+}
+
 interface PendingConfirm extends ConfirmOptions {
   noteLabel?: string
+  emailLabel?: string
   resolve: (confirmed: boolean) => void
   returnFocus: HTMLElement | null
 }
@@ -31,7 +36,7 @@ function settle(confirmed: boolean): void {
 }
 
 export function useConfirm() {
-  function confirm(options: ConfirmOptions | ConfirmWithNoteOptions): Promise<boolean> {
+  function confirm(options: ConfirmOptions | ConfirmWithNoteOptions | ConfirmWithEmailOptions): Promise<boolean> {
     // A second ask while one is open replaces it, declining the first, but
     // focus still goes back to where the user was before either.
     const returnFocus = pending.value?.returnFocus
@@ -48,7 +53,12 @@ export function useConfirm() {
     return (await confirm(options)) ? note.value.trim() : null
   }
 
-  return { confirm, confirmWithNote }
+  // The address shares the note's slot: a dialog asks for one or the other.
+  async function confirmWithEmail(options: ConfirmWithEmailOptions): Promise<string | null> {
+    return (await confirm(options)) ? note.value.trim() : null
+  }
+
+  return { confirm, confirmWithNote, confirmWithEmail }
 }
 
 export function useConfirmHost() {

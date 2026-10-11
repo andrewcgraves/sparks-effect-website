@@ -39,4 +39,29 @@ describe('useOwnedList', () => {
     expect(error.value).toBe(false)
     expect(loading.value).toBe(true)
   })
+
+  it('reloads in place, keeping what it has on screen until the new list lands', async () => {
+    const fetcher = vi.fn().mockResolvedValueOnce(['a']).mockResolvedValueOnce(['a', 'b'])
+    const { items, loading, reload } = useOwnedList(fetcher)
+    await flushPromises()
+
+    const reloading = reload()
+    expect(loading.value).toBe(false)
+    expect(items.value).toEqual(['a'])
+    await reloading
+
+    expect(items.value).toEqual(['a', 'b'])
+  })
+
+  it('clears an earlier failure once a reload succeeds', async () => {
+    const fetcher = vi.fn().mockRejectedValueOnce(new Error('boom')).mockResolvedValueOnce(['a'])
+    const { items, error, reload } = useOwnedList(fetcher)
+    await flushPromises()
+    expect(error.value).toBe(true)
+
+    await reload()
+
+    expect(error.value).toBe(false)
+    expect(items.value).toEqual(['a'])
+  })
 })

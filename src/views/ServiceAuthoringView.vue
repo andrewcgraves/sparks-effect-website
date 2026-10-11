@@ -32,6 +32,7 @@ const {
   editing,
   editNotFound,
   editLoadFailed,
+  handedOver,
   routeMissing,
   stops,
   frequencyWindows,
@@ -465,8 +466,27 @@ watch(createdSlug, (created) => {
       {{ slug ? 'Edit line' : 'New line' }}
     </h1>
 
+    <div
+      v-if="handedOver"
+      class="mt-3 flex flex-col items-start gap-3"
+    >
+      <p
+        class="font-body text-body text-ink"
+        role="alert"
+        data-testid="service-handed-over"
+      >
+        This line now belongs to someone else. Your unsaved changes can't be saved.
+      </p>
+      <router-link
+        to="/authoring"
+        :class="ACTION_LINK_CLASS"
+        data-testid="back-to-authoring"
+      >
+        Back to My authoring
+      </router-link>
+    </div>
     <p
-      v-if="editNotFound"
+      v-else-if="editNotFound"
       class="font-body text-body mt-3 text-ink-muted"
       data-testid="service-not-found"
     >
@@ -689,7 +709,7 @@ watch(createdSlug, (created) => {
                   >{{ index + 1 }}</span>
                   <input
                     :value="stop.name"
-                    class="min-w-0 flex-1 border-b border-transparent bg-transparent font-medium not-italic normal-case hover:border-border focus:border-border"
+                    class="min-w-0 flex-1 border-b border-transparent bg-transparent font-medium not-italic normal-case hover:border-border focus:border-coral focus-visible:outline-none"
                     :aria-label="`Rename ${stopLabels[index]}`"
                     :data-testid="`stop-edit-name-${index}`"
                     type="text"

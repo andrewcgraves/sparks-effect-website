@@ -151,6 +151,7 @@ export function useServiceDraft(serviceSlug?: string) {
   const editing = ref<Service | null>(null)
   const editNotFound = ref(false)
   const editLoadFailed = ref(false)
+  const handedOver = ref(false)
 
   const savedFingerprint = ref<string | null>(null)
 
@@ -555,6 +556,15 @@ export function useServiceDraft(serviceSlug?: string) {
       submitting.value = false
       await triggerCompile(saved.slug)
     } catch (err) {
+      // The PUT only 404s when the service is no longer the caller's, which
+      // after a handover is the expected way to find out. The draft is work the
+      // new owner's service will never take, so it goes rather than lingering
+      // under an edit nobody can save.
+      if (drafts.editingServiceId !== null && err instanceof ApiError && err.status === 404) {
+        drafts.clearServiceDraft()
+        handedOver.value = true
+        return
+      }
       submitError.value = authoringFault(err)
       // Null for anything this build cannot attribute to specific rows, which
       // leaves the banner as the whole of the feedback.
@@ -575,6 +585,7 @@ export function useServiceDraft(serviceSlug?: string) {
     editing,
     editNotFound,
     editLoadFailed,
+    handedOver,
     routeMissing,
     draft,
     stops,

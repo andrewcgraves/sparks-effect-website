@@ -15,6 +15,7 @@ export function mountSharedHosts() {
     dialogOpen: () => (dialogHost.get('[data-testid="confirm-dialog"]').element as HTMLDialogElement).open,
     confirmButton: () => dialogHost.get('[data-testid="confirm-dialog-confirm"]'),
     cancelButton: () => dialogHost.get('[data-testid="confirm-dialog-cancel"]'),
+    email: () => dialogHost.get('[data-testid="confirm-dialog-email"]'),
     toasts: () => toastHost.findAll('[data-testid="toast-message"]').map((m) => m.text()),
     unmount: () => {
       useConfirmHost().settle(false)
