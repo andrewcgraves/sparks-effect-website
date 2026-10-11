@@ -23,6 +23,9 @@ import type { IsochronePayload } from '../isochroneQuery'
 import type { ChainResponse } from '../fixtures/isochrone'
 import LoadingRegion from '../components/LoadingRegion.vue'
 import SkeletonShape from '../components/SkeletonShape.vue'
+import PhoneMapPage from '../components/PhoneMapPage.vue'
+import { usePhoneMapTabs } from '../components/phoneMapTabs'
+import { useIsPhone } from '../composables/useIsPhone'
 
 const props = defineProps<{ slug: string }>()
 
@@ -118,10 +121,105 @@ function onPrerenderedSelect(result: ChainResponse) {
   showIsochrone(result)
   void forgetIsochrone()
 }
+
+const isPhone = useIsPhone()
+
+const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
+  plot: () => isochroneData.value,
+  results: () => timeRemaining.value.views.length > 0,
+  extra: () => [
+    ...(travelTimesFailed.value ? [] : [{ key: 'stations', label: 'Stations' }]),
+    ...(description.value.trim() ? [{ key: 'about', label: 'About' }] : []),
+  ],
+})
 </script>
 
 <template>
-  <main class="flex-1 p-(--page-padding)">
+  <main
+    v-if="isPhone"
+    class="flex-1"
+  >
+    <PhoneMapPage
+      v-model:tab="phoneTab"
+      :title="name"
+      :tabs="phoneTabs"
+      :pick-armed="pickArmed"
+    >
+      <template #map>
+        <MapView
+          label="Splash zone map"
+          flush
+          :origin="origin"
+          :isochrone-data="isochroneData"
+          :loading="isLoading"
+          :loading-message="isochroneWaitMessage(isochroneProgress)"
+          :routes="routes"
+          :stations="stations"
+          :placement-armed="pickArmed"
+          :placement-cue="ORIGIN_PICK_CUE"
+          :active-station="activeStation?.slug ?? null"
+          :remaining-secs="remainingSecs"
+          @map-click="onMapClick"
+          @station-hover="highlight($event, true)"
+        />
+      </template>
+      <template #panel-plot>
+        <RoutingStatusBanner
+          :status="routingStatus"
+          :has-examples="hasExamples"
+        />
+        <PrerenderedIsochrones
+          v-if="offline"
+          v-model:selected-id="selectedPrerenderedId"
+          :slug="props.slug"
+          @select="onPrerenderedSelect"
+          @available="hasExamples = $event"
+        />
+        <IsochroneForm
+          ref="isochroneForm"
+          :error="fetchError"
+          :loading="isLoading"
+          :offline="offline"
+          :initial="linkedIsochrone"
+          @submit="submitIsochrone"
+          @origin-change="onOriginChange"
+          @pick-armed="pickArmed = $event"
+        />
+        <CopyLinkButton v-if="shareable" />
+        <PrerenderedIsochrones
+          v-if="!offline"
+          v-model:selected-id="selectedPrerenderedId"
+          :slug="props.slug"
+          @select="onPrerenderedSelect"
+          @available="hasExamples = $event"
+        />
+      </template>
+      <template #panel-results>
+        <TimeRemaining
+          v-if="timeRemaining.views.length"
+          :views="timeRemaining.views"
+          :active-slug="activeStation?.slug ?? null"
+          :active-from-map="activeStation?.fromMap ?? false"
+          @activate="highlight($event, false)"
+        />
+      </template>
+      <template #panel-stations>
+        <TimeBetweenStations
+          :groups="stationTimeGroups"
+          :loading="travelTimesLoading"
+        />
+      </template>
+      <template #panel-about>
+        <p class="font-body text-body text-ink-muted">
+          {{ description }}
+        </p>
+      </template>
+    </PhoneMapPage>
+  </main>
+  <main
+    v-else
+    class="flex-1 p-(--page-padding)"
+  >
     <AllLinesLink />
     <LoadingRegion
       v-if="scenarioLoading"
