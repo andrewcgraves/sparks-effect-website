@@ -1,6 +1,8 @@
 import { ApiError } from './api/authoring/client'
 import type { TravelMode } from './api/authoring/types'
 import type { Station } from './api/scenarios'
+import { MODE_TRIPS } from './copy/modes'
+import { UNNAMED_STATION } from './copy/names'
 
 export const ORIGIN_OUT_OF_RANGE_CODE = 'origin_out_of_range'
 
@@ -57,7 +59,7 @@ export function checkOriginReach(
     const km = haversineKm(origin.lat, origin.lng, lat, lng)
     if (km < nearestKm) {
       nearestKm = km
-      nearestName = station.name || station.slug
+      nearestName = station.name || UNNAMED_STATION
     }
   }
 
@@ -70,13 +72,6 @@ function formatKm(km: number): string {
   return `${Math.round(km)} km`
 }
 
-const MODE_VERB: Record<TravelMode, string> = {
-  walk: 'walk',
-  bike: 'ride',
-  drive: 'drive',
-  transit: 'transit trip',
-}
-
 export function outOfRangeMessage(
   reach: Pick<OriginReach, 'nearestKm' | 'maxReachKm'>,
   mode: TravelMode,
@@ -84,19 +79,31 @@ export function outOfRangeMessage(
 ): string {
   return (
     `The nearest station is about ${formatKm(reach.nearestKm)} away, ` +
-    `further than a ${budgetMins}-minute ${MODE_VERB[mode]} can reach ` +
-    `(${formatKm(reach.maxReachKm)}). Move the pin closer to the line, ` +
+    `further than a ${budgetMins}-minute ${MODE_TRIPS[mode]} can reach ` +
+    `(${formatKm(reach.maxReachKm)}). Move the starting point closer to the line, ` +
     `or raise the travel time.`
   )
+}
+
+const OUT_OF_RANGE_FALLBACK =
+  'Every station is further than this travel time can reach. ' +
+  'Move the starting point closer to the line, or raise the travel time.'
+
+function distances(detail: unknown): Pick<OriginReach, 'nearestKm' | 'maxReachKm'> | null {
+  if (typeof detail !== 'object' || detail === null) return null
+  const { nearest_station_km: nearestKm, max_reach_km: maxReachKm } =
+    detail as { nearest_station_km?: unknown; max_reach_km?: unknown }
+  if (typeof nearestKm !== 'number' || typeof maxReachKm !== 'number') return null
+  return { nearestKm, maxReachKm }
 }
 
 export function outOfRangeError(err: unknown, mode: TravelMode, budgetMins: number): string | null {
   if (!(err instanceof ApiError) || err.code !== ORIGIN_OUT_OF_RANGE_CODE) return null
 
-  const detail = err.detail as { nearest_station_km?: unknown; max_reach_km?: unknown } | null
-  if (typeof detail !== 'object' || detail === null) return err.message
-  const { nearest_station_km: nearestKm, max_reach_km: maxReachKm } = detail
-  if (typeof nearestKm !== 'number' || typeof maxReachKm !== 'number') return err.message
-
-  return outOfRangeMessage({ nearestKm, maxReachKm }, mode, budgetMins)
+  const reach = distances(err.detail)
+  if (reach) return outOfRangeMessage(reach, mode, budgetMins)
+  // The code alone is enough to say what went wrong; the message is the API's
+  // request line and its own words, so it goes to the console, not the page.
+  console.warn('[isochrone] origin_out_of_range without distances:', err.message)
+  return OUT_OF_RANGE_FALLBACK
 }

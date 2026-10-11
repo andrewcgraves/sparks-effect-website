@@ -10,13 +10,7 @@ import { getCurrentPosition } from './api/geolocation'
 import { trackModeToggle } from './analytics/index'
 import { TRAVEL_MODES, type TravelMode } from './api/authoring/types'
 import { DEFAULT_DURATION, DEFAULT_MODE, DURATION_OPTIONS, type IsochronePayload } from './isochroneQuery'
-
-const MODE_LABELS: Record<TravelMode, string> = {
-  walk: 'Walk',
-  bike: 'Bike',
-  drive: 'Drive',
-  transit: 'Transit',
-}
+import { MODE_LABELS } from './copy/modes'
 
 const MODE_OPTIONS: { value: TravelMode; label: string }[] = TRAVEL_MODES.map((value) => ({
   value,
@@ -166,7 +160,7 @@ function handleSubmit() {
     @submit.prevent="handleSubmit"
   >
     <h2 class="font-display text-h3 text-ink-true">
-      Plot isochrone
+      Plot a splash zone
     </h2>
 
     <div class="flex flex-col gap-2">
@@ -219,7 +213,7 @@ function handleSubmit() {
           Cancel
         </template>
         <template v-else>
-          <span aria-hidden="true">📍</span> Pick location on map
+          <span aria-hidden="true">📍</span> Pick starting point on map
         </template>
       </button>
       <p
@@ -302,7 +296,7 @@ function handleSubmit() {
         :class="PRIMARY_BUTTON_CLASS"
         :disabled="!isValid || loading || offline"
       >
-        {{ loading ? 'Generating…' : 'Generate isochrone' }}
+        {{ loading ? 'Plotting…' : 'Plot splash zone' }}
       </button>
     </span>
 
@@ -319,7 +313,7 @@ function handleSubmit() {
       class="font-body text-caption text-ink-muted italic"
       data-testid="submit-hint"
     >
-      Enter a location and travel time to continue.
+      Enter a starting point and travel time to continue.
     </p>
   </form>
 </template>

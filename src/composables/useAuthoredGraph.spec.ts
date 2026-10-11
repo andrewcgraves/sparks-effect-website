@@ -186,7 +186,7 @@ describe('useAuthoredGraph', () => {
 
       await triggerCompile('ca-hsr')
 
-      expect(compileError.value).toBe("This line couldn't be compiled. Check its stops and timetable, then try again.")
+      expect(compileError.value).toBe("This line couldn't be compiled. Check its stops and frequency windows, then try again.")
       expect(graph.value).toBeNull()
     })
 
@@ -289,7 +289,7 @@ describe('useAuthoredGraph', () => {
       await handleIsochroneSubmit(payload)
 
       expect(isochrone).toHaveBeenCalledTimes(3)
-      expect(isochroneError.value).toBe('Failed to generate isochrone. Please try again.')
+      expect(isochroneError.value).toBe("Couldn't plot this splash zone. Please try again.")
       expect(isochroneLoading.value).toBe(false)
     })
 
@@ -301,7 +301,7 @@ describe('useAuthoredGraph', () => {
       await handleIsochroneSubmit(payload)
 
       expect(isochrone).toHaveBeenCalledTimes(1)
-      expect(isochroneError.value).toBe('Failed to generate isochrone. Please try again.')
+      expect(isochroneError.value).toBe("Couldn't plot this splash zone. Please try again.")
     })
 
     it('surfaces an error without recompiling on a non-stale failure', async () => {
@@ -311,7 +311,7 @@ describe('useAuthoredGraph', () => {
       await handleIsochroneSubmit(payload)
 
       expect(compile).not.toHaveBeenCalled()
-      expect(isochroneError.value).toBe('Failed to generate isochrone. Please try again.')
+      expect(isochroneError.value).toBe("Couldn't plot this splash zone. Please try again.")
     })
 
     it('fires trackIsochroneRequest on attempt with mode and budget', async () => {
@@ -333,35 +333,37 @@ describe('useAuthoredGraph', () => {
     })
   })
 
-  // SPA-230: a routing job the API gave up on — the isochrone service being
-  // down, chief among the reasons — carries its own reason, and that reason is
-  // what the user should see, on the authored pages the same as on the seeded
-  // one.
+  // SPA-230: a routing job the API gave up on — the routing service being
+  // down, chief among the reasons — carries its own reason. That reason is the
+  // API's or the worker's text, so the authored pages say the same product
+  // line the seeded one does, and the reason goes to the console.
   describe('a routing job the API failed', () => {
-    it('shows the API error text rather than the generic fallback', async () => {
-      isochrone.mockRejectedValue(
-        new JobFailedError(
-          'rj1',
-          "The isochrone service isn't responding right now. Please try again in a few minutes.",
-        ),
-      )
+    const ROUTING_FAILED =
+      "Routing couldn't finish this splash zone. Please try again, or try a different starting point."
+
+    beforeEach(() => {
+      vi.spyOn(console, 'warn').mockImplementation(() => {})
+    })
+
+    it('says routing could not finish, without the API error text', async () => {
+      const reason = "The routing service isn't responding right now. Please try again in a few minutes."
+      isochrone.mockRejectedValue(new JobFailedError('rj1', reason))
       const { handleIsochroneSubmit, isochroneError } = subject()
 
       await handleIsochroneSubmit(payload)
 
       expect(compile).not.toHaveBeenCalled()
-      expect(isochroneError.value).toBe(
-        "The isochrone service isn't responding right now. Please try again in a few minutes.",
-      )
+      expect(isochroneError.value).toBe(ROUTING_FAILED)
+      expect(console.warn).toHaveBeenCalledWith('[isochrone] routing job failed:', reason)
     })
 
-    it('falls back to the generic message when the API gave no reason', async () => {
+    it('says the same when the API gave no reason', async () => {
       isochrone.mockRejectedValue(new JobFailedError('rj1', ''))
       const { handleIsochroneSubmit, isochroneError } = subject()
 
       await handleIsochroneSubmit(payload)
 
-      expect(isochroneError.value).toBe('Failed to generate isochrone. Please try again.')
+      expect(isochroneError.value).toBe(ROUTING_FAILED)
     })
   })
 
@@ -468,7 +470,7 @@ describe('useAuthoredGraph', () => {
 
       expect(compile).not.toHaveBeenCalled()
       expect(isochroneError.value).toMatch(/busy/i)
-      expect(isochroneError.value).not.toBe('Failed to generate isochrone. Please try again.')
+      expect(isochroneError.value).not.toBe("Couldn't plot this splash zone. Please try again.")
     })
   })
 

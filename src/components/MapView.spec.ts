@@ -986,10 +986,10 @@ describe('MapView', () => {
 
   it('renders a color key for origin and egress isochrones', () => {
     const wrapper = mount(MapView, { props: defaultProps })
-    const legend = wrapper.get('[aria-label="Isochrone color key"]')
-    expect(legend.text()).toContain('Origin reach')
+    const legend = wrapper.get('[aria-label="Splash zone color key"]')
+    expect(legend.text()).toContain('From starting point')
     expect(legend.text()).toContain('From station')
-    expect(legend.text()).not.toContain('Budget ran out here')
+    expect(legend.text()).not.toContain('Travel time ran out here')
   })
 
   it('names the unfinished stub in the key only when the plot drew one', () => {
@@ -1016,8 +1016,8 @@ describe('MapView', () => {
         },
       },
     })
-    const legend = wrapper.get('[aria-label="Isochrone color key"]')
-    expect(legend.text()).toContain('Budget ran out here')
+    const legend = wrapper.get('[aria-label="Splash zone color key"]')
+    expect(legend.text()).toContain('Travel time ran out here')
 
     // Ink dashes stopping on a bare ink dot, as the stub is drawn on the map.
     const unfinished = wrapper.get('[data-testid="legend-swatch-unfinished"]')
@@ -1032,7 +1032,7 @@ describe('MapView', () => {
   // route the rider was being sent down.
   it('names the starter walk in the key as the first leg, in the origin colour', () => {
     const wrapper = mount(MapView, { props: { ...defaultProps, isochroneData: walkedToStub } })
-    const legend = wrapper.get('[aria-label="Isochrone color key"]')
+    const legend = wrapper.get('[aria-label="Splash zone color key"]')
     expect(legend.text()).toContain('First leg — nearest station')
 
     // Origin-blue dashes from the origin pin's coral to a ringed station dot, so
@@ -1046,7 +1046,7 @@ describe('MapView', () => {
 
   it('leaves the starter walk out of the key when there is no walk to draw', () => {
     const noWalk = mount(MapView, { props: { ...defaultProps, isochroneData: chainWith(walkedToStub.metadata.reachable_stations) } })
-    expect(noWalk.get('[aria-label="Isochrone color key"]').text()).not.toContain('First leg')
+    expect(noWalk.get('[aria-label="Splash zone color key"]').text()).not.toContain('First leg')
 
     // A walk naming a station the plot does not list is not drawn either.
     const contradicted = mount(MapView, {
@@ -1055,12 +1055,12 @@ describe('MapView', () => {
         isochroneData: chainWith(walkedToStub.metadata.reachable_stations, { ...routedToStub, station_slug: 'nowhere' }),
       },
     })
-    expect(contradicted.get('[aria-label="Isochrone color key"]').text()).not.toContain('First leg')
+    expect(contradicted.get('[aria-label="Splash zone color key"]').text()).not.toContain('First leg')
   })
 
   it('hides the isochrone legend when hideIsochroneLegend is set', () => {
     const wrapper = mount(MapView, { props: { ...defaultProps, hideIsochroneLegend: true } })
-    expect(wrapper.find('[aria-label="Isochrone color key"]').exists()).toBe(false)
+    expect(wrapper.find('[aria-label="Splash zone color key"]').exists()).toBe(false)
   })
 
   it('adds a fullscreen control so the map can be expanded', () => {
@@ -1267,20 +1267,20 @@ describe('MapView', () => {
     })
 
     it('renders whatever cue the caller passes, so each armed mode can say its own thing', async () => {
-      const wrapper = mount(MapView, { props: { ...defaultProps, placementArmed: true, placementCue: 'Click the map to set origin — Esc to cancel' } })
+      const wrapper = mount(MapView, { props: { ...defaultProps, placementArmed: true, placementCue: 'Click the map to set the starting point — Esc to cancel' } })
       await triggerMapLoad()
 
-      expect(wrapper.get('[data-testid="map-placement-cue"]').text()).toBe('Click the map to set origin — Esc to cancel')
+      expect(wrapper.get('[data-testid="map-placement-cue"]').text()).toBe('Click the map to set the starting point — Esc to cancel')
     })
 
     it('hides the isochrone legend while armed, since the cue takes the same corner', async () => {
-      const wrapper = mount(MapView, { props: { ...defaultProps, placementArmed: true, placementCue: 'Click the map to set origin — Esc to cancel' } })
+      const wrapper = mount(MapView, { props: { ...defaultProps, placementArmed: true, placementCue: 'Click the map to set the starting point — Esc to cancel' } })
       await triggerMapLoad()
 
-      expect(wrapper.find('[aria-label="Isochrone color key"]').exists()).toBe(false)
+      expect(wrapper.find('[aria-label="Splash zone color key"]').exists()).toBe(false)
 
       await wrapper.setProps({ placementArmed: false })
-      expect(wrapper.find('[aria-label="Isochrone color key"]').exists()).toBe(true)
+      expect(wrapper.find('[aria-label="Splash zone color key"]').exists()).toBe(true)
     })
 
     it('does not place a stop when an armed click lands on an existing pin', async () => {

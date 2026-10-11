@@ -26,6 +26,7 @@ import SkeletonShape from '../components/SkeletonShape.vue'
 import PhoneMapPage from '../components/PhoneMapPage.vue'
 import { usePhoneMapTabs } from '../components/phoneMapTabs'
 import { useIsPhone } from '../composables/useIsPhone'
+import { UNNAMED_LINE, UNNAMED_STATION } from '../copy/names'
 
 const props = defineProps<{ slug: string }>()
 
@@ -63,19 +64,22 @@ function highlight(slug: string | null, fromMap: boolean) {
 }
 
 function lineOf(id: string): { key: string; label: string } {
+  // Lines that share a route share a tab. A curated network names the route
+  // what riders call the line ("Brightline West — Palmdale to Las Vegas"), so
+  // its short name is the tab's line name; a line on no route uses its own.
   const service = services.value.find((s) => s.id === id)
   const route = service?.route_id
     ? routes.value.find((r) => r.id === service.route_id)
     : undefined
   return route
     ? { key: route.id, label: shortLineName(route.name) }
-    : { key: id, label: service?.name ?? id }
+    : { key: id, label: service?.name ?? UNNAMED_LINE }
 }
 
 const timeRemaining = computed(() =>
   buildTimeRemainingGraph(isochroneData.value?.metadata ?? null, {
-    stationName: (slug) => stations.value.find((s) => s.slug === slug)?.name ?? slug,
-    serviceName: (id) => services.value.find((s) => s.id === id)?.name ?? id,
+    stationName: (slug) => stations.value.find((s) => s.slug === slug)?.name ?? UNNAMED_STATION,
+    serviceName: (id) => services.value.find((s) => s.id === id)?.name ?? UNNAMED_LINE,
     line: lineOf,
     mode: isochroneData.value?.metadata.mode ?? 'walk',
   }),
@@ -94,7 +98,7 @@ function onOriginChange(coords: { lat: number; lng: number } | null) {
 }
 
 async function handleFormSubmit(payload: IsochronePayload) {
-  // Generating replaces what the map is drawing, so the pre-rendered pick that
+  // Plotting replaces what the map is drawing, so the saved splash zone that
   // was drawing it is no longer the answer on screen and stops being marked as
   // one. Cleared on submit rather than on success: the moment the question
   // changes, the old highlight is already wrong.
@@ -284,7 +288,7 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
           :status="routingStatus"
           :has-examples="hasExamples"
         />
-        <!-- With live routing offline the saved examples are the page's answer,
+        <!-- With live routing offline the saved splash zones are the page's answer,
              so they come ahead of a form that cannot plot — in the DOM, not
              just on screen, so keyboard and screen-reader order agree. -->
         <PrerenderedIsochrones

@@ -19,6 +19,7 @@ import { PLACEMENT_TOGGLE_CLASS, PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS } 
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
 import { ACTION_LINK_CLASS } from '../components/linkStyles'
 import { STOP_PLACEMENT_CUE } from '../components/placementCues'
+import { UNNAMED_STOP } from '../copy/names'
 
 // One view for both writes. The form, the map, the snap preview and fault
 // attribution are the same whichever way a draft is headed; only the edges
@@ -179,7 +180,7 @@ const { show: toast } = useToast()
 // is what keeps "Remove Fresno" naming one button and not two. Compared the
 // way a listener hears them, so "Stop 2" and "stop 2" count as the same name.
 const stopLabels = computed(() => {
-  const named = stops.value.map((stop, index) => stop.name.trim() || `Unnamed stop ${index + 1}`)
+  const named = stops.value.map((stop, index) => stop.name.trim() || `${UNNAMED_STOP} ${index + 1}`)
   const counts = new Map<string, number>()
   for (const label of named) {
     const key = label.toLowerCase()
@@ -237,7 +238,7 @@ async function announce(message: string): Promise<void> {
 // Named without the position its label may carry, which the move has just
 // made untrue.
 function announceMove(stop: DraftStop, to: number): void {
-  void announce(`${stop.name.trim() || 'Unnamed stop'} is now stop ${to + 1} of ${stops.value.length}`)
+  void announce(`${stop.name.trim() || UNNAMED_STOP} is now stop ${to + 1} of ${stops.value.length}`)
 }
 
 function handleMoveStop(index: number, direction: -1 | 1): void {

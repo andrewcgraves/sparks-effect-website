@@ -368,7 +368,7 @@ describe('ScenarioView', () => {
     await flushPromises()
     expect(wrapper.findComponent({ name: 'MapView' }).props('loading')).toBe(false)
     expect(wrapper.findComponent({ name: 'IsochroneForm' }).props('error')).toBe(
-      'Failed to generate isochrone. Please try again.',
+      "Couldn't plot this splash zone. Please try again.",
     )
   })
 
@@ -574,7 +574,7 @@ describe('ScenarioView', () => {
       await wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('pick-armed', true)
 
       expect(wrapper.findComponent({ name: 'MapView' }).props('placementArmed')).toBe(true)
-      expect(wrapper.findComponent({ name: 'MapView' }).props('placementCue')).toBe('Click the map to set origin — Esc to cancel')
+      expect(wrapper.findComponent({ name: 'MapView' }).props('placementCue')).toBe('Click the map to set the starting point — Esc to cancel')
     })
 
     it('disarms MapView when IsochroneForm reports the pick is over', async () => {
@@ -635,6 +635,21 @@ describe('ScenarioView', () => {
       Element.prototype.scrollIntoView = scrollIntoView
     })
 
+    // Each service on a route of its own, so each is its own line, by name.
+    function servicesNamed() {
+      mockUseScenario.mockReturnValue({
+        name: ref('CA HSR'),
+        description: ref('California High-Speed Rail'),
+        routes: ref([]),
+        stations: ref(stubStations),
+        services: ref([
+          { id: 'svc-trunk', name: 'Trunk', frequency_windows: [] },
+          { id: 'svc-spur', name: 'Spur', frequency_windows: [] },
+        ]),
+        loading: ref(false),
+      })
+    }
+
     async function plot(isochrone: ChainResponse = journeyIsochrone) {
       vi.mocked(fetchIsochrone).mockResolvedValue(isochrone)
       const wrapper = mountScenarioView()
@@ -671,19 +686,29 @@ describe('ScenarioView', () => {
       const rows = wrapper.findAll('[data-testid="time-remaining-row"]')
       expect(rows.map((row) => row.get('[data-testid="time-remaining-value"]').text()))
         .toEqual(['2h 0m', '1h 45m', '1h 30m'])
-      expect(rows[0].text()).toContain('Starting location')
+      expect(rows[0].text()).toContain('Starting point')
       expect(rows[1].text()).toContain('San Francisco')
       expect(rows[2].text()).toContain('San Jose')
     })
 
     it('flags how the rider leaves each row, and leaves the end of a branch unflagged', async () => {
+      servicesNamed()
       const wrapper = await plot()
 
       const flags = wrapper.findAll('[data-testid="time-remaining-row"]')
         .map((row) => row.find('[data-testid="time-remaining-flag"]'))
       expect(flags[0].text()).toBe('Walk')
-      expect(flags[1].text()).toBe('svc-trunk')
+      expect(flags[1].text()).toBe('Trunk')
       expect(flags[2].exists()).toBe(false)
+    })
+
+    it('calls a line the page has no record of unnamed, never by its id', async () => {
+      const wrapper = await plot()
+
+      const flag = wrapper.findAll('[data-testid="time-remaining-row"]')[1]
+        .get('[data-testid="time-remaining-flag"]')
+      expect(flag.text()).toBe('Unnamed line')
+      expect(wrapper.get('[data-testid="time-remaining"]').text()).not.toContain('svc-trunk')
     })
 
     it('expands a row on hover, with the detail its single number hides', async () => {
@@ -888,11 +913,12 @@ describe('ScenarioView', () => {
     }
 
     it('offers a switcher between the lines, opening on the first of them', () => {
+      servicesNamed()
       return plot(twoServiceIsochrone).then((wrapper) => {
         const labels = wrapper.findAll('[data-testid="time-remaining-service"] label').map((l) => l.text())
         // One tab per line and no tab for the walk to San Francisco, which the
         // trunk's own view already opens with (SPA-243).
-        expect(labels).toEqual(['svc-trunk', 'svc-spur'])
+        expect(labels).toEqual(['Trunk', 'Spur'])
         expect(wrapper.findAll('[data-testid="time-remaining-row"]').map((r) => r.text()))
           .toEqual(expect.arrayContaining([expect.stringContaining('San Jose')]))
       })
@@ -1244,7 +1270,7 @@ describe('ScenarioView', () => {
       const wrapper = await mountWithOrigin()
 
       expect(wrapper.get('[data-testid="routing-status"]').text())
-        .toBe('Live routing is offline right now. Here are some saved examples.')
+        .toBe('Live routing is offline right now. Here are some saved splash zones.')
       expect(plotButton(wrapper).disabled).toBe(true)
       const examples = wrapper.get('[data-testid="prerendered-isochrones"]').element
       const form = wrapper.get('form').element
@@ -1262,7 +1288,7 @@ describe('ScenarioView', () => {
       answerList([saved])
       await flushPromises()
       expect(wrapper.get('[data-testid="routing-status"]').text())
-        .toBe('Live routing is offline right now. Here are some saved examples.')
+        .toBe('Live routing is offline right now. Here are some saved splash zones.')
     })
 
     it('only explains, without promising examples, for a network that ships none', async () => {
@@ -1272,7 +1298,7 @@ describe('ScenarioView', () => {
 
       const banner = wrapper.get('[data-testid="routing-status"]').text()
       expect(banner).toContain('Live routing is offline right now.')
-      expect(banner).not.toContain('saved examples')
+      expect(banner).not.toContain('saved splash zones')
       expect(plotButton(wrapper).disabled).toBe(true)
     })
 

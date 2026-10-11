@@ -204,7 +204,7 @@ watch(service, (loaded) => {
         role="alert"
         data-testid="graph-error"
       >
-        Couldn't load this line's compiled graph.
+        Couldn't load this line's latest build.
       </p>
       
       <p

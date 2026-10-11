@@ -15,6 +15,7 @@ import type { InterchangePair, NearMiss, Service, StopCluster, StopIdentity } fr
 import type { Route, Station } from '../api/scenarios'
 import type { ChainResponse } from '../fixtures/isochrone'
 import type { IsochronePayload } from '../isochroneQuery'
+import { UNNAMED_LINE, UNNAMED_STATION } from '../copy/names'
 
 const props = defineProps<{
   origin: { lat: number; lng: number } | null
@@ -51,8 +52,8 @@ const { status: routingStatus, offline: routingOffline } = useRoutingStatus()
 
 const timeRemaining = computed(() =>
   buildTimeRemainingGraph(props.isochroneData?.metadata ?? null, {
-    stationName: (slug) => props.mapStations?.find((station) => station.slug === slug)?.name ?? slug,
-    serviceName: (id) => props.services.find((service) => service.id === id)?.name ?? id,
+    stationName: (slug) => props.mapStations?.find((station) => station.slug === slug)?.name ?? UNNAMED_STATION,
+    serviceName: (id) => props.services.find((service) => service.id === id)?.name ?? UNNAMED_LINE,
     mode: props.isochroneData?.metadata.mode ?? 'walk',
   }),
 )

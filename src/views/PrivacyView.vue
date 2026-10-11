@@ -34,7 +34,7 @@ const UPDATED = '2026-10-10'
     </h2>
     <ul :class="PROSE_LIST_CLASS">
       <li>
-        <strong>Splash zones:</strong> the starting point, travel mode and time budget, plus your IP
+        <strong>Splash zones:</strong> the starting point, travel mode and travel time, plus your IP
         address for rate limiting. The starting point is in the page link, so anyone you share it
         with sees it.
       </li>

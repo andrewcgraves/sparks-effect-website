@@ -118,9 +118,9 @@ describe('graphStationTimeGroups', () => {
     expect(group.label).toBe('Coast Line')
   })
 
-  it('falls back to the service id when the service is not in the lookup', () => {
+  it('calls a line the lookup has no record of unnamed, never by its id', () => {
     const [group] = graphStationTimeGroups(graph, [])
-    expect(group.label).toBe('svc1')
+    expect(group.label).toBe('Unnamed line')
   })
 
   it('reads the outbound direction in stop order, one row per hop', () => {
@@ -144,10 +144,12 @@ describe('graphStationTimeGroups', () => {
     expect(group.directions.map((d) => d.terminus)).toEqual(['Fresno', 'San Francisco'])
   })
 
-  it('resolves node slugs to display names, falling back to the slug', () => {
+  it('calls a node with no name unnamed, never by its slug', () => {
     const unnamed: TransitGraph = { ...graph, nodes: [] }
     const [group] = graphStationTimeGroups(unnamed, [])
-    expect(group.directions[0].rows[0]).toEqual({ from: 'sf', to: 'sj', seconds: 1800 })
+    expect(group.directions[0].rows[0])
+      .toEqual({ from: 'Unnamed station', to: 'Unnamed station', seconds: 1800 })
+    expect(group.directions.map((d) => d.terminus)).toEqual(['Unnamed station', 'Unnamed station'])
   })
 
   it('offers only one direction for a service compiled one way', () => {
@@ -186,11 +188,11 @@ describe('segmentStationTimeGroups', () => {
     expect(segmentStationTimeGroups(segments, stations)).toHaveLength(1)
   })
 
-  it('resolves station slugs to names and falls back to the slug', () => {
+  it('resolves station slugs to names, and calls one it cannot name unnamed, never by its slug', () => {
     const [group] = segmentStationTimeGroups(segments, stations)
     expect(group.directions[0].rows).toEqual([
       { from: 'San Francisco', to: 'San Jose', seconds: 1800 },
-      { from: 'San Jose', to: 'fresno', seconds: 2400 },
+      { from: 'San Jose', to: 'Unnamed station', seconds: 2400 },
     ])
   })
 
@@ -210,10 +212,10 @@ describe('segmentStationTimeGroups', () => {
     expect(group.directions).toHaveLength(2)
     expect(group.directions[0].rows).toEqual([
       { from: 'San Francisco', to: 'San Jose', seconds: 1800 },
-      { from: 'San Jose', to: 'fresno', seconds: 2400 },
+      { from: 'San Jose', to: 'Unnamed station', seconds: 2400 },
     ])
     expect(group.directions[1].rows).toEqual([
-      { from: 'fresno', to: 'San Jose', seconds: 2200 },
+      { from: 'Unnamed station', to: 'San Jose', seconds: 2200 },
       { from: 'San Jose', to: 'San Francisco', seconds: 1800 },
     ])
   })
@@ -233,7 +235,7 @@ describe('segmentStationTimeGroups', () => {
     expect(group.directions).toHaveLength(1)
     expect(group.directions[0].rows).toEqual([
       { from: 'San Francisco', to: 'San Jose', seconds: 1800 },
-      { from: 'San Jose', to: 'fresno', seconds: 2400 },
+      { from: 'San Jose', to: 'Unnamed station', seconds: 2400 },
     ])
   })
 

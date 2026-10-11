@@ -21,6 +21,7 @@ import type { Route, Station } from '../api/scenarios'
 import type { SnapCoord as LatLng } from '../api/authoring/types'
 import LoadingRegion from './LoadingRegion.vue'
 import SkeletonShape from './SkeletonShape.vue'
+import { UNNAMED_STATION } from '../copy/names'
 
 // maplibre-gl 6 finds its worker beside its own module via import.meta.url,
 // which a Vite bundle breaks: the worker is never emitted and no tiles load.
@@ -182,7 +183,7 @@ const stationHighlight = stationHighlightModule({
   egressSlugs: () => egressStationSlugs(props.isochroneData),
   activeSlug: () => props.activeStation ?? null,
   remainingSecs: (slug) => props.remainingSecs?.(slug) ?? null,
-  stationName: (slug) => props.stations.find((s) => s.slug === slug)?.name ?? slug,
+  stationName: (slug) => props.stations.find((s) => s.slug === slug)?.name ?? UNNAMED_STATION,
   onHover: (slug) => emit('station-hover', slug),
 })
 stationHighlight.requires = [routeLayer]
@@ -424,10 +425,10 @@ onUnmounted(() => {
     <aside
       v-if="!hideIsochroneLegend && !placementArmed"
       class="absolute top-3 left-3 z-1 rounded-(--radius-field) bg-white/92 px-3 py-2.5 shadow-(--shadow-panel)"
-      aria-label="Isochrone color key"
+      aria-label="Splash zone color key"
     >
       <p class="font-body text-micro mb-1.5 text-ink-muted italic uppercase">
-        Isochrone key
+        Splash zone key
       </p>
       <ul class="m-0 flex list-none flex-col gap-1 p-0">
         <li

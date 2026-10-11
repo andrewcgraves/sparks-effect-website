@@ -8,6 +8,7 @@ import {
   type PrerenderedIsochroneSummary,
 } from '../api/prerenderedIsochrones'
 import type { ChainResponse } from '../fixtures/isochrone'
+import { modeLabel } from '../copy/modes'
 
 const props = defineProps<{ slug: string; selectedId: string | null }>()
 
@@ -30,8 +31,10 @@ const detailError = ref<string | null>(null)
 
 const attempt = latestAttempt()
 
+// The API calls an entry outdated once a line has joined or left the network,
+// or a member line has been edited, since it was plotted.
 const OUTDATED_HINT =
-  'Plotted before the network’s current routes and lines, so it may be out of date.'
+  'Plotted before this network’s lines last changed, so it may be out of date.'
 
 async function choose(entry: PrerenderedIsochroneSummary): Promise<void> {
   const mine = attempt.begin()
@@ -52,7 +55,7 @@ async function choose(entry: PrerenderedIsochroneSummary): Promise<void> {
 }
 
 function summarise(entry: PrerenderedIsochroneSummary): string {
-  return `${entry.budget_mins} min · ${entry.mode}`
+  return `${entry.budget_mins} min · ${modeLabel(entry.mode)}`
 }
 </script>
 
@@ -63,7 +66,7 @@ function summarise(entry: PrerenderedIsochroneSummary): string {
     data-testid="prerendered-isochrones"
   >
     <h2 class="font-display text-h3 text-ink-true">
-      Pre-rendered isochrones
+      Saved splash zones
     </h2>
 
     <ul class="mt-3 flex flex-col gap-2">

@@ -121,13 +121,13 @@ const SOFT_RANGES: Record<keyof VehicleParams, SoftRange> = {
     low: 0.2,
     high: 1.5,
     tooLow: 'Lower than most passenger rail',
-    tooHigh: 'Harder than a normal station stop',
+    tooHigh: 'Harder than a normal stop',
   },
   dwell_s: {
     floor: 'non_negative',
     low: 0,
     high: 300,
-    tooHigh: 'Longer than most station stops',
+    tooHigh: 'Longer than most stops',
   },
 }
 
@@ -154,7 +154,7 @@ const SPEED_HELP: Record<SpeedUnit, string> = {
 const FIELD_HELP: Record<Exclude<keyof VehicleParams, 'max_speed_kmh'>, string> = {
   acceleration_ms2: 'How quickly it speeds up; 0.3–1.2 m/s² is typical for passenger rail',
   deceleration_ms2: 'How quickly it slows for a stop; 0.4–1.3 m/s² is typical for passenger rail',
-  dwell_s: 'Time stopped at each station for boarding; 20–90 s is typical',
+  dwell_s: 'Time stopped at each stop for boarding; 20–90 s is typical',
 }
 
 export function vehicleFieldHelp(field: keyof VehicleParams, unit: SpeedUnit): string {

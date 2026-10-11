@@ -43,7 +43,7 @@ export function isochroneLegend(
     color: string
     swatch: 'fill' | 'walk' | 'stub'
   }[] = [
-    { source: 'origin', label: 'Origin reach', color: colors.origin, swatch: 'fill' },
+    { source: 'origin', label: 'From starting point', color: colors.origin, swatch: 'fill' },
     { source: 'egress', label: 'From station', color: colors.egress, swatch: 'fill' },
   ]
   // Unlabelled, the starter walk was the one line on the map anchored at the
@@ -59,12 +59,12 @@ export function isochroneLegend(
       swatch: 'walk',
     })
   }
-  // Ink is also the network and the ridden path, so naming it "budget ran out"
-  // on a map with no stub invites the same misread this row is meant to close.
+  // Ink is also the network and the ridden path, so naming it "travel time ran
+  // out" on a map with no stub invites the same misread this row is meant to close.
   if (drawn.unfinished) {
     entries.push({
       source: 'unfinished',
-      label: 'Budget ran out here',
+      label: 'Travel time ran out here',
       color: readThemeToken('--color-ink'),
       swatch: 'stub',
     })

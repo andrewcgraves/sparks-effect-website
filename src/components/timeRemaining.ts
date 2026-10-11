@@ -1,4 +1,5 @@
 import type { ChainMetadata, JourneyLeg, ReachableStation, TripProgress } from '../fixtures/isochrone'
+import { MODE_LABELS, modeLabel } from '../copy/modes'
 
 export const ORIGIN_KEY = 'origin'
 
@@ -54,13 +55,6 @@ export interface TimeRemainingContext {
   serviceName: (id: string) => string
   line?: (serviceID: string) => { key: string; label: string }
   mode: string
-}
-
-const MODE_LABELS: Record<string, string> = {
-  walk: 'Walk',
-  bike: 'Bike',
-  drive: 'Drive',
-  transit: 'Transit',
 }
 
 export function formatTimeRemaining(totalSecs: number): string {
@@ -252,7 +246,7 @@ function viewMemberships(
   }
 
   // The station a service is boarded at rides along with it, so its branches
-  // have a root to hang from rather than floating off the starting location one
+  // have a root to hang from rather than floating off the starting point one
   // by one. It is the only row a view borrows, and it is never a destination
   // of that view.
   const withBoardingPoints = (members: string[]): string[] => {
@@ -266,7 +260,7 @@ function viewMemberships(
   }
 
   if (byLine.size === 0) {
-    return [{ key: ACCESS_VIEW_KEY, label: MODE_LABELS[context.mode] ?? context.mode, members: access }]
+    return [{ key: ACCESS_VIEW_KEY, label: modeLabel(context.mode), members: access }]
   }
   return [...byLine].map(([key, { label, members }]) => ({
     key,
@@ -325,9 +319,9 @@ function buildOriginRow(metadata: ChainMetadata, context: TimeRemainingContext):
   return {
     key: ORIGIN_KEY,
     slug: null,
-    label: 'Starting location',
+    label: 'Starting point',
     remainingSecs: metadata.origin_budget_mins * 60,
-    flag: MODE_LABELS[context.mode] ?? context.mode,
+    flag: modeLabel(context.mode),
     parentKey: null,
     // Settled per view: the access leg a tab opens with is the one its own line
     // was reached by, not whichever station happened to sort first overall.
@@ -343,9 +337,9 @@ function buildOriginRow(metadata: ChainMetadata, context: TimeRemainingContext):
 // journey started from, and that station is where its first leg leaves. So a
 // view's access legs are the distinct first-leg origins of its own members —
 // several when the search boarded one line at more than one station, which is
-// exactly what a single name on the starting location used to hide (SPA-342).
+// exactly what a single name on the starting point used to hide (SPA-342).
 // The access view is every station reached without riding, one row each, so
-// the starting location names only one of them: the station the map's starter
+// the starting point names only one of them: the station the map's starter
 // walk is drawn to, or failing that the quickest, which is how the worker picks
 // it.
 //
