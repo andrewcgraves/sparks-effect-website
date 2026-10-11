@@ -34,7 +34,7 @@ const { pickArmed, onMapClick } = useOriginPick()
 const { status: routingStatus, offline } = useRoutingStatus()
 const hasExamples = ref<boolean | null>(null)
 
-const { name, description, routes, stations, services, loading: scenarioLoading } = useScenario(props.slug)
+const { name, subtext, description, routes, stations, services, loading: scenarioLoading } = useScenario(props.slug)
 
 usePageTitle(() => name.value)
 
@@ -129,7 +129,7 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
   results: () => timeRemaining.value.views.length > 0,
   extra: () => [
     ...(travelTimesFailed.value ? [] : [{ key: 'stations', label: 'Stations' }]),
-    ...(description.value.trim() ? [{ key: 'about', label: 'About' }] : []),
+    ...(subtext.value.trim() || description.value.trim() ? [{ key: 'about', label: 'About' }] : []),
   ],
 })
 </script>
@@ -210,7 +210,18 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
         />
       </template>
       <template #panel-about>
-        <p class="font-body text-body text-ink-muted">
+        <p
+          v-if="subtext.trim()"
+          class="font-body text-micro text-ink-muted italic uppercase"
+          data-testid="scenario-subtext"
+        >
+          {{ subtext }}
+        </p>
+        <p
+          v-if="description.trim()"
+          class="font-body text-body whitespace-pre-line text-ink-muted"
+          data-testid="scenario-description"
+        >
           {{ description }}
         </p>
       </template>
@@ -229,12 +240,21 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
     >
       <SkeletonShape class="w-3/4 max-w-[480px]" />
     </LoadingRegion>
-    <h1
+    <hgroup
       v-else
-      class="mt-8 max-w-[720px] font-display text-display text-ink-true"
+      class="mt-8 flex max-w-[720px] flex-col gap-2"
     >
-      {{ name || 'Sparks Effect' }}
-    </h1>
+      <h1 class="font-display text-display text-ink-true">
+        {{ name || 'Sparks Effect' }}
+      </h1>
+      <p
+        v-if="subtext.trim()"
+        class="font-body text-micro text-ink-muted italic uppercase"
+        data-testid="scenario-subtext"
+      >
+        {{ subtext }}
+      </p>
+    </hgroup>
 
     <!-- On wide screens the sidebar spans both rows, so the description sits
          right under the map rather than below the sidebar's last card. The 1fr
@@ -313,7 +333,10 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
         <h2 class="font-display text-h2 text-ink-true">
           Description
         </h2>
-        <p class="font-body text-body mt-3 text-ink-muted">
+        <p
+          class="font-body text-body mt-3 whitespace-pre-line text-ink-muted"
+          data-testid="scenario-description"
+        >
           {{ description }}
         </p>
       </section>
