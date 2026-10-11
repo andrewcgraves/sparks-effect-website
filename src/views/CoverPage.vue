@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { fetchCoverIndex, type CoverCard, type CoverSource } from '../api/coverIndex'
-import { ACTION_LINK_CLASS, INLINE_LINK_CLASS, LIST_CARD_LINK_CLASS } from '../components/linkStyles'
+import { ACTION_LINK_CLASS, LIST_CARD_LINK_CLASS } from '../components/linkStyles'
 import ListSkeleton from '../components/ListSkeleton.vue'
 
 const UNAVAILABLE_COPY: Record<CoverSource, string> = {
@@ -83,12 +83,6 @@ fetchCoverIndex()
             data-testid="scenarios-empty"
           >
             No lines or networks yet.
-            <router-link
-              to="/how-it-works"
-              :class="['not-italic', INLINE_LINK_CLASS]"
-            >
-              How it works
-            </router-link>
           </p>
           <ul
             v-if="cards.length > 0"

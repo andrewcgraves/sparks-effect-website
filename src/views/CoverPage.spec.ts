@@ -134,14 +134,11 @@ describe('CoverPage', () => {
     expect(wrapper.find('[role="alert"]').exists()).toBe(false)
   })
 
-  it('points an empty cover at how it works', async () => {
+  it('links How it works once, even when the cover is empty', async () => {
     vi.mocked(fetchCoverIndex).mockResolvedValue(index([]))
     const { wrapper } = await mountCover()
     await flushPromises()
-    const links = wrapper.get('[data-testid="scenarios-empty"]').findAll('a')
-    expect(links).toHaveLength(1)
-    expect(links[0]!.text()).toBe('How it works')
-    expect(links[0]!.attributes('href')).toBe('/how-it-works')
+    expect(wrapper.findAll('a[href="/how-it-works"]')).toHaveLength(1)
   })
 
   it('shows an error state, not an empty one, when neither read answers', async () => {

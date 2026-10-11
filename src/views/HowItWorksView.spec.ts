@@ -1,14 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
-import { createMemoryHistory, createRouter, type RouteRecordRaw } from 'vue-router'
+import { createMemoryHistory, createRouter } from 'vue-router'
 import HowItWorksView from './HowItWorksView.vue'
 
 const Blank = { template: '<div />' }
 
-async function mountView(routes: RouteRecordRaw[] = []) {
+async function mountView() {
   const router = createRouter({
     history: createMemoryHistory(),
-    routes: [{ path: '/how-it-works', component: HowItWorksView }, ...routes],
+    routes: [
+      { path: '/how-it-works', component: HowItWorksView },
+      { path: '/attribution', component: Blank },
+    ],
   })
   await router.push('/how-it-works')
   await router.isReady()
@@ -19,6 +22,7 @@ describe('HowItWorksView', () => {
   it('walks through the claim a splash zone makes, one section at a time', async () => {
     const wrapper = await mountView()
     expect(wrapper.get('h1').text()).toBe('How it works')
+    expect(wrapper.find('[data-testid="page-updated"] time').exists()).toBe(true)
     expect(wrapper.findAll('h2').map((h) => h.text())).toEqual([
       'What you\'re looking at',
       'What time of day',
@@ -97,16 +101,10 @@ describe('HowItWorksView', () => {
     }
   })
 
-  it('credits OpenStreetMap for the street and path network', async () => {
-    const osm = (await mountView()).get('a[href="https://www.openstreetmap.org/copyright"]')
-    expect(osm.text()).toBe('OpenStreetMap')
-  })
-
-  it('points at the attribution page once that page exists', async () => {
-    expect((await mountView()).find('[data-testid="how-it-works-attribution"]').exists()).toBe(false)
-
-    const credits = (await mountView([{ path: '/attribution', component: Blank }]))
-      .get('[data-testid="how-it-works-attribution"] a')
+  it('leaves the credits to the attribution page', async () => {
+    const wrapper = await mountView()
+    expect(wrapper.find('a[href="https://www.openstreetmap.org/copyright"]').exists()).toBe(false)
+    const credits = wrapper.get('[data-testid="how-it-works-attribution"] a')
     expect(credits.attributes('href')).toBe('/attribution')
     expect(credits.text()).toBe('Attribution')
   })

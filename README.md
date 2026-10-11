@@ -172,6 +172,9 @@ constant; bump it whenever that page's copy changes, since the date is the
 only thing that tells a reader the text moved. The one address all three ask
 people to write to is `CONTACT_EMAIL` in `src/legal/contact.ts`.
 
+`/how-it-works` sits on the same shell and is dated the same way. It explains
+where the numbers come from but leaves every credit to `/attribution`.
+
 What each page says follows the code, so a change to the code is a change to
 the copy:
 

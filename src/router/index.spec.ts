@@ -24,7 +24,6 @@ vi.mock('../views/PrivacyView.vue', () => ({ default: { template: '<div />' } })
 vi.mock('../views/TermsView.vue', () => ({ default: { template: '<div />' } }))
 vi.mock('../views/AttributionView.vue', () => ({ default: { template: '<div />' } }))
 
-import type { RouteLocationNormalized } from 'vue-router'
 import { router, redirectAfterSessionExpiry } from './index'
 import { STATIC_PAGES } from '../share/linkPreview'
 import { trackPageView } from '../analytics/index'
