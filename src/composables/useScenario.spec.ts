@@ -13,6 +13,7 @@ const stubDetail: ScenarioDetail = {
   id: 's1',
   slug: 'ca-hsr',
   name: 'CA HSR',
+  subtext: 'Electrified · High-speed rail · Greenfield',
   description: 'California High-Speed Rail',
   status: 'active',
   routes: [
@@ -113,6 +114,21 @@ describe('useScenario', () => {
     const { services } = useScenario('ca-hsr')
     await flushPromises()
     expect(services.value).toEqual(stubDetail.services)
+  })
+
+  it('populates the subtext and description after fetch resolves', async () => {
+    vi.mocked(fetchScenario).mockResolvedValueOnce(stubDetail)
+    const { subtext, description } = useScenario('ca-hsr')
+    await flushPromises()
+    expect(subtext.value).toBe('Electrified · High-speed rail · Greenfield')
+    expect(description.value).toBe('California High-Speed Rail')
+  })
+
+  it('reads a missing subtext as empty', async () => {
+    vi.mocked(fetchScenario).mockResolvedValueOnce({ ...stubDetail, subtext: undefined })
+    const { subtext } = useScenario('ca-hsr')
+    await flushPromises()
+    expect(subtext.value).toBe('')
   })
 
   it('leaves refs empty when fetch rejects', async () => {
