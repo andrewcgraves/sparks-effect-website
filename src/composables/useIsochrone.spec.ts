@@ -96,7 +96,7 @@ describe('useIsochrone', () => {
     vi.mocked(fetchIsochrone).mockRejectedValueOnce(new ApiError('boom', 500))
     const { data, error, loading, generate } = useIsochrone()
     await generate(request)
-    expect(error.value).toBe('Failed to generate isochrone. Please try again.')
+    expect(error.value).toBe("Couldn't plot this splash zone. Please try again.")
     expect(data.value).toBeNull()
     expect(loading.value).toBe(false)
   })
@@ -205,39 +205,39 @@ describe('useIsochrone', () => {
     })
   })
 
-  // SPA-230: a routing job the API gave up on — the isochrone service being
-  // down, chief among the reasons — carries its own reason, and that reason is
-  // what the user should see, in the same place every other error shows.
+  // SPA-230: a routing job the API gave up on — the routing service being
+  // down, chief among the reasons — carries its own reason. That reason is the
+  // API's or the worker's text, so the page says it in product words, in the
+  // same place every other error shows, and the reason goes to the console.
   describe('a routing job the API failed', () => {
-    it('shows the API error text rather than the generic fallback', async () => {
+    const ROUTING_FAILED = "Routing couldn't finish this splash zone. Please try again in a few minutes."
+
+    it('says routing could not finish, without the API error text', async () => {
       vi.spyOn(console, 'error').mockImplementation(() => {})
+      vi.spyOn(console, 'warn').mockImplementation(() => {})
       vi.mocked(fetchIsochrone).mockRejectedValueOnce(
-        new JobFailedError(
-          'rj1',
-          "The isochrone service isn't responding right now. Please try again in a few minutes.",
-        ),
+        new JobFailedError('rj1', 'isochrone: routing unavailable'),
       )
       const { error, generate } = useIsochrone()
 
       await generate(request)
 
-      expect(error.value).toBe(
-        "The isochrone service isn't responding right now. Please try again in a few minutes.",
-      )
+      expect(error.value).toBe(ROUTING_FAILED)
+      expect(error.value).not.toContain('isochrone')
     })
 
     // The worker can fail a job with no message recorded (an unreadable queue
-    // message names no job to blame, for one). An empty reason is not a
-    // reason, so the generic fallback is what a user should see instead of a
-    // blank error line.
-    it('falls back to the generic message when the API gave no reason', async () => {
+    // message names no job to blame, for one). The line is the same: what the
+    // reader can do about it does not depend on a reason they never see.
+    it('says the same when the API gave no reason', async () => {
       vi.spyOn(console, 'error').mockImplementation(() => {})
+      vi.spyOn(console, 'warn').mockImplementation(() => {})
       vi.mocked(fetchIsochrone).mockRejectedValueOnce(new JobFailedError('rj1', ''))
       const { error, generate } = useIsochrone()
 
       await generate(request)
 
-      expect(error.value).toBe('Failed to generate isochrone. Please try again.')
+      expect(error.value).toBe(ROUTING_FAILED)
     })
   })
 
@@ -253,7 +253,7 @@ describe('useIsochrone', () => {
       await generate(request)
 
       expect(error.value).toMatch(/busy/i)
-      expect(error.value).not.toBe('Failed to generate isochrone. Please try again.')
+      expect(error.value).not.toBe("Couldn't plot this splash zone. Please try again.")
     })
   })
 

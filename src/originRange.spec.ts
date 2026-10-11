@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   ORIGIN_OUT_OF_RANGE_CODE,
   checkOriginReach,
@@ -144,7 +144,7 @@ describe('outOfRangeMessage', () => {
   })
 
   it('uses the verb that goes with the mode', () => {
-    expect(outOfRangeMessage({ nearestKm: 100, maxReachKm: 15 }, 'bike', 60)).toContain('60-minute ride')
+    expect(outOfRangeMessage({ nearestKm: 100, maxReachKm: 15 }, 'bike', 60)).toContain('60-minute bike ride')
     expect(outOfRangeMessage({ nearestKm: 500, maxReachKm: 160 }, 'drive', 120)).toContain('120-minute drive')
     expect(outOfRangeMessage({ nearestKm: 80, maxReachKm: 20 }, 'transit', 30)).toContain('30-minute transit trip')
   })
@@ -172,13 +172,23 @@ describe('outOfRangeError', () => {
     expect(outOfRangeError(err, 'walk', 30)).toBeNull()
   })
 
-  // The code is right but the payload is not readable: the server's prose is
-  // still better than a generic failure, so it is used as-is.
+  // The code is right but the payload is not readable: the code alone still
+  // says what went wrong, in copy's words. The server's own text is the API's
+  // request line and domain words, so it is logged rather than shown.
   it.each([
     ['no detail', null],
     ['detail missing its numbers', {}],
     ['detail with the wrong types', { nearest_station_km: '111', max_reach_km: '2.5' }],
-  ])('falls back to the server message with %s', (_name, detail) => {
-    expect(outOfRangeError(apiRefusal(detail), 'walk', 30)).toBe('too far')
+  ])('says it in its own words with %s, and logs the server message', (_name, detail) => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const raw = 'POST /api/isochrone failed: 422: origin is 111.2 km from the nearest station'
+    const msg = outOfRangeError(new ApiError(raw, 422, ORIGIN_OUT_OF_RANGE_CODE, detail), 'walk', 30)
+    expect(msg).toBe(
+      'Every station is further than this travel time can reach. ' +
+        'Move the starting point closer to the line, or raise the travel time.',
+    )
+    expect(msg).not.toContain('/api/')
+    expect(warn).toHaveBeenCalledWith('[isochrone] origin_out_of_range without distances:', raw)
+    warn.mockRestore()
   })
 })

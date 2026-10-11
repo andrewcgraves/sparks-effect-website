@@ -250,7 +250,7 @@ async function recompileForInterchanges(): Promise<void> {
         role="alert"
         data-testid="graph-error"
       >
-        Couldn't load this network's compiled graph.
+        Couldn't load this network's latest build.
       </p>
       
       <template v-else-if="compileError && !graph">

@@ -1,4 +1,5 @@
 import type { ChainMetadata, JourneyLeg, ReachableStation, TripProgress } from '../fixtures/isochrone'
+import { MODE_LABELS, modeLabel } from '../copy/modes'
 
 export const ORIGIN_KEY = 'origin'
 
@@ -54,13 +55,6 @@ export interface TimeRemainingContext {
   serviceName: (id: string) => string
   line?: (serviceID: string) => { key: string; label: string }
   mode: string
-}
-
-const MODE_LABELS: Record<string, string> = {
-  walk: 'Walk',
-  bike: 'Bike',
-  drive: 'Drive',
-  transit: 'Transit',
 }
 
 export function formatTimeRemaining(totalSecs: number): string {
@@ -266,7 +260,7 @@ function viewMemberships(
   }
 
   if (byLine.size === 0) {
-    return [{ key: ACCESS_VIEW_KEY, label: MODE_LABELS[context.mode] ?? context.mode, members: access }]
+    return [{ key: ACCESS_VIEW_KEY, label: modeLabel(context.mode), members: access }]
   }
   return [...byLine].map(([key, { label, members }]) => ({
     key,
@@ -325,9 +319,9 @@ function buildOriginRow(metadata: ChainMetadata, context: TimeRemainingContext):
   return {
     key: ORIGIN_KEY,
     slug: null,
-    label: 'Starting location',
+    label: 'Starting point',
     remainingSecs: metadata.origin_budget_mins * 60,
-    flag: MODE_LABELS[context.mode] ?? context.mode,
+    flag: modeLabel(context.mode),
     parentKey: null,
     // Settled per view: the access leg a tab opens with is the one its own line
     // was reached by, not whichever station happened to sort first overall.

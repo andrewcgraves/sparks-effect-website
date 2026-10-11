@@ -95,7 +95,7 @@ describe('PrerenderedIsochrones', () => {
     const wrapper = await mountLoaded([
       summary({ id: 'pre-3', label: 'Downtown SF, 60 min transit', budget_mins: 60, mode: 'transit' }),
     ])
-    expect(wrapper.find('[data-testid="prerendered-entry-detail"]').text()).toBe('60 min · transit')
+    expect(wrapper.find('[data-testid="prerendered-entry-detail"]').text()).toBe('60 min · Transit')
   })
 
   // The card is an offer, not a status: with nothing to offer there is no

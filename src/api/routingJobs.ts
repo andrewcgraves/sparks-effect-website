@@ -37,7 +37,7 @@ export const BACKLOG_FULL_CODE = 'backlog_full'
 export function backlogFullError(err: unknown): string | null {
   if (!(err instanceof ApiError) || err.code !== BACKLOG_FULL_CODE) return null
   const wait = err.retryAfterS === undefined ? 'a few moments' : secondsPhrase(err.retryAfterS)
-  return `The isochrone service is busy right now. Please try again in ${wait}.`
+  return `Routing is busy right now. Please try again in ${wait}.`
 }
 
 export function fetchRoutingJob(id: string, init?: RequestInit): Promise<RoutingJob> {

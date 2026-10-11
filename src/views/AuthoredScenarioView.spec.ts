@@ -562,7 +562,7 @@ describe('AuthoredScenarioView joining near misses into interchanges', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-testid="join-interchange"]').exists()).toBe(false)
-    expect(wrapper.get('[data-testid="near-miss-declared"]').text()).toBe('Declared — not in the compiled network yet')
+    expect(wrapper.get('[data-testid="near-miss-declared"]').text()).toBe('Declared — not in the latest build yet')
     expect(wrapper.text()).not.toContain('Joined')
 
     await wrapper.get('[data-testid="recompile-interchange"]').trigger('click')
@@ -585,7 +585,7 @@ describe('AuthoredScenarioView joining near misses into interchanges', () => {
     expect(alert.attributes('role')).toBe('alert')
     expect(alert.text()).toContain('The preview is from the last compile that worked.')
     expect(wrapper.text()).not.toContain('Joined')
-    expect(wrapper.get('[data-testid="near-miss-declared"]').text()).toBe('Declared — not in the compiled network yet')
+    expect(wrapper.get('[data-testid="near-miss-declared"]').text()).toBe('Declared — not in the latest build yet')
     const recompile = wrapper.get('[data-testid="recompile-interchange"]')
     expect(recompile.attributes('disabled')).toBeUndefined()
 
@@ -746,7 +746,8 @@ describe('AuthoredScenarioView joining near misses into interchanges', () => {
 
     expect(wrapper.find('[data-testid="compile-error"]').exists()).toBe(true)
     const row = wrapper.get('[data-testid="declared-interchange-row"]')
-    expect(row.text()).toContain('Union (Coast Express) and old-midtown (Midtown Local)')
+    expect(row.text()).toContain('Union (Coast Express) and Unnamed stop (Midtown Local)')
+    expect(row.text()).not.toContain('old-midtown')
     expect(row.find('[data-testid="declared-interchange-missing"]').exists()).toBe(true)
 
     await row.get('[data-testid="remove-interchange"]').trigger('click')
@@ -757,14 +758,15 @@ describe('AuthoredScenarioView joining near misses into interchanges', () => {
     expect(wrapper.find('[data-testid="map"]').exists()).toBe(true)
   })
 
-  it('names a pair on a line it has no record of by its ids, and marks it gone', async () => {
+  it('names a pair on a line it has no record of neutrally, not by its ids, and marks it gone', async () => {
     const orphan: InterchangePair = { a: union, b: { service_id: 'svc9', slug: 'pier' } }
     vi.mocked(fetchScenario).mockResolvedValue({ ...network, interchange_pairs: [orphan] })
     const wrapper = mountView()
     await flushPromises()
 
     const row = wrapper.get('[data-testid="declared-interchange-row"]')
-    expect(row.text()).toContain('Union (Coast Express) and pier (svc9)')
+    expect(row.text()).toContain('Union (Coast Express) and Unnamed stop (Unnamed line)')
+    expect(row.text()).not.toMatch(/svc9|pier/)
     expect(row.find('[data-testid="declared-interchange-missing"]').exists()).toBe(true)
   })
 })

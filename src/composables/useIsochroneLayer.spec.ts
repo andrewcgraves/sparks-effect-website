@@ -194,7 +194,7 @@ describe('useIsochroneLayer', () => {
     const unfinished = legend.find((e) => e.source === 'unfinished')
     expect(unfinished).toEqual({
       source: 'unfinished',
-      label: 'Budget ran out here',
+      label: 'Travel time ran out here',
       color: THEME_TOKEN_FALLBACKS['--color-ink'],
       swatch: 'stub',
     })

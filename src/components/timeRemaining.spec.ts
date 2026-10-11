@@ -338,7 +338,7 @@ describe('buildTimeRemainingGraph', () => {
 
     it('shows station names rather than the slugs the wire carries', () => {
       expect(viewFor(INTERCHANGE, 'trunk').rows.map((r) => r.label))
-        .toEqual(['Starting location', 'Alpha', 'Beta', 'Gamma'])
+        .toEqual(['Starting point', 'Alpha', 'Beta', 'Gamma'])
     })
 
     it('falls back to the slug for a station the page has no name for', () => {

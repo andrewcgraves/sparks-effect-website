@@ -34,7 +34,7 @@ fetchCoverIndex()
         class="font-body text-body mt-6 max-w-[560px] text-ink-muted"
         data-testid="cover-lede"
       >
-        A splash zone is everywhere you can reach from one spot within a time budget, on foot,
+        A splash zone is everywhere you can reach from one spot within a set travel time, on foot,
         by bike, by car, or by riding a hypothetical transit line. Pick a line or network below,
         then choose where to start.
       </p>

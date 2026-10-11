@@ -71,7 +71,7 @@ function formatMeters(total: number): string {
           <span
             class="text-ink-muted italic"
             data-testid="near-miss-declared"
-          >Declared — not in the compiled network yet</span>
+          >Declared — not in the latest build yet</span>
           <button
             type="button"
             :class="SECONDARY_BUTTON_CLASS"

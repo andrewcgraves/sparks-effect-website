@@ -310,7 +310,7 @@ describe('IsochroneForm', () => {
     const wrapper = mount(IsochroneForm)
     const hint = wrapper.find('[data-testid="submit-hint"]')
     expect(hint.exists()).toBe(true)
-    expect(hint.text()).toBe('Enter a location and travel time to continue.')
+    expect(hint.text()).toBe('Enter a starting point and travel time to continue.')
   })
 
   it('hides the hint once the form is valid', async () => {
@@ -322,18 +322,18 @@ describe('IsochroneForm', () => {
 
   it('renders the error prop under the submit button, taking precedence over the hint', () => {
     const wrapper = mount(IsochroneForm, {
-      props: { error: 'Failed to generate isochrone. Please try again.' },
+      props: { error: "Couldn't plot this splash zone. Please try again." },
     })
     const error = wrapper.find('[data-testid="fetch-error"]')
     expect(error.exists()).toBe(true)
-    expect(error.text()).toBe('Failed to generate isochrone. Please try again.')
+    expect(error.text()).toBe("Couldn't plot this splash zone. Please try again.")
     expect(error.attributes('role')).toBe('alert')
     expect(wrapper.find('[data-testid="submit-hint"]').exists()).toBe(false)
   })
 
   it('clears the displayed error when a field is edited', async () => {
     const wrapper = mount(IsochroneForm, {
-      props: { error: 'Failed to generate isochrone. Please try again.' },
+      props: { error: "Couldn't plot this splash zone. Please try again." },
     })
     expect(wrapper.find('[data-testid="fetch-error"]').exists()).toBe(true)
     await wrapper.find('input[data-testid="lat"]').setValue('51.5074')
@@ -344,7 +344,7 @@ describe('IsochroneForm', () => {
     const wrapper = mount(IsochroneForm, { props: { loading: true } })
     const button = wrapper.find('button[type="submit"]')
     expect((button.element as HTMLButtonElement).disabled).toBe(true)
-    expect(button.text()).toBe('Generating…')
+    expect(button.text()).toBe('Plotting…')
   })
 
   it('ignores overlapping use-current-location clicks while locating', async () => {
@@ -397,7 +397,7 @@ describe('IsochroneForm', () => {
       const button = pickButton(wrapper)
       expect(button.exists()).toBe(true)
       expect(button.attributes('type')).toBe('button')
-      expect(button.text()).toContain('Pick location on map')
+      expect(button.text()).toContain('Pick starting point on map')
     })
 
     it('keeps the pin out of what a screen reader says for the pick-on-map button', () => {
@@ -420,7 +420,7 @@ describe('IsochroneForm', () => {
       await pickButton(wrapper).trigger('click')
 
       expect(lastPickArmed(wrapper)).toBe(false)
-      expect(pickButton(wrapper).text()).toContain('Pick location on map')
+      expect(pickButton(wrapper).text()).toContain('Pick starting point on map')
     })
 
     it('disarms on Escape without touching the origin', async () => {
@@ -488,7 +488,7 @@ describe('IsochroneForm', () => {
       await pickOnMap(wrapper, { lat: 45.5231, lng: -122.6784 })
 
       expect(lastPickArmed(wrapper)).toBe(false)
-      expect(pickButton(wrapper).text()).toContain('Pick location on map')
+      expect(pickButton(wrapper).text()).toContain('Pick starting point on map')
     })
 
     it('disarms when the origin is set by autocomplete instead', async () => {

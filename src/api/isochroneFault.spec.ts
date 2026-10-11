@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from './authoring/client'
 import { JobFailedError } from './polling'
 import type { Station } from './scenarios'
@@ -24,7 +24,8 @@ const sanFrancisco: Station = {
   platform_height: '0',
 }
 
-const GENERIC = 'Failed to generate isochrone. Please try again.'
+const GENERIC = "Couldn't plot this splash zone. Please try again."
+const ROUTING_FAILED = "Routing couldn't finish this splash zone. Please try again in a few minutes."
 
 describe('isochroneFault', () => {
   beforeEach(() => {
@@ -32,22 +33,27 @@ describe('isochroneFault', () => {
     vi.mocked(trackIsochroneError).mockClear()
   })
 
-  it('shows the API error text for a failed routing job', () => {
-    const message = isochroneFault(
-      new JobFailedError(
-        'rj1',
-        "The isochrone service isn't responding right now. Please try again in a few minutes.",
-      ),
-      'walk',
-      30,
-    )
-    expect(message).toBe(
-      "The isochrone service isn't responding right now. Please try again in a few minutes.",
-    )
-  })
+  describe('a failed routing job', () => {
+    beforeEach(() => {
+      vi.spyOn(console, 'warn').mockImplementation(() => {})
+    })
 
-  it('falls back when a failed routing job gave no reason', () => {
-    expect(isochroneFault(new JobFailedError('rj1', ''), 'walk', 30)).toBe(GENERIC)
+    afterEach(() => {
+      vi.mocked(console.warn).mockRestore()
+    })
+
+    it('says routing could not finish, and logs the job’s own reason instead of showing it', () => {
+      const reason = 'compile: service "abc" references unknown route "def"'
+      const message = isochroneFault(new JobFailedError('rj1', reason), 'walk', 30)
+      expect(message).toBe(ROUTING_FAILED)
+      expect(message).not.toMatch(/service|route|compile/i)
+      expect(console.warn).toHaveBeenCalledWith('[isochrone] routing job failed:', reason)
+    })
+
+    it('says the same when the job gave no reason', () => {
+      expect(isochroneFault(new JobFailedError('rj1', ''), 'walk', 30)).toBe(ROUTING_FAILED)
+      expect(console.warn).toHaveBeenCalledWith('[isochrone] routing job failed:', '(no reason given)')
+    })
   })
 
   it('reports an origin_out_of_range ApiError in its own terms', () => {

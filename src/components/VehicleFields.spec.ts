@@ -111,7 +111,7 @@ describe('VehicleFields', () => {
         'How quickly it slows for a stop; 0.4–1.3 m/s² is typical for passenger rail',
       )
       expect(wrapper.get('[data-testid="vehicle-dwell-help"]').text()).toBe(
-        'Time stopped at each station for boarding; 20–90 s is typical',
+        'Time stopped at each stop for boarding; 20–90 s is typical',
       )
     })
 

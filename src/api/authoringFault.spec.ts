@@ -2,13 +2,69 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from './authoring/client'
+import type { ScenarioInput, ServiceInput } from './authoring/types'
 import { JobFailedError } from './polling'
 import {
   GENERIC_AUTHORING_FAULT,
   SESSION_EXPIRED_FAULT,
   UNREACHABLE_FAULT,
   authoringFault,
+  unnamedFieldSegments,
 } from './authoringFault'
+
+// Every field path an authoring input can carry, in the API's dotted form, with
+// `[]` marking one the API reports per entry (with an index) rather than whole.
+type FieldPath<T, Prefix extends string = ''> = {
+  [K in keyof T & string]-?: NonNullable<T[K]> extends readonly (infer Entry)[]
+    ? `${Prefix}${K}` | `${Prefix}${K}[]` | (Entry extends object ? FieldPath<Entry, `${Prefix}${K}[].`> : never)
+    : NonNullable<T[K]> extends object
+      ? `${Prefix}${K}` | FieldPath<NonNullable<T[K]>, `${Prefix}${K}.`>
+      : `${Prefix}${K}`
+}[keyof T & string]
+
+type AuthoringInputField = FieldPath<ServiceInput> | FieldPath<ScenarioInput>
+
+// `satisfies` makes this list the types' own: a field added to ServiceInput or
+// ScenarioInput fails the typecheck until it is listed here, and listing it
+// fails the spec below until authoringFault.ts has a word for it.
+const AUTHORING_INPUT_FIELDS = Object.keys({
+  route_slug: true,
+  name: true,
+  subtext: true,
+  description: true,
+  stops: true,
+  'stops[]': true,
+  'stops[].name': true,
+  'stops[].lat': true,
+  'stops[].lng': true,
+  'stops[].seq': true,
+  'stops[].slug': true,
+  'stops[].chainage_m': true,
+  'stops[].offset_m': true,
+  vehicle: true,
+  'vehicle.max_speed_kmh': true,
+  'vehicle.acceleration_ms2': true,
+  'vehicle.deceleration_ms2': true,
+  'vehicle.dwell_s': true,
+  frequency_windows: true,
+  'frequency_windows[]': true,
+  'frequency_windows[].start_time': true,
+  'frequency_windows[].end_time': true,
+  'frequency_windows[].headway_s': true,
+  service_ids: true,
+  'service_ids[]': true,
+  interchange_pairs: true,
+  'interchange_pairs[]': true,
+  'interchange_pairs[].a': true,
+  'interchange_pairs[].a.service_id': true,
+  'interchange_pairs[].a.slug': true,
+  'interchange_pairs[].b': true,
+  'interchange_pairs[].b.service_id': true,
+  'interchange_pairs[].b.slug': true,
+  boarding_wait: true,
+  'boarding_wait.policy': true,
+  'boarding_wait.secs': true,
+} satisfies Record<AuthoringInputField, true>)
 
 function validation(faults: unknown[]): ApiError {
   return new ApiError(
@@ -112,6 +168,32 @@ describe('authoringFault', () => {
       ).toBe("Platform length isn't valid.")
     })
 
+    it('names a network boarding wait in the form’s words, not the API’s', () => {
+      const message = authoringFault(
+        validation([
+          { field: 'boarding_wait.policy', rule: 'unknown', message: 'boarding wait: unrecognised policy' },
+          { field: 'boarding_wait.secs', rule: 'non_negative', message: 'boarding wait: fixed seconds must be non-negative' },
+        ]),
+        'scenario',
+      )
+      expect(message).toBe(
+        "Boarding wait isn't one we recognise. Boarding wait seconds can't be negative.",
+      )
+      expect(message).not.toMatch(/\bsecs\b|\bpolicy\b/i)
+    })
+
+    it('names an interchange stop by its line and stop, not its service id', () => {
+      const message = authoringFault(
+        validation([
+          { field: 'interchange_pairs.a.service_id', index: 0, rule: 'required', message: 'pair 0: a.service_id is required' },
+          { field: 'interchange_pairs.b.slug', index: 1, rule: 'required', message: 'pair 1: b.slug is required' },
+        ]),
+        'scenario',
+      )
+      expect(message).toBe('Interchange 1: first line is required. Interchange 2: second stop is required.')
+      expect(message).not.toMatch(/service id|slug/i)
+    })
+
     it('falls back to a summary when the faults are missing', () => {
       expect(authoringFault(new ApiError('POST failed: 422: bad', 422, 'validation'))).toBe(
         "Some of this line's details weren't accepted. Check them and try again.",
@@ -182,5 +264,13 @@ describe('authoringFault', () => {
   it('falls back to a generic line for anything else', () => {
     expect(authoringFault(new Error('Job 3f2 timed out after 60000ms'))).toBe(GENERIC_AUTHORING_FAULT)
     expect(authoringFault(new ApiError('failed: 418', 418))).toBe(GENERIC_AUTHORING_FAULT)
+  })
+})
+
+describe('authoring field words', () => {
+  it.each(AUTHORING_INPUT_FIELDS)('has a word for every segment of %s', (path) => {
+    const field = path.replace(/\[\]/g, '')
+    const index = path.includes('[]') ? 0 : undefined
+    expect(unnamedFieldSegments({ field, index })).toEqual([])
   })
 })
