@@ -10,11 +10,27 @@ vi.mock('../api/authoring/services', () => ({
 vi.mock('../api/authoring/scenarios', () => ({
   fetchMyScenarios: vi.fn(),
 }))
+vi.mock('../api/authoring/handovers', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../api/authoring/handovers')>()),
+  fetchMyHandovers: vi.fn(),
+  acceptHandover: vi.fn(),
+  declineHandover: vi.fn(),
+}))
 
 import AuthoringView from './AuthoringView.vue'
 import { seriousA11yViolations } from '../test/axe'
 import { fetchMyServices } from '../api/authoring/services'
 import { fetchMyScenarios } from '../api/authoring/scenarios'
+import {
+  acceptHandover,
+  declineHandover,
+  fetchMyHandovers,
+  type IncomingHandover,
+  type MyHandovers,
+  type OutgoingHandover,
+} from '../api/authoring/handovers'
+import { ApiError } from '../api/authoring/client'
+import { mountSharedHosts } from '../test/sharedHosts'
 import { useAuthStore } from '../stores/auth'
 import { busyRegion, visibleText } from '../test/loading'
 
@@ -28,7 +44,6 @@ function makeRouter() {
       { path: '/authoring/services/:slug', name: 'service-detail', component: LoginStub },
       { path: '/authoring/scenarios/:slug', name: 'scenario-detail', component: LoginStub },
       { path: '/login', name: 'login', component: LoginStub },
-      { path: '/account', name: 'account', component: LoginStub },
     ],
   })
 }
@@ -57,6 +72,9 @@ describe('AuthoringView', () => {
     setActivePinia(createPinia())
     vi.mocked(fetchMyServices).mockReset()
     vi.mocked(fetchMyScenarios).mockReset()
+    vi.mocked(fetchMyHandovers).mockReset().mockResolvedValue({ incoming: [], outgoing: [] })
+    vi.mocked(acceptHandover).mockReset()
+    vi.mocked(declineHandover).mockReset()
   })
 
   afterEach(() => {
@@ -89,12 +107,13 @@ describe('AuthoringView', () => {
     expect(wrapper.text()).toContain('Signed in as Ada')
   })
 
-  it('links to the account page', async () => {
+  it('leaves account and sign-out to the site header', async () => {
     vi.mocked(fetchMyServices).mockResolvedValue([])
     vi.mocked(fetchMyScenarios).mockResolvedValue([])
     const { wrapper } = await mountAuthoring()
     await flushPromises()
-    expect(wrapper.get('[data-testid="account-link"]').attributes('href')).toBe('/account')
+    expect(wrapper.find('a[href="/account"]').exists()).toBe(false)
+    expect(wrapper.findAll('button').map((b) => b.text())).not.toContain('Sign out')
   })
 
   it.each([
@@ -263,20 +282,6 @@ describe('AuthoringView', () => {
     expect(wrapper.text()).toContain('CA HSR')
   })
 
-  it('signs out and returns to /login', async () => {
-    vi.mocked(fetchMyServices).mockResolvedValue([])
-    vi.mocked(fetchMyScenarios).mockResolvedValue([])
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 204 } as Response))
-    const { wrapper, router, auth } = await mountAuthoring()
-    await flushPromises()
-
-    await wrapper.find('[data-testid="sign-out"]').trigger('click')
-    await flushPromises()
-
-    expect(auth.isAuthenticated).toBe(false)
-    expect(router.currentRoute.value.path).toBe('/login')
-  })
-
   it('has no serious or critical accessibility violations once both lists load', async () => {
     vi.mocked(fetchMyServices).mockResolvedValue([stubService])
     vi.mocked(fetchMyScenarios).mockResolvedValue([stubScenario])
@@ -287,5 +292,192 @@ describe('AuthoringView', () => {
     await flushPromises()
     expect(await seriousA11yViolations(wrapper)).toEqual([])
     wrapper.unmount()
+  })
+
+  describe('transfers', () => {
+    let hosts: ReturnType<typeof mountSharedHosts>
+
+    const offered: IncomingHandover = {
+      id: 'h-in',
+      service_slug: 'coast-line',
+      service_name: 'Coast Line',
+      from_name: 'Grace',
+      status: 'pending',
+      created_at: '2026-10-01T12:00:00Z',
+      expires_at: '2026-10-15T12:00:00Z',
+    }
+
+    const coastLine: Service = { ...stubService, id: 'svc2', slug: 'coast-line', name: 'Coast Line' }
+
+    const sent: OutgoingHandover = {
+      id: 'h-out',
+      service_slug: 'northbound-express',
+      service_name: 'Northbound Express',
+      to_name: 'Ada',
+      status: 'pending',
+      created_at: '2026-10-01T12:00:00Z',
+      expires_at: '2026-10-15T12:00:00Z',
+    }
+
+    function withHandovers(mine: Partial<MyHandovers>): void {
+      vi.mocked(fetchMyHandovers).mockResolvedValue({ incoming: [], outgoing: [], ...mine })
+    }
+
+    beforeEach(() => {
+      vi.mocked(fetchMyServices).mockResolvedValue([stubService])
+      vi.mocked(fetchMyScenarios).mockResolvedValue([])
+      hosts = mountSharedHosts()
+    })
+
+    afterEach(() => {
+      hosts.unmount()
+    })
+
+    it('shows no transfers banner when nothing is offered to the user', async () => {
+      const { wrapper } = await mountAuthoring()
+      await flushPromises()
+      expect(wrapper.find('[data-testid="incoming-handovers"]').exists()).toBe(false)
+    })
+
+    it('lists each incoming offer with the line, who sent it and when it expires', async () => {
+      withHandovers({ incoming: [offered] })
+      const { wrapper } = await mountAuthoring()
+      await flushPromises()
+      const banner = wrapper.get('[data-testid="incoming-handovers"]')
+      expect(banner.get('h2').text()).toBe('Incoming transfers')
+      const row = banner.get('[data-testid="incoming-handover"]')
+      expect(row.text()).toContain('Coast Line')
+      expect(row.text()).toContain('From Grace')
+      expect(row.text()).toMatch(/expires .*2026/i)
+      expect(row.get('[data-testid="accept-handover"]').text()).toBe('Accept')
+      expect(row.get('[data-testid="decline-handover"]').text()).toBe('Decline')
+    })
+
+    it('still shows an incoming offer to someone with no lines of their own', async () => {
+      vi.mocked(fetchMyServices).mockResolvedValue([])
+      withHandovers({ incoming: [offered] })
+      const { wrapper } = await mountAuthoring()
+      await flushPromises()
+      expect(wrapper.find('[data-testid="incoming-handover"]').exists()).toBe(true)
+    })
+
+    it('accepts an offer, after which the line is in the user\'s list and the offer is gone', async () => {
+      withHandovers({ incoming: [offered] })
+      vi.mocked(acceptHandover).mockResolvedValue({ ...offered, status: 'accepted' })
+      const { wrapper } = await mountAuthoring()
+      await flushPromises()
+      withHandovers({})
+      vi.mocked(fetchMyServices).mockResolvedValue([stubService, coastLine])
+
+      await wrapper.get('[data-testid="accept-handover"]').trigger('click')
+      await flushPromises()
+
+      expect(acceptHandover).toHaveBeenCalledWith('h-in')
+      expect(hosts.toasts()).toEqual(['Transfer accepted'])
+      expect(wrapper.find('[data-testid="incoming-handovers"]').exists()).toBe(false)
+      expect(wrapper.findAll('[data-testid="service-link"]').map((link) => link.attributes('href')))
+        .toContain('/authoring/services/coast-line')
+    })
+
+    it('explains, naming the networks, when the sender still has the line in them', async () => {
+      withHandovers({ incoming: [offered] })
+      vi.mocked(acceptHandover).mockRejectedValue(
+        new ApiError('conflict', 409, 'service_in_scenarios', { scenarios: ['bay-loop', 'peninsula'] }),
+      )
+      const { wrapper } = await mountAuthoring()
+      await flushPromises()
+
+      await wrapper.get('[data-testid="accept-handover"]').trigger('click')
+      await flushPromises()
+
+      const refusal = wrapper.get('[data-testid="handover-refusal"]')
+      expect(refusal.text()).toBe('Grace has to take this line out of their networks first: bay-loop, peninsula.')
+      expect(refusal.attributes('role')).toBe('alert')
+      expect(hosts.toasts()).toEqual([])
+    })
+
+    it('explains the scenario refusal even when it names no networks', async () => {
+      withHandovers({ incoming: [offered] })
+      vi.mocked(acceptHandover).mockRejectedValue(new ApiError('conflict', 409, 'service_in_scenarios'))
+      const { wrapper } = await mountAuthoring()
+      await flushPromises()
+
+      await wrapper.get('[data-testid="accept-handover"]').trigger('click')
+      await flushPromises()
+
+      expect(wrapper.get('[data-testid="handover-refusal"]').text())
+        .toBe('Grace has to take this line out of their networks before you can accept it.')
+    })
+
+    it('says so, and drops the row, when the offer closed before it was accepted', async () => {
+      withHandovers({ incoming: [offered] })
+      vi.mocked(acceptHandover).mockRejectedValue(new ApiError('handover is no longer pending', 409))
+      const { wrapper } = await mountAuthoring()
+      await flushPromises()
+      withHandovers({})
+
+      await wrapper.get('[data-testid="accept-handover"]').trigger('click')
+      await flushPromises()
+
+      expect(hosts.toasts()).toEqual(['That offer is no longer open.'])
+      expect(wrapper.find('[data-testid="incoming-handover"]').exists()).toBe(false)
+    })
+
+    it('asks before declining, and keeps the offer when backed out of', async () => {
+      withHandovers({ incoming: [offered] })
+      const { wrapper } = await mountAuthoring()
+      await flushPromises()
+
+      await wrapper.get('[data-testid="decline-handover"]').trigger('click')
+      await flushPromises()
+      expect(hosts.dialog().text()).toContain("Decline 'Coast Line'?")
+      await hosts.cancelButton().trigger('click')
+      await flushPromises()
+
+      expect(declineHandover).not.toHaveBeenCalled()
+      expect(wrapper.find('[data-testid="incoming-handover"]').exists()).toBe(true)
+    })
+
+    it('declines once confirmed, and the offer goes', async () => {
+      withHandovers({ incoming: [offered] })
+      vi.mocked(declineHandover).mockResolvedValue({ ...offered, status: 'declined' })
+      const { wrapper } = await mountAuthoring()
+      await flushPromises()
+      withHandovers({})
+
+      await wrapper.get('[data-testid="decline-handover"]').trigger('click')
+      await flushPromises()
+      await hosts.confirmButton().trigger('click')
+      await flushPromises()
+
+      expect(declineHandover).toHaveBeenCalledWith('h-in')
+      expect(hosts.toasts()).toEqual(['Transfer declined'])
+      expect(wrapper.find('[data-testid="incoming-handovers"]').exists()).toBe(false)
+    })
+
+    it('badges a line the user has offered to someone as transfer pending', async () => {
+      withHandovers({ outgoing: [sent] })
+      const { wrapper } = await mountAuthoring()
+      await flushPromises()
+      const link = wrapper.get('[data-testid="service-link"]')
+      expect(link.get('[data-testid="handover-pending"]').text()).toBe('Transfer pending')
+    })
+
+    it('does not badge a line with no pending offer', async () => {
+      const { wrapper } = await mountAuthoring()
+      await flushPromises()
+      expect(wrapper.find('[data-testid="handover-pending"]').exists()).toBe(false)
+    })
+
+    it('has no serious or critical accessibility violations with an incoming offer and a badge', async () => {
+      withHandovers({ incoming: [offered], outgoing: [sent] })
+      const router = makeRouter()
+      useAuthStore().signIn('tok-1', { id: 'u1', email: 'a@example.com' })
+      await router.push('/authoring')
+      const wrapper = mount(AuthoringView, { global: { plugins: [router] }, attachTo: document.body })
+      await flushPromises()
+      expect(await seriousA11yViolations(wrapper)).toEqual([])
+      wrapper.unmount()
+    })
   })
 })

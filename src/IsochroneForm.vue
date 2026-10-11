@@ -50,7 +50,6 @@ const { initial } = props
 const lat = ref(initial.lat === undefined ? '' : String(initial.lat))
 const lng = ref(initial.lng === undefined ? '' : String(initial.lng))
 const duration = ref(initial.duration ?? DEFAULT_DURATION)
-const selectedLabel = ref('')
 const locationError = ref('')
 const locating = ref(false)
 const mode = ref<TravelMode>(initial.mode ?? DEFAULT_MODE)
@@ -106,7 +105,6 @@ function setOriginFromMap(coord: { lat: number; lng: number }) {
   pickArmed.value = false
   lat.value = String(coord.lat)
   lng.value = String(coord.lng)
-  selectedLabel.value = ''
   addressAutocompleteRef.value?.setInputValue('')
 }
 
@@ -116,7 +114,6 @@ function onAutocompleteSelect(suggestion: GeocodingSuggestion) {
   pickArmed.value = false
   lat.value = String(suggestion.lat)
   lng.value = String(suggestion.lng)
-  selectedLabel.value = suggestion.label
 }
 
 async function onUseCurrentLocation() {
@@ -135,13 +132,7 @@ async function onUseCurrentLocation() {
     const suggestion = await reverseGeocode(position.lat, position.lng)
     if (requestId !== locationRequestId) return
     if (lat.value !== String(position.lat) || lng.value !== String(position.lng)) return
-    if (suggestion) {
-      selectedLabel.value = suggestion.label
-      addressAutocompleteRef.value?.setInputValue(suggestion.label)
-    } else {
-      selectedLabel.value = ''
-      addressAutocompleteRef.value?.setInputValue('')
-    }
+    addressAutocompleteRef.value?.setInputValue(suggestion?.label ?? '')
   } catch {
     if (requestId !== locationRequestId) return
     locationError.value = 'Unable to get your current location.'
@@ -182,16 +173,41 @@ function handleSubmit() {
       <AddressAutocomplete
         ref="addressAutocompleteRef"
         @select="onAutocompleteSelect"
-      />
-      <button
-        type="button"
-        class="font-display text-btn self-start text-ink-muted uppercase transition-colors duration-200 ease-(--ease-smooth) hover:text-coral disabled:cursor-not-allowed disabled:opacity-50"
-        data-testid="use-current-location"
-        :disabled="locating"
-        @click="onUseCurrentLocation"
       >
-        <span aria-hidden="true">📍</span> Use my location
-      </button>
+        <template #trailing>
+          <button
+            type="button"
+            class="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-(--radius-field) border border-border bg-white text-ink-muted transition-colors duration-200 ease-(--ease-smooth) hover:border-coral hover:text-coral disabled:cursor-not-allowed disabled:opacity-50"
+            data-testid="use-current-location"
+            aria-label="Use my location"
+            title="Use my location"
+            :aria-busy="locating"
+            :disabled="locating"
+            @click="onUseCurrentLocation"
+          >
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              class="size-5 fill-none stroke-current stroke-2"
+              :class="{ 'animate-pulse': locating }"
+              stroke-linecap="round"
+            >
+              <circle
+                cx="12"
+                cy="12"
+                r="7"
+              />
+              <circle
+                cx="12"
+                cy="12"
+                r="2.5"
+                class="fill-current"
+              />
+              <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+            </svg>
+          </button>
+        </template>
+      </AddressAutocomplete>
       <button
         type="button"
         class="font-display text-btn self-start uppercase transition-colors duration-200 ease-(--ease-smooth) hover:text-coral"
@@ -212,13 +228,6 @@ function handleSubmit() {
         data-testid="location-error"
       >
         {{ locationError }}
-      </p>
-      <p
-        v-if="selectedLabel"
-        class="font-body text-caption text-ink-muted italic"
-        data-testid="selected-label"
-      >
-        {{ selectedLabel }}
       </p>
     </div>
 
