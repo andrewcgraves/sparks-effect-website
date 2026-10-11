@@ -256,8 +256,12 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
       </p>
     </hgroup>
 
-    <div class="mt-8 grid grid-cols-1 items-start gap-4 lg:grid-cols-[2fr_1fr]">
-      <div class="h-[70vh]">
+    <!-- On wide screens the sidebar spans both rows, so the description sits
+         right under the map rather than below the sidebar's last card. The 1fr
+         second row soaks up the sidebar's extra height, keeping the first row
+         as tall as the map. -->
+    <div class="mt-8 grid grid-cols-1 items-start gap-4 lg:grid-cols-[2fr_1fr] lg:grid-rows-[auto_1fr]">
+      <div class="h-[70vh] lg:col-start-1 lg:row-start-1">
         <MapView
           label="Splash zone map"
           :origin="origin"
@@ -275,7 +279,7 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
         />
       </div>
 
-      <div class="flex flex-col gap-4">
+      <div class="flex flex-col gap-4 lg:col-start-2 lg:row-span-2 lg:row-start-1">
         <RoutingStatusBanner
           :status="routingStatus"
           :has-examples="hasExamples"
@@ -321,21 +325,21 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
           :loading="travelTimesLoading"
         />
       </div>
-    </div>
 
-    <section
-      v-if="description.trim()"
-      class="mt-16 max-w-[720px]"
-    >
-      <h2 class="font-display text-h2 text-ink-true">
-        Description
-      </h2>
-      <p
-        class="font-body text-body mt-3 whitespace-pre-line text-ink-muted"
-        data-testid="scenario-description"
+      <section
+        v-if="description.trim()"
+        class="mt-12 max-w-[720px] lg:col-start-1 lg:row-start-2 lg:mt-4"
       >
-        {{ description }}
-      </p>
-    </section>
+        <h2 class="font-display text-h2 text-ink-true">
+          Description
+        </h2>
+        <p
+          class="font-body text-body mt-3 whitespace-pre-line text-ink-muted"
+          data-testid="scenario-description"
+        >
+          {{ description }}
+        </p>
+      </section>
+    </div>
   </main>
 </template>
