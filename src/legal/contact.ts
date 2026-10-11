@@ -3,3 +3,6 @@
 export const CONTACT_EMAIL = 'hello@sparks-effect.app'
 
 export const CONTACT_MAILTO = `mailto:${CONTACT_EMAIL}`
+
+// Where the legal pages send readers who want the technical detail.
+export const SOURCE_URL = 'https://github.com/andrewcgraves/sparks-effect-website'

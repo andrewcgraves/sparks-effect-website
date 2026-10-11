@@ -24,16 +24,12 @@ describe('TermsView', () => {
     expect(wrapper.get('[data-testid="page-updated"] time').attributes('datetime')).toMatch(/^\d{4}-\d{2}-\d{2}$/)
   })
 
-  it('covers accounts, published content, acceptable use, takedown, the model, data licences and changes', async () => {
+  it('covers published content, acceptable use, takedown and the model', async () => {
     expect((await mountView()).findAll('h2').map((h) => h.text())).toEqual([
-      'What Sparks Effect is',
-      'Accounts',
       'Content you publish',
       'Acceptable use',
       'Moderation and takedown',
-      'No warranty on modelled results',
-      'Data licences',
-      'Changes to these terms',
+      'No warranty',
     ])
   })
 

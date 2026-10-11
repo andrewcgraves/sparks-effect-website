@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import AttributionView from './AttributionView.vue'
-import { CONTACT_EMAIL } from '../legal/contact'
+import { CONTACT_EMAIL, SOURCE_URL } from '../legal/contact'
 import { seriousA11yViolations } from '../test/axe'
 
 const Blank = { template: '<div />' }
@@ -36,11 +36,11 @@ describe('AttributionView', () => {
     const headings = (await mountView()).findAll('h2')
     expect(headings.map((h) => [h.attributes('id'), h.text()])).toEqual([
       ['map', 'Map'],
-      ['routing-graph', 'Street network and routing'],
+      ['routing-graph', 'Street network'],
       ['transit-schedules', 'Transit schedules'],
       ['address-search', 'Address search'],
       ['proposed-lines', 'Proposed lines'],
-      ['software', 'Software and fonts'],
+      ['software', 'Software'],
     ])
   })
 
@@ -63,14 +63,8 @@ describe('AttributionView', () => {
     const wrapper = await mountView()
     const text = wrapper.text()
     expect(text).toMatch(/Derivative Database of OpenStreetMap/)
-    expect(text).toMatch(/We do not edit OpenStreetMap data/)
     expect(text).toMatch(/available free on request/)
-    expect(hrefs(wrapper)).toEqual(expect.arrayContaining([
-      'https://github.com/valhalla/valhalla',
-      'https://download.geofabrik.de/',
-      'https://github.com/evansiroky/timezone-boundary-builder',
-      'https://github.com/OpenStreetMapSpeeds/schema',
-    ]))
+    expect(hrefs(wrapper)).toContain('https://github.com/evansiroky/timezone-boundary-builder')
   })
 
   it('credits 511 in its required words, linked', async () => {
@@ -100,7 +94,6 @@ describe('AttributionView', () => {
       'https://creativecommons.org/licenses/by/4.0/',
       'https://creativecommons.org/licenses/by/3.0/',
       'https://github.com/PinpointAVL/TAPS-GTFS/blob/main/LICENSE',
-      'https://mobilitydatabase.org',
     ]))
   })
 
@@ -124,18 +117,19 @@ describe('AttributionView', () => {
   it('credits the high-speed rail planning data with its disclaimer, and the ODbL trace', async () => {
     const text = (await mountView()).text()
     expect(text).toMatch(/California High-Speed Rail Authority/)
-    expect(text).toMatch(/preliminary planning data/)
+    expect(text).toMatch(/preliminary\s+planning data/)
     expect(text).toMatch(/Brightline West.*traced from OpenStreetMap/s)
     expect(text).toMatch(/High Desert Corridor/)
   })
 
-  it('credits the map library and the fonts', async () => {
+  it('credits the map library and the fonts, and points at the source for the rest', async () => {
     const links = hrefs(await mountView())
     expect(links).toContain('https://maplibre.org/')
     expect(links).toContain('https://openfontlicense.org/')
+    expect(links).toContain(SOURCE_URL)
   })
 
-  it('gives an address to ask for the full agency list and the build details', async () => {
+  it('gives an address to ask for the build details', async () => {
     expect(hrefs(await mountView())).toContain(`mailto:${CONTACT_EMAIL}`)
   })
 

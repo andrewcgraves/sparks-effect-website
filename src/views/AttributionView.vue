@@ -8,7 +8,7 @@ import {
   PROSE_LIST_CLASS,
   PROSE_P_CLASS,
 } from '../components/proseStyles'
-import { CONTACT_EMAIL, CONTACT_MAILTO } from '../legal/contact'
+import { CONTACT_EMAIL, CONTACT_MAILTO, SOURCE_URL } from '../legal/contact'
 import { resolveTileCredit } from '../mapStyle'
 
 const UPDATED = '2026-10-10'
@@ -58,9 +58,7 @@ const CC_BY_4_FEEDS = inProse([
     :updated="UPDATED"
   >
     <p :class="PROSE_LEAD_CLASS">
-      Sparks Effect is built on open map data, public transit schedules and open-source software.
-      None of the organisations below endorses Sparks Effect. Proposed lines are drawn from
-      published plans and may not match what is built.
+      Sparks Effect is built on the open data below. None of these organisations endorses it.
     </p>
 
     <h2
@@ -87,30 +85,13 @@ const CC_BY_4_FEEDS = inProse([
       id="routing-graph"
       :class="PROSE_H2_CLASS"
     >
-      Street network and routing
+      Street network
     </h2>
     <p :class="PROSE_P_CLASS">
-      Travel times are computed with <ExternalLink href="https://github.com/valhalla/valhalla">Valhalla</ExternalLink>
-      (MIT) over a street network built from OpenStreetMap extracts of California and Nevada from
-      <ExternalLink href="https://download.geofabrik.de/">Geofabrik</ExternalLink>, with time zones from
+      Splash zones are computed over a Derivative Database of OpenStreetMap, licensed under the
+      <ExternalLink :href="ODBL">ODbL</ExternalLink>, with time zones from
       <ExternalLink href="https://github.com/evansiroky/timezone-boundary-builder">timezone-boundary-builder</ExternalLink>
-      (ODbL) and default speeds from
-      <ExternalLink href="https://github.com/OpenStreetMapSpeeds/schema">OpenStreetMapSpeeds</ExternalLink> (MIT).
-    </p>
-    <p :class="PROSE_P_CLASS">
-      The street network in our routing graph is a Derivative Database of OpenStreetMap and is
-      licensed under the <ExternalLink :href="ODBL">ODbL</ExternalLink>. Splash zones are produced
-      from it and contain information from OpenStreetMap, which is made available here under the
-      ODbL. Transit schedules are combined with that network as a separate collection. They are not
-      licensed under the ODbL and stay under each publisher's terms, below.
-    </p>
-    <p :class="PROSE_P_CLASS">
-      <strong>How the street network is built.</strong> We do not edit OpenStreetMap data. Each
-      build starts from the unmodified <code>california-latest</code> and <code>nevada-latest</code>
-      extracts, runs Valhalla's admin and time-zone builds and then its tile build, with
-      OpenStreetMapSpeeds defaults and no elevation data. The builds are refreshed weekly. The
-      extract dates and Valhalla version behind the build currently serving, and the full build
-      configuration, are available free on request from
+      (ODbL). How it is built is available free on request from
       <a
         :href="CONTACT_MAILTO"
         :class="PROSE_LINK_CLASS"
@@ -124,19 +105,9 @@ const CC_BY_4_FEEDS = inProse([
       Transit schedules
     </h2>
     <p :class="PROSE_P_CLASS">
-      Bay Area transit:
-      <ExternalLink
-        href="https://www.511.org"
-        data-testid="attribution-511"
-      >Data provided by 511.org</ExternalLink>.
-      This includes the San Francisco Bay Area Rapid Transit District, AC Transit, Muni, Caltrain
-      and the other operators 511 publishes.
-    </p>
-    <p :class="PROSE_P_CLASS">
-      Other schedules come from the public GTFS feeds of the agencies below, found through the
-      <ExternalLink href="https://mobilitydatabase.org">Mobility Database</ExternalLink>. We convert
-      schedules into a routing graph and, where a feed lists its running days one date at a
-      time, fill in its weekly calendar. These are changes to the original data.
+      We convert each feed into a routing graph, and fill in calendars listed date by date. These
+      are changes to the original data. Sparks Effect is not affiliated with or endorsed by any
+      transit agency.
     </p>
     <ul :class="PROSE_LIST_CLASS">
       <li>
@@ -157,6 +128,12 @@ const CC_BY_4_FEEDS = inProse([
         <ExternalLink :href="CC_BY_3">CC BY 3.0</ExternalLink>.
       </li>
       <li>
+        <ExternalLink
+          href="https://www.511.org"
+          data-testid="attribution-511"
+        >Data provided by 511.org</ExternalLink>.
+      </li>
+      <li>
         <ExternalLink href="https://github.com/PinpointAVL/TAPS-GTFS">UCSC Transportation and Parking Services</ExternalLink>:
         data © 2025 PinpointAVL,
         <ExternalLink href="https://github.com/PinpointAVL/TAPS-GTFS/blob/main/LICENSE">MIT License</ExternalLink>.
@@ -171,15 +148,6 @@ const CC_BY_4_FEEDS = inProse([
       <li>Schedule data provided by LA Metro.</li>
       <li>Route and schedule data provided by permission of San Joaquin RTD.</li>
     </ul>
-    <p :class="PROSE_P_CLASS">
-      The set of feeds changes with each weekly refresh. Every agency whose feed is in the build
-      currently serving can be listed on request: write to
-      <a
-        :href="CONTACT_MAILTO"
-        :class="PROSE_LINK_CLASS"
-      >{{ CONTACT_EMAIL }}</a>.
-      Sparks Effect is not affiliated with or endorsed by any transit agency.
-    </p>
 
     <h2
       id="address-search"
@@ -207,30 +175,23 @@ const CC_BY_4_FEEDS = inProse([
       Proposed lines
     </h2>
     <p :class="PROSE_P_CLASS">
-      The California High-Speed Rail line is based on the California High-Speed Rail Authority's
-      statewide HSR dataset (CAHSR PDS Engineering). The Authority publishes it as preliminary
-      planning data, for informational and planning purposes only, not suitable for legal,
-      engineering or surveying use, and subject to change.
-    </p>
-    <p :class="PROSE_P_CLASS">
-      The Brightline West line from Victor Valley to Las Vegas is traced from OpenStreetMap
-      (© OpenStreetMap contributors) and is available under the
-      <ExternalLink :href="ODBL">ODbL</ExternalLink>. The Palmdale–Victor Valley leg approximates the
-      <ExternalLink href="https://highdesertcorridor.org">High Desert Corridor JPA</ExternalLink>'s
-      corridor maps. Station locations come from public CAHSR, CEQA and Wikipedia sources.
+      California High-Speed Rail is based on the California High-Speed Rail Authority's preliminary
+      planning data, which is subject to change. Brightline West is traced from OpenStreetMap (ODbL)
+      and the High Desert Corridor JPA's corridor maps.
     </p>
 
     <h2
       id="software"
       :class="PROSE_H2_CLASS"
     >
-      Software and fonts
+      Software
     </h2>
     <p :class="PROSE_P_CLASS">
       The map is drawn with <ExternalLink href="https://maplibre.org/">MapLibre GL JS</ExternalLink>
-      (<ExternalLink href="https://github.com/maplibre/maplibre-gl-js/blob/main/LICENSE.txt">BSD-3-Clause</ExternalLink>).
-      Inter and Open Sans are used under the
-      <ExternalLink href="https://openfontlicense.org/">SIL Open Font License 1.1</ExternalLink>.
+      (BSD-3-Clause), in Inter and Open Sans
+      (<ExternalLink href="https://openfontlicense.org/">SIL Open Font License 1.1</ExternalLink>).
+      Every other dependency and its licence is in the
+      <ExternalLink :href="SOURCE_URL">source code</ExternalLink>.
     </p>
   </ProsePage>
 </template>
