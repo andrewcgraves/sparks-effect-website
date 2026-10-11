@@ -113,6 +113,12 @@ describe('checkOriginReach', () => {
     expect(reach?.nearestKm).toBeCloseTo(100, 0)
   })
 
+  it('calls a nearest station with no name unnamed, never by its slug', () => {
+    const nameless = { ...stationAt(1, 'Near'), name: '' }
+    const reach = checkOriginReach([nameless, stationAt(10, 'Far')], ORIGIN, 'walk', 30)
+    expect(reach?.nearestName).toBe('Unnamed station')
+  })
+
   // The same origin and stations, in a mode that covers the distance. Without
   // this, a check that refused everything would pass the tests above.
   it('lets a mode that covers the distance through', () => {

@@ -186,7 +186,7 @@ describe('useAuthoredGraph', () => {
 
       await triggerCompile('ca-hsr')
 
-      expect(compileError.value).toBe("This line couldn't be compiled. Check its stops and timetable, then try again.")
+      expect(compileError.value).toBe("This line couldn't be compiled. Check its stops and frequency windows, then try again.")
       expect(graph.value).toBeNull()
     })
 
@@ -338,7 +338,8 @@ describe('useAuthoredGraph', () => {
   // API's or the worker's text, so the authored pages say the same product
   // line the seeded one does, and the reason goes to the console.
   describe('a routing job the API failed', () => {
-    const ROUTING_FAILED = "Routing couldn't finish this splash zone. Please try again in a few minutes."
+    const ROUTING_FAILED =
+      "Routing couldn't finish this splash zone. Please try again, or try a different starting point."
 
     beforeEach(() => {
       vi.spyOn(console, 'warn').mockImplementation(() => {})

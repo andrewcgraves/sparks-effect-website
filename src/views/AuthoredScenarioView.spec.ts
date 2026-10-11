@@ -228,9 +228,11 @@ describe('AuthoredScenarioView', () => {
     await flushPromises()
     expect(wrapper.findAll('[data-testid="near-miss-row"]')).toHaveLength(1)
     expect(wrapper.findAll('[data-testid="realised-cluster-row"]')).toHaveLength(1)
-    // Resolved from the owner's services; the unresolvable one falls back to its id.
-    expect(wrapper.find('[data-testid="near-miss-row"]').text()).toContain('Midtown Local')
-    expect(wrapper.find('[data-testid="near-miss-row"]').text()).toContain('svc1')
+    // Resolved from the owner's services; the unresolvable one is unnamed, never its id.
+    const row = wrapper.find('[data-testid="near-miss-row"]').text()
+    expect(row).toContain('Midtown Local')
+    expect(row).toContain('Unnamed line')
+    expect(row).not.toContain('svc1')
   })
 
   it('shows time between stations for each member service of the compiled graph', async () => {
@@ -673,7 +675,7 @@ describe('AuthoredScenarioView joining near misses into interchanges', () => {
     expect(wrapper.get('[data-testid="join-interchange"]').attributes('aria-label'))
       .toBe('Join Union and Midtown as an interchange')
     expect(wrapper.get('[data-testid="remove-interchange"]').attributes('aria-label'))
-      .toBe('Remove interchange Union (Coast Express) and Harbour (Midtown Local)')
+      .toBe('Remove interchange 1: Union (Coast Express) and Harbour (Midtown Local)')
   })
 
   const unionHarbour: InterchangePair = { a: union, b: { service_id: 'svc2', slug: 'harbour' } }
@@ -746,7 +748,7 @@ describe('AuthoredScenarioView joining near misses into interchanges', () => {
 
     expect(wrapper.find('[data-testid="compile-error"]').exists()).toBe(true)
     const row = wrapper.get('[data-testid="declared-interchange-row"]')
-    expect(row.text()).toContain('Union (Coast Express) and Unnamed stop (Midtown Local)')
+    expect(row.text()).toContain('Union (Coast Express) and Removed stop (Midtown Local)')
     expect(row.text()).not.toContain('old-midtown')
     expect(row.find('[data-testid="declared-interchange-missing"]').exists()).toBe(true)
 
@@ -768,5 +770,24 @@ describe('AuthoredScenarioView joining near misses into interchanges', () => {
     expect(row.text()).toContain('Union (Coast Express) and Unnamed stop (Unnamed line)')
     expect(row.text()).not.toMatch(/svc9|pier/)
     expect(row.find('[data-testid="declared-interchange-missing"]').exists()).toBe(true)
+  })
+
+  // Both pairs below have lost what named them, so their rows read alike; each
+  // Remove button still has to name one pair a listener can tell apart.
+  it('numbers each Remove button so pairs that read alike stay distinct', async () => {
+    const orphans: InterchangePair[] = [
+      { a: { service_id: 'svc9', slug: 'pier' }, b: { service_id: 'svc8', slug: 'quay' } },
+      { a: { service_id: 'svc7', slug: 'dock' }, b: { service_id: 'svc6', slug: 'wharf' } },
+    ]
+    vi.mocked(fetchScenario).mockResolvedValue({ ...network, interchange_pairs: orphans })
+    const wrapper = mountView()
+    await flushPromises()
+
+    const labels = wrapper.findAll('[data-testid="remove-interchange"]')
+      .map((button) => button.attributes('aria-label'))
+    expect(labels).toEqual([
+      'Remove interchange 1: Unnamed stop (Unnamed line) and Unnamed stop (Unnamed line)',
+      'Remove interchange 2: Unnamed stop (Unnamed line) and Unnamed stop (Unnamed line)',
+    ])
   })
 })

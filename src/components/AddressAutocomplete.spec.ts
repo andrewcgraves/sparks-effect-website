@@ -39,9 +39,9 @@ describe('AddressAutocomplete', () => {
     expect(wrapper.find('input[type="text"]').exists()).toBe(true)
   })
 
-  it('labels the field "Location"', () => {
+  it('labels the field "Starting point"', () => {
     const wrapper = mount(AddressAutocomplete)
-    expect(wrapper.find('label').text()).toContain('Location')
+    expect(wrapper.find('label').text()).toContain('Starting point')
   })
 
   it('shows no suggestions list initially', () => {

@@ -168,7 +168,10 @@ describe('authoringFault', () => {
       ).toBe("Platform length isn't valid.")
     })
 
-    it('names a network boarding wait in the form’s words, not the API’s', () => {
+    // The API rejects a bad boarding wait before it validates anything, as a
+    // code-less 422 (below), so it sends no per-field fault for one today.
+    // These are paths the input types allow, held to words in case it does.
+    it('would name a boarding wait field in the form’s words, not the API’s', () => {
       const message = authoringFault(
         validation([
           { field: 'boarding_wait.policy', rule: 'unknown', message: 'boarding wait: unrecognised policy' },
@@ -182,7 +185,25 @@ describe('authoringFault', () => {
       expect(message).not.toMatch(/\bsecs\b|\bpolicy\b/i)
     })
 
-    it('names an interchange stop by its line and stop, not its service id', () => {
+    it('names a side of an interchange the way the API reports it', () => {
+      const message = authoringFault(
+        validation([
+          {
+            field: 'interchange_pairs.a',
+            index: 0,
+            rule: 'not_member',
+            message: 'interchange_pairs[0].a: service "svc9" is not a member of this scenario',
+          },
+        ]),
+        'scenario',
+      )
+      expect(message).toBe("Interchange 1: first line isn't part of this network.")
+      expect(message).not.toMatch(/svc9|service|scenario/i)
+    })
+
+    // The API reports a side of a pair whole (above); these deeper paths are
+    // ones the input types allow, held to words in case it ever names them.
+    it('would name an interchange stop by its line and stop, not its service id', () => {
       const message = authoringFault(
         validation([
           { field: 'interchange_pairs.a.service_id', index: 0, rule: 'required', message: 'pair 0: a.service_id is required' },
@@ -192,6 +213,19 @@ describe('authoringFault', () => {
       )
       expect(message).toBe('Interchange 1: first line is required. Interchange 2: second stop is required.')
       expect(message).not.toMatch(/service id|slug/i)
+    })
+
+    // What a bad boarding wait actually gets back: no code, and the API's own
+    // sentence as the message.
+    it('says a code-less 422 in its own words, never the API’s', () => {
+      const err = new ApiError(
+        'PUT /api/user-scenarios/coast failed: 422: boarding wait: unrecognised policy "x" ' +
+          '(want none, half_headway, full_headway, or fixed)',
+        422,
+      )
+      const message = authoringFault(err, 'scenario')
+      expect(message).toBe("Some of this network's details weren't accepted. Check them and try again.")
+      expect(message).not.toMatch(/boarding wait|policy|unrecognised|"x"|half_headway/i)
     })
 
     it('falls back to a summary when the faults are missing', () => {
@@ -252,7 +286,7 @@ describe('authoringFault', () => {
 
   it('says a failed compile job could not be compiled, without its raw reason', () => {
     const message = authoringFault(new JobFailedError('3f2', 'compile: loading routes: boom'))
-    expect(message).toBe("This line couldn't be compiled. Check its stops and timetable, then try again.")
+    expect(message).toBe("This line couldn't be compiled. Check its stops and frequency windows, then try again.")
   })
 
   it('advises on a scenario compile in scenario terms', () => {

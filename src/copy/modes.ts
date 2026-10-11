@@ -7,7 +7,6 @@ export const MODE_LABELS: Record<TravelMode, string> = {
   transit: 'Transit',
 }
 
-// The noun a budget is spent on, as in "a 30-minute bike ride".
 export const MODE_TRIPS: Record<TravelMode, string> = {
   walk: 'walk',
   bike: 'bike ride',

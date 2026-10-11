@@ -8,6 +8,14 @@ import type { Station } from './scenarios'
 
 const GENERIC_FAULT = "Couldn't plot this splash zone. Please try again."
 
+// Said for every failed routing job, whatever its reason: the reason is the
+// API's or the worker's own text, in their words ("compile: service …
+// references unknown route", "isochrone: routing unavailable"), and copy never
+// prints it. A routing service that is down passes; a start it cannot route
+// from does not, and the page cannot tell which this was, so it offers both.
+const ROUTING_FAILED_FAULT =
+  "Routing couldn't finish this splash zone. Please try again, or try a different starting point."
+
 function httpStatus(err: unknown): number | null {
   if (err instanceof ApiError) return err.status
   return null
@@ -28,11 +36,6 @@ export function isochroneRangeRefusal(
 export function isochroneRequested(mode: TravelMode, budgetMins: number): void {
   trackIsochroneRequest(mode, budgetMins)
 }
-
-// Said for every failed routing job, whatever its reason: the reason is the
-// API's or the worker's own text, in their words ("compile: service … references
-// unknown route", "isochrone: routing unavailable"), and copy never prints it.
-const ROUTING_FAILED_FAULT = "Routing couldn't finish this splash zone. Please try again in a few minutes."
 
 function failedJobFault(err: unknown): string | null {
   if (!(err instanceof JobFailedError)) return null
@@ -58,8 +61,8 @@ export function isochroneFault(err: unknown, mode: TravelMode, budgetMins: numbe
   // the generic message is.
   //
   // A routing job that reached `failed` — the routing service being down
-  // chief among the reasons (SPA-230) — is worth waiting a few minutes on
-  // rather than retrying at once. Its reason goes to the console, not the page.
+  // (SPA-230), or a starting point it could not route from — says so without
+  // its reason, which goes to the console, not the page.
   return (
     outOfRangeError(err, mode, budgetMins) ??
     backlogFullError(err) ??

@@ -237,7 +237,8 @@ describe('PrerenderedIsochrones', () => {
 
       const badge = wrapper.get('[data-testid="prerendered-outdated"]')
       expect(badge.text()).toBe('Out of date')
-      expect(badge.attributes('title')).toContain('out of date')
+      expect(badge.attributes('title'))
+        .toBe('Plotted before this network’s lines last changed, so it may be out of date.')
       expect(badge.attributes('aria-label')).toContain('Out of date')
     })
 

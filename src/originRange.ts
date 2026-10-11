@@ -2,6 +2,7 @@ import { ApiError } from './api/authoring/client'
 import type { TravelMode } from './api/authoring/types'
 import type { Station } from './api/scenarios'
 import { MODE_TRIPS } from './copy/modes'
+import { UNNAMED_STATION } from './copy/names'
 
 export const ORIGIN_OUT_OF_RANGE_CODE = 'origin_out_of_range'
 
@@ -58,7 +59,7 @@ export function checkOriginReach(
     const km = haversineKm(origin.lat, origin.lng, lat, lng)
     if (km < nearestKm) {
       nearestKm = km
-      nearestName = station.name || station.slug
+      nearestName = station.name || UNNAMED_STATION
     }
   }
 
@@ -85,8 +86,8 @@ export function outOfRangeMessage(
 }
 
 const OUT_OF_RANGE_FALLBACK =
-  'Every station is further than this travel time can reach. Move the starting point closer to the line, ' +
-  'or raise the travel time.'
+  'Every station is further than this travel time can reach. ' +
+  'Move the starting point closer to the line, or raise the travel time.'
 
 function distances(detail: unknown): Pick<OriginReach, 'nearestKm' | 'maxReachKm'> | null {
   if (typeof detail !== 'object' || detail === null) return null

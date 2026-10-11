@@ -162,7 +162,7 @@ defineExpose({ setInputValue })
       :for="inputId"
       :class="FIELD_LABEL_CLASS"
     >
-      Location
+      Starting point
     </label>
     <div class="flex items-center gap-2">
       <div class="relative min-w-0 flex-1">

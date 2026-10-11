@@ -16,7 +16,7 @@ export const SESSION_EXPIRED_FAULT = 'Your session expired. Sign in to continue.
 export const UNREACHABLE_FAULT = "Couldn't reach the server. Your draft is saved; try again."
 
 const COMPILE_ADVICE: Record<AuthoringNoun, string> = {
-  service: 'Check its stops and timetable, then try again.',
+  service: 'Check its stops and frequency windows, then try again.',
   scenario: 'Check its lines and interchanges, then try again.',
 }
 

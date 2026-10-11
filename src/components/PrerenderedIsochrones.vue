@@ -31,8 +31,10 @@ const detailError = ref<string | null>(null)
 
 const attempt = latestAttempt()
 
+// The API calls an entry outdated once a line has joined or left the network,
+// or a member line has been edited, since it was plotted.
 const OUTDATED_HINT =
-  'Plotted before the network’s current lines, so it may be out of date.'
+  'Plotted before this network’s lines last changed, so it may be out of date.'
 
 async function choose(entry: PrerenderedIsochroneSummary): Promise<void> {
   const mine = attempt.begin()

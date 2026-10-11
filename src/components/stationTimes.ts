@@ -1,5 +1,6 @@
 import type { GraphEdge, Service, TransitGraph } from '../api/authoring/types'
 import type { Route, SegmentTime, Station } from '../api/scenarios'
+import { UNNAMED_LINE, UNNAMED_STATION } from '../copy/names'
 
 export interface StationTimeRow {
   from: string
@@ -44,7 +45,7 @@ export function formatTotalTime(total: number): string {
 
 function nameResolver(entries: [string, string][]): (slug: string) => string {
   const names = new Map(entries)
-  return (slug) => names.get(slug) ?? slug
+  return (slug) => names.get(slug) ?? UNNAMED_STATION
 }
 
 function directionsFrom(rows: StationTimeRow[], returnRows: StationTimeRow[]): StationTimeDirection[] {
@@ -87,7 +88,7 @@ export function graphStationTimeGroups(
       const { outbound, returning } = splitByDirection(member.edges, displayName)
       return {
         key: member.service_id,
-        label: services.find((s) => s.id === member.service_id)?.name ?? member.service_id,
+        label: services.find((s) => s.id === member.service_id)?.name ?? UNNAMED_LINE,
         directions: directionsFrom(outbound, returning),
       }
     })

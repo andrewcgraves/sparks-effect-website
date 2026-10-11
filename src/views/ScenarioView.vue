@@ -98,7 +98,7 @@ function onOriginChange(coords: { lat: number; lng: number } | null) {
 }
 
 async function handleFormSubmit(payload: IsochronePayload) {
-  // Generating replaces what the map is drawing, so the pre-rendered pick that
+  // Plotting replaces what the map is drawing, so the saved splash zone that
   // was drawing it is no longer the answer on screen and stops being marked as
   // one. Cleared on submit rather than on success: the moment the question
   // changes, the old highlight is already wrong.
@@ -288,7 +288,7 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
           :status="routingStatus"
           :has-examples="hasExamples"
         />
-        <!-- With live routing offline the saved examples are the page's answer,
+        <!-- With live routing offline the saved splash zones are the page's answer,
              so they come ahead of a form that cannot plot — in the DOM, not
              just on screen, so keyboard and screen-reader order agree. -->
         <PrerenderedIsochrones

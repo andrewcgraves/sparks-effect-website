@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { hasInterchangePair, interchangePairKey, nearMissPair } from '../api/authoring/scenarioInput'
 import type { InterchangePair, NearMiss, Service, StopCluster, StopIdentity } from '../api/authoring/types'
 import { SECONDARY_BUTTON_CLASS } from './buttonStyles'
+import { UNNAMED_LINE } from '../copy/names'
 
 const props = defineProps<{
   nearMisses: NearMiss[]
@@ -23,7 +24,7 @@ defineEmits<{
 }>()
 
 function serviceName(serviceId: string): string {
-  return props.services.find((service) => service.id === serviceId)?.name ?? serviceId
+  return props.services.find((service) => service.id === serviceId)?.name ?? UNNAMED_LINE
 }
 
 // A declared pair the graph still calls a near miss was joined after this

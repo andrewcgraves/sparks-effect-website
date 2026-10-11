@@ -210,7 +210,8 @@ describe('useIsochrone', () => {
   // API's or the worker's text, so the page says it in product words, in the
   // same place every other error shows, and the reason goes to the console.
   describe('a routing job the API failed', () => {
-    const ROUTING_FAILED = "Routing couldn't finish this splash zone. Please try again in a few minutes."
+    const ROUTING_FAILED =
+      "Routing couldn't finish this splash zone. Please try again, or try a different starting point."
 
     it('says routing could not finish, without the API error text', async () => {
       vi.spyOn(console, 'error').mockImplementation(() => {})

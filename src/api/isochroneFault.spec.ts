@@ -25,7 +25,8 @@ const sanFrancisco: Station = {
 }
 
 const GENERIC = "Couldn't plot this splash zone. Please try again."
-const ROUTING_FAILED = "Routing couldn't finish this splash zone. Please try again in a few minutes."
+const ROUTING_FAILED =
+  "Routing couldn't finish this splash zone. Please try again, or try a different starting point."
 
 describe('isochroneFault', () => {
   beforeEach(() => {
