@@ -16,7 +16,7 @@ vi.mock('../api/isochrone', async (importOriginal) => {
 
 const mockUseScenario = vi.fn()
 vi.mock('../composables/useScenario', () => ({
-  useScenario: (slug: string) => mockUseScenario(slug),
+  useScenario: (slug: string) => ({ subtext: ref(''), ...mockUseScenario(slug) }),
 }))
 
 vi.mock('../api/scenarios', async (importOriginal) => {
@@ -208,6 +208,28 @@ describe('ScenarioView', () => {
     const wrapper = mountScenarioView()
     expect(wrapper.findAll('h2').map((h) => h.text())).toContain('Description')
     expect(wrapper.text()).toContain('California High-Speed Rail')
+  })
+
+  it('shows the subtext under the name and keeps the description\'s paragraph breaks', () => {
+    mockUseScenario.mockReturnValue({
+      name: ref('CA HSR'),
+      subtext: ref('Electrified · High-speed rail · Greenfield'),
+      description: ref('San Francisco to Anaheim.\n\nSources: CAHSR.'),
+      routes: ref([]),
+      stations: ref(stubStations),
+      services: ref([]),
+      loading: ref(false),
+    })
+    const wrapper = mountScenarioView()
+    expect(wrapper.get('hgroup [data-testid="scenario-subtext"]').text()).toBe('Electrified · High-speed rail · Greenfield')
+    const description = wrapper.get('[data-testid="scenario-description"]')
+    expect(description.classes()).toContain('whitespace-pre-line')
+    expect(description.element.textContent).toContain('Anaheim.\n\nSources')
+  })
+
+  it('shows no subtext line when the scenario has none', () => {
+    const wrapper = mountScenarioView()
+    expect(wrapper.find('[data-testid="scenario-subtext"]').exists()).toBe(false)
   })
 
   it.each([
@@ -1506,6 +1528,23 @@ describe('ScenarioView', () => {
         loading: ref(false),
       })
       expect(tabLabels(mountScenarioView())).toEqual(['Plot', 'Results', 'Stations'])
+    })
+
+    it('puts the subtext behind the About tab too, keeping the tab for a scenario with only a subtext', async () => {
+      mockUseScenario.mockReturnValue({
+        name: ref('CA HSR'),
+        subtext: ref('Electrified · High-speed rail · Greenfield'),
+        description: ref(''),
+        routes: ref([]),
+        stations: ref(stubStations),
+        services: ref([]),
+        loading: ref(false),
+      })
+      const wrapper = mountScenarioView()
+      expect(tabLabels(wrapper)).toEqual(['Plot', 'Results', 'Stations', 'About'])
+      await tabNamed(wrapper, 'About').trigger('click')
+      expect(wrapper.get('[data-testid="scenario-subtext"]').text()).toBe('Electrified · High-speed rail · Greenfield')
+      expect(wrapper.find('[data-testid="scenario-description"]').exists()).toBe(false)
     })
   })
 })
