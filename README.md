@@ -163,6 +163,39 @@ Stadia's terms ask for a credit wherever its results are used; the footer's
 "Search by Stadia Maps" links to its attribution page, which lists the data
 sources. `api.stadiamaps.com` is in the CSP's `connect-src`.
 
+## Legal pages
+
+`/privacy`, `/terms` and `/attribution` (SPA-420) are static Vue views
+(`src/views/PrivacyView.vue`, `TermsView.vue`, `AttributionView.vue`) on the
+shared `ProsePage` shell, which dates each one. Every page holds an `UPDATED`
+constant; bump it whenever that page's copy changes, since the date is the
+only thing that tells a reader the text moved. The one address all three ask
+people to write to is `CONTACT_EMAIL` in `src/legal/contact.ts`.
+
+What each page says follows the code, so a change to the code is a change to
+the copy:
+
+- The privacy policy names every third party that receives data: Vercel
+  (hosting, analytics), Railway (API, database), Stadia Maps (address search,
+  tiles on previews), OpenFreeMap (tiles) and Grafana Cloud (error reports,
+  cluster logs). Adding a processor, a custom analytics event, or anything
+  kept in `localStorage` means adding it there.
+- The terms link How it works and Report a problem only once those routes
+  exist, the same rule as the footer.
+- The attribution page carries the wording SPA-419 found each licence to
+  require. Its tile credit follows `resolveTileCredit`, like the footer's. Two
+  things it cannot yet state are offered on request instead: the per-build
+  Geofabrik extract dates and Valhalla version (the ODbL §4.6 "method of
+  making the alterations"), and the full agency list from the serving
+  generation's `gtfs-manifest.csv`, which lives in the private cluster config.
+  Both become static text once the API exposes generation metadata.
+
+The map itself credits 511 ("Data provided by 511.org", which 511's agreement
+wants next to the data), links `/attribution` as "Data sources" and keeps
+MapLibre's own credit (`MAP_CREDITS` in `MapView.vue`). The style's TileJSON
+adds the tile host, OpenMapTiles and OpenStreetMap on its own. The footer
+repeats the OSM, ODbL, tile, 511 and Stadia credits on every page.
+
 ## Link previews
 
 Link-unfurl crawlers (Slackbot, Discordbot, iMessage, …) run no JavaScript, so a

@@ -143,6 +143,24 @@ export const router = createRouter({
       meta: { title: 'Route' },
     },
     {
+      path: '/privacy',
+      name: 'privacy',
+      component: () => import('../views/PrivacyView.vue'),
+      meta: { title: 'Privacy policy' },
+    },
+    {
+      path: '/terms',
+      name: 'terms',
+      component: () => import('../views/TermsView.vue'),
+      meta: { title: 'Terms of use' },
+    },
+    {
+      path: '/attribution',
+      name: 'attribution',
+      component: () => import('../views/AttributionView.vue'),
+      meta: { title: 'Attribution' },
+    },
+    {
       path: '/:pathMatch(.*)*',
       name: 'not-found',
       component: NotFoundView,

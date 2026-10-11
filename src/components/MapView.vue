@@ -28,6 +28,21 @@ import SkeletonShape from './SkeletonShape.vue'
 // the shared module the worker imports.
 setWorkerUrl(maplibreWorkerUrl)
 
+// 511's data agreement wants its credit "in visual proximity" to the data, so
+// it goes on the map and not only in the footer (SPA-419). The style's own
+// TileJSON still adds the tile host, OpenMapTiles and OpenStreetMap; but giving
+// the control options replaces MapLibre's default list, so MapLibre's own
+// credit is put back here. `compact` is left unset: visible on load, folding
+// behind ⓘ on a phone once the map is touched. San Joaquin RTD's terms want
+// its legend "prominently displayed" while its feeds are ingested; drop that
+// entry (and the page's line) once GTFS_FEED_DENYLIST=886 2180 is set.
+const MAP_CREDITS = [
+  '<a href="https://www.511.org" target="_blank" rel="noopener">Data provided by 511.org</a>',
+  'Route and schedule data provided by permission of San Joaquin RTD',
+  '<a href="/attribution">Data sources</a>',
+  '<a href="https://maplibre.org/" target="_blank" rel="noopener">MapLibre</a>',
+]
+
 const props = defineProps<{
   isochroneData: ChainResponse | null
   loading: boolean
@@ -43,6 +58,8 @@ const props = defineProps<{
   activeStation?: string | null
   remainingSecs?: (slug: string) => number | null
   label: string
+  // For a phone page that gives the map the screen rather than a card.
+  flush?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -261,6 +278,7 @@ onMounted(() => {
     style: resolveMapStyleUrl(),
     center: initialCenter,
     zoom: 7,
+    attributionControl: { customAttribution: MAP_CREDITS },
   })
 
   map.addControl(new FullscreenControl())
@@ -314,13 +332,15 @@ onUnmounted(() => {
 
 <template>
   <div
-    class="map-frame relative h-full min-h-[70vh] w-full rounded-(--radius-box) border border-border"
+    class="map-frame relative h-full w-full"
+    :class="flush ? 'map-frame-flush' : 'min-h-[70vh] rounded-(--radius-box) border border-border'"
     role="region"
     :aria-label="label"
   >
     <div
       ref="mapContainer"
-      class="h-full min-h-[70vh] w-full"
+      class="h-full w-full"
+      :class="flush ? '' : 'min-h-[70vh]'"
     />
     <LoadingRegion
       v-if="!isMapLoaded"
@@ -453,6 +473,10 @@ onUnmounted(() => {
 .map-frame {
   overflow: hidden;
   clip-path: inset(0 round var(--radius-box));
+}
+
+.map-frame-flush {
+  clip-path: none;
 }
 
 /* MapLibre renders its own controls and attribution into the map container, so

@@ -264,6 +264,18 @@ describe('MapView', () => {
     expect(wrapper.get('[role="region"]').attributes('aria-label')).toBe('Splash zone map')
   })
 
+  it('is a framed card with room for a stacked page by default', () => {
+    const wrapper = mount(MapView, { props: defaultProps })
+    expect(wrapper.classes()).toEqual(expect.arrayContaining(['border', 'min-h-[70vh]']))
+  })
+
+  it('fills its box edge to edge when a phone page asks for it flush', () => {
+    const wrapper = mount(MapView, { props: { ...defaultProps, flush: true } })
+    expect(wrapper.classes()).not.toEqual(expect.arrayContaining(['border']))
+    expect(wrapper.classes()).not.toEqual(expect.arrayContaining(['min-h-[70vh]']))
+    expect(wrapper.find('[class*="min-h-[70vh]"]').exists()).toBe(false)
+  })
+
   it('has no serious or critical accessibility violations with a splash zone drawn', async () => {
     const wrapper = mount(MapView, { props: { ...defaultProps, isochroneData: staticIsochroneResponse }, attachTo: document.body })
     await triggerMapLoad()
@@ -798,6 +810,19 @@ describe('MapView', () => {
     mount(MapView, { props: defaultProps })
     const options = (Map as ReturnType<typeof vi.fn>).mock.calls[0][0]
     expect(options.style).toBe('https://tiles.openfreemap.org/styles/positron')
+  })
+
+  it('credits 511 on the map itself and links the data sources, keeping MapLibre\'s own credit', async () => {
+    const { Map } = await import('maplibre-gl')
+    mount(MapView, { props: defaultProps })
+    const options = (Map as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    const credits: string[] = options.attributionControl.customAttribution
+    expect(credits).toHaveLength(4)
+    expect(credits[0]).toContain('href="https://www.511.org"')
+    expect(credits[0]).toContain('>Data provided by 511.org<')
+    expect(credits[1]).toBe('Route and schedule data provided by permission of San Joaquin RTD')
+    expect(credits[2]).toContain('href="/attribution"')
+    expect(credits[3]).toContain('href="https://maplibre.org/"')
   })
 
   it('fits bounds to all isochrone segments after load', async () => {
