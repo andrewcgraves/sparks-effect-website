@@ -41,6 +41,7 @@ import {
 import { useConfirmHost } from '../composables/useConfirm'
 import { fetchMyServices } from '../api/authoring/services'
 import { busyRegion, visibleText } from '../test/loading'
+import { hopCells } from '../test/stationTimes'
 
 const Stub = { template: '<div>stub</div>' }
 
@@ -251,10 +252,7 @@ describe('AuthoredScenarioView', () => {
     expect(section.text()).toContain('Time between stations')
     // The group is named from the owner's service list, not the graph.
     expect(section.get('[data-testid="station-time-group-label"]').text()).toBe('Midtown Local')
-    const row = section.get('[data-testid="station-time-row"]')
-    expect(row.text()).toContain('Bakersfield')
-    expect(row.text()).toContain('Los Angeles')
-    expect(row.text()).toContain('2:05')
+    expect(hopCells(section)[0]).toEqual(['Bakersfield', 'Los Angeles', '2:05'])
   })
 
   it('offers a direction toggle per service group, defaulting to stop order', async () => {
@@ -279,12 +277,10 @@ describe('AuthoredScenarioView', () => {
 
     const toggles = wrapper.findAll('[data-testid="direction-toggle"]')
     expect(toggles.map((t) => t.text())).toEqual(['To Los Angeles', 'To Bakersfield'])
-    expect(wrapper.get('[data-testid="station-time-row"]').findAll('td').map((td) => td.text()))
-      .toEqual(['Bakersfield', 'Los Angeles', '2:05'])
+    expect(hopCells(wrapper)).toEqual([['Bakersfield', 'Los Angeles', '2:05']])
 
     await toggles[1].trigger('click')
-    expect(wrapper.get('[data-testid="station-time-row"]').findAll('td').map((td) => td.text()))
-      .toEqual(['Los Angeles', 'Bakersfield', '2:20'])
+    expect(hopCells(wrapper)).toEqual([['Los Angeles', 'Bakersfield', '2:20']])
   })
 
   it('shows a run-time skeleton while the graph is still being read', async () => {

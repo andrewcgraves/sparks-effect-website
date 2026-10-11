@@ -31,6 +31,7 @@ import { seriousA11yViolations } from '../test/axe'
 import { fetchPublicationIsochrone, fetchServicePublication } from '../api/publications'
 import { compileService, fetchService, fetchServiceGraph, fetchServiceIsochrone } from '../api/authoring/services'
 import { busyRegion, visibleText } from '../test/loading'
+import { hopCells } from '../test/stationTimes'
 
 const publication: ServicePublication = {
   user_service_id: 'svc1',
@@ -192,8 +193,8 @@ describe('PublishedServiceView', () => {
   it('shows time between stations from the published graph', async () => {
     const wrapper = mountView()
     await flushPromises()
-    const rows = wrapper.get('[data-testid="time-between-stations"]').findAll('[data-testid="station-time-row"]')
-    expect(rows[0].findAll('td').map((td) => td.text())).toEqual(['Union', 'Midtown', '1:00'])
+    const section = wrapper.get('[data-testid="time-between-stations"]')
+    expect(hopCells(section)[0]).toEqual(['Union', 'Midtown', '1:00'])
   })
 
   // SPA-467: a visitor waiting on a queued plot is told where they stand.

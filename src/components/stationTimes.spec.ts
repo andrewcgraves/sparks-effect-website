@@ -1,7 +1,14 @@
 // @vitest-environment node
 
 import { describe, expect, it } from 'vitest'
-import { formatRunTime, graphStationTimeGroups, segmentStationTimeGroups } from './stationTimes'
+import {
+  directionSeconds,
+  directionStops,
+  formatRunTime,
+  formatTotalTime,
+  graphStationTimeGroups,
+  segmentStationTimeGroups,
+} from './stationTimes'
 import type { Service, TransitGraph } from '../api/authoring/types'
 import type { Route, Station } from '../api/scenarios'
 
@@ -70,6 +77,38 @@ describe('formatRunTime', () => {
 
   it('renders a sub-minute run time with a zero minutes place', () => {
     expect(formatRunTime(45)).toBe('0:45')
+  })
+})
+
+describe('formatTotalTime', () => {
+  it('rounds a sub-hour total to whole minutes', () => {
+    expect(formatTotalTime(21 * 60 + 30)).toBe('22 min')
+  })
+
+  it('splits a total of an hour or more into hours and zero-padded minutes', () => {
+    expect(formatTotalTime(3 * 3600 + 5 * 60)).toBe('3 h 05 min')
+  })
+})
+
+describe('directionStops', () => {
+  const direction = {
+    terminus: 'Fresno',
+    rows: [
+      { from: 'San Francisco', to: 'San Jose', seconds: 1800 },
+      { from: 'San Jose', to: 'Fresno', seconds: 2445 },
+    ],
+  }
+
+  it('names each station once, in stop order', () => {
+    expect(directionStops(direction)).toEqual(['San Francisco', 'San Jose', 'Fresno'])
+  })
+
+  it('has no stops for a direction with no hops', () => {
+    expect(directionStops({ terminus: 'Fresno', rows: [] })).toEqual([])
+  })
+
+  it('totals the run time of every hop', () => {
+    expect(directionSeconds(direction)).toBe(4245)
   })
 })
 
