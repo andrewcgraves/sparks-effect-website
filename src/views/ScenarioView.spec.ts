@@ -498,9 +498,9 @@ describe('ScenarioView', () => {
       const wrapper = mountScenarioView()
       await flushPromises()
       const groups = wrapper.findAll('[data-testid="station-time-group"]')
-      expect(groups[0].findAll('[data-testid="direction-toggle"]').map((b) => b.text()))
+      expect(groups[0].findAll('[data-testid="direction-toggle"] label').map((b) => b.text()))
         .toEqual(['To Anaheim', 'To San Francisco'])
-      expect(groups[1].findAll('[data-testid="direction-toggle"]').map((b) => b.text()))
+      expect(groups[1].findAll('[data-testid="direction-toggle"] label').map((b) => b.text()))
         .toEqual(['To Las Vegas', 'To Palmdale'])
     })
 
@@ -510,7 +510,7 @@ describe('ScenarioView', () => {
       const wrapper = mountScenarioView()
       await flushPromises()
       const mainline = wrapper.findAll('[data-testid="station-time-group"]')[0]
-      await mainline.findAll('[data-testid="direction-toggle"]')[1].trigger('click')
+      await mainline.get('[data-testid="direction-toggle-option-1"]').setValue(true)
       expect(hopCells(mainline))
         .toEqual([
           ['Anaheim', 'Palmdale', '20:00'],

@@ -319,7 +319,7 @@ describe('AuthoredServiceView', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    await wrapper.findAll('[data-testid="direction-toggle"]')[1].trigger('click')
+    await wrapper.get('[data-testid="direction-toggle-option-1"]').setValue(true)
     expect(hopCells(wrapper)[0]).toEqual(['Midtown', 'Union', '1:15'])
   })
 

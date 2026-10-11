@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { SEGMENT_TOGGLE_CLASS } from './buttonStyles'
+import SegmentedControl from './SegmentedControl.vue'
 import LoadingRegion from './LoadingRegion.vue'
 import SkeletonShape from './SkeletonShape.vue'
 import { directionSeconds, directionStops, formatRunTime, formatTotalTime } from './stationTimes'
@@ -106,61 +106,52 @@ function groupSummary(group: StationTimeGroup): string {
         </summary>
 
         <div class="pb-3 pl-5">
-          <div
+          <SegmentedControl
             v-if="group.directions.length > 1"
-            role="group"
-            aria-label="Direction"
-            class="inline-flex rounded-(--radius-field) border border-border bg-white p-0.5"
-          >
-            <button
-              v-for="(direction, index) in group.directions"
-              :key="direction.terminus"
-              type="button"
-              :class="SEGMENT_TOGGLE_CLASS"
-              :aria-pressed="chosenIndex(group) === index"
-              data-testid="direction-toggle"
-              @click="choose(group, index)"
-            >
-              To {{ direction.terminus }}
-            </button>
-          </div>
+            :model-value="chosenIndex(group)"
+            :options="group.directions.map((_, index) => index)"
+            :format-option="(index: number) => `To ${group.directions[index].terminus}`"
+            label="Direction"
+            :name="`station-times-direction-${group.key}`"
+            testid="direction-toggle"
+            @update:model-value="(index: number) => choose(group, index)"
+          />
 
           <ol
-            class="font-body text-caption mt-2 text-ink"
+            class="mt-3 flex list-none flex-col p-0"
             data-testid="station-time-stops"
           >
             <li
               v-for="(stop, index) in directionStops(chosenDirection(group))"
               :key="index"
-              class="grid grid-cols-[0.75rem_1fr_auto] items-center gap-x-3 py-0.5"
+              class="flex items-stretch gap-3"
               data-testid="station-time-stop"
             >
-              <!-- The rail: a dot per stop, joined to the next stop's dot by a line
-                   that runs from this row's centre to the next row's centre. -->
+              <!-- The rail, drawn as Time remaining draws its own: a dot per stop,
+                   joined to the next stop's dot by a line through the row below. -->
               <span
                 aria-hidden="true"
-                class="relative flex h-full items-center justify-center"
+                class="relative w-3 shrink-0"
               >
                 <span
-                  v-if="index < chosenDirection(group).rows.length"
-                  class="absolute top-1/2 left-1/2 h-full w-px -translate-x-1/2 bg-ink-faint"
+                  v-if="index > 0"
+                  class="absolute top-0 left-1/2 h-1/2 w-px -translate-x-1/2 bg-border"
                 />
                 <span
-                  class="relative size-2 rounded-full border-2"
-                  :class="index === 0 || index === chosenDirection(group).rows.length
-                    ? 'border-coral bg-coral'
-                    : 'border-ink-muted bg-surface'"
+                  v-if="index < chosenDirection(group).rows.length"
+                  class="absolute top-1/2 bottom-0 left-1/2 w-px -translate-x-1/2 bg-border"
                 />
+                <span class="absolute top-1/2 left-1/2 size-1.5 -translate-1/2 rounded-full bg-ink-muted" />
               </span>
               <span
-                class="truncate"
+                class="font-body text-caption min-w-0 flex-1 truncate py-1 text-ink"
                 data-testid="station-time-stop-name"
               >{{ stop }}</span>
               <!-- Each run time is shifted half a row down so it sits between the
                    two stops it joins rather than beside either one. -->
               <span
                 v-if="index < chosenDirection(group).rows.length"
-                class="translate-y-1/2 text-right text-ink-muted tabular-nums"
+                class="font-body text-caption shrink-0 translate-y-1/2 py-1 text-right tabular-nums text-ink-true"
                 data-testid="station-time-hop"
               >
                 <span class="sr-only">to {{ chosenDirection(group).rows[index].to }}, run time </span>

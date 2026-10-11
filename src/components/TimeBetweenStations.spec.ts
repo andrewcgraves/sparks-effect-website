@@ -84,19 +84,20 @@ describe('TimeBetweenStations', () => {
   })
 
   it('labels the direction toggle with the terminus each direction heads for', () => {
-    const buttons = mountSection([coastLine]).findAll('[data-testid="direction-toggle"]')
-    expect(buttons.map((b) => b.text())).toEqual(['To Fresno', 'To San Francisco'])
+    const labels = mountSection([coastLine]).findAll('[data-testid="direction-toggle"] label')
+    expect(labels.map((label) => label.text())).toEqual(['To Fresno', 'To San Francisco'])
   })
 
   it('starts on the first direction, which the compiler emits in stop order', () => {
-    const buttons = mountSection([coastLine]).findAll('[data-testid="direction-toggle"]')
-    expect(buttons[0].attributes('aria-pressed')).toBe('true')
-    expect(buttons[1].attributes('aria-pressed')).toBe('false')
+    const wrapper = mountSection([coastLine])
+    const checked = (index: number) =>
+      (wrapper.get(`[data-testid="direction-toggle-option-${index}"]`).element as HTMLInputElement).checked
+    expect([checked(0), checked(1)]).toEqual([true, false])
   })
 
   it('shows the chosen direction\'s own hops and run times', async () => {
     const wrapper = mountSection([coastLine])
-    await wrapper.findAll('[data-testid="direction-toggle"]')[1].trigger('click')
+    await wrapper.get('[data-testid="direction-toggle-option-1"]').setValue(true)
     const stops = wrapper.findAll('[data-testid="station-time-stop"]').map((stop) =>
       stop.get('[data-testid="station-time-stop-name"]').text(),
     )
@@ -110,7 +111,7 @@ describe('TimeBetweenStations', () => {
   it('switches only the group whose toggle was used', async () => {
     const second: StationTimeGroup = { ...coastLine, key: 'svc2', label: 'Valley Line' }
     const wrapper = mountSection([coastLine, second])
-    await wrapper.findAll('[data-testid="direction-toggle"]')[1].trigger('click')
+    await wrapper.get('[data-testid="direction-toggle-option-1"]').setValue(true)
     const groups = wrapper.findAll('[data-testid="station-time-group"]')
     expect(groups[0].findAll('[data-testid="station-time-stop"]')[0].text()).toContain('Fresno')
     expect(groups[1].findAll('[data-testid="station-time-stop"]')[0].text()).toContain('San Francisco')

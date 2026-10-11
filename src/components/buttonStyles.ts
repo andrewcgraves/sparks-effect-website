@@ -15,6 +15,3 @@ export const PLACEMENT_TOGGLE_CLASS =
 
 export const TOGGLE_BUTTON_CLASS =
   `${SECONDARY_BUTTON_CLASS} aria-pressed:border-coral aria-pressed:bg-coral aria-pressed:text-white`
-
-export const SEGMENT_TOGGLE_CLASS =
-  'font-body text-caption cursor-pointer rounded-[calc(var(--radius-field)-2px)] px-2.5 py-0.5 text-ink-muted transition-colors duration-200 ease-(--ease-smooth) hover:text-ink aria-pressed:bg-ink aria-pressed:text-white'

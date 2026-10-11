@@ -275,11 +275,11 @@ describe('AuthoredScenarioView', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    const toggles = wrapper.findAll('[data-testid="direction-toggle"]')
+    const toggles = wrapper.findAll('[data-testid="direction-toggle"] label')
     expect(toggles.map((t) => t.text())).toEqual(['To Los Angeles', 'To Bakersfield'])
     expect(hopCells(wrapper)).toEqual([['Bakersfield', 'Los Angeles', '2:05']])
 
-    await toggles[1].trigger('click')
+    await wrapper.get('[data-testid="direction-toggle-option-1"]').setValue(true)
     expect(hopCells(wrapper)).toEqual([['Los Angeles', 'Bakersfield', '2:20']])
   })
 
