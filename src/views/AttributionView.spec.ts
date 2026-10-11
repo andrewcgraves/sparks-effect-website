@@ -39,7 +39,6 @@ describe('AttributionView', () => {
       ['routing-graph', 'Street network'],
       ['transit-schedules', 'Transit schedules'],
       ['address-search', 'Address search'],
-      ['proposed-lines', 'Proposed lines'],
       ['software', 'Software'],
     ])
   })
@@ -112,14 +111,6 @@ describe('AttributionView', () => {
       'https://whosonfirst.org/docs/licenses/',
       'https://opensource.foursquare.com/os-places/',
     ]))
-  })
-
-  it('credits the high-speed rail planning data with its disclaimer, and the ODbL trace', async () => {
-    const text = (await mountView()).text()
-    expect(text).toMatch(/California High-Speed Rail Authority/)
-    expect(text).toMatch(/preliminary\s+planning data/)
-    expect(text).toMatch(/Brightline West.*traced from OpenStreetMap/s)
-    expect(text).toMatch(/High Desert Corridor/)
   })
 
   it('credits the map library and the fonts, and points at the source for the rest', async () => {

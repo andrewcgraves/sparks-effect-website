@@ -169,18 +169,6 @@ const CC_BY_4_FEEDS = inProse([
     </p>
 
     <h2
-      id="proposed-lines"
-      :class="PROSE_H2_CLASS"
-    >
-      Proposed lines
-    </h2>
-    <p :class="PROSE_P_CLASS">
-      California High-Speed Rail is based on the California High-Speed Rail Authority's preliminary
-      planning data, which is subject to change. Brightline West is traced from OpenStreetMap (ODbL)
-      and the High Desert Corridor JPA's corridor maps.
-    </p>
-
-    <h2
       id="software"
       :class="PROSE_H2_CLASS"
     >

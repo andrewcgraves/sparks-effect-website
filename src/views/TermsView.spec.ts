@@ -24,12 +24,11 @@ describe('TermsView', () => {
     expect(wrapper.get('[data-testid="page-updated"] time').attributes('datetime')).toMatch(/^\d{4}-\d{2}-\d{2}$/)
   })
 
-  it('covers published content, acceptable use, takedown and the model', async () => {
+  it('covers published content, acceptable use and takedown', async () => {
     expect((await mountView()).findAll('h2').map((h) => h.text())).toEqual([
       'Content you publish',
       'Acceptable use',
       'Moderation and takedown',
-      'No warranty',
     ])
   })
 
@@ -55,24 +54,10 @@ describe('TermsView', () => {
     expect(link.attributes('href')).toBe('/report')
   })
 
-  it('disclaims the model, pointing at How it works only once that page exists', async () => {
-    const without = await mountView()
-    expect(without.text()).toMatch(/A splash zone is an estimate/)
-    expect(without.text()).toMatch(/no warranty of any kind/)
-    expect(without.find('[data-testid="how-it-works-link"]').exists()).toBe(false)
-
-    const link = (await mountView([{ path: '/how-it-works', component: Blank }])).get('[data-testid="how-it-works-link"]')
-    expect(link.attributes('href')).toBe('/how-it-works')
-  })
-
   it('keeps the author\'s ownership and takes a licence to show what they publish', async () => {
     const text = (await mountView()).text()
     expect(text).toMatch(/You keep ownership/)
     expect(text).toMatch(/non-exclusive, worldwide, royalty-free licence/)
-  })
-
-  it('points data licence questions at the attribution page', async () => {
-    expect((await mountView()).get('[data-testid="terms-attribution"]').attributes('href')).toBe('/attribution')
   })
 
   it('uses the product words, not the domain ones', async () => {

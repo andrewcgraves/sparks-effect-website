@@ -12,9 +12,7 @@ import { CONTACT_EMAIL, CONTACT_MAILTO } from '../legal/contact'
 
 const UPDATED = '2026-10-10'
 
-// Both pages are linked only once their routes land (How it works is SPA-418,
-// Report a problem is SPA-421), so these terms can ship ahead of them.
-const hasHowItWorks = useRoutedPath('/how-it-works')
+// Linked only once its route lands (SPA-421), so these terms can ship ahead of it.
 const hasReport = useRoutedPath('/report')
 
 const ACCEPTABLE_USE = [
@@ -84,38 +82,15 @@ const ACCEPTABLE_USE = [
         :href="CONTACT_MAILTO"
         :class="PROSE_LINK_CLASS"
       >{{ CONTACT_EMAIL }}</a>
-      with the page's address<template v-if="hasReport">, or use its
+      with the page's address<template v-if="hasReport">
+        , or use its
         <RouterLink
           to="/report"
           :class="PROSE_LINK_CLASS"
           data-testid="report-link"
         >Report a problem</RouterLink>
-        link</template>.
-    </p>
-
-    <h2
-      id="no-warranty"
-      :class="PROSE_H2_CLASS"
-    >
-      No warranty
-    </h2>
-    <p :class="PROSE_P_CLASS">
-      A splash zone is an estimate from a model and can be wrong. It is not travel advice or an
-      official plan<template v-if="hasHowItWorks">
-        (see
-        <RouterLink
-          to="/how-it-works"
-          :class="PROSE_LINK_CLASS"
-          data-testid="how-it-works-link"
-        >How it works</RouterLink>)</template>.
-      The site is provided as is, with no warranty of any kind, and we are not liable for any loss
-      from using it. Map and schedule data are used under their own licences, listed on the
-      <RouterLink
-        to="/attribution"
-        :class="PROSE_LINK_CLASS"
-        data-testid="terms-attribution"
-      >Attribution</RouterLink>
-      page.
+        link
+      </template>.
     </p>
   </ProsePage>
 </template>
