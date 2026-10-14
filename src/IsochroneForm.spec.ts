@@ -558,7 +558,7 @@ describe('IsochroneForm', () => {
   describe('thumb-sized hit areas (SPA-494)', () => {
     it('pads the pick-on-map button to 44px without moving its text', () => {
       const wrapper = mount(IsochroneForm)
-      expect(wrapper.get('[data-testid="pick-on-map"]').classes()).toEqual(expect.arrayContaining(['py-3', '-my-3']))
+      expect(wrapper.get('[data-testid="pick-on-map"]').classes()).toEqual(expect.arrayContaining(['pointer-coarse:py-3', 'pointer-coarse:-my-3']))
     })
 
     it('makes each mode row 44px tall on a phone and leaves it alone from md up', () => {

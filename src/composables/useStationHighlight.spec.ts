@@ -331,6 +331,21 @@ describe('useStationHighlight', () => {
       expect(onHover).toHaveBeenLastCalledWith('gilroy')
     })
 
+    // A touch screen's emulated pointer moves straight from one dot to the
+    // next, and MapLibre only fires mouseenter on entering the layer, so the
+    // second tap arrives with the first station still counted as hovered.
+    it('names the second station when one dot is tapped straight after another', () => {
+      const { fire, tap, onHover } = setup()
+      fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))
+      tap(stationEvent('sf', 'San Francisco', -122.41, 37.77))
+      mockPopupSetDOMContent.mockClear()
+
+      tap(stationEvent('gilroy', 'Gilroy', -121.57, 37.0))
+
+      expect(popupNamed('Gilroy')).toBe(true)
+      expect(onHover).toHaveBeenLastCalledWith('gilroy')
+    })
+
     it('comes back to the tapped station when the pointer leaves the unfinished-leg cap', () => {
       const { fire, tap, onHover, canvas } = setup(() => 'crosshair')
       tap(stationEvent('sf', 'San Francisco', -122.41, 37.77))

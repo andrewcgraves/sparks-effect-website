@@ -172,7 +172,7 @@ describe('PhoneMapPage', () => {
   // 20px of text without moving anything around it.
   it('gives the panel toggle a thumb-sized hit area without moving its text', () => {
     const { wrapper } = mountPage()
-    expect(wrapper.get('[data-testid="phone-panel-toggle"]').classes()).toEqual(expect.arrayContaining(['py-3', '-my-3']))
+    expect(wrapper.get('[data-testid="phone-panel-toggle"]').classes()).toEqual(expect.arrayContaining(['pointer-coarse:py-3', 'pointer-coarse:-my-3']))
   })
 
   it('holds each tab at 44px, which its padding alone leaves half a pixel short', () => {

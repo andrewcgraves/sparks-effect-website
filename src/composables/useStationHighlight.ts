@@ -66,6 +66,10 @@ export function useStationHighlight(map: Map, callbacks: StationHighlightCallbac
   let tapped: HighlightedStation | null = null
   let cap: UnfinishedCap | null = null
 
+  function pointedAt(): HighlightedStation | null {
+    return hovered ?? tapped
+  }
+
   function applyHighlight(): void {
     // Dimming is only worth doing when there is something to promote in its
     // place. A station the plot drew no polygon for would otherwise fade every
@@ -96,7 +100,7 @@ export function useStationHighlight(map: Map, callbacks: StationHighlightCallbac
     // anyway would leave the map annotating something nobody is pointing at.
     // The unfinished-leg cap is the other thing that can sit under the pointer:
     // it is not a station, so it takes the popup without promoting a polygon.
-    const shown = hovered ?? tapped
+    const shown = pointedAt()
     if (cap) {
       popup
         .setLngLat(cap.lngLat)
@@ -140,6 +144,9 @@ export function useStationHighlight(map: Map, callbacks: StationHighlightCallbac
     // that the tap landed on a dot.
     event.preventDefault()
     tapped = station
+    // The pointer is on this dot whatever mouseenter last said: it fires on
+    // entering the layer, not on moving from one dot to the next.
+    if (hovered) hovered = station
     if (!cap) callbacks.onHover(station.slug)
     applyHighlight()
   }
@@ -158,14 +165,14 @@ export function useStationHighlight(map: Map, callbacks: StationHighlightCallbac
     canvas.style.cursor = 'pointer'
     // The cap is not a station: drop any leftover polygon promote while the
     // pointer is explaining the unfinished hop.
-    if (hovered ?? tapped) callbacks.onHover(null)
+    if (pointedAt()) callbacks.onHover(null)
     applyHighlight()
   }
 
   function handleCapLeave(): void {
     cap = null
     canvas.style.cursor = hovered ? 'pointer' : callbacks.idleCursor()
-    const underneath = hovered ?? tapped
+    const underneath = pointedAt()
     if (underneath) callbacks.onHover(underneath.slug)
     applyHighlight()
   }

@@ -430,11 +430,11 @@ describe('SiteHeader', () => {
 
   it('gives the wordmark a thumb-sized hit area without moving it (SPA-494)', async () => {
     const wrapper = await mountHeader()
-    expect(wrapper.get('[data-testid="nav-home"]').classes()).toEqual(expect.arrayContaining(['py-3', '-my-3']))
+    expect(wrapper.get('[data-testid="nav-home"]').classes()).toEqual(expect.arrayContaining(['pointer-coarse:py-3', 'pointer-coarse:-my-3']))
   })
 
   it('gives the Menu button a thumb-sized hit area without moving its text (SPA-494)', async () => {
     const wrapper = await mountHeader()
-    expect(wrapper.get('[data-testid="site-menu-button"]').classes()).toEqual(expect.arrayContaining(['py-3', '-my-3']))
+    expect(wrapper.get('[data-testid="site-menu-button"]').classes()).toEqual(expect.arrayContaining(['pointer-coarse:py-3', 'pointer-coarse:-my-3']))
   })
 })
