@@ -1,65 +1,50 @@
 import { describe, expect, it } from 'vitest'
 import { isochroneLegend } from '../composables/useIsochroneLayer'
-import { SAMPLE_MAP_PARTS } from './sampleMapData'
-import { TOUR_STEPS, stepForPart } from './tourSteps'
+import { stationNamed } from '../fixtures/tourSample'
+import { TOUR_PARTS } from './tourHighlight'
+import { TOUR_STEPS } from './tourSteps'
 
-const legend = isochroneLegend(undefined, { unfinished: true, starterWalk: true })
-const labelOf = (source: string) => legend.find((entry) => entry.source === source)!.label
+const key = Object.fromEntries(
+  isochroneLegend(undefined, { unfinished: true, starterWalk: true }).map((e) => [e.source, e.label]),
+)
+const step = (id: string) => TOUR_STEPS.find((s) => s.id === id)!
 
 describe('TOUR_STEPS', () => {
-  it('walks from the start, outward, to the rest of the network', () => {
-    expect(TOUR_STEPS.map((step) => step.id)).toEqual([
-      'origin',
-      'origin-reach',
+  it('follows the trip outward from the start', () => {
+    expect(TOUR_STEPS.map((s) => s.id)).toEqual([
+      'start',
       'starter-walk',
-      'stations',
+      'origin-reach',
       'ridden',
-      'unfinished',
       'egress',
+      'unfinished',
       'unridden',
     ])
-    expect(TOUR_STEPS.map((step) => step.name)).toEqual([
-      'Starting point',
-      'Origin reach',
-      'First leg — nearest station',
-      'Stations',
-      'Ridden',
-      'Unfinished',
-      'From station',
-      'Unridden',
-    ])
   })
 
-  it('names the areas and the first leg as the map key does', () => {
-    const byId = Object.fromEntries(TOUR_STEPS.map((step) => [step.id, step.name]))
-    expect(byId['origin-reach']).toBe(labelOf('origin'))
-    expect(byId['egress']).toBe(labelOf('egress'))
-    expect(byId['starter-walk']).toBe(labelOf('starter'))
+  it('names each step as the map key does', () => {
+    expect(step('starter-walk').name).toBe(key.starter)
+    expect(step('origin-reach').name).toBe(key.origin)
+    expect(step('egress').name).toBe(key.egress)
+    expect(step('unfinished').caption).toContain(key.unfinished)
   })
 
-  it('quotes the key\'s label for the dot that ends an unfinished ride', () => {
-    const unfinished = TOUR_STEPS.find((step) => step.id === 'unfinished')!
-    expect(unfinished.caption).toContain(`“${labelOf('unfinished')}”`)
+  it('lights only parts the tour map can dim', () => {
+    for (const s of TOUR_STEPS) for (const part of s.lit) expect(TOUR_PARTS).toContain(part)
   })
 
-  it('only lights parts the sample map draws, and lights something every step', () => {
-    for (const step of TOUR_STEPS) {
-      expect(step.focus.length).toBeGreaterThan(0)
-      for (const part of step.focus) expect(SAMPLE_MAP_PARTS).toContain(part)
+  it('reads its example from the plot it draws', () => {
+    expect(step('egress').caption).toContain(`${stationNamed('palmdale').name}, reached with 12 minutes to spare`)
+  })
+
+  it('keeps every caption to two sentences', () => {
+    for (const s of TOUR_STEPS) {
+      expect(s.caption.split(/(?<=[.!?])\s+(?=[A-Z])/).length).toBeLessThanOrEqual(2)
     }
   })
-})
 
-describe('stepForPart', () => {
-  it('takes a click on any part of the map to the step that explains it', () => {
-    expect(stepForPart('origin-marker')).toBe(0)
-    expect(stepForPart('origin-fill')).toBe(1)
-    expect(stepForPart('origin-walk')).toBe(2)
-    expect(stepForPart('station-dots')).toBe(3)
-    expect(stepForPart('ridden-line')).toBe(4)
-    expect(stepForPart('progress-line')).toBe(5)
-    expect(stepForPart('progress-cap')).toBe(5)
-    expect(stepForPart('egress-fill')).toBe(6)
-    expect(stepForPart('route-line')).toBe(7)
+  it('carries the reviewed wording', () => {
+    expect(step('starter-walk').caption).toMatch(/the station you could reach first/)
+    expect(step('unridden').caption).toMatch(/which no trip here rides from one station to the next/)
   })
 })

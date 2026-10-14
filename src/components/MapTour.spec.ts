@@ -1,9 +1,16 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { defineComponent, h, type PropType } from 'vue'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { seriousA11yViolations } from '../test/axe'
 import MapTour from './MapTour.vue'
-import { TOUR_STEPS } from './tourSteps'
-import { SAMPLE_MAP_PARTS } from './sampleMapData'
+import { TOUR_STEPS, type TourStep } from './tourSteps'
+
+vi.mock('./TourMap.vue', () => ({
+  default: defineComponent({
+    props: { step: { type: Object as PropType<TourStep | null>, default: null } },
+    setup: (props) => () => h('div', { 'data-testid': 'tour-map', 'data-step': props.step?.id ?? '' }),
+  }),
+}))
 
 let wrapper: VueWrapper | undefined
 
@@ -17,88 +24,52 @@ function mountTour() {
   return wrapper
 }
 
-const items = (w: VueWrapper) => w.findAll('[data-testid="map-tour-steps"] > li')
-const stepButton = (w: VueWrapper, index: number) => items(w)[index].get('button')
-const button = (w: VueWrapper, name: string) => w.findAll('button').find((b) => b.text() === name)!
-const counter = (w: VueWrapper) => w.get('[data-testid="map-tour-counter"]').text()
+const cards = (w: VueWrapper) => w.findAll('[data-testid="map-tour-steps"] > li')
 const status = (w: VueWrapper) => w.get('[data-testid="map-tour-status"]').text()
-const litParts = (w: VueWrapper) =>
-  SAMPLE_MAP_PARTS.filter((part) => w.get(`[data-part="${part}"]`).attributes('data-lit') === 'true')
 
 describe('MapTour', () => {
-  it('shows every step and its caption without anything being pressed', () => {
+  it('reads as a list of every step and its caption, with nothing pressed', () => {
     const w = mountTour()
     const list = w.get('[data-testid="map-tour-steps"]').text()
-    expect(items(w)).toHaveLength(TOUR_STEPS.length)
-    for (const step of TOUR_STEPS) expect(list).toContain(step.caption)
+    expect(cards(w)).toHaveLength(TOUR_STEPS.length)
+    for (const step of TOUR_STEPS) {
+      expect(list).toContain(step.name)
+      expect(list).toContain(step.caption)
+    }
   })
 
-  it('opens on the whole map, with nothing announced', () => {
+  it('opens on the whole map, every card at full strength and nothing announced', () => {
     const w = mountTour()
-    expect(counter(w)).toBe('Overview')
-    expect(litParts(w)).toEqual([...SAMPLE_MAP_PARTS])
+    expect(w.get('[data-testid="tour-map"]').attributes('data-step')).toBe('')
+    expect(w.findAll('.opacity-40')).toHaveLength(0)
     expect(status(w)).toBe('')
-    expect(items(w).map((li) => li.get('button').attributes('aria-pressed'))).toEqual(
-      TOUR_STEPS.map(() => 'false'),
-    )
   })
 
-  it('steps forward to the first step, lights what it explains and announces it', async () => {
+  it('lights a chosen step on the map, says so, and fades the others back', async () => {
     const w = mountTour()
-    await button(w, 'Next').trigger('click')
-    const first = TOUR_STEPS[0]
-    expect(stepButton(w, 0).attributes('aria-pressed')).toBe('true')
-    expect(counter(w)).toBe(`1 of ${TOUR_STEPS.length}`)
-    expect(status(w)).toBe(`Step 1 of ${TOUR_STEPS.length}. ${first.name}. ${first.caption}`)
-    expect(litParts(w)).toEqual(first.focus)
+    const egress = TOUR_STEPS.findIndex((s) => s.id === 'egress')
+    await cards(w)[egress].get('button').trigger('click')
+    expect(cards(w)[egress].get('button').attributes('aria-current')).toBe('step')
+    expect(w.get('[data-testid="tour-map"]').attributes('data-step')).toBe('egress')
+    expect(status(w)).toBe('Highlighting: From station')
+    expect(w.findAll('.opacity-40')).toHaveLength(TOUR_STEPS.length - 1)
   })
 
-  it('goes no further back than the first step, and no further on than the last', async () => {
+  it('lets the keyboard drive the map, and never takes a focused control away', async () => {
     const w = mountTour()
-    await button(w, 'Next').trigger('click')
-    const back = button(w, 'Back')
-    expect(back.attributes('aria-disabled')).toBe('true')
-    back.element.focus()
-    await back.trigger('click')
-    expect(counter(w)).toBe(`1 of ${TOUR_STEPS.length}`)
-    expect(document.activeElement).toBe(back.element)
-
-    for (let i = 1; i < TOUR_STEPS.length; i++) await button(w, 'Next').trigger('click')
-    expect(button(w, 'Next').attributes('aria-disabled')).toBe('true')
-    await button(w, 'Next').trigger('click')
-    expect(counter(w)).toBe(`${TOUR_STEPS.length} of ${TOUR_STEPS.length}`)
-  })
-
-  it('selects a step from the list, and returns to the whole map on a second press', async () => {
-    const w = mountTour()
-    await stepButton(w, 4).trigger('click')
-    expect(counter(w)).toBe(`5 of ${TOUR_STEPS.length}`)
-    expect(litParts(w)).toEqual(TOUR_STEPS[4].focus)
-
-    await stepButton(w, 4).trigger('click')
-    expect(counter(w)).toBe('Overview')
-    expect(litParts(w)).toEqual([...SAMPLE_MAP_PARTS])
-  })
-
-  it('returns to the whole map from Show all', async () => {
-    const w = mountTour()
-    expect(w.findAll('button').some((b) => b.text() === 'Show all')).toBe(false)
-    await stepButton(w, 2).trigger('click')
-    await button(w, 'Show all').trigger('click')
-    expect(counter(w)).toBe('Overview')
-  })
-
-  it('takes a click on the map to the step that explains what was clicked', async () => {
-    const w = mountTour()
-    await w.get('[data-part="egress-fill"]').trigger('click')
-    const index = TOUR_STEPS.findIndex((step) => step.id === 'egress')
-    expect(stepButton(w, index).attributes('aria-pressed')).toBe('true')
+    const before = w.findAll('button').length
+    const button = cards(w)[1].get('button')
+    ;(button.element as HTMLButtonElement).focus()
+    await button.trigger('focus')
+    expect(w.get('[data-testid="tour-map"]').attributes('data-step')).toBe(TOUR_STEPS[1].id)
+    expect(w.findAll('button')).toHaveLength(before)
+    expect(document.activeElement).toBe(button.element)
   })
 
   it('has no serious accessibility violations, at rest or mid-tour', async () => {
     const w = mountTour()
     expect(await seriousA11yViolations(w)).toEqual([])
-    await stepButton(w, 5).trigger('click')
+    await cards(w)[3].get('button').trigger('click')
     expect(await seriousA11yViolations(w)).toEqual([])
   })
 })

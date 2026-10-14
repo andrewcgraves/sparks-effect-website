@@ -36,7 +36,22 @@ describe('HowItWorksView', () => {
       'How to read the map',
       'The fine print',
     ])
-    expect(wrapper.find('[data-testid="sample-map"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="tour-map"]').exists()).toBe(true)
+  })
+
+  it('gives the tour the page\'s width and keeps the prose in its column', async () => {
+    const wrapper = await mountView()
+    expect(wrapper.find('article [data-testid="tour-map"]').exists()).toBe(false)
+    expect(wrapper.find('article [data-testid="how-it-works-attribution"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="prose-after"] [data-testid="how-it-works-attribution"]').exists()).toBe(true)
+  })
+
+  it('frames the line as hypothetical, and tours a real plot', async () => {
+    const text = (await mountView()).text()
+    expect(text).toMatch(/hypothetical/)
+    expect(text).toMatch(/90 minutes by Transit from Little Tokyo in Los Angeles/)
+    expect(text).toMatch(/the station you could reach first/)
+    expect(text).toMatch(/which no trip here rides from one station to the next/)
   })
 
   it('links back to the list of lines', async () => {
@@ -46,7 +61,7 @@ describe('HowItWorksView', () => {
   it('states the clock Transit runs to, and that the other modes ignore it', async () => {
     const text = (await mountView()).text()
     expect(text).toMatch(/Transit trips leave at 8 a\.m\. Pacific time on a weekday/)
-    expect(text).toMatch(/Public holidays count as weekdays/)
+    expect(text).toMatch(/Public holidays count as weekdays, on that day's local timetable/)
     expect(text).toMatch(/Walk, Bike and Drive .* whatever the hour/)
     expect(text).toMatch(/free-flowing roads/)
   })
@@ -56,6 +71,7 @@ describe('HowItWorksView', () => {
     expect(text).toMatch(/from leaving the start/)
     expect(text).toMatch(/waits for local buses\s+and trains/)
     expect(text).toMatch(/by the same mode/)
+    expect(text).toMatch(/Onward local transit runs to the timetable for when you\s+would actually reach the station/)
   })
 
   it('adds no wait to board the line unless one is set, and then only once', async () => {
@@ -65,7 +81,10 @@ describe('HowItWorksView', () => {
   })
 
   it('does not claim every line\'s times are worked out from its vehicles', async () => {
-    expect((await mountView()).text()).toMatch(/Curated networks .* published plans/s)
+    const text = (await mountView()).text()
+    expect(text).toMatch(/Curated networks .* published plans/s)
+    expect(text).toMatch(/down steep grades/)
+    expect(text).toMatch(/plus a stop\s+at each station/)
   })
 
   it('says where the streets and timetables come from, and how stale they can be', async () => {
@@ -83,7 +102,7 @@ describe('HowItWorksView', () => {
     const wrapper = await mountView()
     const visible = [
       wrapper.text(),
-      wrapper.get('desc').text(),
+      wrapper.get('figcaption').text(),
     ].join(' ')
     // Whole words only: "self-service" or "racetrack" is not the domain word.
     for (const word of [

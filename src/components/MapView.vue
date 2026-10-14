@@ -1,13 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { Map, FullscreenControl, setWorkerUrl } from 'maplibre-gl'
+import { FullscreenControl, type Map } from 'maplibre-gl'
 import type { MapMouseEvent } from 'maplibre-gl'
-import 'maplibre-gl/dist/maplibre-gl.css'
-import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
-import { egressStationSlugs, isochroneLayerModule, isochroneLegend, resolveIsochroneColors } from '../composables/useIsochroneLayer'
-import { centerFromCorners, routeBoundsCorners, routeLayerModule } from '../composables/useRouteLayer'
-import { originMarkerModule } from '../composables/useOriginMarker'
-import { originWalkLine, originWalkModule } from '../composables/useOriginWalkLayer'
+import { egressStationSlugs, isochroneLegend, resolveIsochroneColors } from '../composables/useIsochroneLayer'
+import { centerFromCorners, routeBoundsCorners } from '../composables/useRouteLayer'
+import { originWalkLine } from '../composables/useOriginWalkLayer'
+import { createSiteMap, splashZoneModules } from '../composables/siteMap'
 import { RAW_STOP_LAYER_ID, stopPreviewModule } from '../composables/useStopPreviewLayer'
 import type { StopPreviewPair } from '../composables/useStopPreviewLayer'
 import { stopDragModule } from '../composables/useStopDrag'
@@ -15,33 +13,11 @@ import { stationHighlightModule } from '../composables/useStationHighlight'
 import { mapModules } from '../composables/mapLifecycle'
 import { ISOCHRONE_BOUNDS_CORNERS, ISOCHRONE_CENTER, isochroneBoundsCorners } from '../fixtures/isochrone'
 import type { ChainResponse } from '../fixtures/isochrone'
-import { resolveMapStyleUrl } from '../mapStyle'
-import { readThemeToken } from '../themeTokens'
 import type { Route, Station } from '../api/scenarios'
 import type { SnapCoord as LatLng } from '../api/authoring/types'
 import LoadingRegion from './LoadingRegion.vue'
 import SkeletonShape from './SkeletonShape.vue'
-
-// maplibre-gl 6 finds its worker beside its own module via import.meta.url,
-// which a Vite bundle breaks: the worker is never emitted and no tiles load.
-// `?worker&url` emits it as a self-contained chunk; plain `?url` would drop
-// the shared module the worker imports.
-setWorkerUrl(maplibreWorkerUrl)
-
-// 511's data agreement wants its credit "in visual proximity" to the data, so
-// it goes on the map and not only in the footer (SPA-419). The style's own
-// TileJSON still adds the tile host, OpenMapTiles and OpenStreetMap; but giving
-// the control options replaces MapLibre's default list, so MapLibre's own
-// credit is put back here. `compact` is left unset: visible on load, folding
-// behind ⓘ on a phone once the map is touched. San Joaquin RTD's terms want
-// its legend "prominently displayed" while its feeds are ingested; drop that
-// entry (and the page's line) once GTFS_FEED_DENYLIST=886 2180 is set.
-const MAP_CREDITS = [
-  '<a href="https://www.511.org" target="_blank" rel="noopener">Data provided by 511.org</a>',
-  'Route and schedule data provided by permission of San Joaquin RTD',
-  '<a href="/attribution">Data sources</a>',
-  '<a href="https://maplibre.org/" target="_blank" rel="noopener">MapLibre</a>',
-]
+import KeySwatch from './KeySwatch.vue'
 
 const props = defineProps<{
   isochroneData: ChainResponse | null
@@ -74,15 +50,6 @@ const ORIGIN_SNAP_ZOOM = 9
 const STOP_FOCUS_ZOOM = 12
 
 const isochroneColors = resolveIsochroneColors()
-// The line swatches are drawn with the same ends the map draws them with: the
-// starter walk runs from the origin pin to a reached station's ringed dot, and
-// an unfinished leg stops on a bare ink dot. Two thin dashed lines in navy and
-// near-black were otherwise indistinguishable at swatch size.
-const legendMarks = {
-  origin: readThemeToken('--color-coral'),
-  station: isochroneColors.egress,
-  ink: readThemeToken('--color-ink'),
-}
 const legend = computed(() =>
   isochroneLegend(isochroneColors, {
     unfinished: (props.isochroneData?.metadata.trip_progress?.length ?? 0) > 0,
@@ -157,10 +124,14 @@ const stopPreviewPairs = () => props.stopPreviewPairs ?? null
 
 const idleCursor = () => (props.placementArmed ? 'crosshair' : '')
 
-const routeLayer = routeLayerModule(
-  () => ({ routes: props.routes, stations: props.stations }),
-  () => props.isochroneData,
-  isochroneColors.egress,
+const { routeLayer, modules: plotModules } = splashZoneModules(
+  {
+    plot: () => props.isochroneData,
+    routes: () => props.routes,
+    stations: () => props.stations,
+    origin: () => props.origin,
+  },
+  isochroneColors,
 )
 
 const stationHighlight = stationHighlightModule({
@@ -184,10 +155,7 @@ const stopDrag = stopDragModule(stopPreviewPairs, {
 stopDrag.requires = [stopPreview]
 
 const modules = mapModules([
-  routeLayer,
-  isochroneLayerModule(() => props.isochroneData, isochroneColors),
-  originWalkModule({ data: () => props.isochroneData }, isochroneColors.origin),
-  originMarkerModule(() => props.origin),
+  ...plotModules,
   stationHighlight,
   stopPreview,
   stopDrag,
@@ -273,12 +241,10 @@ onMounted(() => {
     ? centerFromCorners(initialRouteCorners)
     : ISOCHRONE_CENTER
 
-  map = new Map({
+  map = createSiteMap({
     container: mapContainer.value,
-    style: resolveMapStyleUrl(),
     center: initialCenter,
     zoom: 7,
-    attributionControl: { customAttribution: MAP_CREDITS },
   })
 
   map.addControl(new FullscreenControl())
@@ -390,70 +356,10 @@ onUnmounted(() => {
           :key="entry.source"
           class="font-body text-caption flex items-center gap-2 text-ink"
         >
-          <svg
-            v-if="entry.swatch === 'walk'"
+          <KeySwatch
+            :kind="entry.source"
             class="shrink-0"
-            width="28"
-            height="14"
-            viewBox="0 0 28 14"
-            aria-hidden="true"
             :data-testid="`legend-swatch-${entry.source}`"
-          >
-            <line
-              x1="7"
-              y1="7"
-              x2="19"
-              y2="7"
-              :stroke="entry.color"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-dasharray="2 4"
-            />
-            <circle
-              cx="3.5"
-              cy="7"
-              r="2.5"
-              :fill="legendMarks.origin"
-            />
-            <circle
-              cx="23.5"
-              cy="7"
-              r="3.25"
-              :fill="legendMarks.station"
-              :stroke="legendMarks.ink"
-              stroke-width="1.5"
-            />
-          </svg>
-          <svg
-            v-else-if="entry.swatch === 'stub'"
-            class="shrink-0"
-            width="28"
-            height="14"
-            viewBox="0 0 28 14"
-            aria-hidden="true"
-            :data-testid="`legend-swatch-${entry.source}`"
-          >
-            <line
-              x1="2"
-              y1="7"
-              x2="19"
-              y2="7"
-              :stroke="entry.color"
-              stroke-width="2.5"
-              stroke-linecap="round"
-              stroke-dasharray="2.5 7"
-            />
-            <circle
-              cx="23.5"
-              cy="7"
-              r="3.5"
-              :fill="entry.color"
-            />
-          </svg>
-          <span
-            v-else
-            class="inline-block h-3.5 w-7 shrink-0 rounded-[3px] opacity-85"
-            :style="{ backgroundColor: entry.color }"
           />
           <span>{{ entry.label }}</span>
         </li>

@@ -174,10 +174,16 @@ people to write to is `CONTACT_EMAIL` in `src/legal/contact.ts`.
 
 `/how-it-works` sits on the same shell and is dated the same way. It explains
 where the numbers come from but leaves every credit to `/attribution`. Its
-sample map (`src/components/SampleMap.vue`) takes every colour, width, dash and
-radius from the map's own layer modules and theme tokens
-(`src/components/sampleMapData.ts`); only its geometry is drawn by hand, so a
-change to how the real map paints a plot shows up on the tour too.
+tour (`src/components/MapTour.vue`) draws a real plot, 90 minutes by Transit
+from Little Tokyo on California High-Speed Rail, frozen in
+`src/fixtures/tourSample.json` by `make tour-fixture`, through the same layer
+modules the network page uses (`splashZoneModules` in
+`src/composables/siteMap.ts`); its key swatches are the map key's own
+(`src/components/KeySwatch.vue`). The fixture's lines are simplified to keep it
+small, so the script re-measures each unfinished ride on the simplified line and
+fails if a stub's end moves more than 50 m. Re-run it when the network or the
+router changes what a plot looks like; the tour's captions read their station
+names and minutes from the fixture, so they follow it.
 
 What each page says follows the code, so a change to the code is a change to
 the copy:
