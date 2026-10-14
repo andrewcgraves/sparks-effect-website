@@ -108,7 +108,12 @@ const {
   }
 })
 
+let notifyResize: () => void = () => {}
+
 class ResizeObserverStub {
+  constructor(callback: () => void) {
+    notifyResize = callback
+  }
   observe = vi.fn()
   disconnect = vi.fn()
   unobserve = vi.fn()
@@ -446,6 +451,52 @@ describe('MapView', () => {
     await triggerMapLoad()
     await wrapper.vm.$nextTick()
     expect(wrapper.find('[data-testid="map-skeleton"]').exists()).toBe(false)
+  })
+
+  // SPA-492: at 3× a 1150×756 map is nine times the pixels to draw, which a
+  // machine without hardware acceleration redraws in seconds a frame.
+  describe('drawing load', () => {
+    afterEach(() => {
+      vi.restoreAllMocks()
+      vi.unstubAllGlobals()
+      vi.stubGlobal('ResizeObserver', ResizeObserverStub)
+    })
+
+    it('draws at no more than twice the CSS pixels on a 3× screen', () => {
+      vi.stubGlobal('devicePixelRatio', 3)
+      mount(MapView, { props: defaultProps })
+      expect(vi.mocked(Map)).toHaveBeenCalledWith(expect.objectContaining({ pixelRatio: 2 }))
+    })
+
+    it('draws at the screen density below 2×', () => {
+      vi.stubGlobal('devicePixelRatio', 1.5)
+      mount(MapView, { props: defaultProps })
+      expect(vi.mocked(Map)).toHaveBeenCalledWith(expect.objectContaining({ pixelRatio: 1.5 }))
+    })
+
+    // The phone panel's slide changes the map's height on every frame, and
+    // each map.resize() reallocates the drawing buffer.
+    it('resizes the map once for several size changes within one frame', async () => {
+      const frames: FrameRequestCallback[] = []
+      vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => frames.push(cb))
+      vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(390)
+      vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(400)
+      mount(MapView, { props: defaultProps })
+      await triggerMapLoad()
+      mockResize.mockClear()
+
+      notifyResize()
+      notifyResize()
+      notifyResize()
+      expect(mockResize).not.toHaveBeenCalled()
+
+      frames.splice(0).forEach((cb) => cb(0))
+      expect(mockResize).toHaveBeenCalledTimes(1)
+
+      notifyResize()
+      frames.splice(0).forEach((cb) => cb(0))
+      expect(mockResize).toHaveBeenCalledTimes(2)
+    })
   })
 
   // SPA-488: without WebGL2 maplibre throws from the Map constructor, and a

@@ -77,6 +77,7 @@ const emit = defineEmits<{
 
 const ORIGIN_SNAP_ZOOM = 9
 const STOP_FOCUS_ZOOM = 12
+const MAX_PIXEL_RATIO = 2
 
 const isochroneColors = resolveIsochroneColors()
 // The line swatches are drawn with the same ends the map draws them with: the
@@ -98,6 +99,7 @@ const legend = computed(() =>
 const mapContainer = ref<HTMLElement | null>(null)
 let map: Map | null = null
 let resizeObserver: ResizeObserver | null = null
+let resizeFrame: number | null = null
 let hasFittedToSegments = false
 let hasFittedToRoutes = false
 const isMapLoaded = ref(false)
@@ -334,6 +336,9 @@ onMounted(() => {
       style: resolveMapStyleUrl(),
       center: initialCenter,
       zoom: 7,
+      // Past 2× the extra sharpness is hard to see, and a 3× phone or laptop
+      // pays more than twice 2×'s pixels for it on every frame (SPA-492).
+      pixelRatio: Math.min(window.devicePixelRatio, MAX_PIXEL_RATIO),
       attributionControl: { customAttribution: MAP_CREDITS },
     })
   } catch (error) {
@@ -379,14 +384,20 @@ onMounted(() => {
     if (props.centerOn) flyToStop(props.centerOn)
   })
 
+  // Each map.resize() reallocates the drawing buffer, and a sliding panel
+  // reports a new size on every frame, sometimes more than once a frame.
   resizeObserver = new ResizeObserver(() => {
-    if (!map || !mapContainer.value) return
-    const { clientWidth, clientHeight } = mapContainer.value
-    if (clientWidth === 0 || clientHeight === 0) return
-    map.resize()
-    if (!hasFittedToSegments) {
-      fitMapToDefaultView()
-    }
+    if (resizeFrame !== null) return
+    resizeFrame = requestAnimationFrame(() => {
+      resizeFrame = null
+      if (!map || !mapContainer.value) return
+      const { clientWidth, clientHeight } = mapContainer.value
+      if (clientWidth === 0 || clientHeight === 0) return
+      map.resize()
+      if (!hasFittedToSegments) {
+        fitMapToDefaultView()
+      }
+    })
   })
   resizeObserver.observe(mapContainer.value)
 })
@@ -395,6 +406,8 @@ onUnmounted(() => {
   clearLoadTimeout()
   resizeObserver?.disconnect()
   resizeObserver = null
+  if (resizeFrame !== null) cancelAnimationFrame(resizeFrame)
+  resizeFrame = null
   // Modules first: they release what would outlive the map, and map.remove()
   // takes the sources, layers, and map-bound listeners with it.
   modules.detach()
