@@ -1,5 +1,6 @@
 import type { GraphEdge, Service, TransitGraph } from '../api/authoring/types'
 import type { Route, SegmentTime, Station } from '../api/scenarios'
+import { UNNAMED_LINE, UNNAMED_STATION } from '../copy/names'
 
 export interface StationTimeRow {
   from: string
@@ -24,9 +25,27 @@ export function formatRunTime(total: number): string {
   return `${minutes}:${String(seconds).padStart(2, '0')}`
 }
 
+export function directionStops(direction: StationTimeDirection): string[] {
+  const { rows } = direction
+  if (!rows.length) return []
+  return [rows[0].from, ...rows.map((row) => row.to)]
+}
+
+export function directionSeconds(direction: StationTimeDirection): number {
+  return direction.rows.reduce((sum, row) => sum + row.seconds, 0)
+}
+
+export function formatTotalTime(total: number): string {
+  // A whole line is summarised to the minute; the hop rows keep m:ss.
+  const minutes = Math.round(total / 60)
+  const hours = Math.floor(minutes / 60)
+  if (!hours) return `${minutes} min`
+  return `${hours} h ${String(minutes % 60).padStart(2, '0')} min`
+}
+
 function nameResolver(entries: [string, string][]): (slug: string) => string {
   const names = new Map(entries)
-  return (slug) => names.get(slug) ?? slug
+  return (slug) => names.get(slug) ?? UNNAMED_STATION
 }
 
 function directionsFrom(rows: StationTimeRow[], returnRows: StationTimeRow[]): StationTimeDirection[] {
@@ -69,7 +88,7 @@ export function graphStationTimeGroups(
       const { outbound, returning } = splitByDirection(member.edges, displayName)
       return {
         key: member.service_id,
-        label: services.find((s) => s.id === member.service_id)?.name ?? member.service_id,
+        label: services.find((s) => s.id === member.service_id)?.name ?? UNNAMED_LINE,
         directions: directionsFrom(outbound, returning),
       }
     })

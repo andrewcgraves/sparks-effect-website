@@ -35,7 +35,7 @@ export function resolveIsochroneColors(): IsochroneColors {
 
 export function isochroneLegend(drawn: { unfinished?: boolean; starterWalk?: boolean } = {}) {
   const entries: { source: 'origin' | 'egress' | 'starter' | 'unfinished'; label: string }[] = [
-    { source: 'origin', label: 'Origin reach' },
+    { source: 'origin', label: 'From starting point' },
     { source: 'egress', label: 'From station' },
   ]
   // Unlabelled, the starter walk was the one line on the map anchored at the
@@ -46,10 +46,10 @@ export function isochroneLegend(drawn: { unfinished?: boolean; starterWalk?: boo
   if (drawn.starterWalk) {
     entries.push({ source: 'starter', label: 'First leg — nearest station' })
   }
-  // Ink is also the network and the ridden path, so naming it "budget ran out"
-  // on a map with no stub invites the same misread this row is meant to close.
+  // Ink is also the network and the ridden path, so naming it "travel time ran
+  // out" on a map with no stub invites the same misread this row is meant to close.
   if (drawn.unfinished) {
-    entries.push({ source: 'unfinished', label: 'Budget ran out here' })
+    entries.push({ source: 'unfinished', label: 'Travel time ran out here' })
   }
   return entries
 }

@@ -178,7 +178,7 @@ describe('useIsochroneLayer', () => {
 
   it('names the two reach areas', () => {
     expect(isochroneLegend()).toEqual([
-      { source: 'origin', label: 'Origin reach' },
+      { source: 'origin', label: 'From starting point' },
       { source: 'egress', label: 'From station' },
     ])
   })
@@ -187,7 +187,7 @@ describe('useIsochroneLayer', () => {
     expect(isochroneLegend().map((e) => e.source)).not.toContain('unfinished')
     expect(isochroneLegend({ unfinished: true }).find((e) => e.source === 'unfinished')).toEqual({
       source: 'unfinished',
-      label: 'Budget ran out here',
+      label: 'Travel time ran out here',
     })
   })
 

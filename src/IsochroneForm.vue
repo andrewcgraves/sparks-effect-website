@@ -4,19 +4,14 @@ import AddressAutocomplete from './components/AddressAutocomplete.vue'
 import SegmentedControl from './components/SegmentedControl.vue'
 import { PRIMARY_BUTTON_CLASS } from './components/buttonStyles'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from './components/fieldStyles'
+import { HIT_AREA_CLASS } from './components/linkStyles'
 import type { GeocodingSuggestion } from './api/geocoding'
 import { reverseGeocode } from './api/geocoding'
 import { getCurrentPosition } from './api/geolocation'
 import { trackModeToggle } from './analytics/index'
 import { TRAVEL_MODES, type TravelMode } from './api/authoring/types'
 import { DEFAULT_DURATION, DEFAULT_MODE, DURATION_OPTIONS, type IsochronePayload } from './isochroneQuery'
-
-const MODE_LABELS: Record<TravelMode, string> = {
-  walk: 'Walk',
-  bike: 'Bike',
-  drive: 'Drive',
-  transit: 'Transit',
-}
+import { MODE_LABELS } from './copy/modes'
 
 const MODE_OPTIONS: { value: TravelMode; label: string }[] = TRAVEL_MODES.map((value) => ({
   value,
@@ -87,6 +82,16 @@ watch(pickArmed, (armed) => {
 watch([lat, lng], () => {
   pickArmed.value = false
 })
+
+// Chrome turns a wheel or trackpad scroll over a focused number field into a
+// step of its value, so a visitor scrolling past the form would nudge the
+// starting point. Letting go of focus first keeps the value and lets the page
+// scroll. The fields stay `type="number"`: an iOS decimal keypad has no minus
+// key, and California longitudes are negative.
+function blurOnWheel(event: WheelEvent) {
+  const field = event.currentTarget as HTMLInputElement
+  if (document.activeElement === field) field.blur()
+}
 
 function handleKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape') pickArmed.value = false
@@ -166,7 +171,7 @@ function handleSubmit() {
     @submit.prevent="handleSubmit"
   >
     <h2 class="font-display text-h3 text-ink-true">
-      Plot isochrone
+      Plot a splash zone
     </h2>
 
     <div class="flex flex-col gap-2">
@@ -211,7 +216,7 @@ function handleSubmit() {
       <button
         type="button"
         class="font-display text-btn self-start uppercase transition-colors duration-200 ease-(--ease-smooth) hover:text-coral"
-        :class="pickArmed ? 'text-coral' : 'text-ink-muted'"
+        :class="[HIT_AREA_CLASS, pickArmed ? 'text-coral' : 'text-ink-muted']"
         data-testid="pick-on-map"
         @click="pickArmed = !pickArmed"
       >
@@ -219,7 +224,7 @@ function handleSubmit() {
           Cancel
         </template>
         <template v-else>
-          <span aria-hidden="true">📍</span> Pick location on map
+          <span aria-hidden="true">📍</span> Pick starting point on map
         </template>
       </button>
       <p
@@ -240,6 +245,7 @@ function handleSubmit() {
           data-testid="lat"
           type="number"
           step="any"
+          @wheel.passive="blurOnWheel"
         >
       </label>
       <label :class="FIELD_LABEL_CLASS">
@@ -250,6 +256,7 @@ function handleSubmit() {
           data-testid="lng"
           type="number"
           step="any"
+          @wheel.passive="blurOnWheel"
         >
       </label>
     </div>
@@ -274,7 +281,7 @@ function handleSubmit() {
         <label
           v-for="option in MODE_OPTIONS"
           :key="option.value"
-          class="font-body flex cursor-pointer items-center gap-1.5 text-[14px] text-ink"
+          class="font-body flex min-h-11 cursor-pointer items-center gap-1.5 text-[14px] text-ink md:min-h-0"
         >
           <input
             type="radio"
@@ -302,7 +309,7 @@ function handleSubmit() {
         :class="PRIMARY_BUTTON_CLASS"
         :disabled="!isValid || loading || offline"
       >
-        {{ loading ? 'Generating…' : 'Generate isochrone' }}
+        {{ loading ? 'Plotting…' : 'Plot splash zone' }}
       </button>
     </span>
 
@@ -319,7 +326,7 @@ function handleSubmit() {
       class="font-body text-caption text-ink-muted italic"
       data-testid="submit-hint"
     >
-      Enter a location and travel time to continue.
+      Enter a starting point and travel time to continue.
     </p>
   </form>
 </template>

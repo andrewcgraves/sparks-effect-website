@@ -64,7 +64,7 @@ describe('ScenarioPreviewPanel', () => {
       await wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('pick-armed', true)
 
       expect(wrapper.findComponent({ name: 'MapView' }).props('placementArmed')).toBe(true)
-      expect(wrapper.findComponent({ name: 'MapView' }).props('placementCue')).toBe('Click the map to set origin — Esc to cancel')
+      expect(wrapper.findComponent({ name: 'MapView' }).props('placementCue')).toBe('Click the map to set the starting point — Esc to cancel')
     })
 
     it('disarms MapView when IsochroneForm reports the pick is over', async () => {
@@ -171,7 +171,7 @@ describe('ScenarioPreviewPanel', () => {
 
       const banner = wrapper.find('[data-testid="routing-status"]')
       expect(banner.text()).toContain('Live routing is offline right now.')
-      expect(banner.text()).not.toContain('saved examples')
+      expect(banner.text()).not.toContain('saved splash zones')
       expect(plotButton(wrapper).disabled).toBe(true)
       expect(wrapper.find('[data-testid="plot-reason"]').attributes('title')).toContain('offline')
     })
@@ -233,13 +233,13 @@ describe('ScenarioPreviewPanel', () => {
 
     // Declared but still a near miss: the graph shown predates the pair, or
     // the recompile that would realise it failed.
-    it('says a pair declared either way round is not in the compiled network yet, and offers Recompile instead of Join', async () => {
+    it('says a pair declared either way round is not in the latest build yet, and offers Recompile instead of Join', async () => {
       const wrapper = mountWithNearMiss({
         interchangePairs: [{ a: { service_id: 'svc2', slug: 'midtown' }, b: { service_id: 'svc1', slug: 'union' } }],
       })
       expect(wrapper.find('[data-testid="join-interchange"]').exists()).toBe(false)
       expect(wrapper.text()).not.toContain('Joined')
-      expect(wrapper.get('[data-testid="near-miss-declared"]').text()).toBe('Declared — not in the compiled network yet')
+      expect(wrapper.get('[data-testid="near-miss-declared"]').text()).toBe('Declared — not in the latest build yet')
 
       await wrapper.get('[data-testid="recompile-interchange"]').trigger('click')
       expect(wrapper.emitted('recompile')).toEqual([[]])

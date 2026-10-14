@@ -3,6 +3,7 @@ import { computed, ref, useSlots } from 'vue'
 import IsochroneForm from '../IsochroneForm.vue'
 import InterchangeReport from './InterchangeReport.vue'
 import MapView from './MapView.vue'
+import { PLOT_WITHOUT_MAP } from './mapLoad'
 import PhoneMapPage from './PhoneMapPage.vue'
 import RoutingStatusBanner from './RoutingStatusBanner.vue'
 import TimeRemaining from './TimeRemaining.vue'
@@ -15,6 +16,7 @@ import type { InterchangePair, NearMiss, Service, StopCluster, StopIdentity } fr
 import type { Route, Station } from '../api/scenarios'
 import type { ChainResponse } from '../fixtures/isochrone'
 import type { IsochronePayload } from '../isochroneQuery'
+import { UNNAMED_LINE, UNNAMED_STATION } from '../copy/names'
 
 const props = defineProps<{
   origin: { lat: number; lng: number } | null
@@ -51,8 +53,8 @@ const { status: routingStatus, offline: routingOffline } = useRoutingStatus()
 
 const timeRemaining = computed(() =>
   buildTimeRemainingGraph(props.isochroneData?.metadata ?? null, {
-    stationName: (slug) => props.mapStations?.find((station) => station.slug === slug)?.name ?? slug,
-    serviceName: (id) => props.services.find((service) => service.id === id)?.name ?? id,
+    stationName: (slug) => props.mapStations?.find((station) => station.slug === slug)?.name ?? UNNAMED_STATION,
+    serviceName: (id) => props.services.find((service) => service.id === id)?.name ?? UNNAMED_LINE,
     mode: props.isochroneData?.metadata.mode ?? 'walk',
   }),
 )
@@ -94,6 +96,7 @@ const { tabs: allPhoneTabs, tab: phoneTab } = usePhoneMapTabs({
     <template #map>
       <MapView
         label="Splash zone map"
+        :without-map="PLOT_WITHOUT_MAP"
         flush
         :origin="props.origin"
         :isochrone-data="props.isochroneData"
@@ -169,6 +172,7 @@ const { tabs: allPhoneTabs, tab: phoneTab } = usePhoneMapTabs({
     <div class="h-[70vh]">
       <MapView
         label="Splash zone map"
+        :without-map="PLOT_WITHOUT_MAP"
         :origin="props.origin"
         :isochrone-data="props.isochroneData"
         :loading="props.loading"

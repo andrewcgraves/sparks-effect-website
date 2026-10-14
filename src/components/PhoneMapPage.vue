@@ -85,10 +85,13 @@ function onListKeydown(event: KeyboardEvent): void {
     </div>
 
     <!-- Sized against the page area under the site header, not the viewport,
-         so the split reads the same whatever the header's height. -->
+         so the split reads the same whatever the header's height. Tall and
+         short snap rather than slide: a slide resizes the map on every frame,
+         which a phone without much graphics power draws at a few frames a
+         second (SPA-492). -->
     <section
       :id="panelId"
-      class="flex shrink-0 flex-col border-t border-border bg-white transition-[height] duration-300 ease-(--ease-smooth)"
+      class="flex shrink-0 flex-col border-t border-border bg-white"
       :style="{ height: panelSize === 'tall' ? '52%' : '24%' }"
       data-testid="phone-panel"
     >
@@ -108,7 +111,7 @@ function onListKeydown(event: KeyboardEvent): void {
           :aria-controls="tabpanelId(entry.key)"
           :tabindex="tab === entry.key ? 0 : -1"
           :disabled="entry.disabled"
-          class="font-display text-btn relative flex-1 cursor-pointer py-3 uppercase transition-colors duration-200 ease-(--ease-smooth) hover:text-coral disabled:cursor-not-allowed disabled:opacity-35"
+          class="font-display text-btn relative min-h-11 flex-1 cursor-pointer py-3 uppercase transition-colors duration-200 ease-(--ease-smooth) hover:text-coral disabled:cursor-not-allowed disabled:opacity-35"
           :class="tab === entry.key ? 'text-coral' : 'text-ink-muted'"
           @click="choose(entry.key)"
         >

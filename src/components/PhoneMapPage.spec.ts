@@ -167,4 +167,16 @@ describe('PhoneMapPage', () => {
 
     expect(wrapper.get('[data-testid="phone-panel-toggle"]').attributes('aria-expanded')).toBe('true')
   })
+
+  // SPA-494: padding and a matching negative margin make a 44px target out of
+  // 20px of text without moving anything around it.
+  it('gives the panel toggle a thumb-sized hit area without moving its text', () => {
+    const { wrapper } = mountPage()
+    expect(wrapper.get('[data-testid="phone-panel-toggle"]').classes()).toEqual(expect.arrayContaining(['pointer-coarse:py-3', 'pointer-coarse:-my-3']))
+  })
+
+  it('holds each tab at 44px, which its padding alone leaves half a pixel short', () => {
+    const { wrapper } = mountPage()
+    for (const tab of tabs(wrapper)) expect(tab.classes()).toContain('min-h-11')
+  })
 })

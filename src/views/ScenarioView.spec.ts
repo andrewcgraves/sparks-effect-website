@@ -16,7 +16,7 @@ vi.mock('../api/isochrone', async (importOriginal) => {
 
 const mockUseScenario = vi.fn()
 vi.mock('../composables/useScenario', () => ({
-  useScenario: (slug: string) => mockUseScenario(slug),
+  useScenario: (slug: string) => ({ subtext: ref(''), ...mockUseScenario(slug) }),
 }))
 
 vi.mock('../api/scenarios', async (importOriginal) => {
@@ -46,6 +46,7 @@ import type { PrerenderedIsochrone } from '../api/prerenderedIsochrones'
 import type { ChainResponse } from '../fixtures/isochrone'
 import { formatTimeRemaining } from '../components/timeRemaining'
 import { busyRegion, visibleText } from '../test/loading'
+import { hopCells } from '../test/stationTimes'
 
 const stubStations: Station[] = [
   {
@@ -209,6 +210,28 @@ describe('ScenarioView', () => {
     expect(wrapper.text()).toContain('California High-Speed Rail')
   })
 
+  it('shows the subtext under the name and keeps the description\'s paragraph breaks', () => {
+    mockUseScenario.mockReturnValue({
+      name: ref('CA HSR'),
+      subtext: ref('Electrified · High-speed rail · Greenfield'),
+      description: ref('San Francisco to Anaheim.\n\nSources: CAHSR.'),
+      routes: ref([]),
+      stations: ref(stubStations),
+      services: ref([]),
+      loading: ref(false),
+    })
+    const wrapper = mountScenarioView()
+    expect(wrapper.get('hgroup [data-testid="scenario-subtext"]').text()).toBe('Electrified · High-speed rail · Greenfield')
+    const description = wrapper.get('[data-testid="scenario-description"]')
+    expect(description.classes()).toContain('whitespace-pre-line')
+    expect(description.element.textContent).toContain('Anaheim.\n\nSources')
+  })
+
+  it('shows no subtext line when the scenario has none', () => {
+    const wrapper = mountScenarioView()
+    expect(wrapper.find('[data-testid="scenario-subtext"]').exists()).toBe(false)
+  })
+
   it.each([
     ['empty', ''],
     ['whitespace-only', '   \n\t'],
@@ -345,7 +368,7 @@ describe('ScenarioView', () => {
     await flushPromises()
     expect(wrapper.findComponent({ name: 'MapView' }).props('loading')).toBe(false)
     expect(wrapper.findComponent({ name: 'IsochroneForm' }).props('error')).toBe(
-      'Failed to generate isochrone. Please try again.',
+      "Couldn't plot this splash zone. Please try again.",
     )
   })
 
@@ -419,17 +442,16 @@ describe('ScenarioView', () => {
     expect(fetchScenarioTravelTimes).toHaveBeenCalledWith('ca-hsr')
     expect(wrapper.text()).not.toContain('Speed graph')
     const section = wrapper.get('[data-testid="time-between-stations"]')
-    expect(section.get('[data-testid="station-time-row"]').findAll('td').map((td) => td.text()))
-      .toEqual(['San Francisco', 'San Jose', '40:45'])
+    expect(hopCells(section)[0]).toEqual(['San Francisco', 'San Jose', '40:45'])
   })
 
   // The fixture is one symmetric hop on one route: nothing to toggle between,
-  // and one table needs no heading to be told apart from its neighbours.
-  it('offers no direction toggle or heading for a scenario of one symmetric corridor', async () => {
+  // and with no route name the group is titled by the stations at its ends.
+  it('offers no direction toggle for a scenario of one symmetric corridor', async () => {
     const wrapper = mountScenarioView()
     await flushPromises()
     expect(wrapper.find('[data-testid="direction-toggle"]').exists()).toBe(false)
-    expect(wrapper.find('[data-testid="station-time-group-label"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="station-time-group-label"]').text()).toBe('San Francisco – San Jose')
   })
 
   // The shape the seeded ca-hsr payload actually has: a mainline, then a spur
@@ -486,7 +508,7 @@ describe('ScenarioView', () => {
       })
     })
 
-    it('draws one table per route, each headed with the line it belongs to', async () => {
+    it('draws one group per route, each headed with the line it belongs to', async () => {
       const wrapper = mountScenarioView()
       await flushPromises()
       const groups = wrapper.findAll('[data-testid="station-time-group"]')
@@ -498,9 +520,9 @@ describe('ScenarioView', () => {
       const wrapper = mountScenarioView()
       await flushPromises()
       const groups = wrapper.findAll('[data-testid="station-time-group"]')
-      expect(groups[0].findAll('[data-testid="direction-toggle"]').map((b) => b.text()))
+      expect(groups[0].findAll('[data-testid="direction-toggle"] label').map((b) => b.text()))
         .toEqual(['To Anaheim', 'To San Francisco'])
-      expect(groups[1].findAll('[data-testid="direction-toggle"]').map((b) => b.text()))
+      expect(groups[1].findAll('[data-testid="direction-toggle"] label').map((b) => b.text()))
         .toEqual(['To Las Vegas', 'To Palmdale'])
     })
 
@@ -510,9 +532,8 @@ describe('ScenarioView', () => {
       const wrapper = mountScenarioView()
       await flushPromises()
       const mainline = wrapper.findAll('[data-testid="station-time-group"]')[0]
-      await mainline.findAll('[data-testid="direction-toggle"]')[1].trigger('click')
-      expect(mainline.findAll('[data-testid="station-time-row"]')
-        .map((row) => row.findAll('td').map((td) => td.text())))
+      await mainline.get('[data-testid="direction-toggle-option-1"]').setValue(true)
+      expect(hopCells(mainline))
         .toEqual([
           ['Anaheim', 'Palmdale', '20:00'],
           ['Palmdale', 'San Jose', '40:00'],
@@ -553,7 +574,7 @@ describe('ScenarioView', () => {
       await wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('pick-armed', true)
 
       expect(wrapper.findComponent({ name: 'MapView' }).props('placementArmed')).toBe(true)
-      expect(wrapper.findComponent({ name: 'MapView' }).props('placementCue')).toBe('Click the map to set origin — Esc to cancel')
+      expect(wrapper.findComponent({ name: 'MapView' }).props('placementCue')).toBe('Click the map to set the starting point — Esc to cancel')
     })
 
     it('disarms MapView when IsochroneForm reports the pick is over', async () => {
@@ -614,6 +635,21 @@ describe('ScenarioView', () => {
       Element.prototype.scrollIntoView = scrollIntoView
     })
 
+    // Each service on a route of its own, so each is its own line, by name.
+    function servicesNamed() {
+      mockUseScenario.mockReturnValue({
+        name: ref('CA HSR'),
+        description: ref('California High-Speed Rail'),
+        routes: ref([]),
+        stations: ref(stubStations),
+        services: ref([
+          { id: 'svc-trunk', name: 'Trunk', frequency_windows: [] },
+          { id: 'svc-spur', name: 'Spur', frequency_windows: [] },
+        ]),
+        loading: ref(false),
+      })
+    }
+
     async function plot(isochrone: ChainResponse = journeyIsochrone) {
       vi.mocked(fetchIsochrone).mockResolvedValue(isochrone)
       const wrapper = mountScenarioView()
@@ -650,19 +686,29 @@ describe('ScenarioView', () => {
       const rows = wrapper.findAll('[data-testid="time-remaining-row"]')
       expect(rows.map((row) => row.get('[data-testid="time-remaining-value"]').text()))
         .toEqual(['2h 0m', '1h 45m', '1h 30m'])
-      expect(rows[0].text()).toContain('Starting location')
+      expect(rows[0].text()).toContain('Starting point')
       expect(rows[1].text()).toContain('San Francisco')
       expect(rows[2].text()).toContain('San Jose')
     })
 
     it('flags how the rider leaves each row, and leaves the end of a branch unflagged', async () => {
+      servicesNamed()
       const wrapper = await plot()
 
       const flags = wrapper.findAll('[data-testid="time-remaining-row"]')
         .map((row) => row.find('[data-testid="time-remaining-flag"]'))
       expect(flags[0].text()).toBe('Walk')
-      expect(flags[1].text()).toBe('svc-trunk')
+      expect(flags[1].text()).toBe('Trunk')
       expect(flags[2].exists()).toBe(false)
+    })
+
+    it('calls a line the page has no record of unnamed, never by its id', async () => {
+      const wrapper = await plot()
+
+      const flag = wrapper.findAll('[data-testid="time-remaining-row"]')[1]
+        .get('[data-testid="time-remaining-flag"]')
+      expect(flag.text()).toBe('Unnamed line')
+      expect(wrapper.get('[data-testid="time-remaining"]').text()).not.toContain('svc-trunk')
     })
 
     it('expands a row on hover, with the detail its single number hides', async () => {
@@ -867,11 +913,12 @@ describe('ScenarioView', () => {
     }
 
     it('offers a switcher between the lines, opening on the first of them', () => {
+      servicesNamed()
       return plot(twoServiceIsochrone).then((wrapper) => {
         const labels = wrapper.findAll('[data-testid="time-remaining-service"] label').map((l) => l.text())
         // One tab per line and no tab for the walk to San Francisco, which the
         // trunk's own view already opens with (SPA-243).
-        expect(labels).toEqual(['svc-trunk', 'svc-spur'])
+        expect(labels).toEqual(['Trunk', 'Spur'])
         expect(wrapper.findAll('[data-testid="time-remaining-row"]').map((r) => r.text()))
           .toEqual(expect.arrayContaining([expect.stringContaining('San Jose')]))
       })
@@ -1223,7 +1270,7 @@ describe('ScenarioView', () => {
       const wrapper = await mountWithOrigin()
 
       expect(wrapper.get('[data-testid="routing-status"]').text())
-        .toBe('Live routing is offline right now. Here are some saved examples.')
+        .toBe('Live routing is offline right now. Here are some saved splash zones.')
       expect(plotButton(wrapper).disabled).toBe(true)
       const examples = wrapper.get('[data-testid="prerendered-isochrones"]').element
       const form = wrapper.get('form').element
@@ -1241,7 +1288,7 @@ describe('ScenarioView', () => {
       answerList([saved])
       await flushPromises()
       expect(wrapper.get('[data-testid="routing-status"]').text())
-        .toBe('Live routing is offline right now. Here are some saved examples.')
+        .toBe('Live routing is offline right now. Here are some saved splash zones.')
     })
 
     it('only explains, without promising examples, for a network that ships none', async () => {
@@ -1251,7 +1298,7 @@ describe('ScenarioView', () => {
 
       const banner = wrapper.get('[data-testid="routing-status"]').text()
       expect(banner).toContain('Live routing is offline right now.')
-      expect(banner).not.toContain('saved examples')
+      expect(banner).not.toContain('saved splash zones')
       expect(plotButton(wrapper).disabled).toBe(true)
     })
 
@@ -1507,6 +1554,23 @@ describe('ScenarioView', () => {
         loading: ref(false),
       })
       expect(tabLabels(mountScenarioView())).toEqual(['Plot', 'Results', 'Stations'])
+    })
+
+    it('puts the subtext behind the About tab too, keeping the tab for a scenario with only a subtext', async () => {
+      mockUseScenario.mockReturnValue({
+        name: ref('CA HSR'),
+        subtext: ref('Electrified · High-speed rail · Greenfield'),
+        description: ref(''),
+        routes: ref([]),
+        stations: ref(stubStations),
+        services: ref([]),
+        loading: ref(false),
+      })
+      const wrapper = mountScenarioView()
+      expect(tabLabels(wrapper)).toEqual(['Plot', 'Results', 'Stations', 'About'])
+      await tabNamed(wrapper, 'About').trigger('click')
+      expect(wrapper.get('[data-testid="scenario-subtext"]').text()).toBe('Electrified · High-speed rail · Greenfield')
+      expect(wrapper.find('[data-testid="scenario-description"]').exists()).toBe(false)
     })
   })
 })

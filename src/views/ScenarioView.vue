@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import IsochroneForm from '../IsochroneForm.vue'
 import CopyLinkButton from '../components/CopyLinkButton.vue'
 import MapView from '../components/MapView.vue'
+import { PLOT_WITHOUT_MAP } from '../components/mapLoad'
 import PrerenderedIsochrones from '../components/PrerenderedIsochrones.vue'
 import RoutingStatusBanner from '../components/RoutingStatusBanner.vue'
 import TimeBetweenStations from '../components/TimeBetweenStations.vue'
@@ -26,6 +27,7 @@ import SkeletonShape from '../components/SkeletonShape.vue'
 import PhoneMapPage from '../components/PhoneMapPage.vue'
 import { usePhoneMapTabs } from '../components/phoneMapTabs'
 import { useIsPhone } from '../composables/useIsPhone'
+import { UNNAMED_LINE, UNNAMED_STATION } from '../copy/names'
 
 const props = defineProps<{ slug: string }>()
 
@@ -34,7 +36,7 @@ const { pickArmed, onMapClick } = useOriginPick()
 const { status: routingStatus, offline } = useRoutingStatus()
 const hasExamples = ref<boolean | null>(null)
 
-const { name, description, routes, stations, services, loading: scenarioLoading } = useScenario(props.slug)
+const { name, subtext, description, routes, stations, services, loading: scenarioLoading } = useScenario(props.slug)
 
 usePageTitle(() => name.value)
 
@@ -63,19 +65,22 @@ function highlight(slug: string | null, fromMap: boolean) {
 }
 
 function lineOf(id: string): { key: string; label: string } {
+  // Lines that share a route share a tab. A curated network names the route
+  // what riders call the line ("Brightline West — Palmdale to Las Vegas"), so
+  // its short name is the tab's line name; a line on no route uses its own.
   const service = services.value.find((s) => s.id === id)
   const route = service?.route_id
     ? routes.value.find((r) => r.id === service.route_id)
     : undefined
   return route
     ? { key: route.id, label: shortLineName(route.name) }
-    : { key: id, label: service?.name ?? id }
+    : { key: id, label: service?.name ?? UNNAMED_LINE }
 }
 
 const timeRemaining = computed(() =>
   buildTimeRemainingGraph(isochroneData.value?.metadata ?? null, {
-    stationName: (slug) => stations.value.find((s) => s.slug === slug)?.name ?? slug,
-    serviceName: (id) => services.value.find((s) => s.id === id)?.name ?? id,
+    stationName: (slug) => stations.value.find((s) => s.slug === slug)?.name ?? UNNAMED_STATION,
+    serviceName: (id) => services.value.find((s) => s.id === id)?.name ?? UNNAMED_LINE,
     line: lineOf,
     mode: isochroneData.value?.metadata.mode ?? 'walk',
   }),
@@ -94,7 +99,7 @@ function onOriginChange(coords: { lat: number; lng: number } | null) {
 }
 
 async function handleFormSubmit(payload: IsochronePayload) {
-  // Generating replaces what the map is drawing, so the pre-rendered pick that
+  // Plotting replaces what the map is drawing, so the saved splash zone that
   // was drawing it is no longer the answer on screen and stops being marked as
   // one. Cleared on submit rather than on success: the moment the question
   // changes, the old highlight is already wrong.
@@ -129,7 +134,7 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
   results: () => timeRemaining.value.views.length > 0,
   extra: () => [
     ...(travelTimesFailed.value ? [] : [{ key: 'stations', label: 'Stations' }]),
-    ...(description.value.trim() ? [{ key: 'about', label: 'About' }] : []),
+    ...(subtext.value.trim() || description.value.trim() ? [{ key: 'about', label: 'About' }] : []),
   ],
 })
 </script>
@@ -148,6 +153,7 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
       <template #map>
         <MapView
           label="Splash zone map"
+          :without-map="PLOT_WITHOUT_MAP"
           flush
           :origin="origin"
           :isochrone-data="isochroneData"
@@ -210,7 +216,18 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
         />
       </template>
       <template #panel-about>
-        <p class="font-body text-body text-ink-muted">
+        <p
+          v-if="subtext.trim()"
+          class="font-body text-micro text-ink-muted italic uppercase"
+          data-testid="scenario-subtext"
+        >
+          {{ subtext }}
+        </p>
+        <p
+          v-if="description.trim()"
+          class="font-body text-body whitespace-pre-line text-ink-muted"
+          data-testid="scenario-description"
+        >
           {{ description }}
         </p>
       </template>
@@ -229,17 +246,31 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
     >
       <SkeletonShape class="w-3/4 max-w-[480px]" />
     </LoadingRegion>
-    <h1
+    <hgroup
       v-else
-      class="mt-8 max-w-[720px] font-display text-display text-ink-true"
+      class="mt-8 flex max-w-[720px] flex-col gap-2"
     >
-      {{ name || 'Sparks Effect' }}
-    </h1>
+      <h1 class="font-display text-display text-ink-true">
+        {{ name || 'Sparks Effect' }}
+      </h1>
+      <p
+        v-if="subtext.trim()"
+        class="font-body text-micro text-ink-muted italic uppercase"
+        data-testid="scenario-subtext"
+      >
+        {{ subtext }}
+      </p>
+    </hgroup>
 
-    <div class="mt-8 grid grid-cols-1 items-start gap-4 lg:grid-cols-[2fr_1fr]">
-      <div class="h-[70vh]">
+    <!-- On wide screens the sidebar spans both rows, so the description sits
+         right under the map rather than below the sidebar's last card. The 1fr
+         second row soaks up the sidebar's extra height, keeping the first row
+         as tall as the map. -->
+    <div class="mt-8 grid grid-cols-1 items-start gap-4 lg:grid-cols-[2fr_1fr] lg:grid-rows-[auto_1fr]">
+      <div class="h-[70vh] lg:col-start-1 lg:row-start-1">
         <MapView
           label="Splash zone map"
+          :without-map="PLOT_WITHOUT_MAP"
           :origin="origin"
           :isochrone-data="isochroneData"
           :loading="isLoading"
@@ -255,12 +286,12 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
         />
       </div>
 
-      <div class="flex flex-col gap-4">
+      <div class="flex flex-col gap-4 lg:col-start-2 lg:row-span-2 lg:row-start-1">
         <RoutingStatusBanner
           :status="routingStatus"
           :has-examples="hasExamples"
         />
-        <!-- With live routing offline the saved examples are the page's answer,
+        <!-- With live routing offline the saved splash zones are the page's answer,
              so they come ahead of a form that cannot plot — in the DOM, not
              just on screen, so keyboard and screen-reader order agree. -->
         <PrerenderedIsochrones
@@ -301,18 +332,21 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
           :loading="travelTimesLoading"
         />
       </div>
-    </div>
 
-    <section
-      v-if="description.trim()"
-      class="mt-16 max-w-[720px]"
-    >
-      <h2 class="font-display text-h2 text-ink-true">
-        Description
-      </h2>
-      <p class="font-body text-body mt-3 text-ink-muted">
-        {{ description }}
-      </p>
-    </section>
+      <section
+        v-if="description.trim()"
+        class="mt-12 max-w-[720px] lg:col-start-1 lg:row-start-2 lg:mt-4"
+      >
+        <h2 class="font-display text-h2 text-ink-true">
+          Description
+        </h2>
+        <p
+          class="font-body text-body mt-3 whitespace-pre-line text-ink-muted"
+          data-testid="scenario-description"
+        >
+          {{ description }}
+        </p>
+      </section>
+    </div>
   </main>
 </template>

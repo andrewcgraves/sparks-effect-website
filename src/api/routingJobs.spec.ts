@@ -125,16 +125,16 @@ describe('enqueueIsochrone', () => {
     await settled
   })
 
-  // SPA-230: a routing job failed by the API — the isochrone service being
+  // SPA-230: a routing job failed by the API — the routing service being
   // down, chief among the reasons — must reject with a JobFailedError carrying
   // that reason on its own field, not just folded into the log-style message,
-  // so a caller with somewhere to show the user a reason can get it back out.
+  // so a caller can log the reason it maps to copy.
   it('rejects with a JobFailedError carrying the API error text', async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(enqueued())
       .mockResolvedValueOnce(polled({
         status: 'failed',
-        error: "The isochrone service isn't responding right now. Please try again in a few minutes.",
+        error: "The routing service isn't responding right now. Please try again in a few minutes.",
       }))
 
     const promise = enqueueIsochrone('/api/isochrone', params)
@@ -148,7 +148,7 @@ describe('enqueueIsochrone', () => {
     const err = await settled
     expect(err).toBeInstanceOf(JobFailedError)
     expect((err as JobFailedError).jobError).toBe(
-      "The isochrone service isn't responding right now. Please try again in a few minutes.",
+      "The routing service isn't responding right now. Please try again in a few minutes.",
     )
   })
 
@@ -283,10 +283,10 @@ describe('backlogFullError', () => {
       new ApiError('POST /api/isochrone failed: 429', 429, BACKLOG_FULL_CODE, undefined, retryAfterS)
 
     expect(backlogFullError(refused(30))).toBe(
-      'The isochrone service is busy right now. Please try again in 30 seconds.',
+      'Routing is busy right now. Please try again in 30 seconds.',
     )
     expect(backlogFullError(refused(1))).toBe(
-      'The isochrone service is busy right now. Please try again in 1 second.',
+      'Routing is busy right now. Please try again in 1 second.',
     )
   })
 
@@ -294,7 +294,7 @@ describe('backlogFullError', () => {
     const err = new ApiError('POST /api/isochrone failed: 429', 429, BACKLOG_FULL_CODE)
 
     expect(backlogFullError(err)).toBe(
-      'The isochrone service is busy right now. Please try again in a few moments.',
+      'Routing is busy right now. Please try again in a few moments.',
     )
   })
 

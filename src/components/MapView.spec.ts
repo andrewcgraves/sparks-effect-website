@@ -1,7 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
-import { FullscreenControl } from 'maplibre-gl'
+import { FullscreenControl, Map } from 'maplibre-gl'
 import MapView from './MapView.vue'
+import { MAP_LOAD_TIMEOUT_MS } from './mapLoad'
+import { configureErrorSink, type ErrorReport } from '../errorReporting'
 import { seriousA11yViolations } from '../test/axe'
 import {
   ISOCHRONE_SOURCE_ID,
@@ -106,13 +108,17 @@ const {
   }
 })
 
+let notifyResize: () => void = () => {}
+
 class ResizeObserverStub {
+  constructor(callback: () => void) {
+    notifyResize = callback
+  }
   observe = vi.fn()
   disconnect = vi.fn()
   unobserve = vi.fn()
 }
 
-vi.stubGlobal('ResizeObserver', ResizeObserverStub)
 
 vi.mock('maplibre-gl', () => ({
   setWorkerUrl: vi.fn(),
@@ -242,6 +248,8 @@ function clickEventAt(lat: number, lng: number) {
 describe('MapView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.stubGlobal('ResizeObserver', ResizeObserverStub)
+    notifyResize = () => {}
     mockGetSource.mockReturnValue(null)
     mockSetLngLat.mockReturnValue({ addTo: mockMarkerAddTo })
     mockGetCanvas.mockReturnValue(mockCanvas)
@@ -444,6 +452,184 @@ describe('MapView', () => {
     await triggerMapLoad()
     await wrapper.vm.$nextTick()
     expect(wrapper.find('[data-testid="map-skeleton"]').exists()).toBe(false)
+  })
+
+  // SPA-492: a map without hardware acceleration redraws in seconds a frame.
+  describe('drawing load', () => {
+    afterEach(() => {
+      vi.restoreAllMocks()
+      vi.unstubAllGlobals()
+    })
+
+    it('draws at no more than twice the CSS pixels on a 3× screen', () => {
+      vi.stubGlobal('devicePixelRatio', 3)
+      mount(MapView, { props: defaultProps })
+      expect(vi.mocked(Map)).toHaveBeenCalledWith(expect.objectContaining({ pixelRatio: 2 }))
+    })
+
+    it('draws at the screen density below 2×', () => {
+      vi.stubGlobal('devicePixelRatio', 1.5)
+      mount(MapView, { props: defaultProps })
+      expect(vi.mocked(Map)).toHaveBeenCalledWith(expect.objectContaining({ pixelRatio: 1.5 }))
+    })
+
+    it('resizes the map once for several size changes within one frame', async () => {
+      const frames: FrameRequestCallback[] = []
+      vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => frames.push(cb))
+      vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(390)
+      vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(400)
+      mount(MapView, { props: defaultProps })
+      await triggerMapLoad()
+      mockResize.mockClear()
+
+      notifyResize()
+      notifyResize()
+      notifyResize()
+      expect(mockResize).not.toHaveBeenCalled()
+
+      frames.splice(0).forEach((cb) => cb(0))
+      expect(mockResize).toHaveBeenCalledTimes(1)
+
+      notifyResize()
+      frames.splice(0).forEach((cb) => cb(0))
+      expect(mockResize).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  // SPA-488: without WebGL2 maplibre throws from the Map constructor, and a
+  // style it cannot fetch only ever says so as an `error` event. Either way the
+  // skeleton used to shimmer forever with nothing said about why.
+  describe('a map that cannot start', () => {
+    let reports: ErrorReport[]
+
+    beforeEach(() => {
+      reports = []
+      configureErrorSink((report) => reports.push(report))
+    })
+
+    afterEach(() => {
+      configureErrorSink(() => {})
+      vi.useRealTimers()
+    })
+
+    it('says the browser cannot draw it when the Map constructor throws', async () => {
+      vi.mocked(Map).mockImplementationOnce(() => {
+        throw new Error('WebGL2 is required to display this map')
+      })
+      const wrapper = mount(MapView, { props: defaultProps })
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('[data-testid="map-skeleton"]').exists()).toBe(false)
+      expect(wrapper.get('[role="status"]').text()).toContain("This browser can't draw the map.")
+      expect(reports).toHaveLength(1)
+      expect(reports[0].context).toMatchObject({ map_failure: 'no-webgl' })
+      expect(mockOn).not.toHaveBeenCalled()
+      expect(wrapper.find('[aria-label="Splash zone color key"]').exists()).toBe(false)
+    })
+
+    it('says the map could not load when an error arrives before load', async () => {
+      const wrapper = mount(MapView, { props: defaultProps })
+      fireMapEvent('error', { error: new Error('Failed to fetch style') })
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('[data-testid="map-skeleton"]').exists()).toBe(false)
+      expect(wrapper.get('[data-testid="map-failed"]').text()).toContain("The map couldn't load.")
+      expect(reports).toHaveLength(1)
+      expect(reports[0].context).toMatchObject({ map_failure: 'style' })
+    })
+
+    it('reports a run of errors before load once', async () => {
+      const wrapper = mount(MapView, { props: defaultProps })
+      fireMapEvent('error', { error: new Error('Failed to fetch style') })
+      fireMapEvent('error', { error: new Error('Failed to fetch tile') })
+      await wrapper.vm.$nextTick()
+
+      expect(reports).toHaveLength(1)
+    })
+
+    it('says the map could not load when it has not loaded within the timeout', async () => {
+      vi.useFakeTimers()
+      const wrapper = mount(MapView, { props: defaultProps })
+      vi.advanceTimersByTime(MAP_LOAD_TIMEOUT_MS - 1)
+      await wrapper.vm.$nextTick()
+      expect(wrapper.find('[data-testid="map-failed"]').exists()).toBe(false)
+
+      vi.advanceTimersByTime(1)
+      await wrapper.vm.$nextTick()
+      expect(wrapper.get('[data-testid="map-failed"]').text()).toContain("The map couldn't load.")
+      expect(reports[0].context).toMatchObject({ map_failure: 'timeout' })
+    })
+
+    it('waits for a background tab to be looked at before timing it out', async () => {
+      vi.useFakeTimers()
+      const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
+      const wrapper = mount(MapView, { props: defaultProps })
+      vi.advanceTimersByTime(MAP_LOAD_TIMEOUT_MS * 3)
+      await wrapper.vm.$nextTick()
+      expect(wrapper.find('[data-testid="map-failed"]').exists()).toBe(false)
+
+      visibility.mockReturnValue('visible')
+      vi.advanceTimersByTime(MAP_LOAD_TIMEOUT_MS)
+      await wrapper.vm.$nextTick()
+      expect(wrapper.find('[data-testid="map-failed"]').exists()).toBe(true)
+      visibility.mockRestore()
+    })
+
+    it('does not time out a map that has loaded', async () => {
+      vi.useFakeTimers()
+      const wrapper = mount(MapView, { props: defaultProps })
+      await triggerMapLoad()
+      vi.advanceTimersByTime(MAP_LOAD_TIMEOUT_MS)
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('[data-testid="map-failed"]').exists()).toBe(false)
+      expect(reports).toEqual([])
+    })
+
+    it('keeps an error after load to itself', async () => {
+      const wrapper = mount(MapView, { props: defaultProps })
+      await triggerMapLoad()
+      fireMapEvent('error', { error: new Error('Failed to fetch tile') })
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('[data-testid="map-failed"]').exists()).toBe(false)
+      expect(reports).toEqual([])
+    })
+
+    it('draws the map after all if a slow one loads after giving up on it', async () => {
+      vi.useFakeTimers()
+      const wrapper = mount(MapView, { props: defaultProps })
+      vi.advanceTimersByTime(MAP_LOAD_TIMEOUT_MS)
+      await triggerMapLoad()
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('[data-testid="map-failed"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="map-skeleton"]').exists()).toBe(false)
+    })
+
+    it('adds what the page can still do without the map', async () => {
+      vi.mocked(Map).mockImplementationOnce(() => {
+        throw new Error('WebGL2 is required to display this map')
+      })
+      const wrapper = mount(MapView, {
+        props: { ...defaultProps, withoutMap: 'You can still plot a splash zone and read the results.' },
+      })
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.get('[data-testid="map-failed"]').text()).toBe(
+        "This browser can't draw the map. You can still plot a splash zone and read the results.",
+      )
+    })
+
+    it('has no serious or critical accessibility violations while saying so', async () => {
+      vi.mocked(Map).mockImplementationOnce(() => {
+        throw new Error('WebGL2 is required to display this map')
+      })
+      const wrapper = mount(MapView, { props: defaultProps, attachTo: document.body })
+      await wrapper.vm.$nextTick()
+      expect(await seriousA11yViolations(wrapper)).toEqual([])
+      wrapper.unmount()
+    })
   })
 
   it('shows the loading overlay when loading prop is true', () => {
@@ -825,6 +1011,16 @@ describe('MapView', () => {
     expect(credits[3]).toContain('href="https://maplibre.org/"')
   })
 
+  it.each([
+    ['leaves a plain scroll or one-finger drag to the page when the map sits in a scrolling page', false, true],
+    ['takes every gesture directly when a phone page gives it the screen', true, false],
+  ])('%s', async (_, flush, cooperative) => {
+    const { Map } = await import('maplibre-gl')
+    mount(MapView, { props: { ...defaultProps, flush } })
+    const options = (Map as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(options.cooperativeGestures).toBe(cooperative)
+  })
+
   it('fits bounds to all isochrone segments after load', async () => {
     mount(MapView, { props: defaultProps })
     await triggerMapLoad()
@@ -891,6 +1087,63 @@ describe('MapView', () => {
     expect(mockFitBounds).not.toHaveBeenCalled()
   })
 
+  it('offers no recenter button before the map has loaded', () => {
+    const wrapper = mount(MapView, { props: { ...defaultProps, routes: [stubRoute] } })
+    expect(wrapper.find('[data-testid="map-recenter"]').exists()).toBe(false)
+  })
+
+  it('offers no recenter button when there is no route to recenter on', async () => {
+    const wrapper = mount(MapView, { props: defaultProps })
+    await triggerMapLoad()
+    expect(wrapper.find('[data-testid="map-recenter"]').exists()).toBe(false)
+  })
+
+  // SPA-494: on the flush phone map the controls grow to 40px for a thumb, so
+  // the recenter button matches them and sits one 40px button lower.
+  it('sizes the recenter button for a thumb on the flush phone map', async () => {
+    const wrapper = mount(MapView, { props: { ...defaultProps, routes: [stubRoute], flush: true } })
+    await triggerMapLoad()
+    expect(wrapper.get('[data-testid="map-recenter"]').classes()).toEqual(expect.arrayContaining(['size-10', 'top-[60px]']))
+  })
+
+  it('keeps the recenter button at MapLibre\'s 29px size off the phone layout', async () => {
+    const wrapper = mount(MapView, { props: { ...defaultProps, routes: [stubRoute] } })
+    await triggerMapLoad()
+    expect(wrapper.get('[data-testid="map-recenter"]').classes()).toEqual(expect.arrayContaining(['size-[29px]', 'top-[49px]']))
+  })
+
+  it('animates the map back to the route frame when recenter is pressed', async () => {
+    const wrapper = mount(MapView, { props: { ...defaultProps, routes: [stubRoute] } })
+    await triggerMapLoad()
+    mockFitBounds.mockClear()
+
+    const button = wrapper.get('[data-testid="map-recenter"]')
+    expect(button.attributes('aria-label')).toBe('Recenter map on the route')
+    await button.trigger('click')
+
+    expect(mockFitBounds).toHaveBeenCalledOnce()
+    expect(mockFitBounds).toHaveBeenCalledWith(
+      stubRouteCorners,
+      expect.objectContaining({
+        duration: 800,
+        maxZoom: 11,
+        padding: expect.objectContaining({ top: 56, bottom: 112, left: 56, right: 56 }),
+      }),
+    )
+  })
+
+  it('recenters on the route rather than the plot when a plot is drawn', async () => {
+    const wrapper = mount(MapView, {
+      props: { ...defaultProps, routes: [stubRoute], isochroneData: staticIsochroneResponse },
+    })
+    await triggerMapLoad()
+    mockFitBounds.mockClear()
+
+    await wrapper.get('[data-testid="map-recenter"]').trigger('click')
+
+    expect(mockFitBounds).toHaveBeenCalledWith(stubRouteCorners, expect.anything())
+  })
+
   it('prefers the isochrone frame over route bounds when isochroneData is also provided', async () => {
     mount(MapView, {
       props: { ...defaultProps, routes: [stubRoute], isochroneData: staticIsochroneResponse },
@@ -943,10 +1196,10 @@ describe('MapView', () => {
 
   it('renders a color key for origin and egress isochrones', () => {
     const wrapper = mount(MapView, { props: defaultProps })
-    const legend = wrapper.get('[aria-label="Isochrone color key"]')
-    expect(legend.text()).toContain('Origin reach')
+    const legend = wrapper.get('[aria-label="Splash zone color key"]')
+    expect(legend.text()).toContain('From starting point')
     expect(legend.text()).toContain('From station')
-    expect(legend.text()).not.toContain('Budget ran out here')
+    expect(legend.text()).not.toContain('Travel time ran out here')
   })
 
   it('names the unfinished stub in the key only when the plot drew one', () => {
@@ -973,8 +1226,8 @@ describe('MapView', () => {
         },
       },
     })
-    const legend = wrapper.get('[aria-label="Isochrone color key"]')
-    expect(legend.text()).toContain('Budget ran out here')
+    const legend = wrapper.get('[aria-label="Splash zone color key"]')
+    expect(legend.text()).toContain('Travel time ran out here')
 
     // Ink dashes stopping on a bare ink dot, as the stub is drawn on the map.
     const unfinished = wrapper.get('[data-testid="legend-swatch-unfinished"]')
@@ -989,7 +1242,7 @@ describe('MapView', () => {
   // route the rider was being sent down.
   it('names the starter walk in the key as the first leg, in the origin colour', () => {
     const wrapper = mount(MapView, { props: { ...defaultProps, isochroneData: walkedToStub } })
-    const legend = wrapper.get('[aria-label="Isochrone color key"]')
+    const legend = wrapper.get('[aria-label="Splash zone color key"]')
     expect(legend.text()).toContain('First leg — nearest station')
 
     // Origin-blue dashes from the origin pin's coral to a ringed station dot, so
@@ -1003,7 +1256,7 @@ describe('MapView', () => {
 
   it('leaves the starter walk out of the key when there is no walk to draw', () => {
     const noWalk = mount(MapView, { props: { ...defaultProps, isochroneData: chainWith(walkedToStub.metadata.reachable_stations) } })
-    expect(noWalk.get('[aria-label="Isochrone color key"]').text()).not.toContain('First leg')
+    expect(noWalk.get('[aria-label="Splash zone color key"]').text()).not.toContain('First leg')
 
     // A walk naming a station the plot does not list is not drawn either.
     const contradicted = mount(MapView, {
@@ -1012,12 +1265,12 @@ describe('MapView', () => {
         isochroneData: chainWith(walkedToStub.metadata.reachable_stations, { ...routedToStub, station_slug: 'nowhere' }),
       },
     })
-    expect(contradicted.get('[aria-label="Isochrone color key"]').text()).not.toContain('First leg')
+    expect(contradicted.get('[aria-label="Splash zone color key"]').text()).not.toContain('First leg')
   })
 
   it('hides the isochrone legend when hideIsochroneLegend is set', () => {
     const wrapper = mount(MapView, { props: { ...defaultProps, hideIsochroneLegend: true } })
-    expect(wrapper.find('[aria-label="Isochrone color key"]').exists()).toBe(false)
+    expect(wrapper.find('[aria-label="Splash zone color key"]').exists()).toBe(false)
   })
 
   it('adds a fullscreen control so the map can be expanded', () => {
@@ -1224,20 +1477,20 @@ describe('MapView', () => {
     })
 
     it('renders whatever cue the caller passes, so each armed mode can say its own thing', async () => {
-      const wrapper = mount(MapView, { props: { ...defaultProps, placementArmed: true, placementCue: 'Click the map to set origin — Esc to cancel' } })
+      const wrapper = mount(MapView, { props: { ...defaultProps, placementArmed: true, placementCue: 'Click the map to set the starting point — Esc to cancel' } })
       await triggerMapLoad()
 
-      expect(wrapper.get('[data-testid="map-placement-cue"]').text()).toBe('Click the map to set origin — Esc to cancel')
+      expect(wrapper.get('[data-testid="map-placement-cue"]').text()).toBe('Click the map to set the starting point — Esc to cancel')
     })
 
     it('hides the isochrone legend while armed, since the cue takes the same corner', async () => {
-      const wrapper = mount(MapView, { props: { ...defaultProps, placementArmed: true, placementCue: 'Click the map to set origin — Esc to cancel' } })
+      const wrapper = mount(MapView, { props: { ...defaultProps, placementArmed: true, placementCue: 'Click the map to set the starting point — Esc to cancel' } })
       await triggerMapLoad()
 
-      expect(wrapper.find('[aria-label="Isochrone color key"]').exists()).toBe(false)
+      expect(wrapper.find('[aria-label="Splash zone color key"]').exists()).toBe(false)
 
       await wrapper.setProps({ placementArmed: false })
-      expect(wrapper.find('[aria-label="Isochrone color key"]').exists()).toBe(true)
+      expect(wrapper.find('[aria-label="Splash zone color key"]').exists()).toBe(true)
     })
 
     it('does not place a stop when an armed click lands on an existing pin', async () => {

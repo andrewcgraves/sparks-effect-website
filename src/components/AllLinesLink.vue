@@ -6,7 +6,7 @@ import { ACTION_LINK_CLASS } from './linkStyles'
 const router = useRouter()
 
 // Explore (SPA-202) is where every line is listed; until it lands, the cover
-// page is the nearest thing to it.
+// page is the nearest thing to it, and it lists networks as well as lines.
 const destination = computed(() => (router.hasRoute('explore') ? { name: 'explore' } : '/'))
 </script>
 
@@ -16,6 +16,6 @@ const destination = computed(() => (router.hasRoute('explore') ? { name: 'explor
     :class="ACTION_LINK_CLASS"
     data-testid="back-to-lines"
   >
-    ← All lines
+    ← All lines and networks
   </RouterLink>
 </template>

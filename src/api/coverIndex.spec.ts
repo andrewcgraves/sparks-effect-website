@@ -13,7 +13,12 @@ import { CoverIndexUnavailableError, fetchCoverIndex } from './coverIndex'
 import { listCuratedScenarios } from './scenarios'
 import { listPublishedServices } from './publishedIndex'
 
-const caHsr = { slug: 'ca-hsr', name: 'CA HSR', description: 'California High-Speed Rail' }
+const caHsr = {
+  slug: 'ca-hsr',
+  name: 'CA HSR',
+  subtext: 'Electrified · High-speed rail · Greenfield',
+  description: 'Several paragraphs of prose.',
+}
 const coastLine = {
   slug: 'coast-line',
   name: 'Coast Line',
@@ -32,7 +37,7 @@ describe('fetchCoverIndex', () => {
 
     expect(index.unavailable).toEqual([])
     expect(index.cards).toEqual([
-      { kind: 'scenario', slug: 'ca-hsr', name: 'CA HSR', caption: 'California High-Speed Rail', to: '/scenario/ca-hsr' },
+      { kind: 'scenario', slug: 'ca-hsr', name: 'CA HSR', caption: 'Electrified · High-speed rail · Greenfield', to: '/scenario/ca-hsr' },
       { kind: 'service', slug: 'coast-line', name: 'Coast Line', caption: 'Electrified · Regional rail', to: '/services/coast-line' },
     ])
   })
@@ -59,6 +64,14 @@ describe('fetchCoverIndex', () => {
     expect(listPublishedServices).toHaveBeenCalledTimes(1)
     expect(listPublishedServices).toHaveBeenCalledWith()
     expect(index.cards.filter((card) => card.kind === 'service').map((card) => card.slug)).toEqual(['coast-line'])
+  })
+
+  it('leaves a scenario with no subtext uncaptioned rather than falling back to its description', async () => {
+    vi.mocked(listCuratedScenarios).mockResolvedValue([{ slug: 'bare', name: 'Bare', description: 'Long prose.' }])
+
+    const index = await fetchCoverIndex()
+
+    expect(index.cards.find((card) => card.kind === 'scenario')?.caption).toBeUndefined()
   })
 
   it('leaves a service with no subtext uncaptioned rather than falling back to its description', async () => {
