@@ -39,6 +39,7 @@ let callout: Marker | null = null
 let lifecycle: ReturnType<typeof mapModules> | null = null
 let intersection: IntersectionObserver | null = null
 let resize: ResizeObserver | null = null
+let resizeFrame: number | null = null
 let placing = 0
 const scope = effectScope()
 
@@ -173,11 +174,17 @@ async function init(): Promise<void> {
     easePaint()
     apply(props.step, true)
   })
+  // Each map.resize() reallocates the drawing buffer, and a container that is
+  // changing size reports it every frame, sometimes more than once (SPA-492).
   resize = new ResizeObserver(() => {
-    if (!map || !loaded.value) return
-    map.resize()
-    clearCallout()
-    moveCamera(props.step, true)
+    if (resizeFrame !== null) return
+    resizeFrame = requestAnimationFrame(() => {
+      resizeFrame = null
+      if (!map || !loaded.value) return
+      map.resize()
+      clearCallout()
+      moveCamera(props.step, true)
+    })
   })
   resize.observe(container.value)
 }
@@ -201,6 +208,8 @@ onMounted(() => {
 onUnmounted(() => {
   intersection?.disconnect()
   resize?.disconnect()
+  if (resizeFrame !== null) cancelAnimationFrame(resizeFrame)
+  resizeFrame = null
   clearCallout()
   lifecycle?.detach()
   scope.stop()

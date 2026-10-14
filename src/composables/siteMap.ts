@@ -34,12 +34,17 @@ export const MAP_CREDITS = [
   '<a href="https://maplibre.org/" target="_blank" rel="noopener">MapLibre</a>',
 ]
 
+const MAX_PIXEL_RATIO = 2
+
 export function createSiteMap(
   options: Omit<MapOptions, 'style' | 'attributionControl'>,
   credits: { compact?: boolean } = {},
 ): Map {
   return new Map({
     style: resolveMapStyleUrl(),
+    // Past 2× the extra sharpness is hard to see, and a 3× phone or laptop
+    // pays more than twice 2×'s pixels for it on every frame (SPA-492).
+    pixelRatio: Math.min(window.devicePixelRatio, MAX_PIXEL_RATIO),
     // `compact` left unset by default: visible on load, folding behind ⓘ on a
     // phone once the map is touched.
     attributionControl: credits.compact === undefined

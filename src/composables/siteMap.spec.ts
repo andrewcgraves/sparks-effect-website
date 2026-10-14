@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Map as MapLibreMap } from 'maplibre-gl'
 import { createSiteMap, MAP_CREDITS, splashZoneModules } from './siteMap'
 import { mapModules } from './mapLifecycle'
@@ -41,6 +41,24 @@ describe('createSiteMap', () => {
     const options = MockMap.mock.calls.at(-1)![0]
     expect(options.style).toBe('https://tiles.openfreemap.org/styles/positron')
     expect(options.attributionControl).toEqual({ customAttribution: MAP_CREDITS })
+  })
+
+  describe('drawing load', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    it('draws a 3x screen at 2x, so the tour map is capped like the network map', () => {
+      vi.stubGlobal('devicePixelRatio', 3)
+      createSiteMap({ container: document.createElement('div') })
+      expect(MockMap.mock.calls.at(-1)![0].pixelRatio).toBe(2)
+    })
+
+    it('draws a screen under 2x at its own ratio', () => {
+      vi.stubGlobal('devicePixelRatio', 1.5)
+      createSiteMap({ container: document.createElement('div') })
+      expect(MockMap.mock.calls.at(-1)![0].pixelRatio).toBe(1.5)
+    })
   })
 
   it('folds the credits behind ⓘ only when asked', () => {

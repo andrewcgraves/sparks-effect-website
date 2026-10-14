@@ -53,7 +53,6 @@ const emit = defineEmits<{
 
 const ORIGIN_SNAP_ZOOM = 9
 const STOP_FOCUS_ZOOM = 12
-const MAX_PIXEL_RATIO = 2
 
 const isochroneColors = resolveIsochroneColors()
 const legend = computed(() =>
@@ -303,9 +302,6 @@ onMounted(() => {
       container: mapContainer.value,
       center: initialCenter,
       zoom: 7,
-      // Past 2× the extra sharpness is hard to see, and a 3× phone or laptop
-      // pays more than twice 2×'s pixels for it on every frame (SPA-492).
-      pixelRatio: Math.min(window.devicePixelRatio, MAX_PIXEL_RATIO),
       // A carded map is most of a laptop screen, and a visitor scrolling to
       // the form or results lands on it; a plain scroll or one-finger drag
       // moves the page and ⌘/Ctrl + scroll or two fingers move the map.
