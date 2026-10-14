@@ -998,17 +998,15 @@ describe('MapView', () => {
     expect(options.style).toBe('https://tiles.openfreemap.org/styles/positron')
   })
 
-  it('credits 511 on the map itself and links the data sources, keeping MapLibre\'s own credit', async () => {
+  it('puts only the credits whose terms want them on the data on the map itself', async () => {
     const { Map } = await import('maplibre-gl')
     mount(MapView, { props: defaultProps })
     const options = (Map as ReturnType<typeof vi.fn>).mock.calls[0][0]
     const credits: string[] = options.attributionControl.customAttribution
-    expect(credits).toHaveLength(4)
+    expect(credits).toHaveLength(2)
     expect(credits[0]).toContain('href="https://www.511.org"')
     expect(credits[0]).toContain('>Data provided by 511.org<')
     expect(credits[1]).toBe('Route and schedule data provided by permission of San Joaquin RTD')
-    expect(credits[2]).toContain('href="/attribution"')
-    expect(credits[3]).toContain('href="https://maplibre.org/"')
   })
 
   it.each([

@@ -31,19 +31,20 @@ import { MAP_LOAD_TIMEOUT_MS } from './mapLoad'
 // the shared module the worker imports.
 setWorkerUrl(maplibreWorkerUrl)
 
-// 511's data agreement wants its credit "in visual proximity" to the data, so
-// it goes on the map and not only in the footer (SPA-419). The style's own
-// TileJSON still adds the tile host, OpenMapTiles and OpenStreetMap; but giving
-// the control options replaces MapLibre's default list, so MapLibre's own
-// credit is put back here. `compact` is left unset: visible on load, folding
-// behind ⓘ on a phone once the map is touched. San Joaquin RTD's terms want
-// its legend "prominently displayed" while its feeds are ingested; drop that
-// entry (and the page's line) once GTFS_FEED_DENYLIST=886 2180 is set.
+// Only the credits whose terms want them on the data sit on the map; the rest
+// live on /attribution, which every footer links (SPA-495). 511's data
+// agreement wants its credit "in visual proximity" to the data (SPA-419), and
+// San Joaquin RTD's terms want its legend "prominently displayed" while its
+// feeds are ingested; drop that entry (and the page's line) once
+// GTFS_FEED_DENYLIST=886 2180 is set. The style's own TileJSON still adds the
+// tile host, OpenMapTiles and OpenStreetMap. Giving the control options
+// replaces MapLibre's default list, which drops MapLibre's own credit — its
+// licence doesn't ask for one on the map, and /attribution carries it.
+// `compact` is left unset: visible on load, folding behind ⓘ on a phone once
+// the map is touched.
 const MAP_CREDITS = [
   '<a href="https://www.511.org" target="_blank" rel="noopener">Data provided by 511.org</a>',
   'Route and schedule data provided by permission of San Joaquin RTD',
-  '<a href="/attribution">Data sources</a>',
-  '<a href="https://maplibre.org/" target="_blank" rel="noopener">MapLibre</a>',
 ]
 
 const props = defineProps<{
