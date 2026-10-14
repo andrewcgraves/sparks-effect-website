@@ -51,7 +51,7 @@ const STOP_FOCUS_ZOOM = 12
 
 const isochroneColors = resolveIsochroneColors()
 const legend = computed(() =>
-  isochroneLegend(isochroneColors, {
+  isochroneLegend({
     unfinished: (props.isochroneData?.metadata.trip_progress?.length ?? 0) > 0,
     starterWalk: originWalkLine(props.isochroneData) !== null,
   }),

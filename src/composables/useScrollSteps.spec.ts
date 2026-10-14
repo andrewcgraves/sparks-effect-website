@@ -32,15 +32,26 @@ function stubMedia(desktop: boolean, reduced = false) {
   }))
 }
 
-function mountSteps(count = 3) {
+function mountSteps(count = 3, bandHeight = 0) {
   let api!: ReturnType<typeof useScrollSteps>
   const Host = defineComponent({
     setup() {
       const items = ref<HTMLElement[]>([])
-      api = useScrollSteps(items)
-      return () => h('ol', Array.from({ length: count }, (_, i) =>
-        h('li', { ref: (el) => { if (el) items.value[i] = el as HTMLElement }, 'data-step-index': i }),
-      ))
+      const band = ref<HTMLElement | null>(null)
+      api = useScrollSteps(items, { band })
+      return () => h('div', [
+        h('div', {
+          ref: (el) => {
+            if (!el) return
+            Object.defineProperty(el, 'offsetHeight', { value: bandHeight, configurable: true })
+            band.value = el as HTMLElement
+          },
+          style: { position: 'sticky', top: '64px' },
+        }),
+        h('ol', Array.from({ length: count }, (_, i) =>
+          h('li', { ref: (el) => { if (el) items.value[i] = el as HTMLElement }, 'data-step-index': i }),
+        )),
+      ])
     },
   })
   const wrapper = mount(Host, { attachTo: document.body })
@@ -79,6 +90,15 @@ describe('useScrollSteps', () => {
     expect(observers[0].options.rootMargin).toBe('-66% 0px -26% 0px')
   })
 
+  it('reads just under the map band on a phone, measured from the band itself', async () => {
+    stubMedia(false)
+    vi.stubGlobal('innerHeight', 800)
+    mountSteps(3, 440)
+    await nextTick()
+    // 64px header + 440px band + 8px, then a reading band 8% of the screen deep.
+    expect(observers[0].options.rootMargin).toBe('-512px 0px -224px 0px')
+  })
+
   it('brings a chosen step to the middle, and ignores the steps it scrolls past', async () => {
     const { api, wrapper } = mountSteps()
     await nextTick()
@@ -108,6 +128,15 @@ describe('useScrollSteps', () => {
     const target = wrapper.findAll('li')[1].element as HTMLElement
     target.scrollIntoView = vi.fn()
     api.choose(1)
+    expect(target.scrollIntoView).toHaveBeenCalledWith({ block: 'center', behavior: 'auto' })
+  })
+
+  it('jumps when focus has already moved the page', async () => {
+    const { api, wrapper } = mountSteps()
+    await nextTick()
+    const target = wrapper.findAll('li')[1].element as HTMLElement
+    target.scrollIntoView = vi.fn()
+    api.choose(1, 'focus')
     expect(target.scrollIntoView).toHaveBeenCalledWith({ block: 'center', behavior: 'auto' })
   })
 

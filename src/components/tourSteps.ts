@@ -1,6 +1,7 @@
 import { isochroneLegend } from '../composables/useIsochroneLayer'
 import { TOUR_SAMPLE, reachedStation, stationNamed } from '../fixtures/tourSample'
 import type { KeySwatchKind } from './keySwatchPaint'
+import { remainingSecsOf, wholeMinutes } from './timeRemaining'
 import type { TourCamera, TourPart } from './tourHighlight'
 
 export type TourStepId = 'start' | 'starter-walk' | 'origin-reach' | 'ridden' | 'egress' | 'unfinished' | 'unridden'
@@ -19,10 +20,10 @@ type KeySource = 'origin' | 'egress' | 'starter' | 'unfinished'
 const KEY = Object.fromEntries(
   // The key's own labels, so a step and the map it explains never name the
   // same thing two ways.
-  isochroneLegend(undefined, { unfinished: true, starterWalk: true }).map((entry) => [entry.source, entry.label]),
+  isochroneLegend({ unfinished: true, starterWalk: true }).map((entry) => [entry.source, entry.label]),
 ) as Record<KeySource, string>
 
-const palmdale = reachedStation('palmdale')
+const palmdaleMins = wholeMinutes(remainingSecsOf(reachedStation('palmdale')))
 
 export const TOUR_STEPS: readonly TourStep[] = [
   {
@@ -61,9 +62,9 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: 'egress',
     name: KEY.egress,
     swatch: 'egress',
-    caption: `Everywhere you could get after stepping off at a station, heading out the same way with the minutes left, so ${stationNamed('palmdale').name}, reached with ${palmdale.remaining_mins} minutes to spare, reaches only a little way. Where areas overlap the colour deepens, and on your own map, pointing at a station picks out its area.`,
+    caption: `Everywhere you could get after stepping off at a station, heading out the same way with the minutes left, so ${stationNamed('palmdale').name}, reached with ${palmdaleMins} minutes to spare, reaches only a little way. Where areas overlap the colour deepens, and on your own map, pointing at a station picks out its area.`,
     lit: ['egress-fill', 'station-dots'],
-    camera: 'regional',
+    camera: 'egress',
   },
   {
     id: 'unfinished',

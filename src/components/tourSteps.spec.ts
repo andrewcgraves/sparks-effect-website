@@ -5,7 +5,7 @@ import { TOUR_PARTS } from './tourHighlight'
 import { TOUR_STEPS } from './tourSteps'
 
 const key = Object.fromEntries(
-  isochroneLegend(undefined, { unfinished: true, starterWalk: true }).map((e) => [e.source, e.label]),
+  isochroneLegend({ unfinished: true, starterWalk: true }).map((e) => [e.source, e.label]),
 )
 const step = (id: string) => TOUR_STEPS.find((s) => s.id === id)!
 
@@ -31,6 +31,10 @@ describe('TOUR_STEPS', () => {
 
   it('lights only parts the tour map can dim', () => {
     for (const s of TOUR_STEPS) for (const part of s.lit) expect(TOUR_PARTS).toContain(part)
+  })
+
+  it('frames the station areas closer than the rest of the plot', () => {
+    expect(step('egress').camera).toBe('egress')
   })
 
   it('reads its example from the plot it draws', () => {

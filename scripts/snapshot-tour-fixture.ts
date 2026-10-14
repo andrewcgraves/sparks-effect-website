@@ -23,11 +23,7 @@ const MAX_BYTES = 200_000
 const START = { label: 'Little Tokyo, Los Angeles', lat: 34.0497, lng: -118.2405 }
 const REQUEST = { scenario_slug: 'ca-hsr', lat: START.lat, lng: START.lng, budget_mins: 90, mode: 'transit' }
 const FEATURE_KEYS = ['source', 'station_slug', 'remaining_mins']
-// Douglas–Peucker tolerance for the network's lines, in metres: under a pixel
-// at the closest zoom the tour shows, and the main line drops from about
-// 20,000 vertices to a few thousand.
 const ROUTE_TOLERANCE_M = 4
-// How far a re-measured stub may end from where the server's own vertices put it.
 const MAX_CAP_SHIFT_M = 50
 
 async function json<T>(path: string, init?: RequestInit): Promise<T> {
@@ -101,26 +97,27 @@ const distanceM = ([aLng, aLat]: number[], [bLng, bLat]: number[]) =>
 
 interface Progress { route_id: string; from_chainage_m: number; to_chainage_m: number; fraction: number; to: string }
 
-// A stub is a chainage span along the server's vertices, and the site measures
-// chainage from whatever vertices it is given; so on the simplified line each
-// span is re-measured between the same two points, and the fraction ridden is
-// left exactly as the server reported it.
 function remeasure(progress: Progress[], full: Route[], simplified: Route[]): Progress[] {
+  // An unfinished leg is a chainage span along the server's vertices, and the
+  // site measures chainage from whatever vertices it is given; so on the
+  // simplified line each span is re-measured between the same two points, the
+  // fraction ridden is left exactly as the server reported it, and the run
+  // fails if the point the budget ran out moves more than MAX_CAP_SHIFT_M.
   return progress.map((leg) => {
     const before = full.find((r) => r.id === leg.route_id)?.geometry.coordinates as [number, number][] | undefined
     const after = simplified.find((r) => r.id === leg.route_id)?.geometry.coordinates as [number, number][] | undefined
     if (!before || !after) return leg
     const from = projectOntoAlignment(after, pointAt(before, leg.from_chainage_m))
     const to = projectOntoAlignment(after, pointAt(before, leg.to_chainage_m))
-    if (!from || !to) throw new Error(`cannot re-measure the stub toward ${leg.to}`)
+    if (!from || !to) throw new Error(`cannot re-measure the unfinished leg toward ${leg.to}`)
     const moved = { ...leg, from_chainage_m: from.chainageM, to_chainage_m: to.chainageM }
     const cap = (line: [number, number][], l: Progress) => {
       const span = sliceAlignment(line, l.from_chainage_m, l.to_chainage_m, l.fraction)
       return span[span.length - 1]
     }
     const shiftM = distanceM(cap(before, leg), cap(after, moved))
-    console.log(`stub toward ${leg.to}: cap moved ${shiftM.toFixed(1)} m`)
-    if (shiftM > MAX_CAP_SHIFT_M) throw new Error(`stub toward ${leg.to} moved ${shiftM.toFixed(0)} m`)
+    console.log(`unfinished leg toward ${leg.to}: end moved ${shiftM.toFixed(1)} m`)
+    if (shiftM > MAX_CAP_SHIFT_M) throw new Error(`unfinished leg toward ${leg.to} moved ${shiftM.toFixed(0)} m`)
     return moved
   })
 }
@@ -168,13 +165,17 @@ const plotArg = process.argv.indexOf('--plot')
 const plot = plotArg !== -1 ? plotFromFile(process.argv[plotArg + 1]) : await plotFromApi()
 const scenario = await json<{ routes: Route[]; stations: Station[] }>('/api/scenarios/ca-hsr')
 
+// Simplified to within ROUTE_TOLERANCE_M metres, under a pixel at the closest
+// zoom the tour shows: the main line drops from about 20,000 vertices to about
+// 1,100, and the fixture from over 500 KB to under 100 KB.
 const routes = scenario.routes.map(({ id, scenario_id, name, mode, geometry, bidirectional }) => ({
   id, scenario_id, name, mode, bidirectional,
   geometry: { type: 'LineString' as const, coordinates: roundLine(simplify(geometry.coordinates, ROUTE_TOLERANCE_M)) },
 }))
 
 const out = {
-  captured: new Date().toISOString().slice(0, 10),
+  // The day in California, where the plot's 8 a.m. weekday clock runs.
+  captured: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' }),
   start: START,
   budget_mins: REQUEST.budget_mins,
   mode: REQUEST.mode,

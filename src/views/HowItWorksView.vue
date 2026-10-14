@@ -53,7 +53,7 @@ const startPlace = TOUR_SAMPLE.start.label.replace(', ', ' in ')
           <li>
             <strong class="text-ink">Door to door.</strong> The minutes run from leaving the start to
             arriving, including waits for local buses and trains. With Transit, if walking to a
-            station is quicker, or nothing runs, the trip walks the whole way, and
+            station is quicker, or nothing runs, it walks all the way to the station, and
             <em>Time remaining</em> says Walk.
           </li>
           <li>

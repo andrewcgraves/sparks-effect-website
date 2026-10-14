@@ -180,8 +180,8 @@ from Little Tokyo on California High-Speed Rail, frozen in
 modules the network page uses (`splashZoneModules` in
 `src/composables/siteMap.ts`); its key swatches are the map key's own
 (`src/components/KeySwatch.vue`). The fixture's lines are simplified to keep it
-small, so the script re-measures each unfinished ride on the simplified line and
-fails if a stub's end moves more than 50 m. Re-run it when the network or the
+small, so the script re-measures each unfinished leg on the simplified line and
+fails if the point its budget ran out moves more than 50 m. Re-run it when the network or the
 router changes what a plot looks like; the tour's captions read their station
 names and minutes from the fixture, so they follow it.
 

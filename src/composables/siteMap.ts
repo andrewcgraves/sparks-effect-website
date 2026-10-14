@@ -1,4 +1,8 @@
 import { Map, setWorkerUrl, type MapOptions } from 'maplibre-gl'
+
+// Re-exported so a page that loads the map lazily gets everything it needs
+// from MapLibre through this one module.
+export { Marker } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import type { Route, Station } from '../api/scenarios'
