@@ -1,9 +1,17 @@
-import { describe, expect, it } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { afterEach, describe, expect, it } from 'vitest'
+import { mount, type VueWrapper } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
+import { seriousA11yViolations } from '../test/axe'
 import HowItWorksView from './HowItWorksView.vue'
 
 const Blank = { template: '<div />' }
+
+let mounted: VueWrapper | undefined
+
+afterEach(() => {
+  mounted?.unmount()
+  mounted = undefined
+})
 
 async function mountView() {
   const router = createRouter({
@@ -15,69 +23,60 @@ async function mountView() {
   })
   await router.push('/how-it-works')
   await router.isReady()
-  return mount(HowItWorksView, { global: { plugins: [router] } })
+  mounted = mount(HowItWorksView, { global: { plugins: [router] }, attachTo: document.body })
+  return mounted
 }
 
 describe('HowItWorksView', () => {
-  it('walks through the claim a splash zone makes, one section at a time', async () => {
+  it('teaches the map first, then gives the fine print', async () => {
     const wrapper = await mountView()
     expect(wrapper.get('h1').text()).toBe('How it works')
     expect(wrapper.find('[data-testid="page-updated"] time').exists()).toBe(true)
     expect(wrapper.findAll('h2').map((h) => h.text())).toEqual([
-      'What you\'re looking at',
-      'What time of day',
-      'What the minutes include',
-      'Where the numbers come from',
-      'What it doesn\'t model',
+      'How to read the map',
+      'The fine print',
     ])
-  })
-
-  it('gives the diagram an accessible name and description', async () => {
-    const diagram = (await mountView()).get('[data-testid="how-it-works-diagram"]')
-    expect(diagram.attributes('role')).toBe('img')
-    const [titleId, descId] = diagram.attributes('aria-labelledby')!.split(' ')
-    expect(diagram.get(`title#${titleId}`).text()).toBe('One trip through a splash zone')
-    const desc = diagram.get(`desc#${descId}`).text()
-    expect(desc).toMatch(/station.*ride the line.*head\s+out/s)
-    // The same names the map's key gives the two areas.
-    expect(desc).toContain('Origin reach')
-    expect(desc).toContain('From station')
-  })
-
-  it('labels the diagram in the words the prose and the map key use', async () => {
-    const labels = (await mountView()).findAll('[data-testid="how-it-works-diagram"] text').map((t) => t.text())
-    expect(labels).toEqual(expect.arrayContaining(['Start', 'Origin reach', 'From station', 'the line', 'Head out']))
+    expect(wrapper.find('[data-testid="sample-map"]').exists()).toBe(true)
   })
 
   it('links back to the list of lines', async () => {
     expect((await mountView()).get('[data-testid="back-to-lines"]').attributes('href')).toBe('/')
   })
 
-  it('names the three states the map draws a line in', async () => {
-    const legend = (await mountView()).get('[data-testid="line-state-legend"]')
-    expect(legend.findAll('li').map((li) => li.get('strong').text())).toEqual([
-      'Ridden',
-      'Unridden',
-      'Unfinished',
-    ])
-  })
-
   it('states the clock Transit runs to, and that the other modes ignore it', async () => {
     const text = (await mountView()).text()
-    expect(text).toMatch(/Transit trip leaves .* 8 a\.m\. Pacific time on a weekday/)
+    expect(text).toMatch(/Transit trips leave at 8 a\.m\. Pacific time on a weekday/)
+    expect(text).toMatch(/Public holidays count as weekdays/)
     expect(text).toMatch(/Walk, Bike and Drive .* whatever the hour/)
-    expect(text).toMatch(/Traffic\./)
+    expect(text).toMatch(/free-flowing roads/)
   })
 
   it('counts door-to-door minutes, with the wait for local transit', async () => {
     const text = (await mountView()).text()
-    expect(text).toContain('door to door')
-    expect(text).toMatch(/waiting for a local bus\s+or train/)
+    expect(text).toMatch(/from leaving the start/)
+    expect(text).toMatch(/waits for local buses\s+and trains/)
     expect(text).toMatch(/by the same mode/)
+  })
+
+  it('adds no wait to board the line unless one is set, and then only once', async () => {
+    const text = (await mountView()).text()
+    expect(text).toMatch(/no wait to board/)
+    expect(text).toMatch(/once, when you first board/)
   })
 
   it('does not claim every line\'s times are worked out from its vehicles', async () => {
     expect((await mountView()).text()).toMatch(/Curated networks .* published plans/s)
+  })
+
+  it('says where the streets and timetables come from, and how stale they can be', async () => {
+    const text = (await mountView()).text()
+    expect(text).toMatch(/California and Nevada/)
+    expect(text).toMatch(/few weeks old/)
+  })
+
+  it('names what it leaves out', async () => {
+    const text = (await mountView()).text()
+    for (const left of [/Fares/, /crowding/, /traffic/, /delays/]) expect(text).toMatch(left)
   })
 
   it('uses the product words, not the domain ones', async () => {
@@ -107,5 +106,9 @@ describe('HowItWorksView', () => {
     const credits = wrapper.get('[data-testid="how-it-works-attribution"] a')
     expect(credits.attributes('href')).toBe('/attribution')
     expect(credits.text()).toBe('Attribution')
+  })
+
+  it('has no serious accessibility violations', async () => {
+    expect(await seriousA11yViolations(await mountView())).toEqual([])
   })
 })

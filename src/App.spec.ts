@@ -80,7 +80,7 @@ describe('App routing', () => {
     const wrapper = mount(App, { global: { plugins: [router] } })
     await flushPromises()
     expect(wrapper.get('h1').text()).toBe('How it works')
-    expect(wrapper.find('[data-testid="how-it-works-diagram"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="sample-map"]').exists()).toBe(true)
   })
 
   it('links Privacy, Terms and Attribution from the footer', async () => {

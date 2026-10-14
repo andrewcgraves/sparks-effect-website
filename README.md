@@ -173,7 +173,11 @@ only thing that tells a reader the text moved. The one address all three ask
 people to write to is `CONTACT_EMAIL` in `src/legal/contact.ts`.
 
 `/how-it-works` sits on the same shell and is dated the same way. It explains
-where the numbers come from but leaves every credit to `/attribution`.
+where the numbers come from but leaves every credit to `/attribution`. Its
+sample map (`src/components/SampleMap.vue`) takes every colour, width, dash and
+radius from the map's own layer modules and theme tokens
+(`src/components/sampleMapData.ts`); only its geometry is drawn by hand, so a
+change to how the real map paints a plot shows up on the tour too.
 
 What each page says follows the code, so a change to the code is a change to
 the copy:

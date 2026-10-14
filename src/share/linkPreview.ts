@@ -91,7 +91,7 @@ export const STATIC_PAGES: ReadonlyMap<string, PageMeta> = new Map<string, PageM
   ['/how-it-works', {
     name: 'How it works',
     description:
-      'What a splash zone assumes: door-to-door minutes with the wait for local transit included, an 8 a.m. weekday start for transit, and where the travel times come from.',
+      'How to read a splash zone, colour by colour, and what it assumes: door-to-door minutes, an 8 a.m. weekday start for transit, free-flowing roads.',
   }],
 ])
 
