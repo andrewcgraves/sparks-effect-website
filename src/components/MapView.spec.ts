@@ -825,18 +825,14 @@ describe('MapView', () => {
     expect(credits[3]).toContain('href="https://maplibre.org/"')
   })
 
-  it('leaves a plain scroll or one-finger drag to the page when the map sits in a scrolling page', async () => {
+  it.each([
+    ['leaves a plain scroll or one-finger drag to the page when the map sits in a scrolling page', false, true],
+    ['takes every gesture directly when a phone page gives it the screen', true, false],
+  ])('%s', async (_, flush, cooperative) => {
     const { Map } = await import('maplibre-gl')
-    mount(MapView, { props: defaultProps })
+    mount(MapView, { props: { ...defaultProps, flush } })
     const options = (Map as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(options.cooperativeGestures).toBe(true)
-  })
-
-  it('takes every gesture directly when a phone page gives it the screen', async () => {
-    const { Map } = await import('maplibre-gl')
-    mount(MapView, { props: { ...defaultProps, flush: true } })
-    const options = (Map as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(options.cooperativeGestures).toBe(false)
+    expect(options.cooperativeGestures).toBe(cooperative)
   })
 
   it('fits bounds to all isochrone segments after load', async () => {

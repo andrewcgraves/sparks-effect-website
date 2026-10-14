@@ -87,7 +87,7 @@ watch([lat, lng], () => {
 // starting point. Letting go of focus first keeps the value and lets the page
 // scroll. The fields stay `type="number"`: an iOS decimal keypad has no minus
 // key, and California longitudes are negative.
-function releaseOnWheel(event: WheelEvent) {
+function blurOnWheel(event: WheelEvent) {
   const field = event.currentTarget as HTMLInputElement
   if (document.activeElement === field) field.blur()
 }
@@ -244,7 +244,7 @@ function handleSubmit() {
           data-testid="lat"
           type="number"
           step="any"
-          @wheel.passive="releaseOnWheel"
+          @wheel.passive="blurOnWheel"
         >
       </label>
       <label :class="FIELD_LABEL_CLASS">
@@ -255,7 +255,7 @@ function handleSubmit() {
           data-testid="lng"
           type="number"
           step="any"
-          @wheel.passive="releaseOnWheel"
+          @wheel.passive="blurOnWheel"
         >
       </label>
     </div>

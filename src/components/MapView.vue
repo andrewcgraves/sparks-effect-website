@@ -557,7 +557,6 @@ onUnmounted(() => {
   background: color-mix(in srgb, var(--color-ink) 65%, transparent);
   font-family: var(--font-body);
   font-size: var(--text-body);
-  font-weight: 600;
   text-align: center;
 }
 </style>
