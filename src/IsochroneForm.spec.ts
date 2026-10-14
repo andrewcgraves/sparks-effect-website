@@ -41,6 +41,23 @@ describe('IsochroneForm', () => {
     expect(wrapper.find('input[data-testid="lng"]').exists()).toBe(true)
   })
 
+  it.each(['lat', 'lng'])('lets a scroll over the focused %s field move the page instead of the value', async (field) => {
+    const wrapper = mount(IsochroneForm, { attachTo: document.body })
+    const input = wrapper.find(`input[data-testid="${field}"]`)
+    await input.setValue('37.7749')
+    const element = input.element as HTMLInputElement
+    element.focus()
+    expect(document.activeElement).toBe(element)
+
+    const wheel = new WheelEvent('wheel', { deltaY: 100, bubbles: true, cancelable: true })
+    element.dispatchEvent(wheel)
+
+    expect(element.value).toBe('37.7749')
+    expect(document.activeElement).not.toBe(element)
+    expect(wheel.defaultPrevented).toBe(false)
+    wrapper.unmount()
+  })
+
   it('renders a duration slider', () => {
     const wrapper = mount(IsochroneForm)
     expect(wrapper.find('[data-testid="duration-slider"]').exists()).toBe(true)

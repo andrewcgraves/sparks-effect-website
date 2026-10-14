@@ -340,6 +340,12 @@ onMounted(() => {
       // pays more than twice 2×'s pixels for it on every frame (SPA-492).
       pixelRatio: Math.min(window.devicePixelRatio, MAX_PIXEL_RATIO),
       attributionControl: { customAttribution: MAP_CREDITS },
+      // A carded map is most of a laptop screen, and a visitor scrolling to
+      // the form or results lands on it; a plain scroll or one-finger drag
+      // moves the page and ⌘/Ctrl + scroll or two fingers move the map.
+      // Fullscreen lifts this until it is left. A flush map is the whole phone
+      // page, so it keeps direct gestures.
+      cooperativeGestures: !props.flush,
     })
   } catch (error) {
     failMap('no-webgl', error)
@@ -637,5 +643,14 @@ onUnmounted(() => {
 
 .map-frame :deep(.maplibregl-ctrl-attrib a) {
   color: var(--color-ink-muted);
+}
+
+/* MapLibre's own 40% black scrim leaves its white hint near 3:1 over the pale
+   basemap; ink at 65% clears 4.5:1 there. */
+.map-frame :deep(.maplibregl-cooperative-gesture-screen) {
+  background: color-mix(in srgb, var(--color-ink) 65%, transparent);
+  font-family: var(--font-body);
+  font-size: var(--text-body);
+  text-align: center;
 }
 </style>

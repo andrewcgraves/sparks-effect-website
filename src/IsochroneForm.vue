@@ -83,6 +83,16 @@ watch([lat, lng], () => {
   pickArmed.value = false
 })
 
+// Chrome turns a wheel or trackpad scroll over a focused number field into a
+// step of its value, so a visitor scrolling past the form would nudge the
+// starting point. Letting go of focus first keeps the value and lets the page
+// scroll. The fields stay `type="number"`: an iOS decimal keypad has no minus
+// key, and California longitudes are negative.
+function blurOnWheel(event: WheelEvent) {
+  const field = event.currentTarget as HTMLInputElement
+  if (document.activeElement === field) field.blur()
+}
+
 function handleKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape') pickArmed.value = false
 }
@@ -235,6 +245,7 @@ function handleSubmit() {
           data-testid="lat"
           type="number"
           step="any"
+          @wheel.passive="blurOnWheel"
         >
       </label>
       <label :class="FIELD_LABEL_CLASS">
@@ -245,6 +256,7 @@ function handleSubmit() {
           data-testid="lng"
           type="number"
           step="any"
+          @wheel.passive="blurOnWheel"
         >
       </label>
     </div>
