@@ -1,6 +1,7 @@
 // @vitest-environment node
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { isReactive } from 'vue'
 import { useIsochrone } from './useIsochrone'
 import type { IsochroneRequest } from '../api/isochrone'
 import { ApiError } from '../api/authoring/client'
@@ -70,6 +71,13 @@ describe('useIsochrone', () => {
     await generate(request)
     expect(data.value).toEqual(stubResponse)
     expect(error.value).toBeNull()
+  })
+
+  it('does not make a generated plot deeply reactive', async () => {
+    vi.mocked(fetchIsochrone).mockResolvedValueOnce(stubResponse)
+    const { data, generate } = useIsochrone()
+    await generate(request)
+    expect(isReactive(data.value)).toBe(false)
   })
 
   it('fires trackIsochroneRequest on attempt with mode and budget', async () => {
@@ -281,6 +289,14 @@ describe('useIsochrone', () => {
       expect(data.value).toEqual(stubResponse)
       expect(loading.value).toBe(false)
       expect(fetchIsochrone).not.toHaveBeenCalled()
+    })
+
+    // A plot is replaced whole; proxying every coordinate in it only slows the
+    // ridden-line maths that walks them (SPA-487).
+    it('does not make the plot deeply reactive', () => {
+      const { data, show } = useIsochrone()
+      show(stubResponse)
+      expect(isReactive(data.value)).toBe(false)
     })
 
     // What is on screen now is an answer, so the last failure's message has

@@ -1,4 +1,4 @@
-import { computed, ref, type Ref } from 'vue'
+import { computed, ref, shallowRef } from 'vue'
 import { ApiError, isSessionExpiry } from '../api/authoring/client'
 import type { AuthoredIsochroneRequest, Job, TransitGraph } from '../api/authoring'
 import type { AuthoringNoun } from '../api/authoringFault'
@@ -56,8 +56,9 @@ export function useAuthoredGraph<G extends TransitGraph = TransitGraph>(
   }
 
   // A page that opens an already-compiled record reads its graph rather than
-  // recompiling; a fresh compile supersedes it.
-  const loadedGraph = ref<G | null>(null) as Ref<G | null>
+  // recompiling; a fresh compile supersedes it. This and the plot below are
+  // shallow for the same reason as the compiled graph (SPA-487).
+  const loadedGraph = shallowRef<G | null>(null)
   const graph = computed<TransitGraph | null>(() => compiledGraph.value ?? loadedGraph.value)
 
   // Facts, not sentences: the wording belongs to whichever page is reporting
@@ -67,7 +68,7 @@ export function useAuthoredGraph<G extends TransitGraph = TransitGraph>(
   const graphNotFound = ref(false)
 
   const origin = ref<{ lat: number; lng: number } | null>(null)
-  const isochroneData = ref<ChainResponse | null>(null)
+  const isochroneData = shallowRef<ChainResponse | null>(null)
   const isochroneLoading = ref(false)
   const isochroneError = ref<string | null>(null)
   const isochroneProgress = ref<IsochroneProgress | null>(null)

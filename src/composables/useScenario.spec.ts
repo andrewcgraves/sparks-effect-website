@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { isReactive } from 'vue'
 import { flushPromises } from '@vue/test-utils'
 import { useScenario } from './useScenario'
 import type { ScenarioDetail } from '../api/scenarios'
@@ -107,6 +108,17 @@ describe('useScenario', () => {
     const { stations } = useScenario('ca-hsr')
     await flushPromises()
     expect(stations.value).toEqual(stubDetail.stations)
+  })
+
+  // Deep reactivity would proxy every coordinate pair of every route, and the
+  // ridden-line maths walks them all on each plot (SPA-487).
+  it('does not make the routes or stations deeply reactive', async () => {
+    vi.mocked(fetchScenario).mockResolvedValueOnce(stubDetail)
+    const { routes, stations } = useScenario('ca-hsr')
+    await flushPromises()
+    expect(isReactive(routes.value[0])).toBe(false)
+    expect(isReactive(routes.value[0].geometry.coordinates)).toBe(false)
+    expect(isReactive(stations.value[0])).toBe(false)
   })
 
   it('populates services after fetch resolves', async () => {
