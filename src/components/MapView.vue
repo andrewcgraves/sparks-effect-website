@@ -22,6 +22,8 @@ import type { SnapCoord as LatLng } from '../api/authoring/types'
 import LoadingRegion from './LoadingRegion.vue'
 import SkeletonShape from './SkeletonShape.vue'
 import { UNNAMED_STATION } from '../copy/names'
+import { reportError } from '../errorReporting'
+import { MAP_LOAD_TIMEOUT_MS } from './mapLoad'
 
 // maplibre-gl 6 finds its worker beside its own module via import.meta.url,
 // which a Vite bundle breaks: the worker is never emitted and no tiles load.
@@ -61,6 +63,8 @@ const props = defineProps<{
   label: string
   // For a phone page that gives the map the screen rather than a card.
   flush?: boolean
+  // What still works on this page when the map cannot be drawn.
+  withoutMap?: string
 }>()
 
 const emit = defineEmits<{
@@ -98,6 +102,39 @@ let hasFittedToSegments = false
 let hasFittedToRoutes = false
 const isMapLoaded = ref(false)
 let lastClickedPoint: LatLng | null = null
+
+type MapFailure = 'no-webgl' | 'style' | 'timeout'
+const mapFailure = ref<MapFailure | null>(null)
+let loadTimeout: ReturnType<typeof setTimeout> | null = null
+
+const failureMessage = computed(() => {
+  if (!mapFailure.value) return ''
+  const why = mapFailure.value === 'no-webgl' ? "This browser can't draw the map." : "The map couldn't load."
+  return props.withoutMap ? `${why} ${props.withoutMap}` : why
+})
+
+function clearLoadTimeout(): void {
+  if (loadTimeout) clearTimeout(loadTimeout)
+  loadTimeout = null
+}
+
+// A tab opened in the background draws no frames, so its map cannot load
+// until it is looked at; that is not a map that failed.
+function armLoadTimeout(): void {
+  loadTimeout = setTimeout(() => {
+    if (document.visibilityState === 'hidden') return armLoadTimeout()
+    failMap('timeout', new Error(`Map did not load within ${MAP_LOAD_TIMEOUT_MS} ms`))
+  }, MAP_LOAD_TIMEOUT_MS)
+}
+
+// Once per map: a style that cannot be fetched is usually followed by its
+// sprite, glyphs and tiles failing too, and the first of them is the story.
+function failMap(kind: MapFailure, error: unknown): void {
+  clearLoadTimeout()
+  if (isMapLoaded.value || mapFailure.value) return
+  mapFailure.value = kind
+  reportError(error, { map_failure: kind })
+}
 
 const MAP_FIT_PADDING = { top: 56, bottom: 112, left: 56, right: 56 }
 
@@ -288,15 +325,32 @@ onMounted(() => {
     ? centerFromCorners(initialRouteCorners)
     : ISOCHRONE_CENTER
 
-  map = new Map({
-    container: mapContainer.value,
-    style: resolveMapStyleUrl(),
-    center: initialCenter,
-    zoom: 7,
-    attributionControl: { customAttribution: MAP_CREDITS },
-  })
+  // maplibre-gl 6 needs WebGL2 and throws from the constructor without it —
+  // hardware acceleration off, a blocklisted GPU, many remote desktops. The
+  // rest of the page does not need the map, so this is said and not thrown.
+  try {
+    map = new Map({
+      container: mapContainer.value,
+      style: resolveMapStyleUrl(),
+      center: initialCenter,
+      zoom: 7,
+      attributionControl: { customAttribution: MAP_CREDITS },
+    })
+  } catch (error) {
+    failMap('no-webgl', error)
+    return
+  }
 
   map.addControl(new FullscreenControl())
+
+  // Before load, an error is the style or a source failing to arrive, and the
+  // map will not draw without it. After load it is a stray tile, which
+  // MapLibre already logs and draws around.
+  map.on('error', (event: { error?: unknown }) => {
+    if (isMapLoaded.value) return
+    failMap('style', event.error ?? event)
+  })
+  armLoadTimeout()
 
   map.on('click', handleMapClick)
 
@@ -307,6 +361,9 @@ onMounted(() => {
 
   map.on('load', () => {
     if (!map) return
+    clearLoadTimeout()
+    // A slow map given up on is still a map: if it arrives, draw it.
+    mapFailure.value = null
     isMapLoaded.value = true
 
     syncModules()
@@ -335,6 +392,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  clearLoadTimeout()
   resizeObserver?.disconnect()
   resizeObserver = null
   // Modules first: they release what would outlive the map, and map.remove()
@@ -358,7 +416,7 @@ onUnmounted(() => {
       :class="flush ? '' : 'min-h-[70vh]'"
     />
     <LoadingRegion
-      v-if="!isMapLoaded"
+      v-if="!isMapLoaded && !mapFailure"
       label="Loading map"
       class="pointer-events-none absolute inset-0 z-1"
       data-testid="map-skeleton"
@@ -368,6 +426,22 @@ onUnmounted(() => {
         class="size-full"
       />
     </LoadingRegion>
+    <!-- Always in the page so a screen reader is listening before the
+         message arrives; a live region inserted with its text is often not
+         announced. -->
+    <div
+      role="status"
+      class="pointer-events-none absolute inset-0 z-1 flex items-center justify-center p-6"
+      :class="{ 'bg-surface': mapFailure }"
+    >
+      <p
+        v-if="mapFailure"
+        class="font-body max-w-sm text-center text-[15px] text-ink"
+        data-testid="map-failed"
+      >
+        {{ failureMessage }}
+      </p>
+    </div>
     <div
       v-if="loading"
       class="font-body pointer-events-none absolute inset-0 z-2 flex items-center justify-center gap-2.5 bg-white/65 text-[15px] text-ink"
@@ -423,7 +497,7 @@ onUnmounted(() => {
     </p>
     
     <aside
-      v-if="!hideIsochroneLegend && !placementArmed"
+      v-if="!hideIsochroneLegend && !placementArmed && !mapFailure"
       class="absolute top-3 left-3 z-1 rounded-(--radius-field) bg-white/92 px-3 py-2.5 shadow-(--shadow-panel)"
       aria-label="Splash zone color key"
     >
