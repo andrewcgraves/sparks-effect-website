@@ -85,10 +85,13 @@ function onListKeydown(event: KeyboardEvent): void {
     </div>
 
     <!-- Sized against the page area under the site header, not the viewport,
-         so the split reads the same whatever the header's height. -->
+         so the split reads the same whatever the header's height. Tall and
+         short snap rather than slide: a slide resizes the map on every frame,
+         which a phone without much graphics power draws at a few frames a
+         second (SPA-492). -->
     <section
       :id="panelId"
-      class="flex shrink-0 flex-col border-t border-border bg-white transition-[height] duration-300 ease-(--ease-smooth)"
+      class="flex shrink-0 flex-col border-t border-border bg-white"
       :style="{ height: panelSize === 'tall' ? '52%' : '24%' }"
       data-testid="phone-panel"
     >
