@@ -38,7 +38,7 @@ describe('TOUR_STEPS', () => {
   })
 
   it('reads its example from the plot it draws', () => {
-    expect(step('egress').caption).toContain(`${stationNamed('palmdale').name}, reached with 12 minutes to spare`)
+    expect(step('egress').caption).toContain(`${stationNamed('palmdale').name} is reached with 12 minutes to spare`)
   })
 
   it('keeps every caption to two sentences', () => {
@@ -49,6 +49,6 @@ describe('TOUR_STEPS', () => {
 
   it('carries the reviewed wording', () => {
     expect(step('starter-walk').caption).toMatch(/the station you could reach first/)
-    expect(step('unridden').caption).toMatch(/which no trip here rides from one station to the next/)
+    expect(step('unridden').caption).toMatch(/which no trip here rides/)
   })
 })

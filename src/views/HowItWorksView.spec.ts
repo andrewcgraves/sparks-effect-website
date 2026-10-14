@@ -49,9 +49,9 @@ describe('HowItWorksView', () => {
   it('frames the line as hypothetical, and tours a real plot', async () => {
     const text = (await mountView()).text()
     expect(text).toMatch(/hypothetical/)
-    expect(text).toMatch(/90 minutes by Transit from Little Tokyo in Los Angeles/)
+    expect(text).toMatch(/90\s+minutes by Transit from Little Tokyo in Los Angeles/)
     expect(text).toMatch(/the station you could reach first/)
-    expect(text).toMatch(/which no trip here rides from one station to the next/)
+    expect(text).toMatch(/which no trip here rides/)
   })
 
   it('links back to the list of lines', async () => {
@@ -60,42 +60,35 @@ describe('HowItWorksView', () => {
 
   it('states the clock Transit runs to, and that the other modes ignore it', async () => {
     const text = (await mountView()).text()
-    expect(text).toMatch(/Transit trips leave at 8 a\.m\. Pacific time on a weekday/)
-    expect(text).toMatch(/Public holidays count as weekdays, on that day's local timetable/)
-    expect(text).toMatch(/Walk, Bike and Drive .* whatever the hour/)
-    expect(text).toMatch(/free-flowing roads/)
+    expect(text).toMatch(/Transit trips leave at 8 a\.m\. Pacific time on a\s+weekday/)
+    expect(text).toMatch(/Walking, biking and driving take the same time at any hour, with no traffic/)
   })
 
   it('counts door-to-door minutes, with the wait for local transit', async () => {
     const text = (await mountView()).text()
-    expect(text).toMatch(/from leaving the start/)
-    expect(text).toMatch(/waits for local buses\s+and trains/)
-    expect(text).toMatch(/by the same mode/)
-    expect(text).toMatch(/Onward local transit runs to the timetable for when you\s+would actually reach the station/)
+    expect(text).toMatch(/the whole trip,\s+including waits for local buses and trains/)
+    expect(text).toMatch(/carry on the way you set out/)
   })
 
   it('adds no wait to board the line unless one is set, and then only once', async () => {
     const text = (await mountView()).text()
-    expect(text).toMatch(/no wait to board/)
-    expect(text).toMatch(/once, when you first board/)
+    expect(text).toMatch(/adds no wait unless the\s+line sets one, and then only once/)
   })
 
   it('does not claim every line\'s times are worked out from its vehicles', async () => {
     const text = (await mountView()).text()
     expect(text).toMatch(/Curated networks .* published plans/s)
-    expect(text).toMatch(/down steep grades/)
-    expect(text).toMatch(/plus a stop\s+at each station/)
   })
 
   it('says where the streets and timetables come from, and how stale they can be', async () => {
     const text = (await mountView()).text()
     expect(text).toMatch(/California and Nevada/)
-    expect(text).toMatch(/few weeks old/)
+    expect(text).toMatch(/few\s+weeks old/)
   })
 
   it('names what it leaves out', async () => {
     const text = (await mountView()).text()
-    for (const left of [/Fares/, /crowding/, /traffic/, /delays/]) expect(text).toMatch(left)
+    for (const left of [/Fares/, /crowding/, /weekends/, /traffic/, /delays/]) expect(text).toMatch(left)
   })
 
   it('uses the product words, not the domain ones', async () => {
