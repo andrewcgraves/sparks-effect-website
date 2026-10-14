@@ -172,6 +172,19 @@ constant; bump it whenever that page's copy changes, since the date is the
 only thing that tells a reader the text moved. The one address all three ask
 people to write to is `CONTACT_EMAIL` in `src/legal/contact.ts`.
 
+`/how-it-works` sits on the same shell and is dated the same way. It explains
+where the numbers come from but leaves every credit to `/attribution`. Its
+tour (`src/components/MapTour.vue`) draws a real plot, 90 minutes by Transit
+from Little Tokyo on California High-Speed Rail, frozen in
+`src/fixtures/tourSample.json` by `make tour-fixture`, through the same layer
+modules the network page uses (`splashZoneModules` in
+`src/composables/siteMap.ts`); its key swatches are the map key's own
+(`src/components/KeySwatch.vue`). The fixture's lines are simplified to keep it
+small, so the script re-measures each unfinished leg on the simplified line and
+fails if the point its budget ran out moves more than 50 m. Re-run it when the network or the
+router changes what a plot looks like; the tour's captions read their station
+names and minutes from the fixture, so they follow it.
+
 What each page says follows the code, so a change to the code is a change to
 the copy:
 
@@ -200,11 +213,12 @@ repeats the OSM, ODbL, tile, 511 and Stadia credits on every page.
 
 Link-unfurl crawlers (Slackbot, Discordbot, iMessage, …) run no JavaScript, so a
 shared link's title and description have to be in the HTML. `middleware.ts` is
-Vercel Routing Middleware for the public pages only — `/`, `/scenario/:slug`,
-`/services/:slug`, `/routes/:slug`. It fetches the deployment's own
-`/index.html` and the page's public read (both within 1.5 s, side by side), and
-splices that page's `<title>`, `description`, `og:*` and `twitter:card` tags
-into the head. The tag building lives in `src/share/linkPreview.ts`.
+Vercel Routing Middleware for the public pages only — `/`, `/how-it-works`,
+`/scenario/:slug`, `/services/:slug`, `/routes/:slug`. It fetches the
+deployment's own `/index.html` and the page's public read (both within 1.5 s,
+side by side), and splices that page's `<title>`, `description`, `og:*` and
+`twitter:card` tags into the head. `/how-it-works` reads nothing: its card is
+fixed copy. The tag building lives in `src/share/linkPreview.ts`.
 
 - `og:url` comes from the request's host, never the build, so a build promoted
   from staging names production.

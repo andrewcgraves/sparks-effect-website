@@ -176,41 +176,26 @@ describe('useIsochroneLayer', () => {
     expect(addedLayer(map, ISOCHRONE_LAYER_ID).paint['fill-color']).toBe('#222222')
   })
 
-  it('legend labels carry the same colours the fills are painted with', () => {
-    const legend = isochroneLegend({ origin: '#111111', egress: '#222222' })
-    expect(legend.map((e) => [e.source, e.color, e.swatch])).toEqual([
-      ['origin', '#111111', 'fill'],
-      ['egress', '#222222', 'fill'],
+  it('names the two reach areas', () => {
+    expect(isochroneLegend()).toEqual([
+      { source: 'origin', label: 'From starting point' },
+      { source: 'egress', label: 'From station' },
     ])
   })
 
-  it('names the unfinished stub in ink dashes, not the egress orange, only when a stub is on the map', () => {
-    expect(isochroneLegend({ origin: '#111111', egress: '#f28f29' }).map((e) => e.source)).toEqual([
-      'origin',
-      'egress',
-    ])
-
-    const legend = isochroneLegend({ origin: '#111111', egress: '#f28f29' }, { unfinished: true })
-    const unfinished = legend.find((e) => e.source === 'unfinished')
-    expect(unfinished).toEqual({
+  it('names the unfinished leg only when one is on the map', () => {
+    expect(isochroneLegend().map((e) => e.source)).not.toContain('unfinished')
+    expect(isochroneLegend({ unfinished: true }).find((e) => e.source === 'unfinished')).toEqual({
       source: 'unfinished',
       label: 'Travel time ran out here',
-      color: THEME_TOKEN_FALLBACKS['--color-ink'],
-      swatch: 'stub',
     })
-    expect(unfinished?.color).not.toBe('#f28f29')
   })
 
-  it('names the starter walk as one trip\'s first leg, in the origin colour, only when it is drawn', () => {
-    expect(isochroneLegend({ origin: '#111111', egress: '#222222' }).map((e) => e.source))
-      .not.toContain('starter')
-
-    const legend = isochroneLegend({ origin: '#111111', egress: '#222222' }, { starterWalk: true })
-    expect(legend.find((e) => e.source === 'starter')).toEqual({
+  it('names the starter walk as one trip\'s first leg, only when it is drawn', () => {
+    expect(isochroneLegend().map((e) => e.source)).not.toContain('starter')
+    expect(isochroneLegend({ starterWalk: true }).find((e) => e.source === 'starter')).toEqual({
       source: 'starter',
       label: 'First leg — nearest station',
-      color: '#111111',
-      swatch: 'walk',
     })
   })
 

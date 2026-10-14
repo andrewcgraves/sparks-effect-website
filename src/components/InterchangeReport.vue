@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { TILE_CLASS, TILE_HEADING_CLASS } from './tileStyles'
 import { computed } from 'vue'
 import { hasInterchangePair, interchangePairKey, nearMissPair } from '../api/authoring/scenarioInput'
 import type { InterchangePair, NearMiss, Service, StopCluster, StopIdentity } from '../api/authoring/types'
@@ -50,10 +51,10 @@ function formatMeters(total: number): string {
 <template>
   <section
     v-if="props.nearMisses.length"
-    class="rounded-(--radius-box) border border-border bg-surface p-4"
+    :class="TILE_CLASS"
     data-testid="near-miss-list"
   >
-    <h2 class="font-display text-h3 text-ink-true">
+    <h2 :class="TILE_HEADING_CLASS">
       Did not connect
     </h2>
     <ul class="mt-3 flex flex-col gap-2">
@@ -108,10 +109,10 @@ function formatMeters(total: number): string {
 
   <section
     v-if="props.realisedClusters.length"
-    class="rounded-(--radius-box) border border-border bg-surface p-4"
+    :class="TILE_CLASS"
     data-testid="realised-clusters"
   >
-    <h2 class="font-display text-h3 text-ink-true">
+    <h2 :class="TILE_HEADING_CLASS">
       Realised interchanges
     </h2>
     <ul class="mt-3 flex flex-col gap-2">

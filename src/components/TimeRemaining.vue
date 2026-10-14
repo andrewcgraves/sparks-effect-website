@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { TILE_CLASS, TILE_HEADING_CLASS } from './tileStyles'
 import { computed, ref, watch, nextTick, useId } from 'vue'
 import SegmentedControl from './SegmentedControl.vue'
 import TooltipPanel from './TooltipPanel.vue'
@@ -102,13 +103,13 @@ watch(
 
 <template>
   <section
-    class="rounded-(--radius-box) border border-border bg-surface p-4"
+    :class="TILE_CLASS"
     :aria-labelledby="headingId"
     data-testid="time-remaining"
   >
     <h2
       :id="headingId"
-      class="font-display text-h3 text-ink-true"
+      :class="TILE_HEADING_CLASS"
     >
       Time remaining
     </h2>

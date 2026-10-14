@@ -8,6 +8,10 @@ import { addLayerInStack } from './layerStack'
 export const ORIGIN_WALK_SOURCE_ID = 'origin-walk-source'
 export const ORIGIN_WALK_LAYER_ID = 'origin-walk-line'
 
+export const ORIGIN_WALK_LINE_WIDTH = 2
+
+export const ORIGIN_WALK_DASH = [1, 2] as const
+
 export interface OriginWalkProperties {
   station_slug: string
   access_mins: number
@@ -68,8 +72,8 @@ export function useOriginWalkLayer(
     layout: { 'line-join': 'round', 'line-cap': 'round' },
     paint: {
       'line-color': color,
-      'line-width': 2,
-      'line-dasharray': [1, 2],
+      'line-width': ORIGIN_WALK_LINE_WIDTH,
+      'line-dasharray': [...ORIGIN_WALK_DASH],
     },
   })
 }

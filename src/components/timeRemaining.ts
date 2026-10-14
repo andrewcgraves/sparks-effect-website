@@ -57,8 +57,12 @@ export interface TimeRemainingContext {
   mode: string
 }
 
+export function wholeMinutes(totalSecs: number): number {
+  return Math.max(0, Math.floor(totalSecs / 60))
+}
+
 export function formatTimeRemaining(totalSecs: number): string {
-  const minutes = Math.max(0, Math.floor(totalSecs / 60))
+  const minutes = wholeMinutes(totalSecs)
   const hours = Math.floor(minutes / 60)
   return hours > 0 ? `${hours}h ${minutes % 60}m` : `${minutes}m`
 }
@@ -99,7 +103,7 @@ function lastLeg(station: ReachableStation): JourneyLeg | null {
   return legs.length ? legs[legs.length - 1] : null
 }
 
-function remainingSecsOf(station: ReachableStation): number {
+export function remainingSecsOf(station: ReachableStation): number {
   return station.remaining_secs ?? station.remaining_mins * 60
 }
 
