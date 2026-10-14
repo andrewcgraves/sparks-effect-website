@@ -67,7 +67,24 @@ function makeMockMap() {
     return matches.length
   }
 
-  return { map, canvas, fire, getLayer, setPaintProperty, setFilter }
+  // MapLibre hands one click event to the layer listeners that have features
+  // under it and then to the map-wide ones, in the order they were bound.
+  function tap(event: { features?: unknown[] }) {
+    let prevented = false
+    const click = {
+      ...event,
+      preventDefault: () => { prevented = true },
+      get defaultPrevented() { return prevented },
+    }
+    for (const h of handlers) {
+      if (h.type !== 'click') continue
+      if (h.layer === null || (h.layer === STATION_DOTS_LAYER_ID && (event.features?.length ?? 0) > 0)) {
+        h.handler(click)
+      }
+    }
+  }
+
+  return { map, canvas, fire, tap, getLayer, setPaintProperty, setFilter }
 }
 
 function stationEvent(slug: string, name: string, lng: number, lat: number) {
@@ -260,17 +277,98 @@ describe('useStationHighlight', () => {
     expect(setFilter).not.toHaveBeenCalled()
   })
 
-  // SPA-211 shipped click-to-persist and SPA-223 takes it back: with the trip's
-  // detail now in the Time remaining card, a second highlight mechanism only
-  // strands a selection on the map that nothing on the page agrees with.
-  describe('hover is the only way a station is highlighted', () => {
-    it('binds no click handler to the station dots at all', () => {
-      const { fire } = setup()
+  // SPA-223 took click-to-persist away because it stranded a selection the
+  // page disagreed with; SPA-494 brings a tap back for touch screens, which
+  // have no hover, and reports it through onHover so the card agrees.
+  describe('tapping a station', () => {
+    it('opens the popup with its name and promotes its polygon', () => {
+      const { tap, onHover, setFilter } = setup()
 
-      expect(fire('click', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))).toBe(0)
+      tap(stationEvent('sf', 'San Francisco', -122.41, 37.77))
+
+      expect(mockPopupSetLngLat).toHaveBeenCalledWith([-122.41, 37.77])
+      expect(popupNamed('San Francisco')).toBe(true)
+      expect(mockPopupAddTo).toHaveBeenCalled()
+      expect(onHover).toHaveBeenLastCalledWith('sf')
+      expect(setFilter).toHaveBeenCalledWith(ISOCHRONE_HIGHLIGHT_LAYER_ID, isochroneHighlightFilter('sf'))
     })
 
-    it('drops the highlight the moment the pointer leaves, with nothing left standing', () => {
+    it('keeps the popup up when the emulated pointer leaves the dot', () => {
+      const { fire, tap, onHover } = setup()
+      fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))
+      tap(stationEvent('sf', 'San Francisco', -122.41, 37.77))
+      mockPopupRemove.mockClear()
+      mockPopupSetDOMContent.mockClear()
+
+      fire('mouseleave', STATION_DOTS_LAYER_ID)
+
+      expect(mockPopupRemove).not.toHaveBeenCalled()
+      expect(popupNamed('San Francisco')).toBe(true)
+      expect(onHover).toHaveBeenLastCalledWith('sf')
+    })
+
+    it('closes the popup and drops the promote on a tap anywhere off the dots', () => {
+      const { tap, onHover, setFilter } = setup()
+      tap(stationEvent('sf', 'San Francisco', -122.41, 37.77))
+      mockPopupRemove.mockClear()
+      setFilter.mockClear()
+
+      tap({ features: [] })
+
+      expect(mockPopupRemove).toHaveBeenCalled()
+      expect(onHover).toHaveBeenLastCalledWith(null)
+      expect(setFilter).toHaveBeenCalledWith(ISOCHRONE_HIGHLIGHT_LAYER_ID, isochroneHighlightFilter(null))
+    })
+
+    it('moves the popup to the next station tapped', () => {
+      const { tap, onHover } = setup()
+      tap(stationEvent('sf', 'San Francisco', -122.41, 37.77))
+      mockPopupSetDOMContent.mockClear()
+
+      tap(stationEvent('gilroy', 'Gilroy', -121.57, 37.0))
+
+      expect(popupNamed('Gilroy')).toBe(true)
+      expect(onHover).toHaveBeenLastCalledWith('gilroy')
+    })
+
+    // A touch screen's emulated pointer moves straight from one dot to the
+    // next, and MapLibre only fires mouseenter on entering the layer, so the
+    // second tap arrives with the first station still counted as hovered.
+    it('names the second station when one dot is tapped straight after another', () => {
+      const { fire, tap, onHover } = setup()
+      fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))
+      tap(stationEvent('sf', 'San Francisco', -122.41, 37.77))
+      mockPopupSetDOMContent.mockClear()
+
+      tap(stationEvent('gilroy', 'Gilroy', -121.57, 37.0))
+
+      expect(popupNamed('Gilroy')).toBe(true)
+      expect(onHover).toHaveBeenLastCalledWith('gilroy')
+    })
+
+    it('comes back to the tapped station when the pointer leaves the unfinished-leg cap', () => {
+      const { fire, tap, onHover, canvas } = setup(() => 'crosshair')
+      tap(stationEvent('sf', 'San Francisco', -122.41, 37.77))
+      fire('mouseenter', PROGRESS_CAP_HIT_LAYER_ID, capEvent('merced', 0.38, 1839))
+      expect(onHover).toHaveBeenLastCalledWith(null)
+      mockPopupSetDOMContent.mockClear()
+
+      fire('mouseleave', PROGRESS_CAP_HIT_LAYER_ID)
+
+      expect(onHover).toHaveBeenLastCalledWith('sf')
+      expect(popupNamed('San Francisco')).toBe(true)
+      expect(canvas.style.cursor).toBe('crosshair')
+    })
+
+    it('leaves the page alone on a tap off the dots when nothing was tapped', () => {
+      const { tap, onHover } = setup()
+
+      tap({ features: [] })
+
+      expect(onHover).not.toHaveBeenCalled()
+    })
+
+    it('still drops a mouse hover the moment the pointer leaves, with nothing tapped', () => {
       const { fire, setFilter } = setup()
       fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))
       setFilter.mockClear()

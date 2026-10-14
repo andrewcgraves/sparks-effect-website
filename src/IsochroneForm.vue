@@ -4,6 +4,7 @@ import AddressAutocomplete from './components/AddressAutocomplete.vue'
 import SegmentedControl from './components/SegmentedControl.vue'
 import { PRIMARY_BUTTON_CLASS } from './components/buttonStyles'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from './components/fieldStyles'
+import { HIT_AREA_CLASS } from './components/linkStyles'
 import type { GeocodingSuggestion } from './api/geocoding'
 import { reverseGeocode } from './api/geocoding'
 import { getCurrentPosition } from './api/geolocation'
@@ -205,7 +206,7 @@ function handleSubmit() {
       <button
         type="button"
         class="font-display text-btn self-start uppercase transition-colors duration-200 ease-(--ease-smooth) hover:text-coral"
-        :class="pickArmed ? 'text-coral' : 'text-ink-muted'"
+        :class="[HIT_AREA_CLASS, pickArmed ? 'text-coral' : 'text-ink-muted']"
         data-testid="pick-on-map"
         @click="pickArmed = !pickArmed"
       >
@@ -268,7 +269,7 @@ function handleSubmit() {
         <label
           v-for="option in MODE_OPTIONS"
           :key="option.value"
-          class="font-body flex cursor-pointer items-center gap-1.5 text-[14px] text-ink"
+          class="font-body flex min-h-11 cursor-pointer items-center gap-1.5 text-[14px] text-ink md:min-h-0"
         >
           <input
             type="radio"

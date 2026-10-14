@@ -93,4 +93,14 @@ describe('SiteFooter', () => {
     const links = wrapper.findAll('[data-testid="footer-links"] a')
     expect(links.map((link) => link.text())).toEqual(['Terms'])
   })
+
+  it('pads each page link to a thumb-sized target on a touch screen without moving it (SPA-494)', () => {
+    const wrapper = mountFooter([
+      { path: '/privacy', component: Blank },
+      { path: '/terms', component: Blank },
+    ])
+    for (const link of wrapper.findAll('[data-testid="footer-links"] a')) {
+      expect(link.classes()).toEqual(expect.arrayContaining(['pointer-coarse:py-3', 'pointer-coarse:-my-3']))
+    }
+  })
 })

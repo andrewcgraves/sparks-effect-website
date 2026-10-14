@@ -7,7 +7,7 @@ import { useRoutedPages } from '../composables/useRoutedPages'
 import { useAuthStore } from '../stores/auth'
 import AccountMenu from './AccountMenu.vue'
 import { SECONDARY_BUTTON_CLASS } from './buttonStyles'
-import { ACTION_LINK_CLASS } from './linkStyles'
+import { ACTION_LINK_CLASS, ACTION_LINK_BASE_CLASS, HIT_AREA_CLASS } from './linkStyles'
 
 const NAV_PAGES = [
   { label: 'Networks', path: '/networks' },
@@ -16,7 +16,7 @@ const NAV_PAGES = [
 ]
 
 const PRIMARY_LINK_CLASS =
-  `${ACTION_LINK_CLASS} flex h-full items-center border-b-2 border-transparent aria-[current=page]:border-coral aria-[current=page]:text-ink`
+  `${ACTION_LINK_BASE_CLASS} flex h-full items-center border-b-2 border-transparent aria-[current=page]:border-coral aria-[current=page]:text-ink`
 
 const SHEET_LINK_CLASS =
   'font-display text-btn block w-full cursor-pointer py-3 text-left text-ink uppercase transition-colors duration-200 ease-(--ease-smooth) hover:text-coral aria-[current=page]:text-coral'
@@ -84,7 +84,7 @@ onBeforeUnmount(() => wide?.removeEventListener('change', onWideChange))
     <div class="flex h-full items-center gap-8">
       <RouterLink
         to="/"
-        class="font-display text-[17px] font-bold tracking-tight text-ink-true"
+        :class="`${HIT_AREA_CLASS} font-display text-[17px] font-bold tracking-tight text-ink-true`"
         data-testid="nav-home"
       >
         Sparks Effect

@@ -469,12 +469,14 @@ onUnmounted(() => {
       <span>{{ loadingMessage ?? 'Waiting…' }}</span>
     </div>
     
-    <!-- Sits in MapLibre's top-right control column, one 29px button and its
-         10px margin below the fullscreen control. -->
+    <!-- Sits in MapLibre's top-right control column, one button and its 10px
+         margin below the fullscreen control: 29px, or 40px on the flush phone
+         map where the controls are sized for a thumb. -->
     <button
       v-if="canRecenter"
       type="button"
-      class="absolute top-[49px] right-2.5 z-1 flex size-[29px] cursor-pointer items-center justify-center rounded-(--radius-field) bg-white text-ink shadow-(--shadow-panel) hover:text-coral"
+      class="absolute right-2.5 z-1 flex cursor-pointer items-center justify-center rounded-(--radius-field) bg-white text-ink shadow-(--shadow-panel) hover:text-coral"
+      :class="flush ? 'top-[60px] size-10' : 'top-[49px] size-[29px]'"
       aria-label="Recenter map on the route"
       title="Recenter on the route"
       data-testid="map-recenter"
@@ -621,6 +623,11 @@ onUnmounted(() => {
 
 .map-frame :deep(.maplibregl-ctrl-group button + button) {
   border-top-color: var(--color-border);
+}
+
+.map-frame-flush :deep(.maplibregl-ctrl-group button) {
+  width: 40px;
+  height: 40px;
 }
 
 .map-frame :deep(.maplibregl-ctrl-attrib) {

@@ -111,7 +111,7 @@ function onListKeydown(event: KeyboardEvent): void {
           :aria-controls="tabpanelId(entry.key)"
           :tabindex="tab === entry.key ? 0 : -1"
           :disabled="entry.disabled"
-          class="font-display text-btn relative flex-1 cursor-pointer py-3 uppercase transition-colors duration-200 ease-(--ease-smooth) hover:text-coral disabled:cursor-not-allowed disabled:opacity-35"
+          class="font-display text-btn relative min-h-11 flex-1 cursor-pointer py-3 uppercase transition-colors duration-200 ease-(--ease-smooth) hover:text-coral disabled:cursor-not-allowed disabled:opacity-35"
           :class="tab === entry.key ? 'text-coral' : 'text-ink-muted'"
           @click="choose(entry.key)"
         >
