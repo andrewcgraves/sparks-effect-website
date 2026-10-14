@@ -3,6 +3,7 @@ import { computed, ref, useSlots } from 'vue'
 import IsochroneForm from '../IsochroneForm.vue'
 import InterchangeReport from './InterchangeReport.vue'
 import MapView from './MapView.vue'
+import { PLOT_WITHOUT_MAP } from './mapLoad'
 import PhoneMapPage from './PhoneMapPage.vue'
 import RoutingStatusBanner from './RoutingStatusBanner.vue'
 import TimeRemaining from './TimeRemaining.vue'
@@ -95,6 +96,7 @@ const { tabs: allPhoneTabs, tab: phoneTab } = usePhoneMapTabs({
     <template #map>
       <MapView
         label="Splash zone map"
+        :without-map="PLOT_WITHOUT_MAP"
         flush
         :origin="props.origin"
         :isochrone-data="props.isochroneData"
@@ -170,6 +172,7 @@ const { tabs: allPhoneTabs, tab: phoneTab } = usePhoneMapTabs({
     <div class="h-[70vh]">
       <MapView
         label="Splash zone map"
+        :without-map="PLOT_WITHOUT_MAP"
         :origin="props.origin"
         :isochrone-data="props.isochroneData"
         :loading="props.loading"
