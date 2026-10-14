@@ -119,7 +119,6 @@ class ResizeObserverStub {
   unobserve = vi.fn()
 }
 
-vi.stubGlobal('ResizeObserver', ResizeObserverStub)
 
 vi.mock('maplibre-gl', () => ({
   setWorkerUrl: vi.fn(),
@@ -249,6 +248,8 @@ function clickEventAt(lat: number, lng: number) {
 describe('MapView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.stubGlobal('ResizeObserver', ResizeObserverStub)
+    notifyResize = () => {}
     mockGetSource.mockReturnValue(null)
     mockSetLngLat.mockReturnValue({ addTo: mockMarkerAddTo })
     mockGetCanvas.mockReturnValue(mockCanvas)
@@ -453,13 +454,11 @@ describe('MapView', () => {
     expect(wrapper.find('[data-testid="map-skeleton"]').exists()).toBe(false)
   })
 
-  // SPA-492: at 3× a 1150×756 map is nine times the pixels to draw, which a
-  // machine without hardware acceleration redraws in seconds a frame.
+  // SPA-492: a map without hardware acceleration redraws in seconds a frame.
   describe('drawing load', () => {
     afterEach(() => {
       vi.restoreAllMocks()
       vi.unstubAllGlobals()
-      vi.stubGlobal('ResizeObserver', ResizeObserverStub)
     })
 
     it('draws at no more than twice the CSS pixels on a 3× screen', () => {
@@ -474,8 +473,6 @@ describe('MapView', () => {
       expect(vi.mocked(Map)).toHaveBeenCalledWith(expect.objectContaining({ pixelRatio: 1.5 }))
     })
 
-    // The phone panel's slide changes the map's height on every frame, and
-    // each map.resize() reallocates the drawing buffer.
     it('resizes the map once for several size changes within one frame', async () => {
       const frames: FrameRequestCallback[] = []
       vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => frames.push(cb))

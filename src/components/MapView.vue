@@ -384,8 +384,8 @@ onMounted(() => {
     if (props.centerOn) flyToStop(props.centerOn)
   })
 
-  // Each map.resize() reallocates the drawing buffer, and a sliding panel
-  // reports a new size on every frame, sometimes more than once a frame.
+  // Each map.resize() reallocates the drawing buffer, and a container that is
+  // animating reports a new size on every frame, sometimes more than once.
   resizeObserver = new ResizeObserver(() => {
     if (resizeFrame !== null) return
     resizeFrame = requestAnimationFrame(() => {
