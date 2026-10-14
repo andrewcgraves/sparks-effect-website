@@ -1,6 +1,7 @@
 // @vitest-environment node
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { isReactive } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import { useCompileJob } from './useCompileJob'
 import { ApiError } from '../api/authoring/client'
@@ -44,6 +45,18 @@ describe('useCompileJob', () => {
     expect(compiling.value).toBe(false)
     expect(compileError.value).toBe('')
     expect(result.value).toEqual({ services: [{ service_id: 's1', edges: [], wait_secs: 0 }] })
+  })
+
+  // A compiled graph carries every route's geometry (SPA-487).
+  it('does not make the compiled graph deeply reactive', async () => {
+    vi.stubGlobal('fetch', succeedingJobFetch({ services: [] }))
+    const compile = vi.fn().mockResolvedValue({ id: 'job1', kind: 'compile_user_scenario', status: 'queued' } as Job)
+    const { result, trigger } = useCompileJob(compile)
+
+    await trigger('ca-hsr')
+
+    expect(result.value).not.toBeNull()
+    expect(isReactive(result.value)).toBe(false)
   })
 
   it('is compiling for the duration of the call', async () => {

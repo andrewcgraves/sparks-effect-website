@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
+import { isReactive } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import { flushPromises } from '@vue/test-utils'
 import { ApiError, SessionExpiredError } from '../api/authoring/client'
@@ -97,6 +98,20 @@ describe('useAuthoredGraph', () => {
       expect(compile).not.toHaveBeenCalled()
       expect(graph.value).toEqual(graphWithMerge)
       expect(graphFailed.value).toBe(false)
+    })
+
+    // A graph and a plot each carry geometry the ridden-line maths walks, and
+    // both are only ever replaced whole (SPA-487).
+    it('does not make the loaded graph or the plot deeply reactive', async () => {
+      fetchGraph.mockResolvedValue(graphWithMerge)
+      isochrone.mockResolvedValue(chain)
+      const { loadGraph, graph, handleIsochroneSubmit, isochroneData } = subject()
+
+      await loadGraph('ca-hsr')
+      await handleIsochroneSubmit(payload)
+
+      expect(isReactive(graph.value)).toBe(false)
+      expect(isReactive(isochroneData.value)).toBe(false)
     })
 
     // A 404 means this target has never compiled, which is a reason to compile,

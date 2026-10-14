@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { ref, shallowRef } from 'vue'
 import { fetchIsochrone, type IsochroneRequest } from '../api/isochrone'
 import type { IsochroneProgress } from '../api/routingJobs'
 import { isochroneFault, isochroneRangeRefusal, isochroneRequested } from '../api/isochroneFault'
@@ -9,7 +9,9 @@ import { useAnnouncer } from './useToast'
 import { PLOTTING_SPLASH_ZONE, splashZoneReadyMessage } from './progressAnnouncements'
 
 export function useIsochrone(getStations: () => Station[] = () => []) {
-  const data = ref<ChainResponse | null>(null)
+  // Shallow for the same reason as useScenario's routes (SPA-487): a plot is
+  // replaced whole, never edited.
+  const data = shallowRef<ChainResponse | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
   const progress = ref<IsochroneProgress | null>(null)
