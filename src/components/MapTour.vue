@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import KeySwatch from './KeySwatch.vue'
 import TourMap from './TourMap.vue'
 import { PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS } from './buttonStyles'
+import { TILE_CLASS, TILE_HEADING_CLASS } from './tileStyles'
 import { TOUR_STEPS } from './tourSteps'
 
 const active = ref(0)
@@ -35,8 +36,10 @@ function next(): void {
     </div>
 
     <div class="px-4 pt-4 sm:px-6 lg:px-0 lg:pt-0">
+      <!-- The same tile as the plot page's Time remaining and Time between
+           stations, so a card that explains the map looks like the ones beside it. -->
       <div
-        class="rounded-2xl border border-border bg-white p-5 shadow-[0_1px_2px_rgb(0_0_0/0.04),0_8px_24px_rgb(0_0_0/0.06)] xl:p-6"
+        :class="TILE_CLASS"
         data-testid="map-tour-card"
       >
         <p class="font-body text-micro m-0 text-ink-muted">
@@ -54,7 +57,10 @@ function next(): void {
             :aria-hidden="index === active ? undefined : 'true'"
             :data-step="step.id"
           >
-            <h3 class="font-body text-body m-0 flex items-center gap-3 font-semibold text-ink-true">
+            <h3
+              class="m-0 flex items-center gap-3"
+              :class="TILE_HEADING_CLASS"
+            >
               <KeySwatch
                 :kind="step.swatch"
                 class="shrink-0"

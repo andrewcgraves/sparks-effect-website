@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { TILE_CLASS, TILE_HEADING_CLASS } from './tileStyles'
 import { ref } from 'vue'
 import SegmentedControl from './SegmentedControl.vue'
 import LoadingRegion from './LoadingRegion.vue'
@@ -40,10 +41,10 @@ function groupSummary(group: StationTimeGroup): string {
 
 <template>
   <section
-    class="rounded-(--radius-box) border border-border bg-surface p-4"
+    :class="TILE_CLASS"
     data-testid="time-between-stations"
   >
-    <h2 class="font-display text-h3 text-ink-true">
+    <h2 :class="TILE_HEADING_CLASS">
       Time between stations
     </h2>
 
