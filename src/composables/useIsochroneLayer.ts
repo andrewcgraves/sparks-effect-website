@@ -33,18 +33,10 @@ export function resolveIsochroneColors(): IsochroneColors {
   }
 }
 
-export function isochroneLegend(
-  colors: IsochroneColors = resolveIsochroneColors(),
-  drawn: { unfinished?: boolean; starterWalk?: boolean } = {},
-) {
-  const entries: {
-    source: 'origin' | 'egress' | 'starter' | 'unfinished'
-    label: string
-    color: string
-    swatch: 'fill' | 'walk' | 'stub'
-  }[] = [
-    { source: 'origin', label: 'From starting point', color: colors.origin, swatch: 'fill' },
-    { source: 'egress', label: 'From station', color: colors.egress, swatch: 'fill' },
+export function isochroneLegend(drawn: { unfinished?: boolean; starterWalk?: boolean } = {}) {
+  const entries: { source: 'origin' | 'egress' | 'starter' | 'unfinished'; label: string }[] = [
+    { source: 'origin', label: 'From starting point' },
+    { source: 'egress', label: 'From station' },
   ]
   // Unlabelled, the starter walk was the one line on the map anchored at the
   // origin and ending on a single station, painted above everything else — and
@@ -52,22 +44,12 @@ export function isochroneLegend(
   // quickest station; every other station was searched from too, and their
   // reach is already in the fills.
   if (drawn.starterWalk) {
-    entries.push({
-      source: 'starter',
-      label: 'First leg — nearest station',
-      color: colors.origin,
-      swatch: 'walk',
-    })
+    entries.push({ source: 'starter', label: 'First leg — nearest station' })
   }
   // Ink is also the network and the ridden path, so naming it "travel time ran
   // out" on a map with no stub invites the same misread this row is meant to close.
   if (drawn.unfinished) {
-    entries.push({
-      source: 'unfinished',
-      label: 'Travel time ran out here',
-      color: readThemeToken('--color-ink'),
-      swatch: 'stub',
-    })
+    entries.push({ source: 'unfinished', label: 'Travel time ran out here' })
   }
   return entries
 }

@@ -26,22 +26,38 @@ const updatedInWords = computed(() => {
 </script>
 
 <template>
-  <main class="flex-1 p-(--page-padding)">
-    <div class="mb-8">
-      <AllLinesLink />
-    </div>
+  <!-- The same padding as --page-padding, split so a page can put something
+       wider than the text column between its prose. -->
+  <main class="flex-1 pt-8 pb-24">
+    <div class="px-(--page-gutter)">
+      <div class="mb-8">
+        <AllLinesLink />
+      </div>
 
-    <article class="max-w-[720px]">
-      <h1 class="font-display text-display text-ink-true">
-        {{ title }}
-      </h1>
-      <p
-        class="font-body text-caption mt-3 text-ink-muted"
-        data-testid="page-updated"
+      <article class="max-w-[720px]">
+        <h1 class="font-display text-display text-ink-true">
+          {{ title }}
+        </h1>
+        <p
+          class="font-body text-caption mt-3 text-ink-muted"
+          data-testid="page-updated"
+        >
+          Last updated <time :datetime="updated">{{ updatedInWords }}</time>
+        </p>
+        <slot />
+      </article>
+    </div>
+    <slot name="wide" />
+    <div
+      v-if="$slots.after"
+      class="px-(--page-gutter)"
+    >
+      <div
+        class="max-w-[720px]"
+        data-testid="prose-after"
       >
-        Last updated <time :datetime="updated">{{ updatedInWords }}</time>
-      </p>
-      <slot />
-    </article>
+        <slot name="after" />
+      </div>
+    </div>
   </main>
 </template>

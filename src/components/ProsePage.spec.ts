@@ -6,11 +6,15 @@ import { seriousA11yViolations } from '../test/axe'
 
 const Blank = { template: '<div />' }
 
-function mountPage(props: { title: string; updated: string }, attachTo?: Element) {
+function mountPage(
+  props: { title: string; updated: string },
+  attachTo?: Element,
+  slots: Record<string, string> = {},
+) {
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: Blank }] })
   return mount(ProsePage, {
     props,
-    slots: { default: '<p data-testid="body">Some prose.</p>' },
+    slots: { default: '<p data-testid="body">Some prose.</p>', ...slots },
     global: { plugins: [router] },
     attachTo,
   })
@@ -35,6 +39,17 @@ describe('ProsePage', () => {
 
   it('links back to the list of lines', () => {
     expect(mountPage({ title: 'Attribution', updated: '2026-10-09' }).get('[data-testid="back-to-lines"]').attributes('href')).toBe('/')
+  })
+
+  it('sets something wide between its prose, and keeps the prose after it in the text column', () => {
+    const wrapper = mountPage({ title: 'How it works', updated: '2026-10-13' }, undefined, {
+      wide: '<div data-testid="wide">A map.</div>',
+      after: '<p data-testid="after">More prose.</p>',
+    })
+    expect(wrapper.find('article [data-testid="wide"]').exists()).toBe(false)
+    expect(wrapper.find('article [data-testid="after"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="prose-after"]').classes()).toContain('max-w-[720px]')
+    expect(wrapper.get('[data-testid="prose-after"] [data-testid="after"]').text()).toBe('More prose.')
   })
 
   it('has no serious or critical accessibility violations', async () => {

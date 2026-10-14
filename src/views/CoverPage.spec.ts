@@ -68,6 +68,12 @@ describe('CoverPage', () => {
     expect(wrapper.get('h1').text()).toBe('Sparks Effect')
   })
 
+  it('links the How it works page', async () => {
+    vi.mocked(fetchCoverIndex).mockResolvedValue(index([]))
+    const { wrapper } = await mountCover()
+    expect(wrapper.get('[data-testid="cover-how-it-works"]').attributes('href')).toBe('/how-it-works')
+  })
+
   it('says what a splash zone is and what to do, without calling itself temporary', async () => {
     vi.mocked(fetchCoverIndex).mockResolvedValue(index([]))
     const { wrapper } = await mountCover()
@@ -128,14 +134,11 @@ describe('CoverPage', () => {
     expect(wrapper.find('[role="alert"]').exists()).toBe(false)
   })
 
-  it('points an empty cover at how it works', async () => {
+  it('links How it works once, even when the cover is empty', async () => {
     vi.mocked(fetchCoverIndex).mockResolvedValue(index([]))
     const { wrapper } = await mountCover()
     await flushPromises()
-    const links = wrapper.get('[data-testid="scenarios-empty"]').findAll('a')
-    expect(links).toHaveLength(1)
-    expect(links[0]!.text()).toBe('How it works')
-    expect(links[0]!.attributes('href')).toBe('/how-it-works')
+    expect(wrapper.findAll('a[href="/how-it-works"]')).toHaveLength(1)
   })
 
   it('shows an error state, not an empty one, when neither read answers', async () => {

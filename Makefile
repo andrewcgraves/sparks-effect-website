@@ -1,4 +1,4 @@
-.PHONY: install test typecheck build run dev lint clean dev-workflow
+.PHONY: install test typecheck build run dev lint clean dev-workflow tour-fixture
 
 NODE_MODULES := node_modules/.install-stamp
 
@@ -31,6 +31,12 @@ dev: install
 # Non-interactive check an agent can run end-to-end: lint, typecheck, test, and
 # build, without starting a long-running server.
 dev-workflow: lint typecheck test build
+
+# Re-freezes the plot the How it works tour draws (src/fixtures/tourSample.json)
+# from the production API. Needs network; run it when the network or the router
+# changes what a plot looks like.
+tour-fixture: install
+	node scripts/snapshot-tour-fixture.ts
 
 clean:
 	rm -rf node_modules dist
