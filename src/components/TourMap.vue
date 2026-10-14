@@ -4,7 +4,7 @@ import type { Map, Marker, PointLike } from 'maplibre-gl'
 import { mapModules } from '../composables/mapLifecycle'
 import { resolveIsochroneColors } from '../composables/useIsochroneLayer'
 import { centerFromCorners } from '../composables/useRouteLayer'
-import { REDUCED_MOTION_QUERY, TOUR_WIDE_QUERY, matchesMedia } from '../composables/useScrollSteps'
+import { REDUCED_MOTION_QUERY, TOUR_WIDE_QUERY, matchesMedia } from '../composables/media'
 import { TOUR_SAMPLE } from '../fixtures/tourSample'
 import { progressTooltipContent, stationTooltipContent, tooltipContent } from './tooltip'
 import {

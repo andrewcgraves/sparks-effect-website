@@ -24,52 +24,56 @@ function mountTour() {
   return wrapper
 }
 
-const cards = (w: VueWrapper) => w.findAll('[data-testid="map-tour-steps"] > li')
+const mapStep = (w: VueWrapper) => w.get('[data-testid="tour-map"]').attributes('data-step')
+const shown = (w: VueWrapper) => w.findAll('[data-step]:not([aria-hidden])').filter((e) => e.classes('visible'))
+const back = (w: VueWrapper) => w.get('[data-testid="map-tour-back"]')
+const next = (w: VueWrapper) => w.get('[data-testid="map-tour-next"]')
 const status = (w: VueWrapper) => w.get('[data-testid="map-tour-status"]').text()
 
 describe('MapTour', () => {
-  it('reads as a list of every step and its caption, with nothing pressed', () => {
+  it('opens on the first step, on the map and in the card, with nothing announced', () => {
     const w = mountTour()
-    const list = w.get('[data-testid="map-tour-steps"]').text()
-    expect(cards(w)).toHaveLength(TOUR_STEPS.length)
-    for (const step of TOUR_STEPS) {
-      expect(list).toContain(step.name)
-      expect(list).toContain(step.caption)
-    }
-  })
-
-  it('opens on the whole map, every card at full strength and nothing announced', () => {
-    const w = mountTour()
-    expect(w.get('[data-testid="tour-map"]').attributes('data-step')).toBe('')
-    expect(w.findAll('.opacity-40')).toHaveLength(0)
+    expect(mapStep(w)).toBe(TOUR_STEPS[0].id)
+    expect(shown(w).map((e) => e.attributes('data-step'))).toEqual([TOUR_STEPS[0].id])
+    expect(w.get('[data-testid="map-tour-card"]').text()).toContain(`Step 1 of ${TOUR_STEPS.length}`)
+    expect(back(w).attributes('disabled')).toBeDefined()
     expect(status(w)).toBe('')
   })
 
-  it('lights a chosen step on the map, says so, and fades the others back', async () => {
+  it('keeps every caption in the card, showing only the current one', () => {
     const w = mountTour()
-    const egress = TOUR_STEPS.findIndex((s) => s.id === 'egress')
-    await cards(w)[egress].get('button').trigger('click')
-    expect(cards(w)[egress].get('button').attributes('aria-current')).toBe('step')
-    expect(w.get('[data-testid="tour-map"]').attributes('data-step')).toBe('egress')
-    expect(status(w)).toBe('Highlighting: From station')
-    expect(w.findAll('.opacity-40')).toHaveLength(TOUR_STEPS.length - 1)
+    const card = w.get('[data-testid="map-tour-card"]')
+    for (const step of TOUR_STEPS) expect(card.text()).toContain(step.caption)
+    expect(w.findAll('[data-step][aria-hidden="true"]')).toHaveLength(TOUR_STEPS.length - 1)
   })
 
-  it('lets the keyboard drive the map, and never takes a focused control away', async () => {
+  it('moves the map and the card on with Next and back with Back, and says where it is', async () => {
     const w = mountTour()
-    const before = w.findAll('button').length
-    const button = cards(w)[1].get('button')
-    ;(button.element as HTMLButtonElement).focus()
-    await button.trigger('focus')
-    expect(w.get('[data-testid="tour-map"]').attributes('data-step')).toBe(TOUR_STEPS[1].id)
-    expect(w.findAll('button')).toHaveLength(before)
-    expect(document.activeElement).toBe(button.element)
+    await next(w).trigger('click')
+    await next(w).trigger('click')
+    expect(mapStep(w)).toBe(TOUR_STEPS[2].id)
+    expect(shown(w).map((e) => e.attributes('data-step'))).toEqual([TOUR_STEPS[2].id])
+    expect(status(w)).toBe(`Step 3 of ${TOUR_STEPS.length}: ${TOUR_STEPS[2].name}. ${TOUR_STEPS[2].caption}`)
+    await back(w).trigger('click')
+    expect(mapStep(w)).toBe(TOUR_STEPS[1].id)
+    expect(back(w).attributes('disabled')).toBeUndefined()
   })
 
-  it('has no serious accessibility violations, at rest or mid-tour', async () => {
+  it('offers to start over from the last step', async () => {
+    const w = mountTour()
+    for (let i = 1; i < TOUR_STEPS.length; i++) await next(w).trigger('click')
+    expect(mapStep(w)).toBe(TOUR_STEPS[TOUR_STEPS.length - 1].id)
+    expect(next(w).text()).toBe('Start over')
+    await next(w).trigger('click')
+    expect(mapStep(w)).toBe(TOUR_STEPS[0].id)
+    expect(next(w).text()).toBe('Next')
+  })
+
+  it('has no serious accessibility violations, at the start or mid-tour', async () => {
     const w = mountTour()
     expect(await seriousA11yViolations(w)).toEqual([])
-    await cards(w)[3].get('button').trigger('click')
+    await next(w).trigger('click')
+    await next(w).trigger('click')
     expect(await seriousA11yViolations(w)).toEqual([])
   })
 })

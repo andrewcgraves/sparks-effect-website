@@ -24,7 +24,7 @@ const startPlace = TOUR_SAMPLE.start.label.replace(', ', ' in ')
   >
     <p :class="PROSE_LEAD_CLASS">
       A splash zone shows everywhere you could get from one starting point within the travel time
-      you pick, riding a hypothetical line or network for part of the trip. Scroll on to read a
+      you pick, riding a hypothetical line or network for part of the trip. Step through a
       real one: {{ TOUR_SAMPLE.budget_mins }} minutes by Transit from {{ startPlace }}, on the
       California High-Speed Rail network.
     </p>
