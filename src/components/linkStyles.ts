@@ -1,5 +1,9 @@
-export const ACTION_LINK_CLASS =
+export const ACTION_LINK_TEXT_CLASS =
   'font-display text-btn cursor-pointer text-ink-muted uppercase transition-colors duration-200 ease-(--ease-smooth) hover:text-coral'
+
+export const HIT_AREA_CLASS = 'min-h-11 py-3 -my-3'
+
+export const ACTION_LINK_CLASS = `${ACTION_LINK_TEXT_CLASS} ${HIT_AREA_CLASS}`
 
 export const LIST_CARD_FRAME_CLASS =
   'font-body text-body flex flex-col gap-1 rounded-(--radius-field) border border-border px-3 py-2'

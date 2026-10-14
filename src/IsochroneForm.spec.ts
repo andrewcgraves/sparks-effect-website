@@ -554,4 +554,20 @@ describe('IsochroneForm', () => {
       expect((wrapper.get('input[data-testid="duration-slider-option-60"]').element as HTMLInputElement).checked).toBe(true)
     })
   })
+
+  describe('thumb-sized hit areas (SPA-494)', () => {
+    it('pads the pick-on-map button to 44px without moving its text', () => {
+      const wrapper = mount(IsochroneForm)
+      expect(wrapper.get('[data-testid="pick-on-map"]').classes()).toEqual(expect.arrayContaining(['py-3', '-my-3']))
+    })
+
+    it('makes each mode row 44px tall on a phone and leaves it alone from md up', () => {
+      const wrapper = mount(IsochroneForm)
+      for (const mode of ['walk', 'bike', 'drive', 'transit']) {
+        const label = wrapper.get(`[data-testid="mode-${mode}"]`).element.closest('label')
+        expect(label?.classList.contains('min-h-11')).toBe(true)
+        expect(label?.classList.contains('md:min-h-0')).toBe(true)
+      }
+    })
+  })
 })

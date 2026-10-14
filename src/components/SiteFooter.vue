@@ -31,7 +31,7 @@ const hasAttribution = useRoutedPath('/attribution')
         v-for="link in links"
         :key="link.path"
         :to="link.path"
-        :class="INLINE_LINK_CLASS"
+        :class="`${INLINE_LINK_CLASS} min-h-11 py-3 md:min-h-0 md:py-0`"
       >
         {{ link.label }}
       </RouterLink>

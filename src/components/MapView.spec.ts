@@ -1040,6 +1040,20 @@ describe('MapView', () => {
     expect(wrapper.find('[data-testid="map-recenter"]').exists()).toBe(false)
   })
 
+  // SPA-494: on the flush phone map the controls grow to 40px for a thumb, so
+  // the recenter button matches them and sits one 40px button lower.
+  it('sizes the recenter button for a thumb on the flush phone map', async () => {
+    const wrapper = mount(MapView, { props: { ...defaultProps, routes: [stubRoute], flush: true } })
+    await triggerMapLoad()
+    expect(wrapper.get('[data-testid="map-recenter"]').classes()).toEqual(expect.arrayContaining(['size-10', 'top-[60px]']))
+  })
+
+  it('keeps the recenter button at MapLibre\'s 29px size off the phone layout', async () => {
+    const wrapper = mount(MapView, { props: { ...defaultProps, routes: [stubRoute] } })
+    await triggerMapLoad()
+    expect(wrapper.get('[data-testid="map-recenter"]').classes()).toEqual(expect.arrayContaining(['size-[29px]', 'top-[49px]']))
+  })
+
   it('animates the map back to the route frame when recenter is pressed', async () => {
     const wrapper = mount(MapView, { props: { ...defaultProps, routes: [stubRoute] } })
     await triggerMapLoad()

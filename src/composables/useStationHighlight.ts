@@ -1,4 +1,4 @@
-import { Popup, type Map, type MapLayerMouseEvent } from 'maplibre-gl'
+import { Popup, type Map, type MapLayerMouseEvent, type MapMouseEvent } from 'maplibre-gl'
 import type { MapModule } from './mapLifecycle'
 import { PROGRESS_CAP_HIT_LAYER_ID, STATION_DOTS_LAYER_ID } from './useRouteLayer'
 import { TOOLTIP_MAP_POPUP_CLASS, progressTooltipContent, stationTooltipContent } from '../components/tooltip'
@@ -63,6 +63,7 @@ export function useStationHighlight(map: Map, callbacks: StationHighlightCallbac
     maxWidth: 'none',
   })
   let hovered: HighlightedStation | null = null
+  let tapped: HighlightedStation | null = null
   let cap: UnfinishedCap | null = null
 
   function applyHighlight(): void {
@@ -95,15 +96,16 @@ export function useStationHighlight(map: Map, callbacks: StationHighlightCallbac
     // anyway would leave the map annotating something nobody is pointing at.
     // The unfinished-leg cap is the other thing that can sit under the pointer:
     // it is not a station, so it takes the popup without promoting a polygon.
+    const shown = hovered ?? tapped
     if (cap) {
       popup
         .setLngLat(cap.lngLat)
         .setDOMContent(progressTooltipContent(cap.fraction, callbacks.stationName(cap.to), cap.rideSecs))
         .addTo(map)
-    } else if (hovered) {
+    } else if (shown) {
       popup
-        .setLngLat(hovered.lngLat)
-        .setDOMContent(stationTooltipContent(hovered.name, callbacks.remainingSecs(hovered.slug)))
+        .setLngLat(shown.lngLat)
+        .setDOMContent(stationTooltipContent(shown.name, callbacks.remainingSecs(shown.slug)))
         .addTo(map)
     } else {
       popup.remove()
@@ -123,8 +125,29 @@ export function useStationHighlight(map: Map, callbacks: StationHighlightCallbac
     hovered = null
     if (!cap) {
       canvas.style.cursor = callbacks.idleCursor()
-      callbacks.onHover(null)
+      callbacks.onHover(tapped?.slug ?? null)
     }
+    applyHighlight()
+  }
+
+  // A touch screen has no hover: its emulated mouse events arrive with a tap
+  // and leave with the next one, so the name would only flicker. A tapped
+  // station holds until a tap lands off the dots.
+  function handleTap(event: MapLayerMouseEvent): void {
+    const station = stationOf(event)
+    if (!station) return
+    // Tells the map-wide listener below, which sees this same event next,
+    // that the tap landed on a dot.
+    event.preventDefault()
+    tapped = station
+    if (!cap) callbacks.onHover(station.slug)
+    applyHighlight()
+  }
+
+  function handleTapElsewhere(event: MapMouseEvent): void {
+    if (event.defaultPrevented || !tapped) return
+    tapped = null
+    if (!cap && !hovered) callbacks.onHover(null)
     applyHighlight()
   }
 
@@ -135,23 +158,22 @@ export function useStationHighlight(map: Map, callbacks: StationHighlightCallbac
     canvas.style.cursor = 'pointer'
     // The cap is not a station: drop any leftover polygon promote while the
     // pointer is explaining the unfinished hop.
-    if (hovered) callbacks.onHover(null)
+    if (hovered ?? tapped) callbacks.onHover(null)
     applyHighlight()
   }
 
   function handleCapLeave(): void {
     cap = null
-    if (hovered) {
-      canvas.style.cursor = 'pointer'
-      callbacks.onHover(hovered.slug)
-    } else {
-      canvas.style.cursor = callbacks.idleCursor()
-    }
+    canvas.style.cursor = hovered ? 'pointer' : callbacks.idleCursor()
+    const underneath = hovered ?? tapped
+    if (underneath) callbacks.onHover(underneath.slug)
     applyHighlight()
   }
 
   map.on('mouseenter', STATION_DOTS_LAYER_ID, handleEnter)
   map.on('mouseleave', STATION_DOTS_LAYER_ID, handleLeave)
+  map.on('click', STATION_DOTS_LAYER_ID, handleTap)
+  map.on('click', handleTapElsewhere)
   // Bound to the unpainted hit circle, not the 3.5px disc: MapLibre hit-tests
   // painted radius, and the visible cap is too small to find at state zoom.
   map.on('mouseenter', PROGRESS_CAP_HIT_LAYER_ID, handleCapEnter)
