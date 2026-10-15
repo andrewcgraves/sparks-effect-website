@@ -36,12 +36,25 @@ export const MAP_CREDITS = [
 
 const MAX_PIXEL_RATIO = 2
 
+// Out of callers' reach, so no page can turn tilting or turning back on.
+type FlatMapOption = 'maxPitch' | 'dragRotate' | 'pitchWithRotate' | 'touchPitch' | 'rollEnabled'
+
 export function createSiteMap(
-  options: Omit<MapOptions, 'style' | 'attributionControl'>,
+  options: Omit<MapOptions, 'style' | 'attributionControl' | FlatMapOption>,
   credits: { compact?: boolean } = {},
 ): Map {
-  return new Map({
+  const map = new Map({
     style: resolveMapStyleUrl(),
+    // Every map stays flat and north-up (SPA-498): splash zones and lines are
+    // flat fills and lines, so a tilt or a turn only makes them harder to
+    // read, and the recenter button and every fit keep the visitor's angle,
+    // so nothing would undo one. Roll is already off by default. A
+    // NavigationControl, if one is ever added, wants
+    // `{ showCompass: false, visualizePitch: false }`.
+    maxPitch: 0,
+    dragRotate: false,
+    pitchWithRotate: false,
+    touchPitch: false,
     // Past 2× the extra sharpness is hard to see, and a 3× phone or laptop
     // pays more than twice 2×'s pixels for it on every frame (SPA-492).
     pixelRatio: Math.min(window.devicePixelRatio, MAX_PIXEL_RATIO),
@@ -52,6 +65,11 @@ export function createSiteMap(
       : { compact: credits.compact, customAttribution: MAP_CREDITS },
     ...options,
   })
+  // Neither has a constructor option. A two-finger twist still pans and
+  // zooms; the keyboard one also stops Shift+↑/↓ pitching.
+  map.touchZoomRotate.disableRotation()
+  map.keyboard.disableRotation()
+  return map
 }
 
 export interface SplashZoneInputs {

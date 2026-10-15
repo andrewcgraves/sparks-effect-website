@@ -6,9 +6,18 @@ import { layerStack } from './layerStack'
 import { resolveIsochroneColors } from './useIsochroneLayer'
 import { TOUR_SAMPLE } from '../fixtures/tourSample'
 
-const { MockMap } = vi.hoisted(() => ({
-  MockMap: vi.fn().mockImplementation(function () {}),
-}))
+const { MockMap, disableTouchRotation, disableKeyboardRotation } = vi.hoisted(() => {
+  const disableTouchRotation = vi.fn()
+  const disableKeyboardRotation = vi.fn()
+  return {
+    disableTouchRotation,
+    disableKeyboardRotation,
+    MockMap: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
+      this['touchZoomRotate'] = { disableRotation: disableTouchRotation }
+      this['keyboard'] = { disableRotation: disableKeyboardRotation }
+    }),
+  }
+})
 
 vi.mock('maplibre-gl', () => ({
   setWorkerUrl: vi.fn(),
@@ -58,6 +67,36 @@ describe('createSiteMap', () => {
       vi.stubGlobal('devicePixelRatio', 1.5)
       createSiteMap({ container: document.createElement('div') })
       expect(MockMap.mock.calls.at(-1)![0].pixelRatio).toBe(1.5)
+    })
+  })
+
+  describe('flat and north-up', () => {
+    afterEach(() => {
+      disableTouchRotation.mockClear()
+      disableKeyboardRotation.mockClear()
+    })
+
+    it('never tilts or turns from a drag', () => {
+      createSiteMap({ container: document.createElement('div') })
+      expect(MockMap.mock.calls.at(-1)![0]).toMatchObject({
+        maxPitch: 0,
+        dragRotate: false,
+        pitchWithRotate: false,
+        touchPitch: false,
+      })
+    })
+
+    it('never turns from a two-finger twist or the keyboard', () => {
+      createSiteMap({ container: document.createElement('div') })
+      expect(disableTouchRotation).toHaveBeenCalledOnce()
+      expect(disableKeyboardRotation).toHaveBeenCalledOnce()
+    })
+
+    it('stays flat on the tour map too', () => {
+      createSiteMap({ container: document.createElement('div'), interactive: false }, { compact: true })
+      expect(MockMap.mock.calls.at(-1)![0]).toMatchObject({ maxPitch: 0, dragRotate: false })
+      expect(disableTouchRotation).toHaveBeenCalledOnce()
+      expect(disableKeyboardRotation).toHaveBeenCalledOnce()
     })
   })
 

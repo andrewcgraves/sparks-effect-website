@@ -47,6 +47,8 @@ vi.mock('maplibre-gl', () => ({
     this['cameraForBounds'] = () => ({ center: [0, 0], zoom: 8 })
     this['resize'] = vi.fn()
     this['remove'] = map.remove
+    this['touchZoomRotate'] = { disableRotation: vi.fn() }
+    this['keyboard'] = { disableRotation: vi.fn() }
   }),
   Marker: vi.fn().mockImplementation(function (this: Record<string, unknown>, options?: { element?: HTMLElement }) {
     if (options?.element) map.markerElements.push(options.element)

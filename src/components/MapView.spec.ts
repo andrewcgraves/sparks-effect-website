@@ -140,6 +140,8 @@ vi.mock('maplibre-gl', () => ({
     this['setPaintProperty'] = mockSetPaintProperty
     this['setFilter'] = mockSetFilter
     this['getZoom'] = mockGetZoom
+    this['touchZoomRotate'] = { disableRotation: vi.fn() }
+    this['keyboard'] = { disableRotation: vi.fn() }
     this['doubleClickZoom'] = {
       enable: mockDoubleClickZoomEnable,
       disable: mockDoubleClickZoomDisable,
