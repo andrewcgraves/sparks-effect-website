@@ -16,10 +16,11 @@ import {
   type TourCallout,
 } from './tourHighlight'
 import type { TourStep } from './tourSteps'
+import { NO_INSET, cameraPadding, clearView, type TourInset } from './tourInset'
 import LoadingRegion from './LoadingRegion.vue'
 import SkeletonShape from './SkeletonShape.vue'
 
-const props = defineProps<{ step: TourStep | null }>()
+const props = withDefaults(defineProps<{ step: TourStep | null; inset?: TourInset }>(), { inset: () => NO_INSET })
 
 const TRANSITION_MS = 300
 const CAMERA_MS = 900
@@ -84,8 +85,11 @@ function placeCallout(step: TourStep): void {
   const label = { width: element.offsetWidth, height: element.offsetHeight }
   element.remove()
   element.style.visibility = ''
+  // Only the part of the map nothing floats over counts, so a label crosses
+  // to its point's other side rather than run under the step box.
   const size = { width: container.value.clientWidth, height: container.value.clientHeight }
-  const anchor = fitAnchor(c.anchor, map.project(c.lngLat), size, label, CALLOUT_GAP_PX)
+  const { point, frame } = clearView(props.inset, map.project(c.lngLat), size)
+  const anchor = fitAnchor(c.anchor, point, frame, label, CALLOUT_GAP_PX)
   // MapLibre cannot re-anchor a marker, so each step gets a new one.
   callout = new MarkerClass({ element, anchor, offset: CALLOUT_OFFSET[anchor] }).setLngLat(c.lngLat).addTo(map)
 }
@@ -93,7 +97,7 @@ function placeCallout(step: TourStep): void {
 function moveCamera(step: TourStep | null, instant: boolean): void {
   if (!map) return
   const { corners, maxZoom } = cameraBounds(step?.camera ?? 'regional', sample)
-  const padding = matchesMedia(TOUR_WIDE_QUERY) ? 48 : 24
+  const padding = cameraPadding(props.inset, matchesMedia(TOUR_WIDE_QUERY) ? 48 : 24)
   const token = ++placing
   const settle = () => {
     if (token === placing && step) placeCallout(step)
@@ -190,6 +194,11 @@ async function init(): Promise<void> {
 }
 
 watch(() => props.step, (step) => apply(step))
+watch(() => props.inset, () => {
+  if (!map || !loaded.value) return
+  clearCallout()
+  moveCamera(props.step, true)
+})
 
 onMounted(() => {
   if (!frame.value || typeof IntersectionObserver === 'undefined') return
@@ -221,13 +230,13 @@ onUnmounted(() => {
 <template>
   <figure
     ref="frame"
-    class="tour-frame relative m-0 h-full w-full overflow-hidden bg-surface lg:rounded-(--radius-box) lg:border lg:border-border"
+    class="tour-frame relative m-0 h-full w-full overflow-hidden bg-surface"
     :data-marker-lit="markerLit"
     data-testid="tour-map"
   >
     <figcaption class="sr-only">
       A splash zone: {{ sample.budget_mins }} minutes by Transit from {{ sample.start.label }}, on the
-      California High-Speed Rail network. Each step beside it says what is highlighted.
+      California High-Speed Rail network. Each step that follows says what is highlighted.
     </figcaption>
     <div
       ref="container"
@@ -247,14 +256,6 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-/* MapLibre's canvas gets its own compositor layer, which `overflow: hidden`
-   does not reliably clip to a rounded corner; see MapView. */
-@media (min-width: 64rem) {
-  .tour-frame {
-    clip-path: inset(0 round var(--radius-box));
-  }
-}
-
 /* The map is a picture here, not a control: swipes and wheels scroll the page. */
 .tour-frame :deep(.maplibregl-canvas-container),
 .tour-frame :deep(.maplibregl-canvas) {

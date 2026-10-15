@@ -1,14 +1,19 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent, h, type PropType } from 'vue'
+import { defineComponent, h, nextTick, type PropType } from 'vue'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { seriousA11yViolations } from '../test/axe'
 import MapTour from './MapTour.vue'
 import { TOUR_STEPS, type TourStep } from './tourSteps'
+import type { TourInset } from './tourInset'
 
 vi.mock('./TourMap.vue', () => ({
   default: defineComponent({
-    props: { step: { type: Object as PropType<TourStep | null>, default: null } },
-    setup: (props) => () => h('div', { 'data-testid': 'tour-map', 'data-step': props.step?.id ?? '' }),
+    props: {
+      step: { type: Object as PropType<TourStep | null>, default: null },
+      inset: { type: Object as PropType<TourInset>, default: undefined },
+    },
+    setup: (props) => () =>
+      h('div', { 'data-testid': 'tour-map', 'data-step': props.step?.id ?? '', 'data-inset-left': props.inset?.left }),
   }),
 }))
 
@@ -17,6 +22,8 @@ let wrapper: VueWrapper | undefined
 afterEach(() => {
   wrapper?.unmount()
   wrapper = undefined
+  vi.unstubAllGlobals()
+  vi.restoreAllMocks()
 })
 
 function mountTour() {
@@ -67,6 +74,30 @@ describe('MapTour', () => {
     await next(w).trigger('click')
     expect(mapStep(w)).toBe(TOUR_STEPS[0].id)
     expect(next(w).text()).toBe('Next')
+  })
+
+  it('tells the map how much of its left side the floating card covers', async () => {
+    vi.stubGlobal('matchMedia', () => ({ matches: true }))
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const right = this.dataset.testid === 'map-tour-card' ? 88 + 340 : 1440
+      return { left: 0, right } as DOMRect
+    })
+    const w = mountTour()
+    await nextTick()
+    expect(w.get('[data-testid="tour-map"]').attributes('data-inset-left')).toBe('428')
+  })
+
+  it('leaves the map uncovered on a phone, where the card sits below it', () => {
+    vi.stubGlobal('matchMedia', () => ({ matches: false }))
+    const w = mountTour()
+    expect(w.get('[data-testid="tour-map"]').attributes('data-inset-left')).toBe('0')
+  })
+
+  it('keeps the card after the map, so it is read and tabbed to after it', () => {
+    const w = mountTour()
+    const order = w.findAll('[data-testid="tour-map"], [data-testid="map-tour-card"], button').map((e) =>
+      e.attributes('data-testid'))
+    expect(order).toEqual(['tour-map', 'map-tour-card', 'map-tour-back', 'map-tour-next'])
   })
 
   it('has no serious accessibility violations, at the start or mid-tour', async () => {
