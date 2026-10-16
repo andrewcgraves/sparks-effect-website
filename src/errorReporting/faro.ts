@@ -1,7 +1,6 @@
-import type { App } from 'vue'
 import type { Router } from 'vue-router'
 import { getWebInstrumentations, initializeFaro } from '@grafana/faro-web-sdk'
-import { configureErrorSink, reportError } from './index'
+import { configureErrorSink } from './index'
 import { environmentFor } from './environment'
 import { scrubItem } from './scrub'
 import { FARO_APP_NAME } from './appName'
@@ -23,7 +22,7 @@ function routePattern(router: Router): string {
 
 // Grafana Cloud Frontend Observability, so the website's errors land beside
 // the API's and the worker's, and alert from the same place (SPA-380).
-export function startErrorReporting(app: App, router: Router, options: FaroOptions): void {
+export function startErrorReporting(router: Router, options: FaroOptions): void {
   const faro = initializeFaro({
     url: options.collectorUrl,
     app: {
@@ -45,12 +44,6 @@ export function startErrorReporting(app: App, router: Router, options: FaroOptio
       context: { route: routePattern(router), ...context },
     })
   })
-
-  // Replacing Vue's handler also replaces its console output, so it is kept.
-  app.config.errorHandler = (error, _instance, info) => {
-    reportError(error, { vue_info: info })
-    console.error(error)
-  }
 
   router.afterEach(() => {
     faro.api.setView({ name: routePattern(router) })
