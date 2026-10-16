@@ -587,4 +587,60 @@ describe('IsochroneForm', () => {
       }
     })
   })
+
+  // SPA-501: a saved splash zone is a starting point, so choosing one fills
+  // the form with the question it answered.
+  describe('filled from a saved splash zone', () => {
+    function checked(wrapper: ReturnType<typeof mount>, testid: string): boolean {
+      return (wrapper.get(`input[data-testid="${testid}"]`).element as HTMLInputElement).checked
+    }
+
+    it('takes its starting point, travel time and mode, and moves the pin there', async () => {
+      const wrapper = mount(IsochroneForm)
+
+      wrapper.vm.fill({ lat: 34.0555, lng: -118.2341, duration: 120, mode: 'transit' })
+      await flushPromises()
+
+      expect((wrapper.get('[data-testid="lat"]').element as HTMLInputElement).value).toBe('34.0555')
+      expect((wrapper.get('[data-testid="lng"]').element as HTMLInputElement).value).toBe('-118.2341')
+      expect(checked(wrapper, 'duration-slider-option-120')).toBe(true)
+      expect(checked(wrapper, 'mode-transit')).toBe(true)
+      expect(wrapper.emitted('origin-change')!.at(-1)).toEqual([{ lat: 34.0555, lng: -118.2341 }])
+    })
+
+    it('shows a travel time the form does not offer as its own option, not rounded', async () => {
+      const wrapper = mount(IsochroneForm)
+
+      wrapper.vm.fill({ lat: 34.0555, lng: -118.2341, duration: 90, mode: 'transit' })
+      await flushPromises()
+
+      const options = wrapper.findAll('input[name="duration"]').map((o) => Number((o.element as HTMLInputElement).value))
+      expect(options).toEqual([45, 60, 75, 90, 120, 180, 240])
+      expect(checked(wrapper, 'duration-slider-option-90')).toBe(true)
+
+      await wrapper.find('form').trigger('submit')
+      expect(wrapper.emitted('submit')![0]).toEqual([{ lat: 34.0555, lng: -118.2341, duration: 90, mode: 'transit' }])
+    })
+
+    it('drops the extra option once a later one is on the list', async () => {
+      const wrapper = mount(IsochroneForm)
+
+      wrapper.vm.fill({ lat: 1, lng: 2, duration: 90, mode: 'walk' })
+      await flushPromises()
+      wrapper.vm.fill({ lat: 1, lng: 2, duration: 60, mode: 'walk' })
+      await flushPromises()
+
+      expect(wrapper.find('input[data-testid="duration-slider-option-90"]').exists()).toBe(false)
+    })
+  })
+
+  it('leaves the box and heading to its host when unframed', () => {
+    const framed = mount(IsochroneForm)
+    const bare = mount(IsochroneForm, { props: { framed: false } })
+
+    expect(framed.find('h2').text()).toBe('Plot a splash zone')
+    expect(framed.get('form').classes()).toContain('border')
+    expect(bare.find('h2').exists()).toBe(false)
+    expect(bare.get('form').classes()).not.toContain('border')
+  })
 })

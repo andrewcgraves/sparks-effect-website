@@ -12,5 +12,5 @@ export function useOriginPick() {
     form.value?.setOriginFromMap(coord)
   }
 
-  return { pickArmed, onMapClick }
+  return { pickArmed, onMapClick, form }
 }

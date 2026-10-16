@@ -4,6 +4,7 @@ import IsochroneForm from '../IsochroneForm.vue'
 import CopyLinkButton from '../components/CopyLinkButton.vue'
 import MapView from '../components/MapView.vue'
 import { PLOT_WITHOUT_MAP } from '../components/mapLoad'
+import PlotPanel from '../components/PlotPanel.vue'
 import PrerenderedIsochrones from '../components/PrerenderedIsochrones.vue'
 import RoutingStatusBanner from '../components/RoutingStatusBanner.vue'
 import TimeBetweenStations from '../components/TimeBetweenStations.vue'
@@ -21,7 +22,8 @@ import { usePageTitle } from '../composables/usePageTitle'
 import AllLinesLink from '../components/AllLinesLink.vue'
 import { useIsochroneQuery } from '../composables/useIsochroneQuery'
 import type { IsochronePayload } from '../isochroneQuery'
-import type { ChainResponse } from '../fixtures/isochrone'
+import type { PrerenderedIsochrone } from '../api/prerenderedIsochrones'
+import { TRAVEL_MODES, type TravelMode } from '../api/authoring/types'
 import LoadingRegion from '../components/LoadingRegion.vue'
 import SkeletonShape from '../components/SkeletonShape.vue'
 import PhoneMapPage from '../components/PhoneMapPage.vue'
@@ -32,7 +34,7 @@ import { UNNAMED_LINE, UNNAMED_STATION } from '../copy/names'
 const props = defineProps<{ slug: string }>()
 
 const origin = ref<{ lat: number; lng: number } | null>(null)
-const { pickArmed, onMapClick } = useOriginPick()
+const { pickArmed, onMapClick, form: isochroneForm } = useOriginPick()
 const { status: routingStatus, offline } = useRoutingStatus()
 const hasExamples = ref<boolean | null>(null)
 
@@ -122,9 +124,14 @@ const { initial: linkedIsochrone, submit: submitIsochrone, forget: forgetIsochro
   ready: () => stations.value.length > 0,
 })
 
-function onPrerenderedSelect(result: ChainResponse) {
-  showIsochrone(result)
+function onPrerenderedSelect(entry: PrerenderedIsochrone) {
+  showIsochrone(entry.result)
   void forgetIsochrone()
+  // The form becomes the saved splash zone's question, so the pin moves to its
+  // starting point and Plot your own can adjust it from there.
+  const mode = TRAVEL_MODES.find((m): m is TravelMode => m === entry.mode)
+  if (!mode) return
+  isochroneForm.value?.fill({ lat: entry.lat, lng: entry.lng, duration: entry.budget_mins, mode })
 }
 
 const isPhone = useIsPhone()
@@ -174,31 +181,33 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
           :status="routingStatus"
           :has-examples="hasExamples"
         />
-        <PrerenderedIsochrones
-          v-if="offline"
-          v-model:selected-id="selectedPrerenderedId"
-          :slug="props.slug"
-          @select="onPrerenderedSelect"
-          @available="hasExamples = $event"
-        />
-        <IsochroneForm
-          ref="isochroneForm"
-          :error="fetchError"
-          :loading="isLoading"
+        <PlotPanel
+          :has-saved="hasExamples"
           :offline="offline"
-          :initial="linkedIsochrone"
-          @submit="submitIsochrone"
-          @origin-change="onOriginChange"
-          @pick-armed="pickArmed = $event"
-        />
+        >
+          <template #plot>
+            <IsochroneForm
+              ref="isochroneForm"
+              :error="fetchError"
+              :loading="isLoading"
+              :offline="offline"
+              :initial="linkedIsochrone"
+              :framed="false"
+              @submit="submitIsochrone"
+              @origin-change="onOriginChange"
+              @pick-armed="pickArmed = $event"
+            />
+          </template>
+          <template #saved>
+            <PrerenderedIsochrones
+              v-model:selected-id="selectedPrerenderedId"
+              :slug="props.slug"
+              @select="onPrerenderedSelect"
+              @available="hasExamples = $event"
+            />
+          </template>
+        </PlotPanel>
         <CopyLinkButton v-if="shareable" />
-        <PrerenderedIsochrones
-          v-if="!offline"
-          v-model:selected-id="selectedPrerenderedId"
-          :slug="props.slug"
-          @select="onPrerenderedSelect"
-          @available="hasExamples = $event"
-        />
       </template>
       <template #panel-results>
         <TimeRemaining
@@ -291,34 +300,33 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
           :status="routingStatus"
           :has-examples="hasExamples"
         />
-        <!-- With live routing offline the saved splash zones are the page's answer,
-             so they come ahead of a form that cannot plot — in the DOM, not
-             just on screen, so keyboard and screen-reader order agree. -->
-        <PrerenderedIsochrones
-          v-if="offline"
-          v-model:selected-id="selectedPrerenderedId"
-          :slug="props.slug"
-          @select="onPrerenderedSelect"
-          @available="hasExamples = $event"
-        />
-        <IsochroneForm
-          ref="isochroneForm"
-          :error="fetchError"
-          :loading="isLoading"
+        <PlotPanel
+          :has-saved="hasExamples"
           :offline="offline"
-          :initial="linkedIsochrone"
-          @submit="submitIsochrone"
-          @origin-change="onOriginChange"
-          @pick-armed="pickArmed = $event"
-        />
+        >
+          <template #plot>
+            <IsochroneForm
+              ref="isochroneForm"
+              :error="fetchError"
+              :loading="isLoading"
+              :offline="offline"
+              :initial="linkedIsochrone"
+              :framed="false"
+              @submit="submitIsochrone"
+              @origin-change="onOriginChange"
+              @pick-armed="pickArmed = $event"
+            />
+          </template>
+          <template #saved>
+            <PrerenderedIsochrones
+              v-model:selected-id="selectedPrerenderedId"
+              :slug="props.slug"
+              @select="onPrerenderedSelect"
+              @available="hasExamples = $event"
+            />
+          </template>
+        </PlotPanel>
         <CopyLinkButton v-if="shareable" />
-        <PrerenderedIsochrones
-          v-if="!offline"
-          v-model:selected-id="selectedPrerenderedId"
-          :slug="props.slug"
-          @select="onPrerenderedSelect"
-          @available="hasExamples = $event"
-        />
         <TimeRemaining
           v-if="timeRemaining.views.length"
           :views="timeRemaining.views"
