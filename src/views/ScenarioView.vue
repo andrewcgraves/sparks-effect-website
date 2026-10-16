@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useRoute } from 'vue-router'
+import PlotPanelPrototype, { type PlotPanelVariant } from '../components/PlotPanelPrototype.vue'
+import PrototypeSwitcher from '../components/PrototypeSwitcher.vue'
 import IsochroneForm from '../IsochroneForm.vue'
 import CopyLinkButton from '../components/CopyLinkButton.vue'
 import MapView from '../components/MapView.vue'
@@ -33,7 +36,27 @@ const props = defineProps<{ slug: string }>()
 
 const origin = ref<{ lat: number; lng: number } | null>(null)
 const { pickArmed, onMapClick } = useOriginPick()
-const { status: routingStatus, offline } = useRoutingStatus()
+const { status: liveRoutingStatus, offline: liveOffline } = useRoutingStatus()
+
+// PROTOTYPE (SPA-501): ?variant= picks a plot panel; ?offline=1 fakes routing
+// offline. Dev builds only.
+const route = useRoute()
+const PLOT_PANEL_VARIANTS = [
+  { key: 'today', name: 'Today, two boxes' },
+  { key: 'A', name: 'Chip row' },
+  { key: 'B', name: 'Compact list' },
+  { key: 'C', name: 'Slider: Saved | Plot your own' },
+  { key: 'D', name: 'Expand' },
+  { key: 'E', name: 'Popup' },
+]
+const plotVariant = computed(() => {
+  if (!import.meta.env.DEV) return 'today'
+  const v = route.query.variant
+  return typeof v === 'string' && PLOT_PANEL_VARIANTS.some((x) => x.key === v) ? v : 'today'
+})
+const fakeOffline = computed(() => import.meta.env.DEV && route.query.offline === '1')
+const offline = computed(() => fakeOffline.value || liveOffline.value)
+const routingStatus = computed(() => (fakeOffline.value ? 'offline' : liveRoutingStatus.value))
 const hasExamples = ref<boolean | null>(null)
 
 const { name, subtext, description, routes, stations, services, loading: scenarioLoading } = useScenario(props.slug)
@@ -174,15 +197,12 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
           :status="routingStatus"
           :has-examples="hasExamples"
         />
-        <PrerenderedIsochrones
-          v-if="offline"
-          v-model:selected-id="selectedPrerenderedId"
-          :slug="props.slug"
-          @select="onPrerenderedSelect"
-          @available="hasExamples = $event"
-        />
-        <IsochroneForm
+        <PlotPanelPrototype
+          v-if="plotVariant !== 'today'"
           ref="isochroneForm"
+          v-model:selected-id="selectedPrerenderedId"
+          :variant="plotVariant as PlotPanelVariant"
+          :slug="props.slug"
           :error="fetchError"
           :loading="isLoading"
           :offline="offline"
@@ -190,15 +210,37 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
           @submit="submitIsochrone"
           @origin-change="onOriginChange"
           @pick-armed="pickArmed = $event"
-        />
-        <CopyLinkButton v-if="shareable" />
-        <PrerenderedIsochrones
-          v-if="!offline"
-          v-model:selected-id="selectedPrerenderedId"
-          :slug="props.slug"
           @select="onPrerenderedSelect"
           @available="hasExamples = $event"
         />
+        <CopyLinkButton v-if="plotVariant !== 'today' && shareable" />
+        <template v-if="plotVariant === 'today'">
+          <PrerenderedIsochrones
+            v-if="offline"
+            v-model:selected-id="selectedPrerenderedId"
+            :slug="props.slug"
+            @select="onPrerenderedSelect"
+            @available="hasExamples = $event"
+          />
+          <IsochroneForm
+            ref="isochroneForm"
+            :error="fetchError"
+            :loading="isLoading"
+            :offline="offline"
+            :initial="linkedIsochrone"
+            @submit="submitIsochrone"
+            @origin-change="onOriginChange"
+            @pick-armed="pickArmed = $event"
+          />
+          <CopyLinkButton v-if="shareable" />
+          <PrerenderedIsochrones
+            v-if="!offline"
+            v-model:selected-id="selectedPrerenderedId"
+            :slug="props.slug"
+            @select="onPrerenderedSelect"
+            @available="hasExamples = $event"
+          />
+        </template>
       </template>
       <template #panel-results>
         <TimeRemaining
@@ -294,15 +336,12 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
         <!-- With live routing offline the saved splash zones are the page's answer,
              so they come ahead of a form that cannot plot — in the DOM, not
              just on screen, so keyboard and screen-reader order agree. -->
-        <PrerenderedIsochrones
-          v-if="offline"
-          v-model:selected-id="selectedPrerenderedId"
-          :slug="props.slug"
-          @select="onPrerenderedSelect"
-          @available="hasExamples = $event"
-        />
-        <IsochroneForm
+        <PlotPanelPrototype
+          v-if="plotVariant !== 'today'"
           ref="isochroneForm"
+          v-model:selected-id="selectedPrerenderedId"
+          :variant="plotVariant as PlotPanelVariant"
+          :slug="props.slug"
           :error="fetchError"
           :loading="isLoading"
           :offline="offline"
@@ -310,15 +349,37 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
           @submit="submitIsochrone"
           @origin-change="onOriginChange"
           @pick-armed="pickArmed = $event"
-        />
-        <CopyLinkButton v-if="shareable" />
-        <PrerenderedIsochrones
-          v-if="!offline"
-          v-model:selected-id="selectedPrerenderedId"
-          :slug="props.slug"
           @select="onPrerenderedSelect"
           @available="hasExamples = $event"
         />
+        <CopyLinkButton v-if="plotVariant !== 'today' && shareable" />
+        <template v-if="plotVariant === 'today'">
+          <PrerenderedIsochrones
+            v-if="offline"
+            v-model:selected-id="selectedPrerenderedId"
+            :slug="props.slug"
+            @select="onPrerenderedSelect"
+            @available="hasExamples = $event"
+          />
+          <IsochroneForm
+            ref="isochroneForm"
+            :error="fetchError"
+            :loading="isLoading"
+            :offline="offline"
+            :initial="linkedIsochrone"
+            @submit="submitIsochrone"
+            @origin-change="onOriginChange"
+            @pick-armed="pickArmed = $event"
+          />
+          <CopyLinkButton v-if="shareable" />
+          <PrerenderedIsochrones
+            v-if="!offline"
+            v-model:selected-id="selectedPrerenderedId"
+            :slug="props.slug"
+            @select="onPrerenderedSelect"
+            @available="hasExamples = $event"
+          />
+        </template>
         <TimeRemaining
           v-if="timeRemaining.views.length"
           :views="timeRemaining.views"
@@ -349,4 +410,9 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
       </section>
     </div>
   </main>
+  <PrototypeSwitcher
+    :variants="PLOT_PANEL_VARIANTS"
+    :current="plotVariant"
+    :toggles="[{ key: 'offline', label: 'offline' }, { key: 'outdated', label: 'out of date' }]"
+  />
 </template>

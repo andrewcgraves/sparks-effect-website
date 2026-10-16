@@ -110,6 +110,11 @@ export default defineConfig(({ command, mode }) => {
   const uploadingSourceMaps = upload.length > 0
   return {
     plugins: [vue(), tailwindcss(), preconnectPlugin(apiBaseUrl, stadiaApiKey), linkPreviewPlugin(), ...upload],
+    // PROTOTYPE (SPA-501): `make prototype` proxies /api to staging, whose CORS
+    // does not admit localhost.
+    server: process.env.PROTOTYPE_API_PROXY
+      ? { proxy: { '/api': { target: process.env.PROTOTYPE_API_PROXY, changeOrigin: true } } }
+      : undefined,
     build: {
       sourcemap: uploadingSourceMaps ? 'hidden' : false,
     },

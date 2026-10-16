@@ -1,4 +1,4 @@
-.PHONY: install test typecheck build run dev lint clean dev-workflow tour-fixture
+.PHONY: install test typecheck build run dev lint clean dev-workflow tour-fixture prototype
 
 NODE_MODULES := node_modules/.install-stamp
 
@@ -27,6 +27,11 @@ run: build
 # development. Binds all interfaces so it is reachable outside the container.
 dev: install
 	npm run dev -- --host
+
+# PROTOTYPE (SPA-501): plot panel variants against staging data.
+# Open http://localhost:5199/scenario/ca-hsr?variant=A and use ← / →.
+prototype: install
+	PROTOTYPE_API_PROXY=https://sparks-effect-api-staging.up.railway.app VITE_API_BASE_URL=http://localhost:5199 npm run dev -- --host --port 5199 --strictPort
 
 # Non-interactive check an agent can run end-to-end: lint, typecheck, test, and
 # build, without starting a long-running server.

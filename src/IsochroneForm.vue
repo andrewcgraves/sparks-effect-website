@@ -30,8 +30,10 @@ const props = withDefaults(
     loading?: boolean
     offline?: boolean
     initial?: Partial<IsochronePayload>
+    // PROTOTYPE (SPA-501): the variant owns the box and heading.
+    bare?: boolean
   }>(),
-  { error: null, loading: false, offline: false, initial: () => ({}) },
+  { error: null, loading: false, offline: false, initial: () => ({}), bare: false },
 )
 
 const emit = defineEmits<{
@@ -113,7 +115,26 @@ function setOriginFromMap(coord: { lat: number; lng: number }) {
   addressAutocompleteRef.value?.setInputValue('')
 }
 
-defineExpose({ setOriginFromMap })
+// PROTOTYPE (SPA-501): a saved splash zone fills the whole form. A travel time
+// outside DURATION_OPTIONS joins the options as an extra, rather than rounding.
+const extraDuration = ref<number | null>(null)
+const durationOptions = computed(() =>
+  extraDuration.value === null
+    ? DURATION_OPTIONS
+    : [...DURATION_OPTIONS, extraDuration.value].sort((a, b) => a - b),
+)
+
+function fillFrom(preset: { lat: number; lng: number; duration: number; mode: TravelMode; place?: string }) {
+  pickArmed.value = false
+  extraDuration.value = DURATION_OPTIONS.includes(preset.duration) ? null : preset.duration
+  lat.value = String(preset.lat)
+  lng.value = String(preset.lng)
+  duration.value = preset.duration
+  mode.value = preset.mode
+  addressAutocompleteRef.value?.setInputValue(preset.place ?? '')
+}
+
+defineExpose({ setOriginFromMap, fillFrom })
 
 function onAutocompleteSelect(suggestion: GeocodingSuggestion) {
   pickArmed.value = false
@@ -167,12 +188,18 @@ function handleSubmit() {
 
 <template>
   <form
-    class="flex flex-col gap-4 rounded-(--radius-box) border border-border bg-surface p-4"
+    class="flex flex-col gap-4"
+    :class="bare ? '' : 'rounded-(--radius-box) border border-border bg-surface p-4'"
     @submit.prevent="handleSubmit"
   >
-    <h2 class="font-display text-h3 text-ink-true">
+    <h2
+      v-if="!bare"
+      class="font-display text-h3 text-ink-true"
+    >
       Plot a splash zone
     </h2>
+
+    <slot name="presets" />
 
     <div class="flex flex-col gap-2">
       <AddressAutocomplete
@@ -213,20 +240,23 @@ function handleSubmit() {
           </button>
         </template>
       </AddressAutocomplete>
-      <button
-        type="button"
-        class="font-display text-btn self-start uppercase transition-colors duration-200 ease-(--ease-smooth) hover:text-coral"
-        :class="[HIT_AREA_CLASS, pickArmed ? 'text-coral' : 'text-ink-muted']"
-        data-testid="pick-on-map"
-        @click="pickArmed = !pickArmed"
-      >
-        <template v-if="pickArmed">
-          Cancel
-        </template>
-        <template v-else>
-          <span aria-hidden="true">📍</span> Pick starting point on map
-        </template>
-      </button>
+      <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+        <button
+          type="button"
+          class="font-display text-btn self-start uppercase transition-colors duration-200 ease-(--ease-smooth) hover:text-coral"
+          :class="[HIT_AREA_CLASS, pickArmed ? 'text-coral' : 'text-ink-muted']"
+          data-testid="pick-on-map"
+          @click="pickArmed = !pickArmed"
+        >
+          <template v-if="pickArmed">
+            Cancel
+          </template>
+          <template v-else>
+            <span aria-hidden="true">📍</span> Pick starting point on map
+          </template>
+        </button>
+        <slot name="origin-actions" />
+      </div>
       <p
         v-if="locationError"
         class="font-body text-caption text-error italic"
@@ -265,7 +295,7 @@ function handleSubmit() {
       <span>Travel time</span>
       <SegmentedControl
         v-model="duration"
-        :options="DURATION_OPTIONS"
+        :options="durationOptions"
         :format-option="formatDuration"
         label="Travel time"
         name="duration"
