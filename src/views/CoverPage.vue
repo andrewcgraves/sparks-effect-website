@@ -32,6 +32,15 @@ fetchCoverIndex()
 
       <p
         class="font-body text-body mt-6 max-w-[560px] text-ink-muted"
+        data-testid="cover-name-blurb"
+      >
+        The sparks effect is the railway name for the jump in riders that comes when a line is
+        electrified. This site is named for it: a better line takes you further in the same time,
+        and that is what brings the riders.
+      </p>
+
+      <p
+        class="font-body text-body mt-4 max-w-[560px] text-ink-muted"
         data-testid="cover-lede"
       >
         A splash zone is everywhere you can reach from one spot within a set travel time, on foot,

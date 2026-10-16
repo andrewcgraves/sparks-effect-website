@@ -68,6 +68,26 @@ describe('CoverPage', () => {
     expect(wrapper.get('h1').text()).toBe('Sparks Effect')
   })
 
+  it('says what the name means right under the heading, before the lede', async () => {
+    vi.mocked(fetchCoverIndex).mockResolvedValue(index([]))
+    const { wrapper } = await mountCover()
+    const blurb = wrapper.get('[data-testid="cover-name-blurb"]')
+    expect(blurb.text()).toBe(
+      'The sparks effect is the railway name for the jump in riders that comes when a line is '
+      + 'electrified. This site is named for it: a better line takes you further in the same time, '
+      + 'and that is what brings the riders.',
+    )
+    expect(wrapper.get('h1').element.nextElementSibling).toBe(blurb.element)
+    expect(blurb.element.nextElementSibling).toBe(wrapper.get('[data-testid="cover-lede"]').element)
+  })
+
+  it('explains the name without domain words', async () => {
+    vi.mocked(fetchCoverIndex).mockResolvedValue(index([]))
+    const { wrapper } = await mountCover()
+    const blurb = wrapper.get('[data-testid="cover-name-blurb"]').text()
+    expect(blurb).not.toMatch(/isochrone|scenario|service|origin|budget/i)
+  })
+
   it('links the How it works page', async () => {
     vi.mocked(fetchCoverIndex).mockResolvedValue(index([]))
     const { wrapper } = await mountCover()
