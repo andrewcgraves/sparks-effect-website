@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // PROTOTYPE (throwaway): "Plot your own" layout variants on the network page.
 // Plan: three alternatives to the current IsochroneForm (A), switchable via
-// ?variant=A|B|C|D on /scenario/:slug, same props/events/exposed methods.
+// ?variant=A|B|C|D|E on /scenario/:slug, same props/events/exposed methods.
 import { computed, ref, type Component } from 'vue'
 import { useRoute } from 'vue-router'
 import IsochroneForm from '../../IsochroneForm.vue'
@@ -9,6 +9,7 @@ import PrototypeSwitcher from '../../components/PrototypeSwitcher.vue'
 import VariantBOneField from './VariantBOneField.vue'
 import VariantCSentence from './VariantCSentence.vue'
 import VariantDMapFirst from './VariantDMapFirst.vue'
+import VariantEMerged from './VariantEMerged.vue'
 import type { IsochronePayload } from '../../isochroneQuery'
 
 defineOptions({ inheritAttrs: false })
@@ -18,6 +19,7 @@ const VARIANTS: { key: string; name: string; component: Component }[] = [
   { key: 'B', name: 'One starting-point field', component: VariantBOneField },
   { key: 'C', name: 'Sentence', component: VariantCSentence },
   { key: 'D', name: 'Map first, tiles + slider', component: VariantDMapFirst },
+  { key: 'E', name: 'B field + D tiles', component: VariantEMerged },
 ]
 
 const route = useRoute()
