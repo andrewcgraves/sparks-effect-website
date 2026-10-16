@@ -455,6 +455,8 @@ describe('IsochroneForm', () => {
 
       expect(lastPickArmed(wrapper)).toBe(true)
       expect(pickButton(wrapper).attributes('aria-pressed')).toBe('true')
+      expect(pickButton(wrapper).classes()).toEqual(expect.arrayContaining(['border-coral', 'bg-coral/10']))
+      expect(pickButton(wrapper).classes()).not.toContain('bg-coral')
     })
 
     it('disarms when the armed button is clicked again', async () => {
@@ -772,7 +774,7 @@ describe('IsochroneForm', () => {
     it('marks the chosen tile', async () => {
       const wrapper = mount(IsochroneForm)
       await wrapper.get('input[data-testid="mode-bike"]').trigger('change')
-      expect(wrapper.get('[data-testid="mode-tile-bike"]').classes()).toContain('border-coral')
+      expect(wrapper.get('[data-testid="mode-tile-bike"]').classes()).toEqual(expect.arrayContaining(['border-coral', 'bg-coral/10', 'text-ink']))
       expect(wrapper.get('[data-testid="mode-tile-walk"]').classes()).not.toContain('border-coral')
     })
   })
