@@ -290,6 +290,14 @@ describe('PrerenderedIsochrones selection', () => {
     expect(pressed).toEqual(['false', 'true'])
   })
 
+  it('presses an entry to the coral border and tint under ink text, not a coral fill', async () => {
+    const wrapper = await mountLoaded([summary()])
+    const entry = wrapper.get('[data-testid="prerendered-entry"]')
+    expect(entry.classes()).toEqual(expect.arrayContaining(['aria-pressed:border-coral', 'aria-pressed:bg-coral/10', 'aria-pressed:text-ink']))
+    expect(entry.classes()).not.toContain('aria-pressed:bg-coral')
+    expect(entry.html()).not.toContain('text-white')
+  })
+
   it('leaves the entry unmarked when its chain could not be fetched', async () => {
     const wrapper = await mountLoaded([summary()])
     vi.mocked(fetchPrerenderedIsochrone).mockRejectedValue(new Error('nope'))

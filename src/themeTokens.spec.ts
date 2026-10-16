@@ -62,6 +62,51 @@ describe('error text colour', () => {
   })
 })
 
+function hexChannels(hex: string): number[] {
+  const value = Number.parseInt(hex.slice(1), 16)
+  return [(value >> 16) & 0xff, (value >> 8) & 0xff, value & 0xff]
+}
+
+function tintOver(tint: string, alpha: number, base: string): string {
+  const [tintChannels, baseChannels] = [hexChannels(tint), hexChannels(base)]
+  return `#${tintChannels
+    .map((channel, index) => Math.round(channel * alpha + baseChannels[index] * (1 - alpha)))
+    .map((channel) => channel.toString(16).padStart(2, '0'))
+    .join('')}`
+}
+
+function token(name: string): string {
+  const value = tokenValueInThemeCss(name)
+  if (!value) throw new Error(`${name} is not declared in theme.css`)
+  return value
+}
+
+describe('text on fill', () => {
+  const WHITE = '#ffffff'
+
+  // SPA-510: the primary button is ink and a selected choice is a 10% coral
+  // tint under ink, so no text sits white on coral (3.36:1).
+  it.each([
+    ['white on ink (primary button)', () => WHITE, () => token('--color-ink')],
+    ['white on ink-muted (primary button hover)', () => WHITE, () => token('--color-ink-muted')],
+    ['ink on coral at 10% over white (selected choice)', () => token('--color-ink'), () => tintOver(token('--color-coral'), 0.1, WHITE)],
+    ['ink on coral at 10% over surface (selected segment)', () => token('--color-ink'), () => tintOver(token('--color-coral'), 0.1, token('--color-surface'))],
+    ['ink-muted on coral at 10% over white (selected saved splash zone detail)', () => token('--color-ink-muted'), () => tintOver(token('--color-coral'), 0.1, WHITE)],
+    ['white on error (destructive button hover)', () => WHITE, () => token('--color-error')],
+    ['error on white (destructive button)', () => token('--color-error'), () => WHITE],
+  ])('%s clears WCAG AA 4.5:1', (_, foreground, background) => {
+    expect(contrastRatio(foreground(), background())).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it('would catch white on coral', () => {
+    expect(contrastRatio(WHITE, token('--color-coral'))).toBeLessThan(4.5)
+  })
+
+  it('composites a tint over its base', () => {
+    expect(tintOver('#000000', 0.1, WHITE)).toBe('#e6e6e6')
+  })
+})
+
 describe('micro text size', () => {
   it('is 12px in theme.css', () => {
     expect(tokenValueInThemeCss('--text-micro')).toBe('12px')

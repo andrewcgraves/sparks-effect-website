@@ -116,7 +116,7 @@ function onListKeydown(event: KeyboardEvent): void {
           :tabindex="tab === entry.key ? 0 : -1"
           :disabled="entry.disabled"
           class="font-display text-btn relative min-h-11 flex-1 cursor-pointer py-3 uppercase transition-colors duration-200 ease-(--ease-smooth) underline-offset-4 hover:text-ink hover:underline disabled:cursor-not-allowed disabled:opacity-35"
-          :class="tab === entry.key ? 'text-coral' : 'text-ink-muted'"
+          :class="tab === entry.key ? 'text-ink' : 'text-ink-muted'"
           @click="choose(entry.key)"
         >
           {{ entry.label }}
