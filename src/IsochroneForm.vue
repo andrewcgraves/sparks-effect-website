@@ -63,6 +63,7 @@ const mode = ref<TravelMode>(initial.mode ?? DEFAULT_MODE)
 const pickArmed = ref(false)
 const addressAutocompleteRef = ref<InstanceType<typeof AddressAutocomplete> | null>(null)
 const originName = ref('')
+const coordinatesOpen = ref(false)
 let locationRequestId = 0
 
 function parseOrigin(latText: string, lngText: string): { lat: number; lng: number } | null {
@@ -347,9 +348,10 @@ function handleSubmit() {
         <details
           class="flex flex-col"
           data-testid="enter-coordinates"
+          @toggle="coordinatesOpen = ($event.target as HTMLDetailsElement).open"
         >
-          <summary class="font-body text-caption cursor-pointer self-start text-ink-muted underline transition-colors duration-200 ease-(--ease-smooth) hover:text-coral">
-            Enter coordinates instead
+          <summary :class="[ACTION_LINK_CLASS, 'list-none self-start [&::-webkit-details-marker]:hidden']">
+            {{ coordinatesOpen ? 'Hide coordinates' : 'Enter coordinates instead' }}
           </summary>
           <div class="mt-2 grid grid-cols-2 gap-3">
             <label :class="FIELD_LABEL_CLASS">
@@ -382,7 +384,7 @@ function handleSubmit() {
         <button
           v-if="changing && isValid"
           type="button"
-          class="font-body text-caption cursor-pointer self-start text-ink-muted underline transition-colors duration-200 ease-(--ease-smooth) hover:text-coral"
+          :class="[ACTION_LINK_CLASS, 'self-start']"
           data-testid="keep-origin"
           @click="closeChooser"
         >

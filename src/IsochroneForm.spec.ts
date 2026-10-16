@@ -637,6 +637,18 @@ describe('IsochroneForm', () => {
       expect(coordinates.find('input[data-testid="lat"]').exists()).toBe(true)
     })
 
+    it('styles the coordinates toggle as an action link with no disclosure arrow, and relabels it while open', async () => {
+      const wrapper = mount(IsochroneForm)
+      const details = wrapper.get('[data-testid="enter-coordinates"]')
+      const summary = details.get('summary')
+      expect(summary.classes()).toEqual(expect.arrayContaining(['uppercase', 'list-none', '[&::-webkit-details-marker]:hidden']))
+      expect(summary.classes()).not.toContain('underline')
+
+      ;(details.element as HTMLDetailsElement).open = true
+      await details.trigger('toggle')
+      expect(summary.text()).toBe('Hide coordinates')
+    })
+
     it('names an address chosen from search', async () => {
       const wrapper = mount(IsochroneForm, {
         global: { stubs: { AddressAutocomplete: AddressAutocompleteStub } },
