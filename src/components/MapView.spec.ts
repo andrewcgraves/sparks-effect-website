@@ -1380,7 +1380,7 @@ describe('MapView', () => {
     await triggerMapLoad()
     mockFlyTo.mockClear()
 
-    const [, , maxLng, maxLat] = ISOCHRONE_BOUNDS
+    const [, [maxLng, maxLat]] = ISOCHRONE_BOUNDS_CORNERS
     await wrapper.setProps({ origin: { lat: maxLat + 1, lng: maxLng + 1 } })
 
     expect(mockFlyTo).toHaveBeenCalledWith(
