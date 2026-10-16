@@ -1357,6 +1357,37 @@ describe('MapView', () => {
     )
   })
 
+  // SPA-501: choosing a saved splash zone draws it and moves the pin to its
+  // starting point in the same moment; snapping in on the pin would undo the
+  // frame that shows the whole splash zone.
+  it('keeps the splash zone framed when the pin moves to its starting point', async () => {
+    const wrapper = mount(MapView, { props: defaultProps })
+    await triggerMapLoad()
+    mockFitBounds.mockClear()
+    mockFlyTo.mockClear()
+
+    const [lng, lat] = ISOCHRONE_CENTER
+    await wrapper.setProps({ isochroneData: staticIsochroneResponse, origin: { lat, lng } })
+
+    expect(mockFitBounds).toHaveBeenCalledWith(ISOCHRONE_BOUNDS_CORNERS, expect.anything())
+    expect(mockFlyTo).not.toHaveBeenCalled()
+  })
+
+  it('still flies to a pin moved outside the drawn splash zone', async () => {
+    const wrapper = mount(MapView, {
+      props: { ...defaultProps, isochroneData: staticIsochroneResponse },
+    })
+    await triggerMapLoad()
+    mockFlyTo.mockClear()
+
+    const [, [maxLng, maxLat]] = ISOCHRONE_BOUNDS_CORNERS
+    await wrapper.setProps({ origin: { lat: maxLat + 1, lng: maxLng + 1 } })
+
+    expect(mockFlyTo).toHaveBeenCalledWith(
+      expect.objectContaining({ center: [maxLng + 1, maxLat + 1], zoom: 9 }),
+    )
+  })
+
   it('does not fly to origin before the map load event', () => {
     mount(MapView, { props: { ...defaultProps, origin: { lat: 34.05, lng: -118.25 } } })
     expect(mockFlyTo).not.toHaveBeenCalled()

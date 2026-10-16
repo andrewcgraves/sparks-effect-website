@@ -158,6 +158,13 @@ function snapMapToOrigin(coords: { lat: number; lng: number }): void {
   hasFittedToSegments = true
 }
 
+function plotFrames(coords: { lat: number; lng: number }): boolean {
+  const data = props.isochroneData
+  if (!data || data.features.length === 0) return false
+  const [[minLng, minLat], [maxLng, maxLat]] = isochroneBoundsCorners(data.features)
+  return coords.lng >= minLng && coords.lng <= maxLng && coords.lat >= minLat && coords.lat <= maxLat
+}
+
 function fitMapToIsochrone(data: ChainResponse): void {
   if (!map || data.features.length === 0) return
   const corners = isochroneBoundsCorners(data.features)
@@ -274,6 +281,10 @@ watch(
     const wasJustClicked = lastClickedPoint?.lat === coords.lat && lastClickedPoint?.lng === coords.lng
     lastClickedPoint = null
     if (wasJustClicked) return
+    // A pin inside the drawn splash zone is already on screen in its frame, and
+    // a saved splash zone moves the pin to its starting point as it is drawn:
+    // snapping in on the pin there would undo the fit that shows all of it.
+    if (plotFrames(coords)) return
     snapMapToOrigin(coords)
   },
 )
