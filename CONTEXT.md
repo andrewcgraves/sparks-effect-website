@@ -75,7 +75,10 @@ line's page — stops stacking a card map above its cards and becomes a **phone
 map page** (`src/components/PhoneMapPage.vue`): the map on top, a **panel**
 fixed to the bottom, and the panel's content behind **tabs**. Nothing is
 dragged; a header button switches the panel between **tall** (room to read)
-and **short** (room to aim), and arming tap-to-pick shortens it. Every phone
+and **short** (room to aim), and arming tap-to-pick shortens it. The panel is
+the page's one scroller: a card that caps and scrolls its own list elsewhere
+lets the panel scroll it here (`PHONE_PANEL_SCROLLER`), so one swipe runs the
+panel's whole length (SPA-508). Every phone
 map page has a **Plot** tab (the splash-zone form and whatever plots with it)
 and a **Results** tab (the time-remaining graph), disabled until a plot reaches
 a station; the page adds its own after them — About on the network page, Stops

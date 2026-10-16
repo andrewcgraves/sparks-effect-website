@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { TILE_CLASS, TILE_HEADING_CLASS } from './tileStyles'
-import { computed, nextTick, ref, useId, watch } from 'vue'
+import { computed, inject, nextTick, ref, useId, watch } from 'vue'
 import SegmentedControl from './SegmentedControl.vue'
 import LoadingRegion from './LoadingRegion.vue'
 import SkeletonShape from './SkeletonShape.vue'
@@ -11,6 +11,7 @@ import { formatDuration, formatProgressPercent, formatTimeRemaining } from './ti
 import { modeLabel } from '../copy/modes'
 import { hasReturnTimes, reachedCount, stationRows } from './stationsCard'
 import type { HopRow, HopState, PlotReading, StationLine, StationRow } from './stationsCard'
+import { PHONE_PANEL_SCROLLER, revealWithin } from './phonePanelScroll'
 
 const props = defineProps<{
   lines: StationLine[]
@@ -25,6 +26,7 @@ const emit = defineEmits<{ activate: [slug: string | null] }>()
 
 const headingId = useId()
 const listEl = ref<HTMLElement | null>(null)
+const panelScroller = inject(PHONE_PANEL_SCROLLER, null)
 const reversed = ref<Record<string, boolean>>({})
 const open = ref<Record<string, boolean>>({})
 
@@ -147,17 +149,9 @@ function expanded(line: StationLine, row: StationRow): boolean {
   )
 }
 
-function reveal(row: Element): void {
-  const list = listEl.value
-  if (!list) return
-  const listRect = list.getBoundingClientRect()
-  const rowRect = row.getBoundingClientRect()
-  if (rowRect.top < listRect.top) list.scrollTop -= listRect.top - rowRect.top
-  else if (rowRect.bottom > listRect.bottom) list.scrollTop += rowRect.bottom - listRect.bottom
-}
-
 // A station pointed at on the map opens its line and comes into view inside the
-// card, never by scrolling the page under the pointer.
+// card (inside the panel, on a phone), never by scrolling the page under the
+// pointer.
 watch(
   () => [props.activeSlug, props.activeFromMap] as const,
   async ([slug, fromMap]) => {
@@ -171,7 +165,7 @@ watch(
     // graph's own key and nothing promises it is safe to interpolate into one.
     for (const el of listEl.value?.querySelectorAll('[data-station-row]') ?? []) {
       if (el.getAttribute('data-station-row') === `${line.key}:${slug}`) {
-        reveal(el)
+        revealWithin(panelScroller?.value ?? listEl.value, el)
         anchor.value = el
         anchorKey.value = `${line.key}:${slug}`
         return
@@ -233,11 +227,13 @@ function onToggle(line: StationLine, event: Event): void {
 
     <!-- The time-left column runs to the right edge, where the scrollbar draws:
          a stable gutter keeps a classic scrollbar off it, and the padding keeps
-         an overlay one (macOS, GTK) from painting over the digits. -->
+         an overlay one (macOS, GTK) from painting over the digits. In the phone
+         panel the list does not scroll at all; the panel does. -->
     <div
       v-else
       ref="listEl"
-      class="mt-3 max-h-[36rem] divide-y divide-border overflow-y-auto border-t border-border pr-3 [scrollbar-gutter:stable]"
+      class="mt-3 divide-y divide-border border-t border-border"
+      :class="panelScroller ? '' : 'max-h-[36rem] overflow-y-auto pr-3 [scrollbar-gutter:stable]'"
     >
       <details
         v-for="line in props.lines"

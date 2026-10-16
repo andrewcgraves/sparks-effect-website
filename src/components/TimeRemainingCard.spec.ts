@@ -6,6 +6,7 @@ import { buildTimeRemainingGraph, formatTimeRemaining, lineByRoute, remainingSec
 import type { Route, Service, Station } from '../api/scenarios'
 import type { ChainResponse } from '../fixtures/isochrone'
 import { UNNAMED_LINE, UNNAMED_STATION } from '../copy/names'
+import { PHONE_PANEL_SCROLLER } from './phonePanelScroll'
 
 // These cases drove the card through the network page until SPA-504 gave that
 // page one Stations card. The card still serves the line pages, so it is driven
@@ -95,8 +96,11 @@ const Page = defineComponent({
   },
 })
 
-async function plot(isochrone: ChainResponse) {
-  const wrapper = mount(Page, { props: { isochrone } })
+async function plot(isochrone: ChainResponse, panelScroller?: HTMLElement) {
+  const wrapper = mount(Page, {
+    props: { isochrone },
+    global: panelScroller ? { provide: { [PHONE_PANEL_SCROLLER]: ref(panelScroller) } } : {},
+  })
   await flushPromises()
   return wrapper
 }
@@ -320,6 +324,33 @@ describe('TimeRemaining', () => {
     await flushPromises()
 
     expect(scrollIntoView).not.toHaveBeenCalled()
+  })
+
+  // SPA-508: inside the phone panel the list scrolled inside a panel that
+  // scrolls too, and a swipe that started on it stopped at the list's end.
+  it('leaves the scrolling to the phone panel it sits in', async () => {
+    const panel = document.createElement('div')
+    const wrapper = await plot(journeyIsochrone, panel)
+    const list = wrapper.get('[data-testid="time-remaining"] ul').element as HTMLElement
+    const row = wrapper.findAll('[data-testid="time-remaining-row"]')[1].element as HTMLElement
+    panel.getBoundingClientRect = () => ({ top: 100, bottom: 300 }) as DOMRect
+    row.getBoundingClientRect = () => ({ top: 340, bottom: 380 }) as DOMRect
+
+    expect(list.className).not.toContain('overflow-y-auto')
+    expect(list.className).not.toContain('max-h-')
+
+    await wrapper.findComponent({ name: 'MapView' }).vm.$emit('station-hover', 'sf')
+    await flushPromises()
+    expect(panel.scrollTop).toBe(80)
+    expect(list.scrollTop).toBe(0)
+  })
+
+  it('scrolls its own list anywhere else', async () => {
+    const wrapper = await plot(journeyIsochrone)
+    const list = wrapper.get('[data-testid="time-remaining"] ul').element as HTMLElement
+
+    expect(list.className).toContain('overflow-y-auto')
+    expect(list.className).toContain('max-h-')
   })
 
   // The connectors used to sit in a scroller, which clipped the bottom of a

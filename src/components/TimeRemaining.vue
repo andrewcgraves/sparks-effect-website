@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { TILE_CLASS, TILE_HEADING_CLASS } from './tileStyles'
-import { computed, ref, watch, nextTick, useId } from 'vue'
+import { computed, inject, ref, watch, nextTick, useId } from 'vue'
 import SegmentedControl from './SegmentedControl.vue'
 import TooltipPanel from './TooltipPanel.vue'
 import StationDetail from './StationDetail.vue'
 import { formatDuration, formatTimeRemaining, laneWidthFor } from './timeRemaining'
 import type { TimeRemainingRow, TimeRemainingView } from './timeRemaining'
+import { PHONE_PANEL_SCROLLER, revealWithin } from './phonePanelScroll'
 
 const props = defineProps<{
   views: TimeRemainingView[]
@@ -28,6 +29,7 @@ const graphWidth = computed(() => Math.max(view.value?.laneCount ?? 1, 1) * lane
 const laneX = (lane: number): number => lane * laneWidth.value + laneWidth.value / 2
 
 const listEl = ref<HTMLElement | null>(null)
+const panelScroller = inject(PHONE_PANEL_SCROLLER, null)
 
 watch(() => props.views, () => { chosen.value = 0 }, { immediate: true })
 
@@ -66,15 +68,6 @@ function activate(row: TimeRemainingRow, event: Event): void {
   emit('activate', row.slug)
 }
 
-function reveal(row: Element): void {
-  const list = listEl.value
-  if (!list) return
-  const listRect = list.getBoundingClientRect()
-  const rowRect = row.getBoundingClientRect()
-  if (rowRect.top < listRect.top) list.scrollTop -= listRect.top - rowRect.top
-  else if (rowRect.bottom > listRect.bottom) list.scrollTop += rowRect.bottom - listRect.bottom
-}
-
 watch(
   () => [props.activeSlug, props.activeFromMap] as const,
   async ([slug, fromMap]) => {
@@ -90,7 +83,7 @@ watch(
     const rows = listEl.value?.querySelectorAll('[data-station-slug]') ?? []
     for (const row of rows) {
       if (row.getAttribute('data-station-slug') === slug) {
-        reveal(row)
+        revealWithin(panelScroller?.value ?? listEl.value, row)
         // Measured after the scroll, so the box lands beside where the row
         // ended up rather than where it started.
         setAnchor(row)
@@ -128,7 +121,8 @@ watch(
 
     <ul
       ref="listEl"
-      class="mt-3 flex max-h-[26rem] list-none flex-col overflow-y-auto p-0"
+      class="mt-3 flex list-none flex-col p-0"
+      :class="panelScroller ? '' : 'max-h-[26rem] overflow-y-auto'"
     >
       <li
         v-for="row in rows"

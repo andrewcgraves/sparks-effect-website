@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, useId, watch } from 'vue'
+import { provide, ref, useId, watch } from 'vue'
 import LoadingRegion from './LoadingRegion.vue'
 import SkeletonShape from './SkeletonShape.vue'
 import { ACTION_LINK_CLASS } from './linkStyles'
 import { tabForKey, type PhoneMapTab } from './phoneMapTabs'
+import { PHONE_PANEL_SCROLLER } from './phonePanelScroll'
 
 const props = defineProps<{
   title: string
@@ -15,6 +16,9 @@ const tab = defineModel<string>('tab', { required: true })
 
 const id = useId()
 const panelId = `${id}-panel`
+
+const scroller = ref<HTMLElement | null>(null)
+provide(PHONE_PANEL_SCROLLER, scroller)
 
 function tabId(key: string): string {
   return `${id}-tab-${key}`
@@ -124,7 +128,11 @@ function onListKeydown(event: KeyboardEvent): void {
         </button>
       </div>
 
-      <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
+      <div
+        ref="scroller"
+        class="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4"
+        data-testid="phone-panel-scroller"
+      >
         <!-- v-show, not v-if: the plot form keeps what was typed when the
              visitor flips to the results and back. -->
         <div
