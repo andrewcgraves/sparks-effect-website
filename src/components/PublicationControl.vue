@@ -5,6 +5,7 @@ import { useConfirm } from '../composables/useConfirm'
 import { instant, usePublication } from '../composables/usePublication'
 import { useToast } from '../composables/useToast'
 import { PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS } from './buttonStyles'
+import { INLINE_LINK_CLASS } from './linkStyles'
 
 const props = defineProps<{
   slug: string
@@ -152,7 +153,7 @@ async function confirmUnpublish(): Promise<void> {
           :href="publicPath"
           target="_blank"
           rel="noopener"
-          class="font-body text-caption break-all text-ink underline hover:text-coral"
+          :class="[INLINE_LINK_CLASS, 'font-body text-caption break-all text-ink']"
           data-testid="public-url"
         >{{ publicUrl }}</a>
         <button

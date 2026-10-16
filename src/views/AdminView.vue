@@ -55,7 +55,7 @@ async function onKeydown(event: KeyboardEvent, index: number): Promise<void> {
         :aria-controls="`admin-panel-${tab.id}`"
         :tabindex="active === tab.id ? 0 : -1"
         class="font-display text-btn -mb-px cursor-pointer border-b-2 px-3 py-2 uppercase transition-colors duration-200 ease-(--ease-smooth)"
-        :class="active === tab.id ? 'border-coral text-ink-true' : 'border-transparent text-ink-muted hover:text-coral'"
+        :class="active === tab.id ? 'border-coral text-ink-true' : 'border-transparent text-ink-muted underline-offset-4 hover:text-ink hover:underline'"
         :data-testid="`tab-${tab.id}`"
         @click="select(tab.id)"
         @keydown="onKeydown($event, index)"

@@ -933,7 +933,7 @@ watch(createdSlug, (created) => {
                 <span>{{ window.start_time }}–{{ window.end_time }}, every {{ Math.round(window.headway_s / 60) }} min</span>
                 <button
                   type="button"
-                  class="cursor-pointer px-1 text-ink-muted hover:text-coral"
+                  class="cursor-pointer px-1 text-ink-muted hover:text-ink"
                   :aria-label="`Remove the ${window.start_time}–${window.end_time} window`"
                   :data-testid="`frequency-remove-${index}`"
                   @click="removeFrequencyWindow(index)"

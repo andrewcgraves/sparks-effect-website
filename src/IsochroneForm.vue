@@ -302,7 +302,7 @@ function handleSubmit() {
           <template #trailing>
             <button
               type="button"
-              :class="[ICON_BUTTON_CLASS, 'border-border bg-white text-ink-muted hover:border-coral hover:text-coral']"
+              :class="[ICON_BUTTON_CLASS, 'border-border bg-white text-ink-muted hover:border-coral hover:text-ink']"
               data-testid="use-current-location"
               aria-label="Use my location"
               title="Use my location"

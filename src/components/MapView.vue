@@ -454,7 +454,7 @@ onUnmounted(() => {
     <button
       v-if="canRecenter"
       type="button"
-      class="absolute right-2.5 z-1 flex cursor-pointer items-center justify-center rounded-(--radius-field) bg-white text-ink shadow-(--shadow-panel) hover:text-coral"
+      class="absolute right-2.5 z-1 flex cursor-pointer items-center justify-center rounded-(--radius-field) bg-white text-ink shadow-(--shadow-panel)"
       :class="flush ? 'top-[60px] size-10' : 'top-[49px] size-[29px]'"
       aria-label="Recenter map on the route"
       title="Recenter on the route"
