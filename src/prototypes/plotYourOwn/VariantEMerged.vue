@@ -1,8 +1,9 @@
 <script setup lang="ts">
 // PROTOTYPE (throwaway) — variant E: B's starting-point field + D's emoji
-// mode tiles and travel-time slider, with B's button that states the plot.
-import { computed, ref } from 'vue'
+// mode tiles, B's travel-time buttons and B's button that states the plot.
+import { ref } from 'vue'
 import AddressAutocomplete from '../../components/AddressAutocomplete.vue'
+import SegmentedControl from '../../components/SegmentedControl.vue'
 import { PRIMARY_BUTTON_CLASS } from '../../components/buttonStyles'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../../components/fieldStyles'
 import { TRAVEL_MODES, type TravelMode } from '../../api/authoring/types'
@@ -18,17 +19,7 @@ const showCoords = ref(false)
 
 const MODE_ICONS: Record<TravelMode, string> = { walk: '🚶', bike: '🚲', drive: '🚗', transit: '🚆' }
 
-const durationIndex = computed({
-  get: () => Math.max(0, s.durationOptions.value.indexOf(s.duration.value)),
-  set: (i: number) => { s.duration.value = s.durationOptions.value[i] ?? s.duration.value },
-})
-
-function formatDuration(mins: number): string {
-  if (mins < 60) return `${mins} min`
-  const h = Math.floor(mins / 60)
-  const m = mins % 60
-  return m ? `${h} h ${m} min` : `${h} h`
-}
+const formatMinutes = (v: number) => `${v} min`
 
 defineExpose({ setOriginFromMap: s.setOriginFromMap, fill: s.fill })
 </script>
@@ -186,28 +177,16 @@ defineExpose({ setOriginFromMap: s.setOriginFromMap, fill: s.fill })
       </div>
     </fieldset>
 
-    <label class="flex flex-col gap-1">
-      <span class="flex items-baseline justify-between">
-        <span :class="FIELD_LABEL_CLASS">How far, in time</span>
-        <span class="font-display text-h3 text-ink-true">{{ formatDuration(s.duration.value) }}</span>
-      </span>
-      <input
-        v-model.number="durationIndex"
-        type="range"
-        min="0"
-        :max="s.durationOptions.value.length - 1"
-        step="1"
-        class="accent-coral"
-        aria-label="Travel time"
-        :aria-valuetext="formatDuration(s.duration.value)"
-      >
-      <span class="font-body text-micro flex justify-between text-ink-muted">
-        <span
-          v-for="d in s.durationOptions.value"
-          :key="d"
-        >{{ d < 60 ? `${d}m` : `${+(d / 60).toFixed(2)}h` }}</span>
-      </span>
-    </label>
+    <div :class="FIELD_LABEL_CLASS">
+      <span>For up to</span>
+      <SegmentedControl
+        v-model="s.duration.value"
+        :options="s.durationOptions.value"
+        :format-option="formatMinutes"
+        label="Travel time"
+        name="proto-e-duration"
+      />
+    </div>
 
 
     <button

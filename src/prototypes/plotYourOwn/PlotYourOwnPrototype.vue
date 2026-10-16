@@ -19,7 +19,7 @@ const VARIANTS: { key: string; name: string; component: Component }[] = [
   { key: 'B', name: 'One starting-point field', component: VariantBOneField },
   { key: 'C', name: 'Sentence', component: VariantCSentence },
   { key: 'D', name: 'Map first, tiles + slider', component: VariantDMapFirst },
-  { key: 'E', name: 'B field + D tiles', component: VariantEMerged },
+  { key: 'E', name: 'B field + D tiles + B times', component: VariantEMerged },
 ]
 
 const route = useRoute()
