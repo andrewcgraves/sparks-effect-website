@@ -196,12 +196,16 @@ the copy:
 - The terms link How it works and Report a problem only once those routes
   exist, the same rule as the footer.
 - The attribution page carries the wording SPA-419 found each licence to
-  require. Its tile credit follows `resolveTileCredit`, like the footer's. Two
-  things it cannot yet state are offered on request instead: the per-build
-  Geofabrik extract dates and Valhalla version (the ODbL §4.6 "method of
-  making the alterations"), and the full agency list from the serving
-  generation's `gtfs-manifest.csv`, which lives in the private cluster config.
-  Both become static text once the API exposes generation metadata.
+  require. Its tile credit follows `resolveTileCredit`, like the footer's.
+  Below those credits it names every agency whose schedules the routing graph
+  holds, from `src/legal/transitAgencies.ts`. That file is generated from the
+  serving generation's `gtfs-manifest.csv` (feeds fetched or cached, minus the
+  `511-*` ones the 511.org line covers), and must be regenerated whenever
+  `make cycle-tiles` moves production to a new generation; the commands are at
+  the top of `scripts/transit-agencies.ts`. The per-build Geofabrik extract
+  dates and Valhalla version (the ODbL §4.6 "method of making the
+  alterations") are still offered on request. Both become API-served once the
+  API exposes generation metadata.
 
 The map itself credits 511 ("Data provided by 511.org", which 511's agreement
 wants next to the data), links `/attribution` as "Data sources" and keeps
