@@ -12,6 +12,7 @@ import { trackModeToggle } from './analytics/index'
 import { TRAVEL_MODES, type TravelMode } from './api/authoring/types'
 import { DEFAULT_DURATION, DEFAULT_MODE, DURATION_OPTIONS, type IsochronePayload } from './isochroneQuery'
 import { MODE_LABELS, MODE_TRIPS } from './copy/modes'
+import { OFFLINE_REASON } from './composables/useRoutingStatus'
 
 const MODE_ICONS: Record<TravelMode, string> = {
   walk: '🚶',
@@ -25,8 +26,6 @@ const MODE_OPTIONS: { value: TravelMode; label: string; icon: string }[] = TRAVE
   label: MODE_LABELS[value],
   icon: MODE_ICONS[value],
 }))
-
-const OFFLINE_REASON = 'Live routing is offline right now, so new splash zones can’t be plotted.'
 
 const ICON_BUTTON_CLASS =
   'flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-(--radius-field) border transition-colors duration-200 ease-(--ease-smooth) pointer-coarse:size-11 disabled:cursor-not-allowed disabled:opacity-50'

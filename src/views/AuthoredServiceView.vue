@@ -5,6 +5,7 @@ import type { Service } from '../api/authoring/types'
 import { useOwnedDetail } from '../composables/useOwnedDetail'
 import { isochroneWaitMessage } from '../api/isochroneFault'
 import { useAuthoredGraph } from '../composables/useAuthoredGraph'
+import { useRoutingStatus } from '../composables/useRoutingStatus'
 import { usePageTitle } from '../composables/usePageTitle'
 import { useServiceDeletion } from '../composables/useDeletion'
 import { expiryDate, useHandovers } from '../composables/useHandovers'
@@ -26,6 +27,8 @@ const { item: service, loading, notFound, error } = useOwnedDetail<Service>(fetc
 usePageTitle(() => service.value?.name)
 
 const stops = computed(() => [...(service.value?.stops ?? [])].sort((a, b) => a.seq - b.seq))
+
+const { offline: routingOffline } = useRoutingStatus()
 
 const {
   compiling,
@@ -49,7 +52,7 @@ const {
   compile: compileService,
   fetchGraph: fetchServiceGraph,
   isochrone: fetchServiceIsochrone,
-})
+}, { offline: () => routingOffline.value })
 
 const services = computed(() => (service.value ? [service.value] : []))
 

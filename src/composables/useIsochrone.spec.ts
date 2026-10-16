@@ -1,8 +1,9 @@
 // @vitest-environment node
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { isReactive } from 'vue'
+import { isReactive, nextTick, ref } from 'vue'
 import { useIsochrone } from './useIsochrone'
+import { OFFLINE_REASON } from './useRoutingStatus'
 import type { IsochroneRequest } from '../api/isochrone'
 import { ApiError } from '../api/authoring/client'
 import { JobFailedError } from '../api/polling'
@@ -359,6 +360,48 @@ describe('useIsochrone', () => {
       first.resolve(older)
       await a
       expect(data.value).toEqual(newer)
+      expect(loading.value).toBe(false)
+    })
+  })
+
+  // SPA-503: a worker gone quiet will never answer, so the page stops waiting
+  // out the job deadline the moment the status says so.
+  describe('when live routing goes offline', () => {
+    it('stops a plot in flight with the offline message and ignores its late answer', async () => {
+      let resolveFetch!: (value: ChainResponse) => void
+      vi.mocked(fetchIsochrone).mockReturnValueOnce(
+        new Promise<ChainResponse>((res) => { resolveFetch = res }),
+      )
+      const offline = ref(false)
+      const { data, loading, error, progress, generate } = useIsochrone(() => [], { offline: () => offline.value })
+
+      const plot = generate(request)
+      expect(loading.value).toBe(true)
+
+      offline.value = true
+      await nextTick()
+
+      expect(loading.value).toBe(false)
+      expect(progress.value).toBeNull()
+      expect(error.value).toBe(OFFLINE_REASON)
+
+      resolveFetch(stubResponse)
+      await plot
+      expect(data.value).toBeNull()
+      expect(error.value).toBe(OFFLINE_REASON)
+    })
+
+    it('changes nothing when no plot is in flight', async () => {
+      vi.mocked(fetchIsochrone).mockResolvedValueOnce(stubResponse)
+      const offline = ref(false)
+      const { data, loading, error, generate } = useIsochrone(() => [], { offline: () => offline.value })
+      await generate(request)
+
+      offline.value = true
+      await nextTick()
+
+      expect(data.value).toEqual(stubResponse)
+      expect(error.value).toBeNull()
       expect(loading.value).toBe(false)
     })
   })

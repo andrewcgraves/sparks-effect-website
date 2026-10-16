@@ -21,6 +21,7 @@ import { useOwnedDetail } from '../composables/useOwnedDetail'
 import { useOwnedList } from '../composables/useOwnedList'
 import { isochroneWaitMessage } from '../api/isochroneFault'
 import { useAuthoredGraph } from '../composables/useAuthoredGraph'
+import { useRoutingStatus } from '../composables/useRoutingStatus'
 import { usePageTitle } from '../composables/usePageTitle'
 import { useScenarioDeletion } from '../composables/useDeletion'
 import DeclaredInterchanges from '../components/DeclaredInterchanges.vue'
@@ -39,6 +40,8 @@ const props = defineProps<{ slug: string }>()
 const { item: scenario, loading, notFound, error } = useOwnedDetail<Scenario>(fetchScenario, props.slug)
 
 usePageTitle(() => scenario.value?.name)
+
+const { offline: routingOffline } = useRoutingStatus()
 
 const {
   compiling,
@@ -63,7 +66,7 @@ const {
   noun: 'scenario',
   fetchGraph: fetchScenarioGraph,
   isochrone: fetchScenarioIsochrone,
-})
+}, { offline: () => routingOffline.value })
 
 const { items: services } = useOwnedList(fetchMyServices)
 

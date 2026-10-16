@@ -4,6 +4,8 @@ import { fetchRoutingStatus, type RoutingStatus } from '../api/routingStatus'
 export const ROUTING_STATUS_POLL_MS = 60_000
 export const ROUTING_STATUS_TIMEOUT_MS = 10_000
 
+export const OFFLINE_REASON = 'Live routing is offline right now, so new splash zones can’t be plotted.'
+
 // One poll serves the whole tab, so its state lives at module scope: every
 // plotting component on the page reads the same answer from the same request.
 const status = ref<RoutingStatus>('ok')
