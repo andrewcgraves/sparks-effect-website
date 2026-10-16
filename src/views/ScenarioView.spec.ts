@@ -738,6 +738,69 @@ describe('ScenarioView', () => {
       expect(wrapper.find('[data-testid="stations"]').exists()).toBe(false)
       expect(wrapper.find('[data-testid="time-remaining"]').exists()).toBe(true)
     })
+
+    it('scrolls its own list beside the desktop map', async () => {
+      const wrapper = await corridorPage()
+      const list = wrapper.get('[data-testid="station-time-group"]').element.parentElement as HTMLElement
+
+      expect(list.className).toContain('overflow-y-auto')
+      expect(list.className).toContain('max-h-')
+    })
+
+    // SPA-508: the list used to scroll inside the scrolling phone panel, and a
+    // swipe that started on it stopped at the list's end.
+    describe('in the phone panel', () => {
+      beforeEach(() => {
+        window.innerWidth = 390
+      })
+
+      afterEach(() => {
+        window.innerWidth = 1024
+      })
+
+      function lists(wrapper: ReturnType<typeof mountScenarioView>) {
+        return {
+          panel: wrapper.get('[data-testid="phone-panel-scroller"]').element as HTMLElement,
+          list: wrapper.get('[data-testid="station-time-group"]').element.parentElement as HTMLElement,
+        }
+      }
+
+      it('leaves the scrolling to the panel', async () => {
+        const wrapper = await corridorPage()
+        const { list } = lists(wrapper)
+
+        expect(list.className).not.toContain('overflow-y-auto')
+        expect(list.className).not.toContain('max-h-')
+      })
+
+      it('scrolls the panel, not the list, to a station picked on the map', async () => {
+        const wrapper = await corridorPage()
+        const { panel, list } = lists(wrapper)
+        panel.getBoundingClientRect = () => ({ top: 100, bottom: 300 }) as DOMRect
+        ;(stationRow(wrapper, 'San Jose').element as HTMLElement).getBoundingClientRect =
+          () => ({ top: 340, bottom: 380 }) as DOMRect
+
+        await wrapper.findComponent({ name: 'MapView' }).vm.$emit('station-hover', 'sj')
+        await flushPromises()
+
+        expect(panel.scrollTop).toBe(80)
+        expect(list.scrollTop).toBe(0)
+      })
+
+      // Hidden by v-show, the row measures as a zero box at the top of the
+      // viewport, which would read as "above the panel" and scroll the Plot tab.
+      it('leaves the tab in view where it was when the station is on another tab', async () => {
+        const wrapper = await corridorPage(false)
+        const { panel } = lists(wrapper)
+        panel.getBoundingClientRect = () => ({ top: 100, bottom: 300 }) as DOMRect
+        panel.scrollTop = 120
+
+        await wrapper.findComponent({ name: 'MapView' }).vm.$emit('station-hover', 'sj')
+        await flushPromises()
+
+        expect(panel.scrollTop).toBe(120)
+      })
+    })
   })
 
   describe('picking the origin on the map', () => {
