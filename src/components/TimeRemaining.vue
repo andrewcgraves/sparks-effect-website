@@ -3,7 +3,8 @@ import { TILE_CLASS, TILE_HEADING_CLASS } from './tileStyles'
 import { computed, ref, watch, nextTick, useId } from 'vue'
 import SegmentedControl from './SegmentedControl.vue'
 import TooltipPanel from './TooltipPanel.vue'
-import { formatDuration, formatProgressPercent, formatTimeRemaining, laneWidthFor } from './timeRemaining'
+import StationDetail from './StationDetail.vue'
+import { formatDuration, formatTimeRemaining, laneWidthFor } from './timeRemaining'
 import type { TimeRemainingRow, TimeRemainingView } from './timeRemaining'
 
 const props = defineProps<{
@@ -50,9 +51,8 @@ function hasDetail(row: TimeRemainingRow): boolean {
 
 const labels = computed(() => new Map(rows.value.map((row) => [row.key, row.label])))
 
-function rideTerm(row: TimeRemainingRow): string {
-  const from = row.parentKey === null ? undefined : labels.value.get(row.parentKey)
-  return from ? `Rode in from ${from}` : 'Rode in'
+function rodeInFrom(row: TimeRemainingRow): string | null {
+  return (row.parentKey === null ? undefined : labels.value.get(row.parentKey)) ?? null
 }
 
 const anchor = ref<Element | null>(null)
@@ -212,52 +212,10 @@ watch(
           :open="true"
           :anchor="anchor"
         >
-          <dl
-            class="font-body text-micro flex flex-col gap-0.5 text-ink-muted"
-            data-testid="time-remaining-detail"
-          >
-            <div v-if="row.detail.rideSecs !== undefined">
-              <dt class="inline">
-                {{ rideTerm(row) }}
-              </dt>
-              <dd class="ml-1 inline">
-                {{ formatDuration(row.detail.rideSecs) }}
-              </dd>
-            </div>
-            <div v-if="row.detail.arrivalSecs !== undefined">
-              <dt class="inline">
-                Arrived with
-              </dt>
-              <dd class="ml-1 inline">
-                {{ formatTimeRemaining(row.detail.arrivalSecs) }} left
-              </dd>
-            </div>
-            <div v-if="row.detail.dwellSecs !== undefined">
-              <dt class="inline">
-                Stopped here for
-              </dt>
-              <dd class="ml-1 inline">
-                {{ formatDuration(row.detail.dwellSecs) }}
-              </dd>
-            </div>
-            <div v-if="row.detail.transferFrom">
-              <dt class="inline">
-                Changed from
-              </dt>
-              <dd class="ml-1 inline">
-                {{ row.detail.transferFrom }}
-              </dd>
-            </div>
-            
-            <div v-if="row.detail.progressTo && row.detail.progressFraction !== undefined">
-              <dt class="inline">
-                Got {{ formatProgressPercent(row.detail.progressFraction) }} of the way toward
-              </dt>
-              <dd class="ml-1 inline">
-                {{ row.detail.progressTo }}
-              </dd>
-            </div>
-          </dl>
+          <StationDetail
+            :detail="row.detail"
+            :rode-in-from="rodeInFrom(row)"
+          />
         </TooltipPanel>
       </li>
     </ul>
