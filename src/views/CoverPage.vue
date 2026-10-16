@@ -59,7 +59,7 @@ fetchCoverIndex()
         />
         <p
           v-else-if="error"
-          class="font-body text-caption mt-3 text-error"
+          class="t-error mt-3"
           role="alert"
           data-testid="scenarios-error"
         >
@@ -69,7 +69,7 @@ fetchCoverIndex()
           <p
             v-for="source in unavailable"
             :key="source"
-            class="font-body text-caption mt-3 text-error"
+            class="t-error mt-3"
             role="alert"
             data-testid="scenarios-partial"
           >
@@ -79,7 +79,7 @@ fetchCoverIndex()
                empty list is not evidence that nothing is published. -->
           <p
             v-if="cards.length === 0 && unavailable.length === 0"
-            class="font-body text-caption mt-3 text-ink-muted italic"
+            class="t-note mt-3 text-ink-muted"
             data-testid="scenarios-empty"
           >
             No lines or networks yet.
@@ -100,7 +100,7 @@ fetchCoverIndex()
                 {{ card.name }}
                 <span
                   v-if="card.caption"
-                  class="text-micro text-ink-muted"
+                  class="t-meta text-ink-muted"
                 >{{ card.caption }}</span>
               </router-link>
             </li>

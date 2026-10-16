@@ -115,7 +115,7 @@ describe('tooltipContent', () => {
 
     expect(node.textContent).toBe('San Francisco')
     expect(node.className).toContain(TOOLTIP_PANEL_CLASS)
-    expect(node.className).toContain('font-body')
+    expect(node.className).toContain('t-meta')
   })
 })
 
@@ -134,7 +134,7 @@ describe('stationTooltipContent', () => {
 
     expect(node.textContent).toContain('San Francisco')
     expect(node.textContent).toContain('45m left')
-    expect(node.children[0].className).toContain('text-caption')
+    expect(node.children[0].className).toContain('t-meta')
     expect(node.children[1].className).toContain('tabular-nums')
     expect(node.children[1].className).toContain('text-ink-muted')
   })

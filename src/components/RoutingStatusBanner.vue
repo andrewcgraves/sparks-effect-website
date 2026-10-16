@@ -30,7 +30,7 @@ const offlineMessage = computed(() => {
   </p>
   <p
     v-else-if="status === 'degraded'"
-    class="font-body text-caption text-ink-muted italic"
+    class="t-note text-ink-muted"
     role="status"
     data-testid="routing-status"
   >

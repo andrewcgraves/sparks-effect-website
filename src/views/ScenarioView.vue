@@ -222,7 +222,7 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
       <template #panel-about>
         <p
           v-if="subtext.trim()"
-          class="font-body text-micro text-ink-muted italic uppercase"
+          class="t-meta text-ink-muted"
           data-testid="scenario-subtext"
         >
           {{ subtext }}
@@ -259,7 +259,7 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
       </h1>
       <p
         v-if="subtext.trim()"
-        class="font-body text-micro text-ink-muted italic uppercase"
+        class="t-meta text-ink-muted"
         data-testid="scenario-subtext"
       >
         {{ subtext }}

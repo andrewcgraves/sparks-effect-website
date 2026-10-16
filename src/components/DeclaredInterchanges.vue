@@ -48,7 +48,7 @@ defineExpose({ focusHeading })
 <template>
   <p
     v-if="props.error"
-    class="font-body text-caption text-error"
+    class="t-error"
     role="alert"
     data-testid="interchange-error"
   >
@@ -71,7 +71,7 @@ defineExpose({ focusHeading })
       <li
         v-for="row in rows"
         :key="row.key"
-        class="font-body text-caption flex items-start justify-between gap-3 text-ink"
+        class="t-meta flex items-start justify-between gap-3 text-ink"
         data-testid="declared-interchange-row"
       >
         <span>

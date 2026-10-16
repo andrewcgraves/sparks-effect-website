@@ -99,7 +99,7 @@ function summarise(entry: PrerenderedIsochroneSummary): string {
             </span>
           </span>
           <span
-            class="text-micro text-ink-muted uppercase group-aria-pressed:text-white/80"
+            class="t-meta text-ink-muted group-aria-pressed:text-white/80"
             data-testid="prerendered-entry-detail"
           >
             {{ pendingId === entry.id ? 'Loading…' : summarise(entry) }}
@@ -110,7 +110,7 @@ function summarise(entry: PrerenderedIsochroneSummary): string {
 
     <p
       v-if="detailError"
-      class="font-body text-caption mt-3 text-error"
+      class="t-error mt-3"
       role="alert"
       data-testid="prerendered-detail-error"
     >

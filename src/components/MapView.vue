@@ -483,7 +483,7 @@ onUnmounted(() => {
 
     <p
       v-if="placementArmed && placementCue"
-      class="font-body text-caption pointer-events-none absolute top-3 left-3 z-1 rounded-(--radius-field) bg-white/92 px-3 py-2 text-ink shadow-(--shadow-panel)"
+      class="t-meta pointer-events-none absolute top-3 left-3 z-1 rounded-(--radius-field) bg-white/92 px-3 py-2 text-ink shadow-(--shadow-panel)"
       data-testid="map-placement-cue"
       aria-live="polite"
     >
@@ -495,14 +495,14 @@ onUnmounted(() => {
       class="absolute top-3 left-3 z-1 rounded-(--radius-field) bg-white/92 px-3 py-2.5 shadow-(--shadow-panel)"
       aria-label="Splash zone color key"
     >
-      <p class="font-body text-micro mb-1.5 text-ink-muted italic uppercase">
+      <p class="t-eyebrow mb-1.5 text-ink-muted">
         Splash zone key
       </p>
       <ul class="m-0 flex list-none flex-col gap-1 p-0">
         <li
           v-for="entry in legend"
           :key="entry.source"
-          class="font-body text-caption flex items-center gap-2 text-ink"
+          class="t-meta flex items-center gap-2 text-ink"
         >
           <KeySwatch
             :kind="entry.source"

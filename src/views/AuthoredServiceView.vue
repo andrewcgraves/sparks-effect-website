@@ -124,12 +124,12 @@ watch(service, (loaded) => {
           </h1>
           <p
             v-if="service.subtext"
-            class="font-body text-micro text-ink-muted italic uppercase"
+            class="t-meta text-ink-muted"
             data-testid="service-subtext"
           >
             {{ service.subtext }}
           </p>
-          <p class="font-body text-micro text-ink-muted uppercase">
+          <p class="t-meta text-ink-muted">
             {{ service.slug }}
           </p>
         </hgroup>
@@ -171,7 +171,7 @@ watch(service, (loaded) => {
         class="mt-6 flex max-w-[720px] flex-wrap items-center justify-between gap-3 rounded-(--radius-box) border border-border bg-surface p-4"
         data-testid="pending-handover"
       >
-        <p class="font-body text-caption text-ink">
+        <p class="t-meta text-ink">
           Waiting for {{ pendingHandover.to_name }} to accept this line.
           The offer expires {{ expiryDate(pendingHandover) }}.
         </p>
@@ -196,14 +196,14 @@ watch(service, (loaded) => {
       
       <p
         v-if="compiling && !graph"
-        class="font-body text-caption mt-8 text-ink-muted italic"
+        class="t-note mt-8 text-ink-muted"
         data-testid="compiling-status"
       >
         Compiling this line…
       </p>
       <p
         v-else-if="graphFailed"
-        class="font-body text-caption mt-8 text-error"
+        class="t-error mt-8"
         role="alert"
         data-testid="graph-error"
       >
@@ -212,7 +212,7 @@ watch(service, (loaded) => {
       
       <p
         v-else-if="compileError && !graph"
-        class="font-body text-caption mt-8 text-error"
+        class="t-error mt-8"
         role="alert"
         data-testid="compile-error"
       >
@@ -244,7 +244,7 @@ watch(service, (loaded) => {
           </h2>
           <p
             v-if="stops.length === 0"
-            class="font-body text-caption mt-3 text-ink-muted italic"
+            class="t-note mt-3 text-ink-muted"
             data-testid="service-stops-empty"
           >
             This line has no stops yet. Edit it to place stops along its route.
@@ -256,7 +256,7 @@ watch(service, (loaded) => {
             <li
               v-for="stop in stops"
               :key="stop.seq"
-              class="font-body text-caption flex justify-between gap-3 text-ink"
+              class="t-meta flex justify-between gap-3 text-ink"
               data-testid="service-stop-row"
             >
               <span>{{ stop.seq + 1 }}. {{ stop.name }}</span>
@@ -275,7 +275,7 @@ watch(service, (loaded) => {
           <h2 class="font-display text-h3 text-ink-true">
             Vehicle
           </h2>
-          <dl class="font-body text-caption mt-3 flex flex-col gap-1 text-ink">
+          <dl class="t-meta mt-3 flex flex-col gap-1 text-ink">
             <div class="flex justify-between gap-3">
               <dt class="text-ink-muted">
                 Max speed
@@ -309,7 +309,7 @@ watch(service, (loaded) => {
           </h2>
           <p
             v-if="service.frequency_windows.length === 0"
-            class="font-body text-caption mt-3 text-ink-muted italic"
+            class="t-note mt-3 text-ink-muted"
             data-testid="service-windows-empty"
           >
             This line has no timetable yet. Edit it to say how often it runs.
@@ -321,7 +321,7 @@ watch(service, (loaded) => {
             <li
               v-for="(window, index) in service.frequency_windows"
               :key="index"
-              class="font-body text-caption text-ink"
+              class="t-meta text-ink"
               data-testid="service-window-row"
             >
               {{ window.start_time }}–{{ window.end_time }}, every {{ Math.round(window.headway_s / 60) }} min

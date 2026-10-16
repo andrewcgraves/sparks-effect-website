@@ -173,12 +173,12 @@ watch(
         </div>
 
         <div class="min-w-0 flex-1 py-1">
-          <p class="font-body text-caption truncate text-ink">
+          <p class="t-meta truncate text-ink">
             {{ row.label }}
           </p>
           <p
             v-if="row.flag"
-            class="font-body text-micro text-ink-muted uppercase"
+            class="t-meta text-ink-muted"
             data-testid="time-remaining-flag"
           >
             {{ row.flag }}
@@ -186,7 +186,7 @@ watch(
           <p
             v-for="leg in row.detail.access ?? []"
             :key="leg.to"
-            class="font-body text-micro text-ink-muted"
+            class="t-meta text-ink-muted"
             data-testid="time-remaining-access"
           >
             {{ leg.flag ? `${leg.flag} to` : 'to' }} {{ leg.to }}, {{ formatDuration(leg.secs) }}
@@ -194,7 +194,7 @@ watch(
         </div>
 
         <p
-          class="font-body text-caption shrink-0 py-1 text-right tabular-nums text-ink-true"
+          class="t-meta shrink-0 py-1 text-right tabular-nums text-ink-true"
           data-testid="time-remaining-value"
         >
           {{ formatTimeRemaining(row.remainingSecs) }}

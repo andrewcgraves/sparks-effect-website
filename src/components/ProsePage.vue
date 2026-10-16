@@ -39,7 +39,7 @@ const updatedInWords = computed(() => {
           {{ title }}
         </h1>
         <p
-          class="font-body text-caption mt-3 text-ink-muted"
+          class="t-meta mt-3 text-ink-muted"
           data-testid="page-updated"
         >
           Last updated <time :datetime="updated">{{ updatedInWords }}</time>

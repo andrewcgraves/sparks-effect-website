@@ -79,7 +79,7 @@ const mapRoutes = computed<ScenarioRoute[]>(() => {
           <h2 class="font-display text-h3 text-ink-true">
             Segment physics
           </h2>
-          <table class="font-body text-caption mt-3 w-full text-ink">
+          <table class="t-meta mt-3 w-full text-ink">
             <thead>
               <tr class="text-ink-muted">
                 <th class="text-left font-normal">

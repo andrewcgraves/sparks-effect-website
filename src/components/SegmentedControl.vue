@@ -30,7 +30,7 @@ const emit = defineEmits<{
     <label
       v-for="option in options"
       :key="option"
-      class="font-body text-caption cursor-pointer rounded-(--radius-selector) px-3 py-1.5 not-italic normal-case transition-colors duration-200 ease-(--ease-smooth) has-focus-visible:outline-(length:--focus-ring-width) has-focus-visible:outline-offset-(--focus-ring-offset) has-focus-visible:outline-focus"
+      class="t-meta cursor-pointer rounded-(--radius-selector) px-3 py-1.5 transition-colors duration-200 ease-(--ease-smooth) has-focus-visible:outline-(length:--focus-ring-width) has-focus-visible:outline-offset-(--focus-ring-offset) has-focus-visible:outline-focus"
       :class="option === modelValue ? 'bg-coral text-white' : 'text-ink-muted hover:text-ink'"
     >
       <input

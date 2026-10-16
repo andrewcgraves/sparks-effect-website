@@ -193,7 +193,7 @@ function onToggle(line: StationLine, event: Event): void {
     </h2>
     <p
       v-if="props.plot"
-      class="font-body text-caption mt-1 text-ink-muted"
+      class="t-meta mt-1 text-ink-muted"
       data-testid="stations-plot-summary"
     >
       Starting point · {{ modeLabel(props.plot.mode) }} ·
@@ -209,7 +209,7 @@ function onToggle(line: StationLine, event: Event): void {
       <div
         v-for="row in 4"
         :key="row"
-        class="font-body text-caption grid grid-cols-[1rem_1fr_auto] gap-x-3"
+        class="t-meta grid grid-cols-[1rem_1fr_auto] gap-x-3"
       >
         <SkeletonShape class="w-2" />
         <SkeletonShape class="w-2/3" />
@@ -219,7 +219,7 @@ function onToggle(line: StationLine, event: Event): void {
 
     <p
       v-else-if="!props.lines.length"
-      class="font-body text-caption mt-2 text-ink-muted italic"
+      class="t-note mt-2 text-ink-muted"
       data-testid="station-times-empty"
     >
       No run times yet.
@@ -257,7 +257,7 @@ function onToggle(line: StationLine, event: Event): void {
             {{ line.label }}
           </h3>
           <span
-            class="font-body text-caption ml-auto shrink-0 pl-5 text-ink-muted tabular-nums"
+            class="t-meta ml-auto shrink-0 pl-5 text-ink-muted tabular-nums"
             data-testid="station-time-group-summary"
           >
             {{ summary(line) }}
@@ -279,7 +279,7 @@ function onToggle(line: StationLine, event: Event): void {
           <div
             v-if="props.plot"
             aria-hidden="true"
-            class="font-body text-micro mt-1 flex gap-3 text-ink-muted uppercase"
+            class="t-eyebrow mt-1 flex gap-3 text-ink-muted"
           >
             <span class="flex-1" />
             <span>Run</span>
@@ -329,19 +329,19 @@ function onToggle(line: StationLine, event: Event): void {
                 </span>
                 <span class="min-w-0 flex-1 py-1">
                   <span
-                    class="font-body text-caption block truncate text-ink"
+                    class="t-meta block truncate text-ink"
                     data-testid="station-time-stop-name"
                   >{{ row.name }}</span>
                   <span
                     v-for="note in notes(row)"
                     :key="note"
-                    class="font-body text-micro block text-ink-muted"
+                    class="t-meta block text-ink-muted"
                     data-testid="station-time-stop-note"
                   >{{ note }}</span>
                 </span>
                 <span
                   v-if="props.plot"
-                  class="font-body text-caption w-14 shrink-0 py-1 text-right text-ink-true tabular-nums"
+                  class="t-meta w-14 shrink-0 py-1 text-right text-ink-true tabular-nums"
                   data-testid="station-time-left"
                 >
                   <span class="sr-only">time left </span>{{ reached(row) ? formatTimeRemaining(row.remainingSecs!) : '—' }}
@@ -374,7 +374,7 @@ function onToggle(line: StationLine, event: Event): void {
                   />
                 </span>
                 <span
-                  class="font-body text-micro flex-1 text-right text-ink-muted tabular-nums"
+                  class="t-meta flex-1 text-right text-ink-muted tabular-nums"
                   data-testid="station-time-hop"
                 >
                   <span class="sr-only">to {{ rowsOf(line)[index + 1].name }}, run time </span>{{ hopText(row.hop) }}

@@ -265,14 +265,14 @@ async function handleSave(): Promise<void> {
     >
       <p
         v-if="compiling || compiledGraph"
-        class="font-body text-caption text-ink-muted italic"
+        class="t-note text-ink-muted"
         data-testid="compiling-status"
       >
         Saved. Compiling this network…
       </p>
       <p
         v-else-if="compileError"
-        class="font-body text-caption text-error"
+        class="t-error"
         role="alert"
         data-testid="compile-error"
       >
@@ -326,7 +326,7 @@ async function handleSave(): Promise<void> {
         />
         <p
           v-else-if="servicesError"
-          class="font-body text-caption mt-2 text-error"
+          class="t-error mt-2"
           role="alert"
           data-testid="services-error"
         >
@@ -337,7 +337,7 @@ async function handleSave(): Promise<void> {
           class="mt-2 flex flex-col items-start gap-3"
           data-testid="services-empty"
         >
-          <p class="font-body text-caption text-ink-muted italic">
+          <p class="t-note text-ink-muted">
             A network is made of lines, and you haven't created one yet.
           </p>
           <router-link
@@ -370,7 +370,7 @@ async function handleSave(): Promise<void> {
         </ul>
         <p
           v-if="droppedPairCount"
-          class="font-body text-caption mt-3 text-ink-muted italic"
+          class="t-note mt-3 text-ink-muted"
           data-testid="dropped-interchanges"
         >
           Saving also removes {{ droppedPairCount === 1 ? 'an interchange' : `${droppedPairCount} interchanges` }}
@@ -418,7 +418,7 @@ async function handleSave(): Promise<void> {
         <p
           v-if="showBoardingWaitError"
           id="boarding-wait-error"
-          class="font-body text-caption text-error"
+          class="t-error"
           role="alert"
           data-testid="boarding-wait-error"
         >
@@ -426,7 +426,7 @@ async function handleSave(): Promise<void> {
         </p>
         <p
           id="boarding-wait-hint"
-          class="font-body text-caption text-ink-muted italic"
+          class="t-note text-ink-muted"
           data-testid="boarding-wait-note"
         >
           Charged once, when a trip first boards — not again at each change. A line with its own boarding wait keeps it.
@@ -444,7 +444,7 @@ async function handleSave(): Promise<void> {
 
       <p
         v-if="submitError"
-        class="font-body text-caption text-error"
+        class="t-error"
         role="alert"
         data-testid="submit-error"
       >

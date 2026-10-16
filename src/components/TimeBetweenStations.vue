@@ -58,7 +58,7 @@ function groupSummary(group: StationTimeGroup): string {
       <div
         v-for="row in 4"
         :key="row"
-        class="font-body text-caption grid grid-cols-[1rem_1fr_auto] gap-x-3"
+        class="t-meta grid grid-cols-[1rem_1fr_auto] gap-x-3"
       >
         <SkeletonShape class="w-2" />
         <SkeletonShape class="w-2/3" />
@@ -68,7 +68,7 @@ function groupSummary(group: StationTimeGroup): string {
 
     <p
       v-else-if="!props.groups.length"
-      class="font-body text-caption mt-2 text-ink-muted italic"
+      class="t-note mt-2 text-ink-muted"
       data-testid="station-times-empty"
     >
       No run times yet.
@@ -99,7 +99,7 @@ function groupSummary(group: StationTimeGroup): string {
             {{ groupTitle(group) }}
           </h3>
           <span
-            class="font-body text-caption ml-auto shrink-0 pl-5 text-ink-muted tabular-nums"
+            class="t-meta ml-auto shrink-0 pl-5 text-ink-muted tabular-nums"
             data-testid="station-time-group-summary"
           >
             {{ groupSummary(group) }}
@@ -145,14 +145,14 @@ function groupSummary(group: StationTimeGroup): string {
                 <span class="absolute top-1/2 left-1/2 size-1.5 -translate-1/2 rounded-full bg-ink-muted" />
               </span>
               <span
-                class="font-body text-caption min-w-0 flex-1 truncate py-1 text-ink"
+                class="t-meta min-w-0 flex-1 truncate py-1 text-ink"
                 data-testid="station-time-stop-name"
               >{{ stop }}</span>
               <!-- Each run time is shifted half a row down so it sits between the
                    two stops it joins rather than beside either one. -->
               <span
                 v-if="index < chosenDirection(group).rows.length"
-                class="font-body text-caption shrink-0 translate-y-1/2 py-1 text-right tabular-nums text-ink-true"
+                class="t-meta shrink-0 translate-y-1/2 py-1 text-right tabular-nums text-ink-true"
                 data-testid="station-time-hop"
               >
                 <span class="sr-only">to {{ chosenDirection(group).rows[index].to }}, run time </span>

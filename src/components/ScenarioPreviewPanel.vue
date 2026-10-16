@@ -127,7 +127,7 @@ const { tabs: allPhoneTabs, tab: phoneTab } = usePhoneMapTabs({
       <slot name="after-form" />
       <p
         v-if="props.statusNote"
-        class="font-body text-caption text-ink-muted italic"
+        class="t-note text-ink-muted"
         role="status"
         data-testid="recompiling-status"
       >
@@ -203,7 +203,7 @@ const { tabs: allPhoneTabs, tab: phoneTab } = usePhoneMapTabs({
       <slot name="after-form" />
       <p
         v-if="props.statusNote"
-        class="font-body text-caption text-ink-muted italic"
+        class="t-note text-ink-muted"
         role="status"
         data-testid="recompiling-status"
       >

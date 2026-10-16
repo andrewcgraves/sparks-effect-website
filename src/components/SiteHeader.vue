@@ -157,7 +157,7 @@ onBeforeUnmount(() => wide?.removeEventListener('change', onWideChange))
         v-if="auth.isAuthenticated"
         class="py-2"
       >
-        <p class="font-body text-caption truncate pt-2 text-ink-muted">
+        <p class="t-meta truncate pt-2 text-ink-muted">
           {{ accountLabel }}
         </p>
         <nav aria-label="Account">

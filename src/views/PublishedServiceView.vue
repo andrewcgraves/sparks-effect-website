@@ -160,7 +160,7 @@ void loadGraph(props.slug)
         <template #panel-about>
           <p
             v-if="publication.subtext"
-            class="font-body text-micro text-ink-muted italic uppercase"
+            class="t-meta text-ink-muted"
             data-testid="service-subtext"
           >
             {{ publication.subtext }}
@@ -183,7 +183,7 @@ void loadGraph(props.slug)
         </h1>
         <p
           v-if="publication.subtext"
-          class="font-body text-micro text-ink-muted italic uppercase"
+          class="t-meta text-ink-muted"
           data-testid="service-subtext"
         >
           {{ publication.subtext }}

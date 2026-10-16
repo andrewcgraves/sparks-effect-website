@@ -84,7 +84,7 @@ function onKeydown(event: KeyboardEvent): void {
       </h2>
       <p
         id="confirm-dialog-body"
-        class="font-body text-caption mt-3 text-ink"
+        class="t-meta mt-3 text-ink"
       >
         {{ pending.body }}
       </p>
