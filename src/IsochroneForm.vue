@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
 import AddressAutocomplete from './components/AddressAutocomplete.vue'
 import SegmentedControl from './components/SegmentedControl.vue'
-import { PRIMARY_BUTTON_CLASS } from './components/buttonStyles'
+import { PRIMARY_BUTTON_CLASS, SELECTED_CHOICE_CLASS } from './components/buttonStyles'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from './components/fieldStyles'
 import { ACTION_LINK_CLASS } from './components/linkStyles'
 import type { GeocodingSuggestion } from './api/geocoding'
@@ -333,7 +333,7 @@ function handleSubmit() {
             </button>
             <button
               type="button"
-              :class="[ICON_BUTTON_CLASS, pickArmed ? 'border-coral bg-coral' : 'border-border bg-white hover:border-coral']"
+              :class="[ICON_BUTTON_CLASS, pickArmed ? SELECTED_CHOICE_CLASS : 'border-border bg-white hover:border-coral']"
               data-testid="pick-on-map"
               aria-label="Pick the starting point on the map"
               title="Pick on the map"
@@ -344,7 +344,7 @@ function handleSubmit() {
             </button>
             <button
               type="button"
-              :class="[ICON_BUTTON_CLASS, coordinatesOpen ? 'border-coral bg-coral/10' : 'border-border bg-white hover:border-coral']"
+              :class="[ICON_BUTTON_CLASS, coordinatesOpen ? SELECTED_CHOICE_CLASS : 'border-border bg-white hover:border-coral']"
               data-testid="enter-coordinates"
               aria-label="Enter coordinates"
               title="Enter coordinates"
@@ -421,7 +421,7 @@ function handleSubmit() {
           v-for="option in MODE_OPTIONS"
           :key="option.value"
           class="flex min-h-11 cursor-pointer flex-col items-center justify-center gap-1 rounded-(--radius-field) border py-2.5 transition-colors duration-200 ease-(--ease-smooth) has-focus-visible:outline-(length:--focus-ring-width) has-focus-visible:outline-offset-(--focus-ring-offset) has-focus-visible:outline-focus"
-          :class="mode === option.value ? 'border-coral bg-coral/10 text-ink' : 'border-border bg-white text-ink-muted hover:border-ink-faint'"
+          :class="mode === option.value ? SELECTED_CHOICE_CLASS : 'border-border bg-white text-ink-muted hover:border-ink-faint'"
           :data-testid="`mode-tile-${option.value}`"
         >
           <input
