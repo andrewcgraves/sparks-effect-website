@@ -59,7 +59,6 @@ const BASELINE: Record<string, Counts> = {
   'src/components/MapTour.vue': { rawSmallText: 1 },
   'src/components/MapView.vue': { arbitraryText: 2, rawSmallText: 3 },
   'src/components/PageSkeleton.vue': { rawSmallText: 1 },
-  'src/components/PhoneMapPage.vue': { arbitraryText: 2 },
   'src/components/PrerenderedIsochrones.vue': { arbitraryText: 1, rawSmallText: 3 },
   'src/components/ProsePage.vue': { rawSmallText: 1 },
   'src/components/PublicationControl.vue': { rawSmallText: 6 },
@@ -68,7 +67,7 @@ const BASELINE: Record<string, Counts> = {
   'src/components/SegmentedControl.vue': { rawSmallText: 1 },
   'src/components/ServiceStops.vue': { rawSmallText: 1 },
   'src/components/SiteFooter.vue': { rawSmallText: 1 },
-  'src/components/SiteHeader.vue': { arbitraryText: 1, rawSmallText: 1 },
+  'src/components/SiteHeader.vue': { rawSmallText: 1 },
   'src/components/SkeletonShape.vue': { rawSmallText: 1 },
   'src/components/StationDetail.vue': { rawSmallText: 1 },
   'src/components/StationsCard.vue': { rawSmallText: 9 },
@@ -90,7 +89,7 @@ const BASELINE: Record<string, Counts> = {
   'src/views/RouteView.vue': { rawSmallText: 1 },
   'src/views/ScenarioBuilderView.vue': { rawSmallText: 8 },
   'src/views/ScenarioView.vue': { rawSmallText: 2 },
-  'src/views/ServiceAuthoringView.vue': { arbitraryShadow: 3, offScaleWeight: 1, rawSmallText: 14 },
+  'src/views/ServiceAuthoringView.vue': { arbitraryShadow: 3, offScaleWeight: 1, rawSmallText: 13 },
   'src/views/WelcomeView.vue': { rawSmallText: 5 },
 }
 
