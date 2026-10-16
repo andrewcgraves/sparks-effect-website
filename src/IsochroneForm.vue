@@ -437,8 +437,8 @@ function handleSubmit() {
     <div class="flex flex-col gap-1">
       <span :class="FIELD_LABEL_CLASS">For up to</span>
       <SegmentedControl
-        class="self-start"
         v-model="duration"
+        class="self-start"
         :options="durationOptions"
         :format-option="formatDuration"
         label="Travel time"
