@@ -66,16 +66,30 @@ function rows(text: string): Row[] {
   return body.map((values) => Object.fromEntries(header.map((column, index) => [column, values[index] ?? ''])))
 }
 
+// A flex feed often names its agency without the bracketed short name its
+// fixed-route feed carries ("City of Tracy" beside "City of Tracy (TRACER)").
+// With two bracketed names to choose from ("Silver Rider Transit (Laughlin)",
+// "(Mesquite)") the bare one is a different listing, so it keeps its own name.
+function creditedNames(providers: string[]): Map<string, string> {
+  return new Map(providers.map((provider) => {
+    const bracketed = providers.filter((other) => other.startsWith(`${provider} (`) && other.endsWith(')'))
+    return [provider, bracketed.length === 1 ? bracketed[0] : provider]
+  }))
+}
+
 export function agenciesFromManifest(csv: string): { agencies: TransitAgency[]; manifestDate: string } {
   const ingested = rows(csv).filter((row) => INGESTED.has(row.outcome))
-  const agencies = ingested
-    // The page's "Data provided by 511.org" line already covers every feed
-    // that came through 511, which is what 511's agreement asks for.
-    .filter((row) => !row.feed_dir.startsWith('511-'))
-    .map((row) => ({ name: row.provider, href: feedLink(row) }))
-    // Ordered by link too, so an agency with a flex and a fixed-route feed
-    // keeps the same link when a regeneration lists its feeds the other way.
-    .sort((a, b) => a.name.localeCompare(b.name, 'en') || a.href.localeCompare(b.href, 'en'))
+  // The page's "Data provided by 511.org" line already covers every feed
+  // that came through 511, which is what 511's agreement asks for.
+  const credited = ingested.filter((row) => !row.feed_dir.startsWith('511-'))
+  const names = creditedNames([...new Set(credited.map((row) => row.provider))])
+  const agencies = credited
+    .map((row) => ({ name: names.get(row.provider) ?? row.provider, renamed: names.get(row.provider) !== row.provider, href: feedLink(row) }))
+    // A merged agency links the feed that carries the name it is credited
+    // under; ordering by link too means an agency with several feeds keeps
+    // the same link when a regeneration lists them the other way.
+    .sort((a, b) => a.name.localeCompare(b.name, 'en') || Number(a.renamed) - Number(b.renamed) || a.href.localeCompare(b.href, 'en'))
+    .map(({ name, href }) => ({ name, href }))
   // A cached feed keeps the time of its last download, so the newest time is
   // when the feeds were last fetched. ISO 8601 UTC strings sort as times.
   const newestFetch = ingested.map((row) => row.fetched_at).sort().at(-1) ?? ''

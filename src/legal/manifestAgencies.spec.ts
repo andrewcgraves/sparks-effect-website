@@ -45,6 +45,21 @@ describe('agenciesFromManifest', () => {
     expect(agenciesFromManifest(manifest(flex, fixed)).agencies).toEqual(expected)
   })
 
+  it('names an agency once when its flex feed lists it without the bracketed name its fixed-route feed carries', () => {
+    const csv = manifest(
+      'mdb-60,60,City of Tracy,,California,,,https://tracy.example/flex.zip,urls.latest,fetched,,100,abc,2026-10-11T09:05:00+00:00',
+      'mdb-61,61,City of Tracy (TRACER),,California,,,https://tracy.example/fixed.zip,urls.latest,fetched,,100,abc,2026-10-11T09:05:00+00:00',
+      'mdb-62,62,Silver Rider Transit (Laughlin),,Nevada,,,https://silver.example/laughlin.zip,urls.latest,fetched,,100,abc,2026-10-11T09:05:00+00:00',
+      'mdb-63,63,Silver Rider Transit (Mesquite),,Nevada,,,https://silver.example/mesquite.zip,urls.latest,fetched,,100,abc,2026-10-11T09:05:00+00:00',
+    )
+
+    expect(agenciesFromManifest(csv).agencies).toEqual([
+      { name: 'City of Tracy (TRACER)', href: 'https://tracy.example/fixed.zip' },
+      { name: 'Silver Rider Transit (Laughlin)', href: 'https://silver.example/laughlin.zip' },
+      { name: 'Silver Rider Transit (Mesquite)', href: 'https://silver.example/mesquite.zip' },
+    ])
+  })
+
   it('links the Mobility Database page for a feed whose own link needs a key or is missing', () => {
     const csv = manifest(
       'mdb-50,50,Keyed Transit,,California,,,https://keyed.example/gtfs.zip?api_key=REDACTED,urls.direct_download,fetched,,100,abc,2026-10-11T09:05:00+00:00',
