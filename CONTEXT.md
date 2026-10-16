@@ -33,8 +33,8 @@ not renamed to match, and URLs are tidied separately (SPA-456).
 | **Route** | route | The geometry a line runs along. Seen mostly by authors — picking a route for a line, stops sitting on or off the route — though public route pages exist (`/routes/:slug`, in the sitemap and link previews). Never use it for a line or a network, and never say *alignment* or *track* in copy |
 | **Splash zone** | isochrone | See [Splash zone](#splash-zone) |
 | **Transfer** | handover | Moving a line to another author: "Transfer…" on a line's page, "Incoming transfers" and the "Transfer pending" badge on My authoring, and the confirms and toasts about one. The API reserves *transfer* for a rider changing service, but copy never uses it that way (a rider's change reads "Changed from"), so the product word is free. Code, test ids and API calls say *handover* |
-| **Stop** | stop | A place *on a line*: what an author adds, names, orders and snaps ("Click the map to add a stop", "A line needs at least two stops"), a published line's Stops list, a dwell hint ("Longer than most stops"), and a count of a line's calls even where the places are stations (the Time between stations card's "3 stops · 1 h 11 min"). The API defines a stop as *a service calling at a place*, not a place; on the authored model each stop also carries its own name and coordinate, and that is what an author edits |
-| **Station** | station / node | A place *a rider reaches*: rows of the time-remaining graph, the map's station dots and hover, "Time between stations", "The nearest station is about …", the map key's "From station". Never "station stop" |
+| **Stop** | stop | A place *on a line*: what an author adds, names, orders and snaps ("Click the map to add a stop", "A line needs at least two stops"), a published line's Stops list, a dwell hint ("Longer than most stops"), and a count of a line's calls even where the places are stations (the Stations card's "3 stops · 1 h 11 min"). The API defines a stop as *a service calling at a place*, not a place; on the authored model each stop also carries its own name and coordinate, and that is what an author edits |
+| **Station** | station / node | A place *a rider reaches*: rows of the time-remaining graph, the network page's Stations card, the map's station dots and hover, "Time between stations", "The nearest station is about …", the map key's "From station". Never "station stop" |
 | **Travel time** | budget (`budget_mins`) | How long the visitor gives a plot: the form's "Travel time", "raise the travel time", the map key's "Travel time ran out here". *Budget* stays in code and in the worker's vocabulary |
 | **Starting point** | origin | Where a plot starts: "Pick starting point on map", "Click the map to set the starting point", the time-remaining graph's top row, the map key's "From starting point". *Pin* only for the map marker itself; *origin* never in copy |
 | **Saved splash zones** | prerendered isochrone | The ready-made plots a network page offers in its one plot panel, behind the "Saved splash zones" side of its switch ("Plot your own" is the other). Choosing one draws it and fills the form with its starting point, travel time and mode. Never *pre-rendered* or *curated* in copy |
@@ -78,10 +78,29 @@ dragged; a header button switches the panel between **tall** (room to read)
 and **short** (room to aim), and arming tap-to-pick shortens it. Every phone
 map page has a **Plot** tab (the splash-zone form and whatever plots with it)
 and a **Results** tab (the time-remaining graph), disabled until a plot reaches
-a station; the page adds its own after them — Stations and About on the network
-page, Stops and About on a line's page, Interchanges where stops did not
-connect. Plotting turns the panel to Results. Authoring pages are desktop
+a station; the page adds its own after them — About on the network page, Stops
+and About on a line's page, Interchanges where stops did not connect. The
+network page calls its Results tab **Stations**: it holds the Stations card, the
+timetable before a plot and the answer after it, so it is never disabled while
+run times load. Plotting turns the panel to Results, and a plot that goes away
+turns it back to Plot. Authoring pages are desktop
 pages for launch and keep the stacked layout at any width.
+
+## The Stations card
+
+The network page's one card about stations (`src/components/StationsCard.vue`,
+model in `stationsCard.ts`), in place of Time remaining and Time between
+stations (SPA-504). One group per route, stops in **line order** before and
+after a plot. Before a plot it is the timetable: run times between stops and a
+direction toggle where a route runs at different times each way. After a plot
+the order does not change; each stop gains its **time left** on arrival (the
+number the map shows for that station, or "—"), and the rail is drawn as the map
+draws a line — **ridden** in ink, **unridden** faint, **unfinished** dashed
+with how far it got ("50% of 15:00"). A ridden hop shows the run time in the
+direction ridden, marked ↑ or ↓. The stop boarded from the starting point reads
+"Boarded here"; a change of train reads "Changed from"; a station on several
+routes appears in each, with "Also on". With no run times to read a plot along,
+the page falls back to the time-remaining graph. Line pages keep both cards.
 
 ## The time-remaining graph
 

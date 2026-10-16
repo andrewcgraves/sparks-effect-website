@@ -7,10 +7,10 @@ import { PLOT_WITHOUT_MAP } from '../components/mapLoad'
 import PlotPanel from '../components/PlotPanel.vue'
 import PrerenderedIsochrones from '../components/PrerenderedIsochrones.vue'
 import RoutingStatusBanner from '../components/RoutingStatusBanner.vue'
-import TimeBetweenStations from '../components/TimeBetweenStations.vue'
+import StationsCard from '../components/StationsCard.vue'
 import TimeRemaining from '../components/TimeRemaining.vue'
-import { segmentStationTimeGroups } from '../components/stationTimes'
-import { buildTimeRemainingGraph, remainingSecsBySlug, shortLineName } from '../components/timeRemaining'
+import { readPlot, stationLines, stationNames } from '../components/stationsCard'
+import { buildTimeRemainingGraph, lineByRoute, remainingSecsBySlug } from '../components/timeRemaining'
 import { ORIGIN_PICK_CUE } from '../components/placementCues'
 import { isochroneWaitMessage } from '../api/isochroneFault'
 import { useScenario } from '../composables/useScenario'
@@ -48,9 +48,8 @@ const {
   failed: travelTimesFailed,
 } = useScenarioTravelTimes(props.slug)
 
-const stationTimeGroups = computed(() =>
-  segmentStationTimeGroups(segments.value, stations.value, routes.value),
-)
+const stationName = computed(() => stationNames(stations.value))
+const lines = computed(() => stationLines(segments.value, routes.value, stationName.value))
 const {
   data: isochroneData,
   loading: isLoading,
@@ -66,29 +65,18 @@ function highlight(slug: string | null, fromMap: boolean) {
   activeStation.value = slug ? { slug, fromMap } : null
 }
 
-function lineOf(id: string): { key: string; label: string } {
-  // Lines that share a route share a tab. A curated network names the route
-  // what riders call the line ("Brightline West — Palmdale to Las Vegas"), so
-  // its short name is the tab's line name; a line on no route uses its own.
-  const service = services.value.find((s) => s.id === id)
-  const route = service?.route_id
-    ? routes.value.find((r) => r.id === service.route_id)
-    : undefined
-  return route
-    ? { key: route.id, label: shortLineName(route.name) }
-    : { key: id, label: service?.name ?? UNNAMED_LINE }
-}
-
 const timeRemaining = computed(() =>
   buildTimeRemainingGraph(isochroneData.value?.metadata ?? null, {
     stationName: (slug) => stations.value.find((s) => s.slug === slug)?.name ?? UNNAMED_STATION,
     serviceName: (id) => services.value.find((s) => s.id === id)?.name ?? UNNAMED_LINE,
-    line: lineOf,
+    line: lineByRoute(services.value, routes.value),
     mode: isochroneData.value?.metadata.mode ?? 'walk',
   }),
 )
 
 const remainingBySlug = computed(() => remainingSecsBySlug(timeRemaining.value))
+
+const plotReading = computed(() => readPlot(isochroneData.value?.metadata ?? null, timeRemaining.value))
 
 function remainingSecs(slug: string): number | null {
   return remainingBySlug.value(slug)
@@ -138,9 +126,10 @@ const isPhone = useIsPhone()
 
 const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
   plot: () => isochroneData.value,
-  results: () => timeRemaining.value.views.length > 0,
+  // One Stations tab holds the timetable before a plot and the answer after it.
+  results: () => !travelTimesFailed.value || timeRemaining.value.views.length > 0,
+  resultsLabel: 'Stations',
   extra: () => [
-    ...(travelTimesFailed.value ? [] : [{ key: 'stations', label: 'Stations' }]),
     ...(subtext.value.trim() || description.value.trim() ? [{ key: 'about', label: 'About' }] : []),
   ],
 })
@@ -210,18 +199,24 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
         <CopyLinkButton v-if="shareable" />
       </template>
       <template #panel-results>
-        <TimeRemaining
-          v-if="timeRemaining.views.length"
-          :views="timeRemaining.views"
+        <StationsCard
+          v-if="!travelTimesFailed"
+          :lines="lines"
+          :name="stationName"
+          :plot="plotReading"
+          :loading="travelTimesLoading"
           :active-slug="activeStation?.slug ?? null"
           :active-from-map="activeStation?.fromMap ?? false"
           @activate="highlight($event, false)"
         />
-      </template>
-      <template #panel-stations>
-        <TimeBetweenStations
-          :groups="stationTimeGroups"
-          :loading="travelTimesLoading"
+        <!-- With no run times there are no lines to read a plot along, so the
+             plot falls back to the time-remaining graph rather than vanishing. -->
+        <TimeRemaining
+          v-else-if="timeRemaining.views.length"
+          :views="timeRemaining.views"
+          :active-slug="activeStation?.slug ?? null"
+          :active-from-map="activeStation?.fromMap ?? false"
+          @activate="highlight($event, false)"
         />
       </template>
       <template #panel-about>
@@ -327,17 +322,24 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
           </template>
         </PlotPanel>
         <CopyLinkButton v-if="shareable" />
-        <TimeRemaining
-          v-if="timeRemaining.views.length"
-          :views="timeRemaining.views"
+        <StationsCard
+          v-if="!travelTimesFailed"
+          :lines="lines"
+          :name="stationName"
+          :plot="plotReading"
+          :loading="travelTimesLoading"
           :active-slug="activeStation?.slug ?? null"
           :active-from-map="activeStation?.fromMap ?? false"
           @activate="highlight($event, false)"
         />
-        <TimeBetweenStations
-          v-if="!travelTimesFailed"
-          :groups="stationTimeGroups"
-          :loading="travelTimesLoading"
+        <!-- With no run times there are no lines to read a plot along, so the
+             plot falls back to the time-remaining graph rather than vanishing. -->
+        <TimeRemaining
+          v-else-if="timeRemaining.views.length"
+          :views="timeRemaining.views"
+          :active-slug="activeStation?.slug ?? null"
+          :active-from-map="activeStation?.fromMap ?? false"
+          @activate="highlight($event, false)"
         />
       </div>
 

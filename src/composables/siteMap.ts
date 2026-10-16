@@ -1,4 +1,4 @@
-import { Map, setWorkerUrl, type MapOptions } from 'maplibre-gl'
+import { Map, setWorkerUrl, type MapOptions, type SourceSpecification, type StyleSpecification } from 'maplibre-gl'
 
 // Re-exported so a page that loads the map lazily gets everything it needs
 // from MapLibre through this one module.
@@ -20,19 +20,26 @@ import { routeLayerModule } from './useRouteLayer'
 // the shared module the worker imports.
 setWorkerUrl(maplibreWorkerUrl)
 
-// Only the credits whose terms want them on the data sit on the map; the rest
-// live on /attribution, which every footer links (SPA-495). 511's data
-// agreement wants its credit "in visual proximity" to the data (SPA-419), and
-// San Joaquin RTD's terms want its legend "prominently displayed" while its
-// feeds are ingested; drop that entry (and the page's line) once
-// GTFS_FEED_DENYLIST=886 2180 is set. The style's own TileJSON still adds the
-// tile host, OpenMapTiles and OpenStreetMap. Giving the control options
-// replaces MapLibre's default list, which drops MapLibre's own credit — its
-// licence doesn't ask for one on the map, and /attribution carries it.
+// The map credits OpenStreetMap and nothing else (SPA-507); every other
+// credit — 511, San Joaquin RTD, the tile host, OpenMapTiles, MapLibre — lives
+// in the footer and on /attribution, which every footer links. Giving the
+// control options replaces MapLibre's default list, and `withoutSourceCredits`
+// stops the style's TileJSON adding its own.
 export const MAP_CREDITS = [
-  '<a href="https://www.511.org" target="_blank" rel="noopener">Data provided by 511.org</a>',
-  'Route and schedule data provided by permission of San Joaquin RTD',
+  '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors',
 ]
+
+// A source's own options win over the TileJSON it points at, and the
+// attribution control skips a blank credit, so a blank here hides the host's.
+export function withoutSourceCredits(
+  _previous: StyleSpecification | undefined,
+  next: StyleSpecification,
+): StyleSpecification {
+  const sources = Object.fromEntries(
+    Object.entries(next.sources).map(([id, source]) => [id, { ...source, attribution: '' } as SourceSpecification]),
+  )
+  return { ...next, sources }
+}
 
 const MAX_PIXEL_RATIO = 2
 
@@ -44,7 +51,6 @@ export function createSiteMap(
   credits: { compact?: boolean } = {},
 ): Map {
   const map = new Map({
-    style: resolveMapStyleUrl(),
     // Every map stays flat and north-up (SPA-498): splash zones and lines are
     // flat fills and lines, so a tilt or a turn only makes them harder to
     // read, and the recenter button and every fit keep the visitor's angle,
@@ -69,6 +75,8 @@ export function createSiteMap(
   // zooms; the keyboard one also stops Shift+↑/↓ pitching.
   map.touchZoomRotate.disableRotation()
   map.keyboard.disableRotation()
+  // The constructor's `style` option takes no transformStyle.
+  map.setStyle(resolveMapStyleUrl(), { transformStyle: withoutSourceCredits })
   return map
 }
 

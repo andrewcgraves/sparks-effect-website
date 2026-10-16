@@ -36,12 +36,8 @@ import {
   ORIGIN_WALK_SOURCE_ID,
 } from '../composables/useOriginWalkLayer'
 import { THEME_TOKEN_FALLBACKS } from '../themeTokens'
-import {
-  staticIsochroneResponse,
-  ISOCHRONE_BOUNDS,
-  ISOCHRONE_BOUNDS_CORNERS,
-  ISOCHRONE_CENTER,
-} from '../fixtures/isochrone'
+import { ISOCHRONE_BOUNDS_CORNERS, ISOCHRONE_CENTER } from '../fixtures/isochrone'
+import { staticIsochroneResponse } from '../test/sampleIsochrone'
 import type { ChainResponse, StarterWalk } from '../fixtures/isochrone'
 import type { Route, Station } from '../api/scenarios'
 
@@ -75,6 +71,7 @@ const {
   mockPopupAddTo,
   mockPopupRemove,
   mockGetZoom,
+  mockSetStyle,
 } = vi.hoisted(() => {
   const canvas = { style: { cursor: '' } }
   return {
@@ -105,6 +102,7 @@ const {
     mockPopupAddTo: vi.fn(),
     mockPopupRemove: vi.fn(),
     mockGetZoom: vi.fn(() => 7),
+    mockSetStyle: vi.fn(),
   }
 })
 
@@ -142,6 +140,7 @@ vi.mock('maplibre-gl', () => ({
     this['getZoom'] = mockGetZoom
     this['touchZoomRotate'] = { disableRotation: vi.fn() }
     this['keyboard'] = { disableRotation: vi.fn() }
+    this['setStyle'] = mockSetStyle
     this['doubleClickZoom'] = {
       enable: mockDoubleClickZoomEnable,
       disable: mockDoubleClickZoomDisable,
@@ -994,21 +993,18 @@ describe('MapView', () => {
   })
 
   it('initializes map with a keyless OpenFreeMap style by default', async () => {
-    const { Map } = await import('maplibre-gl')
     mount(MapView, { props: defaultProps })
-    const options = (Map as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(options.style).toBe('https://tiles.openfreemap.org/styles/positron')
+    expect(mockSetStyle.mock.calls.at(-1)![0]).toBe('https://tiles.openfreemap.org/styles/positron')
   })
 
-  it('puts only the credits whose terms want them on the data on the map itself', async () => {
+  it('credits OpenStreetMap and no provider on the map itself', async () => {
     const { Map } = await import('maplibre-gl')
     mount(MapView, { props: defaultProps })
     const options = (Map as ReturnType<typeof vi.fn>).mock.calls[0][0]
     const credits: string[] = options.attributionControl.customAttribution
-    expect(credits).toHaveLength(2)
-    expect(credits[0]).toContain('href="https://www.511.org"')
-    expect(credits[0]).toContain('>Data provided by 511.org<')
-    expect(credits[1]).toBe('Route and schedule data provided by permission of San Joaquin RTD')
+    expect(credits).toHaveLength(1)
+    expect(credits[0]).toContain('href="https://www.openstreetmap.org/copyright"')
+    expect(credits[0]).toContain('>OpenStreetMap</a> contributors')
   })
 
   it.each([
@@ -1181,17 +1177,12 @@ describe('MapView', () => {
     )
   })
 
-  it('ISOCHRONE_BOUNDS covers the sample CA HSR corridor', () => {
-    const [minLng, minLat, maxLng, maxLat] = ISOCHRONE_BOUNDS
+  it('ISOCHRONE_BOUNDS_CORNERS covers the sample CA HSR corridor', () => {
+    const [[minLng, minLat], [maxLng, maxLat]] = ISOCHRONE_BOUNDS_CORNERS
     expect(minLat).toBeGreaterThan(36.5)
     expect(maxLat).toBeLessThan(38.5)
     expect(minLng).toBeGreaterThan(-123)
     expect(maxLng).toBeLessThan(-121)
-  })
-
-  it('ISOCHRONE_CENTER is the midpoint of ISOCHRONE_BOUNDS', () => {
-    expect(ISOCHRONE_CENTER[0]).toBeCloseTo((ISOCHRONE_BOUNDS[0] + ISOCHRONE_BOUNDS[2]) / 2, 10)
-    expect(ISOCHRONE_CENTER[1]).toBeCloseTo((ISOCHRONE_BOUNDS[1] + ISOCHRONE_BOUNDS[3]) / 2, 10)
   })
 
   it('renders a color key for origin and egress isochrones', () => {
@@ -1363,6 +1354,37 @@ describe('MapView', () => {
         center: [-122.5, 38.0],
         zoom: 9,
       }),
+    )
+  })
+
+  // SPA-501: choosing a saved splash zone draws it and moves the pin to its
+  // starting point in the same moment; snapping in on the pin would undo the
+  // frame that shows the whole splash zone.
+  it('keeps the splash zone framed when the pin moves to its starting point', async () => {
+    const wrapper = mount(MapView, { props: defaultProps })
+    await triggerMapLoad()
+    mockFitBounds.mockClear()
+    mockFlyTo.mockClear()
+
+    const [lng, lat] = ISOCHRONE_CENTER
+    await wrapper.setProps({ isochroneData: staticIsochroneResponse, origin: { lat, lng } })
+
+    expect(mockFitBounds).toHaveBeenCalledWith(ISOCHRONE_BOUNDS_CORNERS, expect.anything())
+    expect(mockFlyTo).not.toHaveBeenCalled()
+  })
+
+  it('still flies to a pin moved outside the drawn splash zone', async () => {
+    const wrapper = mount(MapView, {
+      props: { ...defaultProps, isochroneData: staticIsochroneResponse },
+    })
+    await triggerMapLoad()
+    mockFlyTo.mockClear()
+
+    const [, [maxLng, maxLat]] = ISOCHRONE_BOUNDS_CORNERS
+    await wrapper.setProps({ origin: { lat: maxLat + 1, lng: maxLng + 1 } })
+
+    expect(mockFlyTo).toHaveBeenCalledWith(
+      expect.objectContaining({ center: [maxLng + 1, maxLat + 1], zoom: 9 }),
     )
   })
 

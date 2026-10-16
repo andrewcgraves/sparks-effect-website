@@ -1,20 +1,24 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Map as MapLibreMap } from 'maplibre-gl'
-import { createSiteMap, MAP_CREDITS, splashZoneModules } from './siteMap'
+import type { StyleSpecification } from 'maplibre-gl'
+import { createSiteMap, MAP_CREDITS, splashZoneModules, withoutSourceCredits } from './siteMap'
 import { mapModules } from './mapLifecycle'
 import { layerStack } from './layerStack'
 import { resolveIsochroneColors } from './useIsochroneLayer'
 import { TOUR_SAMPLE } from '../fixtures/tourSample'
 
-const { MockMap, disableTouchRotation, disableKeyboardRotation } = vi.hoisted(() => {
+const { MockMap, disableTouchRotation, disableKeyboardRotation, setStyle } = vi.hoisted(() => {
   const disableTouchRotation = vi.fn()
   const disableKeyboardRotation = vi.fn()
+  const setStyle = vi.fn()
   return {
     disableTouchRotation,
     disableKeyboardRotation,
+    setStyle,
     MockMap: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
       this['touchZoomRotate'] = { disableRotation: disableTouchRotation }
       this['keyboard'] = { disableRotation: disableKeyboardRotation }
+      this['setStyle'] = setStyle
     }),
   }
 })
@@ -45,11 +49,30 @@ function fakeMap() {
 }
 
 describe('createSiteMap', () => {
-  it('uses the keyless style and credits 511 on the map', () => {
+  it('uses the keyless style and credits only OpenStreetMap on the map', () => {
     createSiteMap({ container: document.createElement('div') })
     const options = MockMap.mock.calls.at(-1)![0]
-    expect(options.style).toBe('https://tiles.openfreemap.org/styles/positron')
+    expect(setStyle).toHaveBeenLastCalledWith('https://tiles.openfreemap.org/styles/positron', {
+      transformStyle: withoutSourceCredits,
+    })
     expect(options.attributionControl).toEqual({ customAttribution: MAP_CREDITS })
+    expect(MAP_CREDITS).toHaveLength(1)
+    expect(MAP_CREDITS[0]).toContain('OpenStreetMap')
+    expect(MAP_CREDITS.join()).not.toMatch(/511|San Joaquin|OpenFreeMap|Stadia|OpenMapTiles/)
+  })
+
+  it("blanks every source's own credit so the tile host's TileJSON adds none", () => {
+    const style = {
+      version: 8,
+      sources: {
+        openmaptiles: { type: 'vector', url: 'https://tiles.openfreemap.org/planet' },
+        ne2_shaded: { type: 'raster', url: 'https://tiles.openfreemap.org/natural_earth', attribution: 'Natural Earth' },
+      },
+      layers: [],
+    } as StyleSpecification
+    const next = withoutSourceCredits(undefined, style)
+    expect(Object.values(next.sources).map((source) => 'attribution' in source && source.attribution)).toEqual(['', ''])
+    expect(next.layers).toBe(style.layers)
   })
 
   describe('drawing load', () => {
