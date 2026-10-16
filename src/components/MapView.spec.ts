@@ -71,6 +71,7 @@ const {
   mockPopupAddTo,
   mockPopupRemove,
   mockGetZoom,
+  mockSetStyle,
 } = vi.hoisted(() => {
   const canvas = { style: { cursor: '' } }
   return {
@@ -101,6 +102,7 @@ const {
     mockPopupAddTo: vi.fn(),
     mockPopupRemove: vi.fn(),
     mockGetZoom: vi.fn(() => 7),
+    mockSetStyle: vi.fn(),
   }
 })
 
@@ -138,6 +140,7 @@ vi.mock('maplibre-gl', () => ({
     this['getZoom'] = mockGetZoom
     this['touchZoomRotate'] = { disableRotation: vi.fn() }
     this['keyboard'] = { disableRotation: vi.fn() }
+    this['setStyle'] = mockSetStyle
     this['doubleClickZoom'] = {
       enable: mockDoubleClickZoomEnable,
       disable: mockDoubleClickZoomDisable,
@@ -990,21 +993,18 @@ describe('MapView', () => {
   })
 
   it('initializes map with a keyless OpenFreeMap style by default', async () => {
-    const { Map } = await import('maplibre-gl')
     mount(MapView, { props: defaultProps })
-    const options = (Map as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(options.style).toBe('https://tiles.openfreemap.org/styles/positron')
+    expect(mockSetStyle.mock.calls.at(-1)![0]).toBe('https://tiles.openfreemap.org/styles/positron')
   })
 
-  it('puts only the credits whose terms want them on the data on the map itself', async () => {
+  it('credits OpenStreetMap and no provider on the map itself', async () => {
     const { Map } = await import('maplibre-gl')
     mount(MapView, { props: defaultProps })
     const options = (Map as ReturnType<typeof vi.fn>).mock.calls[0][0]
     const credits: string[] = options.attributionControl.customAttribution
-    expect(credits).toHaveLength(2)
-    expect(credits[0]).toContain('href="https://www.511.org"')
-    expect(credits[0]).toContain('>Data provided by 511.org<')
-    expect(credits[1]).toBe('Route and schedule data provided by permission of San Joaquin RTD')
+    expect(credits).toHaveLength(1)
+    expect(credits[0]).toContain('href="https://www.openstreetmap.org/copyright"')
+    expect(credits[0]).toContain('>OpenStreetMap</a> contributors')
   })
 
   it.each([

@@ -208,11 +208,13 @@ the copy:
   generation's `gtfs-manifest.csv`, which lives in the private cluster config.
   Both become static text once the API exposes generation metadata.
 
-The map itself credits 511 ("Data provided by 511.org", which 511's agreement
-wants next to the data), links `/attribution` as "Data sources" and keeps
-MapLibre's own credit (`MAP_CREDITS` in `MapView.vue`). The style's TileJSON
-adds the tile host, OpenMapTiles and OpenStreetMap on its own. The footer
-repeats the OSM, ODbL, tile, 511 and Stadia credits on every page.
+The map itself credits only OpenStreetMap (`MAP_CREDITS` in
+`src/composables/siteMap.ts`, SPA-507). `createSiteMap` loads the style through
+`withoutSourceCredits`, which blanks each source's `attribution` so the tile
+host, OpenMapTiles and OpenStreetMap entries in the style's TileJSON don't show.
+Every provider credit (511, San Joaquin RTD, the tile host, OpenMapTiles,
+Stadia, MapLibre) lives in the footer and on `/attribution` instead, even where
+SPA-419 found a licence asking for a credit next to the data.
 
 ## Link previews
 
