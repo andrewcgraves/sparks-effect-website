@@ -171,7 +171,7 @@ defineExpose({ setInputValue })
           v-model="inputValue"
           :class="[FIELD_INPUT_CLASS, 'h-9 w-full placeholder:text-placeholder']"
           type="text"
-          placeholder="Start typing a place name"
+          placeholder="Search for a place"
           autocomplete="off"
           role="combobox"
           aria-autocomplete="list"
