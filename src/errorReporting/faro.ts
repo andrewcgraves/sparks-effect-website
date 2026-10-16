@@ -45,6 +45,9 @@ export function startErrorReporting(router: Router, options: FaroOptions): void 
     })
   })
 
+  // Faro starts after first render, so the landing page's navigation has
+  // already finished and afterEach alone would leave it untagged.
+  faro.api.setView({ name: routePattern(router) })
   router.afterEach(() => {
     faro.api.setView({ name: routePattern(router) })
   })

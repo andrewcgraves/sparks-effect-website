@@ -80,6 +80,11 @@ Errors go to Grafana Cloud Frontend Observability through the Faro Web SDK
 analytics, this only switches on in a production build, and only when
 `VITE_FARO_URL` is set. Dev keeps errors in the console.
 
+The SDK is imported after the app mounts, so first render does not wait on it
+(SPA-493). Until it starts, reports, uncaught errors and unhandled rejections
+are queued and handed to it when it does; if its chunk fails to load, the queue
+is dropped.
+
 What is reported:
 
 - any error a Vue component throws (`app.config.errorHandler`), and any uncaught

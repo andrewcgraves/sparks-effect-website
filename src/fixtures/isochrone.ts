@@ -127,4 +127,7 @@ export const ISOCHRONE_BOUNDS_CORNERS: [[number, number], [number, number]] = [
   [-121.48912, 37.837807],
 ]
 
-export const ISOCHRONE_CENTER: [number, number] = [-121.968364, 37.3865235]
+export const ISOCHRONE_CENTER: [number, number] = [
+  (ISOCHRONE_BOUNDS_CORNERS[0][0] + ISOCHRONE_BOUNDS_CORNERS[1][0]) / 2,
+  (ISOCHRONE_BOUNDS_CORNERS[0][1] + ISOCHRONE_BOUNDS_CORNERS[1][1]) / 2,
+]
