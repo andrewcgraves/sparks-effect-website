@@ -38,33 +38,33 @@ const hasAttribution = useRoutedPath('/attribution')
     </nav>
     <p>
       Map data © <a
-        class="underline"
+        :class="INLINE_LINK_CLASS"
         href="https://www.openstreetmap.org/copyright"
         target="_blank"
         rel="noopener noreferrer"
       >OpenStreetMap</a> contributors, <a
-        class="underline"
+        :class="INLINE_LINK_CLASS"
         href="https://opendatacommons.org/licenses/odbl/1-0/"
         target="_blank"
         rel="noopener noreferrer"
       >ODbL</a> · Tiles via <a
-        class="underline"
+        :class="INLINE_LINK_CLASS"
         :href="tileCredit.href"
         target="_blank"
         rel="noopener noreferrer"
         data-testid="tile-credit"
       >{{ tileCredit.name }}</a> · <a
-        class="underline"
+        :class="INLINE_LINK_CLASS"
         href="https://www.511.org"
         target="_blank"
         rel="noopener noreferrer"
         data-testid="credit-511"
       >Data provided by 511.org</a><span v-if="hasAttribution"> · Transit schedules from <RouterLink
         to="/attribution#transit-schedules"
-        class="underline"
+        :class="INLINE_LINK_CLASS"
         data-testid="agencies-link"
       >these agencies</RouterLink></span> · Search by <a
-        class="underline"
+        :class="INLINE_LINK_CLASS"
         href="https://stadiamaps.com/attribution/"
         target="_blank"
         rel="noopener noreferrer"

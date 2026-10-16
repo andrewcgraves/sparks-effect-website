@@ -19,7 +19,7 @@ const PRIMARY_LINK_CLASS =
   `${ACTION_LINK_BASE_CLASS} flex h-full items-center border-b-2 border-transparent aria-[current=page]:border-coral aria-[current=page]:text-ink`
 
 const SHEET_LINK_CLASS =
-  'font-display text-btn block w-full cursor-pointer py-3 text-left text-ink uppercase transition-colors duration-200 ease-(--ease-smooth) hover:text-coral aria-[current=page]:text-coral'
+  'font-display text-btn block w-full cursor-pointer py-3 text-left text-ink uppercase underline-offset-4 transition-colors duration-200 ease-(--ease-smooth) hover:underline aria-[current=page]:text-coral'
 
 const auth = useAuthStore()
 const route = useRoute()
