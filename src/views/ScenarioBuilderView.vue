@@ -272,7 +272,7 @@ async function handleSave(): Promise<void> {
       </p>
       <p
         v-else-if="compileError"
-        class="font-body text-caption text-coral"
+        class="font-body text-caption text-error"
         role="alert"
         data-testid="compile-error"
       >

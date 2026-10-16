@@ -369,7 +369,9 @@ describe('ScenarioBuilderView editing an existing scenario', () => {
     await flushPromises()
 
     expect(replace).not.toHaveBeenCalled()
-    expect(wrapper.find('[data-testid="compile-error"]').exists()).toBe(true)
+    const compileError = wrapper.get('[data-testid="compile-error"]')
+    expect(compileError.classes()).toContain('text-error')
+    expect(compileError.classes()).not.toContain('text-coral')
     expect(wrapper.find('[data-testid="save-scenario"]').exists()).toBe(false)
   })
 
@@ -554,7 +556,9 @@ describe('ScenarioBuilderView editing an existing scenario', () => {
       await wrapper.get('[data-testid="service-checkbox-svc2"]').setValue(false)
       await save(wrapper)
 
-      expect(wrapper.find('[data-testid="compile-error"]').exists()).toBe(true)
+      const compileError = wrapper.get('[data-testid="compile-error"]')
+      expect(compileError.classes()).toContain('text-error')
+      expect(compileError.classes()).not.toContain('text-coral')
       const vm = wrapper.vm as unknown as {
         editDraft: ScenarioInput
         droppedPairCount: number
