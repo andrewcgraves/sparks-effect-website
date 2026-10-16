@@ -4,6 +4,7 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { Map as MapLibreMap, Marker } from 'maplibre-gl'
 import TourMap from './TourMap.vue'
 import { TOUR_STEPS } from './tourSteps'
+import type { TourInset } from './tourInset'
 import { ISOCHRONE_ORIGIN_LAYER_ID } from '../composables/useIsochroneLayer'
 
 const map = vi.hoisted(() => ({
@@ -15,6 +16,7 @@ const map = vi.hoisted(() => ({
     fitBounds: [] as unknown[][],
     jumpTo: [] as unknown[][],
     flyTo: [] as unknown[][],
+    cameraForBounds: [] as unknown[][],
   },
   remove: vi.fn(),
   markerRemove: vi.fn(),
@@ -44,7 +46,10 @@ vi.mock('maplibre-gl', () => ({
     }
     this['jumpTo'] = (...args: unknown[]) => map.calls.jumpTo.push(args)
     this['flyTo'] = (...args: unknown[]) => map.calls.flyTo.push(args)
-    this['cameraForBounds'] = () => ({ center: [0, 0], zoom: 8 })
+    this['cameraForBounds'] = (...args: unknown[]) => {
+      map.calls.cameraForBounds.push(args)
+      return { center: [0, 0], zoom: 8 }
+    }
     this['resize'] = vi.fn()
     this['remove'] = map.remove
     this['touchZoomRotate'] = { disableRotation: vi.fn() }
@@ -84,7 +89,7 @@ beforeEach(() => {
   map.handlers = {}
   map.once = {}
   map.layers = new Set()
-  map.calls = { setPaintProperty: [], fitBounds: [], jumpTo: [], flyTo: [] }
+  map.calls = { setPaintProperty: [], fitBounds: [], jumpTo: [], flyTo: [], cameraForBounds: [] }
   map.markerElements = []
   map.throwOnCreate = false
   vi.mocked(MapLibreMap).mockClear()
@@ -104,8 +109,8 @@ afterEach(() => {
 
 const step = (id: string) => TOUR_STEPS.find((s) => s.id === id)!
 
-async function loadedMap(initial: string | null = null) {
-  wrapper = mount(TourMap, { props: { step: initial ? step(initial) : null } })
+async function loadedMap(initial: string | null = null, inset?: TourInset) {
+  wrapper = mount(TourMap, { props: { step: initial ? step(initial) : null, inset } })
   intersect!()
   await vi.waitFor(() => expect(map.handlers.load).toBeDefined())
   map.handlers.load()
@@ -192,6 +197,29 @@ describe('TourMap', () => {
     await flushPromises()
     expect(wrapper.find('[data-testid="tour-map"]').exists()).toBe(true)
     expect(wrapper.text()).not.toContain('Loading map')
+  })
+
+  it('pads every side alike when nothing floats over the map', async () => {
+    const w = await loadedMap()
+    await w.setProps({ step: step('egress') })
+    expect(map.calls.fitBounds.at(-1)?.[1]).toMatchObject({ padding: { top: 48, right: 48, bottom: 48, left: 48 } })
+  })
+
+  it('frames each step clear of the step box over its left side', async () => {
+    const box = { top: 0, right: 0, bottom: 0, left: 428 }
+    const w = await loadedMap(null, box)
+    expect(map.calls.cameraForBounds.at(-1)?.[1]).toMatchObject({ padding: { left: 452, top: 48 } })
+    await w.setProps({ step: step('egress') })
+    expect(map.calls.fitBounds.at(-1)?.[1]).toMatchObject({ padding: { top: 48, right: 48, bottom: 48, left: 452 } })
+  })
+
+  it('reframes at once when the step box moves', async () => {
+    const w = await loadedMap('egress')
+    map.calls.jumpTo = []
+    await w.setProps({ inset: { top: 0, right: 0, bottom: 0, left: 340 } })
+    expect(map.calls.jumpTo).toHaveLength(1)
+    expect(map.calls.cameraForBounds.at(-1)?.[1]).toMatchObject({ padding: { left: 364 } })
+    expect(map.markerElements.at(-1)?.textContent).toContain('12m left')
   })
 
   it('labels a step only once the camera has arrived', async () => {
