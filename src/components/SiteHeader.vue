@@ -84,7 +84,7 @@ onBeforeUnmount(() => wide?.removeEventListener('change', onWideChange))
     <div class="flex h-full items-center gap-8">
       <RouterLink
         to="/"
-        :class="`${HIT_AREA_CLASS} font-display text-[17px] font-bold tracking-tight text-ink-true`"
+        :class="`${HIT_AREA_CLASS} t-wordmark text-ink-true`"
         data-testid="nav-home"
       >
         Sparks Effect

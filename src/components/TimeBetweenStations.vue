@@ -93,7 +93,7 @@ function groupSummary(group: StationTimeGroup): string {
             class="inline-block w-2 text-ink-muted transition-transform duration-200 group-open/station-times:rotate-90"
           >›</span>
           <h3
-            class="font-display text-btn min-w-0 flex-[1_1_12rem] text-ink-true uppercase"
+            class="t-subhead min-w-0 flex-[1_1_12rem] text-ink-true"
             data-testid="station-time-group-label"
           >
             {{ groupTitle(group) }}
