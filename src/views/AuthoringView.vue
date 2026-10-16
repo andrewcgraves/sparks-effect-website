@@ -10,6 +10,7 @@ import type { IncomingHandover } from '../api/authoring/handovers'
 import { ACTION_LINK_CLASS, LIST_CARD_LINK_CLASS } from '../components/linkStyles'
 import AllLinesLink from '../components/AllLinesLink.vue'
 import ListSkeleton from '../components/ListSkeleton.vue'
+import Tag from '../components/Tag.vue'
 
 const auth = useAuthStore()
 
@@ -190,11 +191,12 @@ const nothingYet = computed(() =>
             >
               {{ service.name }}
               <span class="text-micro text-ink-muted">{{ service.slug }}</span>
-              <span
+              <Tag
                 v-if="handoverPending.has(service.slug)"
-                class="font-body text-micro self-start rounded-(--radius-field) border border-apricot px-1.5 text-ink uppercase"
+                tone="caution"
+                class="self-start"
                 data-testid="handover-pending"
-              >Transfer pending</span>
+              >Transfer pending</Tag>
             </router-link>
           </li>
         </ul>

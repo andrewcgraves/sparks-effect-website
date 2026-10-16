@@ -9,6 +9,7 @@ import {
   type PrerenderedIsochroneSummary,
 } from '../api/prerenderedIsochrones'
 import { modeLabel } from '../copy/modes'
+import Tag from './Tag.vue'
 
 const props = defineProps<{ slug: string; selectedId: string | null }>()
 
@@ -88,15 +89,16 @@ function summarise(entry: PrerenderedIsochroneSummary): string {
         >
           <span class="flex flex-wrap items-center gap-1">
             {{ placeName(entry) }}
-            <span
+            <Tag
               v-if="entry.outdated"
-              class="font-display text-micro rounded-(--radius-field) border border-apricot bg-apricot/15 px-1 text-ink uppercase group-aria-pressed:border-white/70 group-aria-pressed:bg-white/25 group-aria-pressed:text-white"
+              tone="caution"
+              class="group-aria-pressed:border-white/70 group-aria-pressed:bg-white/25 group-aria-pressed:text-white"
               :title="OUTDATED_HINT"
               :aria-label="`Out of date — ${OUTDATED_HINT}`"
               data-testid="prerendered-outdated"
             >
               Out of date
-            </span>
+            </Tag>
           </span>
           <span
             class="text-micro text-ink-muted uppercase group-aria-pressed:text-white/80"

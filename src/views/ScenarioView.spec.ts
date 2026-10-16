@@ -1038,6 +1038,23 @@ describe('ScenarioView', () => {
       expect(plotButton(wrapper).disabled).toBe(true)
     })
 
+    // One outage, one colour: the banner and the panel's explanation are the
+    // same caution, so the page never shows the condition as an error as well.
+    it('shows the banner and the explanation in the same caution, with no alert', async () => {
+      vi.mocked(fetchRoutingStatus).mockResolvedValue('offline')
+      vi.mocked(listPrerenderedIsochrones).mockResolvedValue([saved])
+
+      const wrapper = await mountWithOrigin()
+      await wrapper.get('[data-testid="plot-source-option-plot"]').setValue(true)
+
+      for (const testid of ['routing-status', 'plot-unavailable']) {
+        const notice = wrapper.get(`[data-testid="${testid}"]`)
+        expect(notice.attributes('role')).toBe('status')
+        expect(notice.classes()).toEqual(expect.arrayContaining(['border-apricot', 'bg-apricot/15']))
+      }
+      expect(wrapper.find('[data-testid="plot-panel"] [role="alert"]').exists()).toBe(false)
+    })
+
     it('neither promises nor rules out examples until the list has answered', async () => {
       vi.mocked(fetchRoutingStatus).mockResolvedValue('offline')
       let answerList: (list: PrerenderedIsochrone[]) => void = () => {}

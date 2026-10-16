@@ -59,12 +59,16 @@ describe('PlotPanel', () => {
     expect(visible(wrapper, 'list')).toBe(true)
   })
 
+  // An outage is the same caution the routing banner gives, not an error.
   it('explains, in place of the form, that plotting is unavailable while offline', async () => {
     const wrapper = mountPanel({ hasSaved: true, offline: true })
 
     await wrapper.get('[data-testid="plot-source-option-plot"]').setValue(true)
 
-    expect(wrapper.get('[data-testid="plot-unavailable"]').attributes('role')).toBe('alert')
+    const notice = wrapper.get('[data-testid="plot-unavailable"]')
+    expect(notice.attributes('role')).toBe('status')
+    expect(notice.classes()).toContain('border-apricot')
+    expect(notice.classes()).not.toContain('border-error')
     expect(visible(wrapper, 'plot-unavailable')).toBe(true)
     expect(visible(wrapper, 'form')).toBe(false)
   })
