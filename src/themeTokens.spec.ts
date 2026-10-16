@@ -67,3 +67,39 @@ describe('micro text size', () => {
     expect(tokenValueInThemeCss('--text-micro')).toBe('12px')
   })
 })
+
+const TEXT_ROLES = [
+  't-display',
+  't-h2',
+  't-h3',
+  't-subhead',
+  't-wordmark',
+  't-lead',
+  't-body',
+  't-field',
+  't-meta',
+  't-note',
+  't-error',
+  't-eyebrow',
+  't-action',
+  't-tag',
+] as const
+
+function utilityBody(name: string): string | undefined {
+  return new RegExp(`^@utility ${name}\\s*\\{([^}]*)\\}`, 'm').exec(themeCss)?.[1]
+}
+
+describe('text roles', () => {
+  it.each(TEXT_ROLES)('%s is an @utility in theme.css', (role) => {
+    expect(utilityBody(role)).toBeDefined()
+  })
+
+  it('defines exactly the fourteen roles', () => {
+    const defined = [...themeCss.matchAll(/^@utility (t-[\w-]+)/gm)].map((match) => match[1])
+    expect(defined).toEqual([...TEXT_ROLES])
+  })
+
+  it.each(['t-meta', 't-note', 't-field'])('%s sets letter-spacing: normal', (role) => {
+    expect(utilityBody(role)).toMatch(/letter-spacing:\s*normal;/)
+  })
+})
