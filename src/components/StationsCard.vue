@@ -231,10 +231,13 @@ function onToggle(line: StationLine, event: Event): void {
       No run times yet.
     </p>
 
+    <!-- The time-left column runs to the right edge, where the scrollbar draws:
+         a stable gutter keeps a classic scrollbar off it, and the padding keeps
+         an overlay one (macOS, GTK) from painting over the digits. -->
     <div
       v-else
       ref="listEl"
-      class="mt-3 max-h-[36rem] divide-y divide-border overflow-y-auto border-t border-border"
+      class="mt-3 max-h-[36rem] divide-y divide-border overflow-y-auto border-t border-border pr-3 [scrollbar-gutter:stable]"
     >
       <details
         v-for="line in props.lines"
