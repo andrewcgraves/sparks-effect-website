@@ -77,6 +77,11 @@ const stubStations: Station[] = [
 
 const NEARBY_ORIGIN = { lat: 37.71, lng: -122.41 }
 
+// v-show hides with an inline display: none somewhere up the tree.
+function shown(element: Element): boolean {
+  return !element.closest('[style*="display: none"]')
+}
+
 const DISTANT_ORIGIN = { lat: 51.5074, lng: -0.1278 }
 
 const stubTravelTimes: TravelTimes = {
@@ -1175,6 +1180,54 @@ describe('ScenarioView', () => {
       expect(wrapper.get('[data-testid="prerendered-entry"]').attributes('aria-pressed')).toBe('false')
     })
 
+    // SPA-501: the form and the saved splash zones were two boxes with two
+    // headings, and how to move between them was unclear.
+    it('shares one panel with the form: one heading, one box', async () => {
+      vi.mocked(listPrerenderedIsochrones).mockResolvedValue([prerendered])
+      const wrapper = mountScenarioView('ca-hsr', { MapView: true })
+      await flushPromises()
+
+      const panels = wrapper.findAll('[data-testid="plot-panel"]')
+      expect(panels).toHaveLength(1)
+      expect(panels[0].findAll('h2').map((h) => h.text())).toEqual(['Plot a splash zone'])
+      expect(panels[0].find('[data-testid="prerendered-isochrones"]').exists()).toBe(true)
+      expect(panels[0].find('form').classes()).not.toContain('border')
+    })
+
+    it('opens on Plot your own, with the saved splash zones one switch away', async () => {
+      vi.mocked(listPrerenderedIsochrones).mockResolvedValue([prerendered])
+      const wrapper = mountScenarioView('ca-hsr', { MapView: true })
+      await flushPromises()
+
+      expect(shown(wrapper.get('form').element)).toBe(true)
+      expect(shown(wrapper.get('[data-testid="plot-saved"]').element)).toBe(false)
+
+      await wrapper.get('[data-testid="plot-source-option-saved"]').setValue(true)
+
+      expect(shown(wrapper.get('form').element)).toBe(false)
+      expect(shown(wrapper.get('[data-testid="plot-saved"]').element)).toBe(true)
+    })
+
+    it('fills the form with the picked entry, and moves the pin to its starting point', async () => {
+      const wrapper = await pickFirstEntry()
+
+      expect((wrapper.get('[data-testid="lat"]').element as HTMLInputElement).value).toBe('37.7749')
+      expect((wrapper.get('[data-testid="lng"]').element as HTMLInputElement).value).toBe('-122.4194')
+      expect((wrapper.get('[data-testid="duration-slider-option-30"]').element as HTMLInputElement).checked)
+        .toBe(true)
+      expect((wrapper.get('[data-testid="mode-walk"]').element as HTMLInputElement).checked).toBe(true)
+      expect(wrapper.findComponent({ name: 'MapView' }).props('origin'))
+        .toEqual({ lat: 37.7749, lng: -122.4194 })
+    })
+
+    it('is a single form with no switch for a network that ships none', async () => {
+      const wrapper = mountScenarioView('ca-hsr', { MapView: true })
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="plot-source"]').exists()).toBe(false)
+      expect(shown(wrapper.get('form').element)).toBe(true)
+    })
+
     it('lists the isochrones this scenario ships, beside the generate form', async () => {
       vi.mocked(listPrerenderedIsochrones).mockResolvedValue([prerendered])
       const wrapper = mountScenarioView('ca-hsr', { MapView: true })
@@ -1263,7 +1316,7 @@ describe('ScenarioView', () => {
       return wrapper.get('button[type="submit"]').element as HTMLButtonElement
     }
 
-    it('says so, disables Plot, and puts the saved examples ahead of the form', async () => {
+    it('says so, opens on the saved splash zones, and puts an explanation where the form was', async () => {
       vi.mocked(fetchRoutingStatus).mockResolvedValue('offline')
       vi.mocked(listPrerenderedIsochrones).mockResolvedValue([saved])
 
@@ -1271,10 +1324,15 @@ describe('ScenarioView', () => {
 
       expect(wrapper.get('[data-testid="routing-status"]').text())
         .toBe('Live routing is offline right now. Here are some saved splash zones.')
+      expect(shown(wrapper.get('[data-testid="plot-saved"]').element)).toBe(true)
+      expect(shown(wrapper.get('[data-testid="plot-own"]').element)).toBe(false)
+
+      await wrapper.get('[data-testid="plot-source-option-plot"]').setValue(true)
+
+      expect(wrapper.get('[data-testid="plot-unavailable"]').text())
+        .toContain('isn’t available right now')
+      expect(shown(wrapper.get('form').element)).toBe(false)
       expect(plotButton(wrapper).disabled).toBe(true)
-      const examples = wrapper.get('[data-testid="prerendered-isochrones"]').element
-      const form = wrapper.get('form').element
-      expect(examples.compareDocumentPosition(form) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     })
 
     it('neither promises nor rules out examples until the list has answered', async () => {
@@ -1390,7 +1448,17 @@ describe('ScenarioView', () => {
     it('stops naming a plotted isochrone once a pre-rendered one replaces it', async () => {
       vi.mocked(fetchIsochrone).mockResolvedValue(stubIsochrone)
       const { wrapper, router } = await mountScenarioViewAt(linked)
-      await wrapper.findComponent({ name: 'PrerenderedIsochrones' }).vm.$emit('select', stubIsochrone)
+      await wrapper.findComponent({ name: 'PrerenderedIsochrones' }).vm.$emit('select', {
+        id: 'pre-1',
+        label: 'Downtown SF, 30 min walk',
+        lat: 37.7749,
+        lng: -122.4194,
+        budget_mins: 30,
+        mode: 'walk',
+        outdated: false,
+        created_at: '2026-08-01T12:00:00Z',
+        result: stubIsochrone,
+      } satisfies PrerenderedIsochrone)
       await flushPromises()
       expect(router.currentRoute.value.query).toEqual({})
       expect(wrapper.find('[data-testid="copy-link"]').exists()).toBe(false)

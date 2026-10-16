@@ -98,6 +98,16 @@ describe('PrerenderedIsochrones', () => {
     expect(wrapper.find('[data-testid="prerendered-entry-detail"]').text()).toBe('60 min · Transit')
   })
 
+  it('names a tile by its place, leaving the travel time and mode to the line under it', async () => {
+    const wrapper = await mountLoaded([
+      summary({ label: 'Fresno - 120 min by transit', budget_mins: 120, mode: 'transit' }),
+    ])
+
+    const entry = wrapper.get('[data-testid="prerendered-entry"]')
+    expect(entry.text()).toBe('Fresno 120 min · Transit')
+    expect(entry.attributes('title')).toBe('Fresno - 120 min by transit')
+  })
+
   // The card is an offer, not a status: with nothing to offer there is no
   // heading, no empty-state line, and no gap left in the rail.
   it('renders nothing at all for a scenario with no pre-rendered isochrones', async () => {
@@ -123,7 +133,7 @@ describe('PrerenderedIsochrones', () => {
   })
 
   describe('picking an entry', () => {
-    it('fetches that entry by id and emits its chain', async () => {
+    it('fetches that entry by id and emits it whole, starting point and all', async () => {
       const picked = detail({ id: 'pre-2', result: chain(60) })
       vi.mocked(fetchPrerenderedIsochrone).mockResolvedValue(picked)
       const wrapper = await mountLoaded([summary({ id: 'pre-1' }), summary({ id: 'pre-2' })])
@@ -133,7 +143,7 @@ describe('PrerenderedIsochrones', () => {
 
       expect(fetchPrerenderedIsochrone).toHaveBeenCalledWith('pre-2')
       expect(wrapper.emitted('select')).toHaveLength(1)
-      expect(wrapper.emitted('select')![0]).toEqual([picked.result])
+      expect(wrapper.emitted('select')![0]).toEqual([picked])
     })
 
     it('marks only the clicked entry busy while its chain is in flight', async () => {
@@ -177,7 +187,7 @@ describe('PrerenderedIsochrones', () => {
       await flushPromises()
 
       expect(wrapper.emitted('select')).toHaveLength(1)
-      expect(wrapper.emitted('select')![0]).toEqual([second.result])
+      expect(wrapper.emitted('select')![0]).toEqual([second])
     })
 
     it('surfaces a failed detail fetch inline, leaving the list usable', async () => {
@@ -250,7 +260,7 @@ describe('PrerenderedIsochrones', () => {
       await wrapper.findAll('[data-testid="prerendered-entry"]')[0].trigger('click')
       await flushPromises()
 
-      expect(wrapper.emitted('select')![0]).toEqual([picked.result])
+      expect(wrapper.emitted('select')![0]).toEqual([picked])
     })
   })
 })

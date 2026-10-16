@@ -30,8 +30,9 @@ const props = withDefaults(
     loading?: boolean
     offline?: boolean
     initial?: Partial<IsochronePayload>
+    framed?: boolean
   }>(),
-  { error: null, loading: false, offline: false, initial: () => ({}) },
+  { error: null, loading: false, offline: false, initial: () => ({}), framed: true },
 )
 
 const emit = defineEmits<{
@@ -113,7 +114,27 @@ function setOriginFromMap(coord: { lat: number; lng: number }) {
   addressAutocompleteRef.value?.setInputValue('')
 }
 
-defineExpose({ setOriginFromMap })
+const extraDuration = ref<number | null>(null)
+const durationOptions = computed(() =>
+  extraDuration.value === null
+    ? DURATION_OPTIONS
+    : [...DURATION_OPTIONS, extraDuration.value].sort((a, b) => a - b),
+)
+
+function fill(payload: IsochronePayload) {
+  pickArmed.value = false
+  // A saved splash zone may have been plotted with a travel time the form does
+  // not offer; it is shown as its own option rather than rounded to a near one,
+  // which would no longer be the splash zone on the map.
+  extraDuration.value = DURATION_OPTIONS.includes(payload.duration) ? null : payload.duration
+  lat.value = String(payload.lat)
+  lng.value = String(payload.lng)
+  duration.value = payload.duration
+  mode.value = payload.mode
+  addressAutocompleteRef.value?.setInputValue('')
+}
+
+defineExpose({ setOriginFromMap, fill })
 
 function onAutocompleteSelect(suggestion: GeocodingSuggestion) {
   pickArmed.value = false
@@ -167,10 +188,14 @@ function handleSubmit() {
 
 <template>
   <form
-    class="flex flex-col gap-4 rounded-(--radius-box) border border-border bg-surface p-4"
+    class="flex flex-col gap-4"
+    :class="{ 'rounded-(--radius-box) border border-border bg-surface p-4': framed }"
     @submit.prevent="handleSubmit"
   >
-    <h2 class="font-display text-h3 text-ink-true">
+    <h2
+      v-if="framed"
+      class="font-display text-h3 text-ink-true"
+    >
       Plot a splash zone
     </h2>
 
@@ -265,7 +290,7 @@ function handleSubmit() {
       <span>Travel time</span>
       <SegmentedControl
         v-model="duration"
-        :options="DURATION_OPTIONS"
+        :options="durationOptions"
         :format-option="formatDuration"
         label="Travel time"
         name="duration"
