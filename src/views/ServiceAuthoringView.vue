@@ -95,7 +95,7 @@ const trail = computed<Crumb[]>(() => [
     : [{ label: 'New line' }]),
 ])
 
-const SUBHEADING_CLASS = 'font-body text-caption font-bold text-ink'
+const SUBHEADING_CLASS = 't-subhead text-ink-true'
 
 const submitLabel = computed(() => (props.slug ? 'Save changes' : 'Create line'))
 

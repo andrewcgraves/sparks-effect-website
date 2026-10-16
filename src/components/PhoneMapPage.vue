@@ -62,13 +62,13 @@ function onListKeydown(event: KeyboardEvent): void {
     <header class="flex h-12 shrink-0 items-center gap-3 border-b border-border px-4">
       <h1
         v-if="props.title"
-        class="font-display min-w-0 flex-1 truncate text-[17px] font-bold text-ink-true"
+        class="t-wordmark min-w-0 flex-1 truncate text-ink-true"
       >
         {{ props.title }}
       </h1>
       <LoadingRegion
         v-else
-        class="font-display min-w-0 flex-1 text-[17px]"
+        class="t-wordmark min-w-0 flex-1"
       >
         <SkeletonShape class="w-40" />
       </LoadingRegion>
