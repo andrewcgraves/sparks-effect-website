@@ -9,9 +9,10 @@ import {
   PROSE_P_CLASS,
 } from '../components/proseStyles'
 import { CONTACT_EMAIL, CONTACT_MAILTO, SOURCE_URL } from '../legal/contact'
+import { GENERATION, MANIFEST_DATE, TRANSIT_AGENCIES } from '../legal/transitAgencies'
 import { resolveTileCredit } from '../mapStyle'
 
-const UPDATED = '2026-10-10'
+const UPDATED = '2026-10-15'
 
 const tileCredit = resolveTileCredit()
 
@@ -48,10 +49,14 @@ const CC_BY_4_FEEDS = inProse([
   { name: 'Bellflower Bus', href: 'https://gtfs.remix.com/CalITP.zip' },
   { name: 'The Santa Cruzer', href: 'https://www.pinpointavl.com/santacruzer.zip' },
 ], ', ')
+
+const ALL_AGENCIES = inProse(TRANSIT_AGENCIES, ' and ')
 </script>
 
 <!-- The wording below is what SPA-419 found each licence to require. Change a
-     credit only with that ticket's table open. -->
+     credit only with that ticket's table open. The all-agencies paragraph is a
+     courtesy credit generated from the serving generation (SPA-497), not one
+     of those. -->
 <template>
   <ProsePage
     title="Attribution"
@@ -148,6 +153,18 @@ const CC_BY_4_FEEDS = inProse([
       <li>Schedule data provided by LA Metro.</li>
       <li>Route and schedule data provided by permission of San Joaquin RTD.</li>
     </ul>
+    <p
+      :class="PROSE_P_CLASS"
+      data-testid="all-agencies"
+    >
+      Schedules from these agencies, found through the
+      <ExternalLink href="https://mobilitydatabase.org">Mobility Database</ExternalLink>
+      (generation {{ GENERATION }}, fetched {{ MANIFEST_DATE }}):
+      <span
+        v-for="agency in ALL_AGENCIES"
+        :key="agency.name"
+      ><ExternalLink :href="agency.href">{{ agency.name }}</ExternalLink>{{ agency.after }}</span>.
+    </p>
 
     <h2
       id="address-search"

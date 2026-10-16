@@ -1,4 +1,4 @@
-.PHONY: install test typecheck build run dev lint clean dev-workflow tour-fixture
+.PHONY: install test typecheck build run dev lint clean dev-workflow tour-fixture transit-agencies
 
 NODE_MODULES := node_modules/.install-stamp
 
@@ -37,6 +37,13 @@ dev-workflow: lint typecheck test build
 # changes what a plot looks like.
 tour-fixture: install
 	node scripts/snapshot-tour-fixture.ts
+
+# Regenerates the attribution page's agency list (src/legal/transitAgencies.ts)
+# from a generation's gtfs-manifest.csv. Run it whenever `make cycle-tiles`
+# moves production to a new generation; scripts/transit-agencies.ts has the
+# kubectl command that exports the manifest.
+transit-agencies: install
+	npm run attribution:agencies -- "$(MANIFEST)" "$(GENERATION)"
 
 clean:
 	rm -rf node_modules dist
