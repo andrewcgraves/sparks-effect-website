@@ -34,9 +34,9 @@ fetchCoverIndex()
         class="font-body text-body mt-6 max-w-[560px] text-ink-muted"
         data-testid="cover-name-blurb"
       >
-        The sparks effect is the railway name for the jump in riders that comes when a line is
-        electrified. This site is named for it: a better line takes you further in the same time,
-        and that is what brings the riders.
+        When a railway goes electric, more people start riding it. Railway folks call this the
+        sparks effect. This site lets you see how far a better line could take you, and why that
+        brings people on board.
       </p>
 
       <p

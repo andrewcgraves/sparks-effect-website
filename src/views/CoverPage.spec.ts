@@ -73,9 +73,9 @@ describe('CoverPage', () => {
     const { wrapper } = await mountCover()
     const blurb = wrapper.get('[data-testid="cover-name-blurb"]')
     expect(blurb.text()).toBe(
-      'The sparks effect is the railway name for the jump in riders that comes when a line is '
-      + 'electrified. This site is named for it: a better line takes you further in the same time, '
-      + 'and that is what brings the riders.',
+      'When a railway goes electric, more people start riding it. Railway folks call this the '
+      + 'sparks effect. This site lets you see how far a better line could take you, and why that '
+      + 'brings people on board.',
     )
     expect(wrapper.get('h1').element.nextElementSibling).toBe(blurb.element)
     expect(blurb.element.nextElementSibling).toBe(wrapper.get('[data-testid="cover-lede"]').element)
