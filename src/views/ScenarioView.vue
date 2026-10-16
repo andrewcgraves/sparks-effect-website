@@ -30,6 +30,13 @@ import PhoneMapPage from '../components/PhoneMapPage.vue'
 import { usePhoneMapTabs } from '../components/phoneMapTabs'
 import { useIsPhone } from '../composables/useIsPhone'
 import { UNNAMED_LINE, UNNAMED_STATION } from '../copy/names'
+// PROTOTYPE (SPA-500) — throwaway; see src/components/prototype-spa500.
+import { useRoute } from 'vue-router'
+import PrototypeSwitcher from '../components/PrototypeSwitcher.vue'
+import VariantA from '../components/prototype-spa500/VariantA.vue'
+import VariantB from '../components/prototype-spa500/VariantB.vue'
+import VariantC from '../components/prototype-spa500/VariantC.vue'
+import { buildLines, buildPlot, stationNamer } from '../components/prototype-spa500/model'
 
 const props = defineProps<{ slug: string }>()
 
@@ -136,11 +143,25 @@ function onPrerenderedSelect(entry: PrerenderedIsochrone) {
 
 const isPhone = useIsPhone()
 
+const PROTOTYPE = import.meta.env.DEV && import.meta.env.MODE !== 'test'
+const PROTOTYPE_VARIANTS = [
+  { key: 'A', name: 'Line order + time left' },
+  { key: 'B', name: 'Trip / Lines lenses' },
+  { key: 'C', name: 'Outward from start' },
+]
+const prototypeRoute = useRoute()
+const variant = computed(() => String(prototypeRoute.query.variant ?? 'A'))
+const cardData = computed(() => ({
+  lines: buildLines(segments.value, routes.value),
+  name: stationNamer(stations.value),
+  plot: buildPlot(isochroneData.value?.metadata ?? null, timeRemaining.value.views),
+}))
+
 const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
   plot: () => isochroneData.value,
-  results: () => timeRemaining.value.views.length > 0,
+  results: () => PROTOTYPE || timeRemaining.value.views.length > 0,
   extra: () => [
-    ...(travelTimesFailed.value ? [] : [{ key: 'stations', label: 'Stations' }]),
+    ...(travelTimesFailed.value || PROTOTYPE ? [] : [{ key: 'stations', label: 'Stations' }]),
     ...(subtext.value.trim() || description.value.trim() ? [{ key: 'about', label: 'About' }] : []),
   ],
 })
@@ -154,7 +175,7 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
     <PhoneMapPage
       v-model:tab="phoneTab"
       :title="name"
-      :tabs="phoneTabs"
+      :tabs="PROTOTYPE ? phoneTabs.map((t) => (t.key === 'results' ? { ...t, label: 'Stations' } : t)) : phoneTabs"
       :pick-armed="pickArmed"
     >
       <template #map>
@@ -210,8 +231,34 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
         <CopyLinkButton v-if="shareable" />
       </template>
       <template #panel-results>
+        <template v-if="PROTOTYPE">
+          <VariantB
+            v-if="variant === 'B'"
+            :data="cardData"
+            :views="timeRemaining.views"
+            :groups="stationTimeGroups"
+            :loading="travelTimesLoading"
+            :active-slug="activeStation?.slug ?? null"
+            :active-from-map="activeStation?.fromMap ?? false"
+            @activate="highlight($event, false)"
+          />
+          <VariantC
+            v-else-if="variant === 'C'"
+            :data="cardData"
+            :loading="travelTimesLoading"
+            :active-slug="activeStation?.slug ?? null"
+            @activate="highlight($event, false)"
+          />
+          <VariantA
+            v-else
+            :data="cardData"
+            :loading="travelTimesLoading"
+            :active-slug="activeStation?.slug ?? null"
+            @activate="highlight($event, false)"
+          />
+        </template>
         <TimeRemaining
-          v-if="timeRemaining.views.length"
+          v-else-if="timeRemaining.views.length"
           :views="timeRemaining.views"
           :active-slug="activeStation?.slug ?? null"
           :active-from-map="activeStation?.fromMap ?? false"
@@ -241,6 +288,10 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
         </p>
       </template>
     </PhoneMapPage>
+    <PrototypeSwitcher
+      v-if="PROTOTYPE"
+      :variants="PROTOTYPE_VARIANTS"
+    />
   </main>
   <main
     v-else
@@ -327,15 +378,41 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
           </template>
         </PlotPanel>
         <CopyLinkButton v-if="shareable" />
+        <template v-if="PROTOTYPE">
+          <VariantB
+            v-if="variant === 'B'"
+            :data="cardData"
+            :views="timeRemaining.views"
+            :groups="stationTimeGroups"
+            :loading="travelTimesLoading"
+            :active-slug="activeStation?.slug ?? null"
+            :active-from-map="activeStation?.fromMap ?? false"
+            @activate="highlight($event, false)"
+          />
+          <VariantC
+            v-else-if="variant === 'C'"
+            :data="cardData"
+            :loading="travelTimesLoading"
+            :active-slug="activeStation?.slug ?? null"
+            @activate="highlight($event, false)"
+          />
+          <VariantA
+            v-else
+            :data="cardData"
+            :loading="travelTimesLoading"
+            :active-slug="activeStation?.slug ?? null"
+            @activate="highlight($event, false)"
+          />
+        </template>
         <TimeRemaining
-          v-if="timeRemaining.views.length"
+          v-if="!PROTOTYPE && timeRemaining.views.length"
           :views="timeRemaining.views"
           :active-slug="activeStation?.slug ?? null"
           :active-from-map="activeStation?.fromMap ?? false"
           @activate="highlight($event, false)"
         />
         <TimeBetweenStations
-          v-if="!travelTimesFailed"
+          v-if="!PROTOTYPE && !travelTimesFailed"
           :groups="stationTimeGroups"
           :loading="travelTimesLoading"
         />
@@ -356,5 +433,9 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
         </p>
       </section>
     </div>
+    <PrototypeSwitcher
+      v-if="PROTOTYPE"
+      :variants="PROTOTYPE_VARIANTS"
+    />
   </main>
 </template>

@@ -84,6 +84,27 @@ function sourceMapUpload(): Plugin[] {
   return [upload, deleteSourceMaps()]
 }
 
+// PROTOTYPE (SPA-500): the proxy reaches production, so it only reads. Plotting
+// from the form is refused; use a saved splash zone to see the after-plot card.
+function readOnlyApi(): Plugin {
+  return {
+    name: 'prototype-read-only-api',
+    apply: 'serve',
+    configureServer(server) {
+      if (!process.env.PROTOTYPE_API_PROXY) return
+      server.middlewares.use((req, res, next) => {
+        if (req.url?.startsWith('/api') && req.method !== 'GET' && req.method !== 'HEAD') {
+          res.statusCode = 403
+          res.setHeader('Content-Type', 'application/json')
+          res.end(JSON.stringify({ error: 'prototype proxy is read-only: pick a saved splash zone' }))
+          return
+        }
+        next()
+      })
+    },
+  }
+}
+
 function linkPreviewPlugin(): Plugin {
   return {
     name: 'link-preview',
@@ -109,7 +130,12 @@ export default defineConfig(({ command, mode }) => {
   const upload = sourceMapUpload()
   const uploadingSourceMaps = upload.length > 0
   return {
-    plugins: [vue(), tailwindcss(), preconnectPlugin(apiBaseUrl, stadiaApiKey), linkPreviewPlugin(), ...upload],
+    plugins: [vue(), tailwindcss(), preconnectPlugin(apiBaseUrl, stadiaApiKey), linkPreviewPlugin(), readOnlyApi(), ...upload],
+    // PROTOTYPE (SPA-500): `npm run prototype:spa-500` proxies /api to the
+    // production API, which sends no CORS headers for localhost.
+    server: process.env.PROTOTYPE_API_PROXY
+      ? { proxy: { '/api': { target: process.env.PROTOTYPE_API_PROXY, changeOrigin: true } } }
+      : undefined,
     build: {
       sourcemap: uploadingSourceMaps ? 'hidden' : false,
     },
