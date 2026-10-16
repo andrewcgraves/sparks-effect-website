@@ -1,4 +1,4 @@
-import { computed, ref, shallowRef } from 'vue'
+import { computed, ref, shallowRef, watch } from 'vue'
 import { ApiError, isSessionExpiry } from '../api/authoring/client'
 import type { AuthoredIsochroneRequest, Job, TransitGraph } from '../api/authoring'
 import type { AuthoringNoun } from '../api/authoringFault'
@@ -8,6 +8,7 @@ import type { IsochronePayload } from '../isochroneQuery'
 import type { IsochroneProgress, IsochroneProgressListener } from '../api/routingJobs'
 import { useCompileJob } from './useCompileJob'
 import { latestAttempt } from './latestAttempt'
+import { OFFLINE_REASON } from './useRoutingStatus'
 import { useAnnouncer } from './useToast'
 import { PLOTTING_SPLASH_ZONE, splashZoneReadyMessage } from './progressAnnouncements'
 import { graphRoutes, graphStations } from './scenarioGraphMap'
@@ -28,6 +29,10 @@ export interface AuthoredGraphTarget<G extends TransitGraph = TransitGraph> exte
   noun?: AuthoringNoun
 }
 
+export interface AuthoredGraphOptions {
+  offline?: () => boolean
+}
+
 function neverCompile(): Promise<Job> {
   return Promise.reject(new Error('a pinned graph is never compiled'))
 }
@@ -35,6 +40,7 @@ function neverCompile(): Promise<Job> {
 export function useAuthoredGraph<G extends TransitGraph = TransitGraph>(
   getSlug: () => string | null,
   target: AuthoredGraphTarget<G> | PinnedGraphTarget<G>,
+  { offline = () => false }: AuthoredGraphOptions = {},
 ) {
   // A pinned target — a publication — has no compile to fall back on, by type
   // rather than by luck: compiling needs the owner's session, which a public
@@ -176,6 +182,17 @@ export function useAuthoredGraph<G extends TransitGraph = TransitGraph>(
       }
     }
   }
+
+  // A worker gone quiet will never answer, so the plot it holds is abandoned
+  // with the reason now rather than at the job deadline (SPA-503). Its late
+  // answer, should one come, lands on a superseded attempt and writes nothing.
+  watch(offline, (isOffline) => {
+    if (!isOffline || !isochroneLoading.value) return
+    plots.supersede()
+    isochroneLoading.value = false
+    isochroneProgress.value = null
+    isochroneError.value = OFFLINE_REASON
+  })
 
   async function handleIsochroneSubmit(payload: IsochronePayload): Promise<void> {
     origin.value = { lat: payload.lat, lng: payload.lng }

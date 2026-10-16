@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
-import { isReactive } from 'vue'
+import { isReactive, nextTick, ref } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import { flushPromises } from '@vue/test-utils'
 import { ApiError, SessionExpiredError } from '../api/authoring/client'
@@ -8,6 +8,7 @@ import type { ChainResponse } from '../fixtures/isochrone'
 import { JobFailedError } from '../api/polling'
 import type { IsochroneProgress } from '../api/routingJobs'
 import { useAuthoredGraph } from './useAuthoredGraph'
+import { OFFLINE_REASON } from './useRoutingStatus'
 
 vi.mock('../analytics/index', () => ({
   trackIsochroneRequest: vi.fn(),
@@ -45,8 +46,8 @@ let isochrone: Mock<(
   onProgress?: (progress: IsochroneProgress) => void,
 ) => Promise<ChainResponse>>
 
-function subject(getSlug: () => string | null = () => 'ca-hsr') {
-  return useAuthoredGraph(getSlug, { compile, fetchGraph, isochrone })
+function subject(getSlug: () => string | null = () => 'ca-hsr', offline = () => false) {
+  return useAuthoredGraph(getSlug, { compile, fetchGraph, isochrone }, { offline })
 }
 
 function succeedingJobFetch(result: unknown) {
@@ -486,6 +487,49 @@ describe('useAuthoredGraph', () => {
       expect(compile).not.toHaveBeenCalled()
       expect(isochroneError.value).toMatch(/busy/i)
       expect(isochroneError.value).not.toBe("Couldn't plot this splash zone. Please try again.")
+    })
+  })
+
+  // A worker that has gone quiet will never answer, so the page stops waiting
+  // out the job deadline the moment the status says so (SPA-503).
+  describe('when live routing goes offline', () => {
+    it('stops a plot in flight with the offline message and ignores its late answer', async () => {
+      const pending = deferred<ChainResponse>()
+      isochrone.mockReturnValueOnce(pending.promise)
+      const offline = ref(false)
+      const { handleIsochroneSubmit, isochroneData, isochroneError, isochroneLoading, isochroneFormLoading } =
+        subject(undefined, () => offline.value)
+
+      const plot = handleIsochroneSubmit(payload)
+      await flushPromises()
+      expect(isochroneLoading.value).toBe(true)
+
+      offline.value = true
+      await nextTick()
+
+      expect(isochroneLoading.value).toBe(false)
+      expect(isochroneFormLoading.value).toBe(false)
+      expect(isochroneError.value).toBe(OFFLINE_REASON)
+
+      pending.release(chain)
+      await plot
+      expect(isochroneData.value).toBeNull()
+      expect(isochroneError.value).toBe(OFFLINE_REASON)
+    })
+
+    it('changes nothing when no plot is in flight', async () => {
+      isochrone.mockResolvedValueOnce(chain)
+      const offline = ref(false)
+      const { handleIsochroneSubmit, isochroneData, isochroneError, isochroneLoading } =
+        subject(undefined, () => offline.value)
+      await handleIsochroneSubmit(payload)
+
+      offline.value = true
+      await nextTick()
+
+      expect(isochroneData.value).toEqual(chain)
+      expect(isochroneError.value).toBeNull()
+      expect(isochroneLoading.value).toBe(false)
     })
   })
 

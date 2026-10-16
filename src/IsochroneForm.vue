@@ -12,13 +12,12 @@ import { trackModeToggle } from './analytics/index'
 import { TRAVEL_MODES, type TravelMode } from './api/authoring/types'
 import { DEFAULT_DURATION, DEFAULT_MODE, DURATION_OPTIONS, type IsochronePayload } from './isochroneQuery'
 import { MODE_LABELS } from './copy/modes'
+import { OFFLINE_REASON } from './composables/useRoutingStatus'
 
 const MODE_OPTIONS: { value: TravelMode; label: string }[] = TRAVEL_MODES.map((value) => ({
   value,
   label: MODE_LABELS[value],
 }))
-
-const OFFLINE_REASON = 'Live routing is offline right now, so new splash zones can’t be plotted.'
 
 function formatDuration(value: number): string {
   return `${value} min`

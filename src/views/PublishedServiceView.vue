@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { fetchPublicationIsochrone, fetchServicePublication } from '../api/publications'
 import { isochroneWaitMessage } from '../api/isochroneFault'
 import { useAuthoredGraph } from '../composables/useAuthoredGraph'
+import { useRoutingStatus } from '../composables/useRoutingStatus'
 import { usePageTitle } from '../composables/usePageTitle'
 import AllLinesLink from '../components/AllLinesLink.vue'
 import { useIsochroneQuery } from '../composables/useIsochroneQuery'
@@ -16,6 +17,8 @@ import { useIsPhone } from '../composables/useIsPhone'
 import type { PhoneMapTab } from '../components/phoneMapTabs'
 
 const props = defineProps<{ slug: string }>()
+
+const { offline: routingOffline } = useRoutingStatus()
 
 // A pinned target: no `compile`, so nothing on this page can compile — the
 // reader has no session to compile with, and the publication's graph cannot go
@@ -41,7 +44,7 @@ const {
 } = useAuthoredGraph(() => props.slug, {
   fetchGraph: fetchServicePublication,
   isochrone: fetchPublicationIsochrone,
-})
+}, { offline: () => routingOffline.value })
 
 // Unpublished and unknown are one 404, here as in the API, and the not-found
 // copy keeps it that way: saying which would tell a stranger that a draft sits
