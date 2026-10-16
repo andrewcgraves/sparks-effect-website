@@ -273,7 +273,7 @@ function handleSubmit() {
             >
               {{ originName || 'Starting point' }}
             </p>
-            <p class="font-body text-micro text-ink-muted">
+            <p class="font-body text-caption text-ink-muted tabular-nums">
               {{ coordsText }}
             </p>
           </div>
@@ -401,7 +401,7 @@ function handleSubmit() {
       </p>
     </div>
 
-    <fieldset class="flex flex-col gap-2 border-0 p-0">
+    <fieldset class="flex flex-col gap-1 border-0 p-0">
       <legend :class="FIELD_LABEL_CLASS">
         Getting around by
       </legend>
@@ -431,9 +431,13 @@ function handleSubmit() {
       </div>
     </fieldset>
 
-    <div :class="FIELD_LABEL_CLASS">
-      <span>For up to</span>
+    <!-- The label sits beside the control, not around it: wrapped, the options
+         would inherit the label's micro letter-spacing and stop matching the
+         same control on the Stations card. -->
+    <div class="flex flex-col gap-1">
+      <span :class="FIELD_LABEL_CLASS">For up to</span>
       <SegmentedControl
+        class="self-start"
         v-model="duration"
         :options="durationOptions"
         :format-option="formatDuration"
