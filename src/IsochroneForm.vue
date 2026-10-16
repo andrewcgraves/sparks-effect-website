@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
 import AddressAutocomplete from './components/AddressAutocomplete.vue'
 import SegmentedControl from './components/SegmentedControl.vue'
 import { PRIMARY_BUTTON_CLASS } from './components/buttonStyles'
@@ -64,6 +64,7 @@ const pickArmed = ref(false)
 const addressAutocompleteRef = ref<InstanceType<typeof AddressAutocomplete> | null>(null)
 const originName = ref('')
 const coordinatesOpen = ref(false)
+const coordinatesId = useId()
 let locationRequestId = 0
 
 function parseOrigin(latText: string, lngText: string): { lat: number; lng: number } | null {
@@ -342,18 +343,29 @@ function handleSubmit() {
             >
               <span aria-hidden="true">📍</span>
             </button>
+            <button
+              type="button"
+              :class="[ICON_BUTTON_CLASS, coordinatesOpen ? 'border-coral bg-coral/10' : 'border-border bg-white hover:border-coral']"
+              data-testid="enter-coordinates"
+              aria-label="Enter coordinates"
+              title="Enter coordinates"
+              :aria-expanded="coordinatesOpen"
+              :aria-controls="coordinatesId"
+              @click="coordinatesOpen = !coordinatesOpen"
+            >
+              <span aria-hidden="true">🌐</span>
+            </button>
           </template>
         </AddressAutocomplete>
 
-        <details
-          class="flex flex-col"
-          data-testid="enter-coordinates"
-          @toggle="coordinatesOpen = ($event.target as HTMLDetailsElement).open"
+        <!-- Hidden rather than removed, like the chooser around it, so typed
+             coordinates survive closing the fields. -->
+        <div
+          v-show="coordinatesOpen"
+          :id="coordinatesId"
+          data-testid="coordinates"
         >
-          <summary :class="[ACTION_LINK_CLASS, 'list-none self-start [&::-webkit-details-marker]:hidden']">
-            {{ coordinatesOpen ? 'Hide coordinates' : 'Enter coordinates instead' }}
-          </summary>
-          <div class="mt-2 grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-2 gap-3">
             <label :class="FIELD_LABEL_CLASS">
               Latitude
               <input
@@ -379,7 +391,7 @@ function handleSubmit() {
               >
             </label>
           </div>
-        </details>
+        </div>
 
         <button
           v-if="changing && isValid"

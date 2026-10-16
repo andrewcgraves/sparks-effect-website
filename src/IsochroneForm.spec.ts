@@ -599,7 +599,7 @@ describe('IsochroneForm', () => {
   })
 
   describe('thumb-sized hit areas (SPA-494)', () => {
-    it.each(['pick-on-map', 'use-current-location'])('grows the %s icon button to 44px on a touch screen', (testid) => {
+    it.each(['pick-on-map', 'use-current-location', 'enter-coordinates'])('grows the %s icon button to 44px on a touch screen', (testid) => {
       const wrapper = mount(IsochroneForm)
       expect(wrapper.get(`[data-testid="${testid}"]`).classes()).toContain('pointer-coarse:size-11')
     })
@@ -631,27 +631,45 @@ describe('IsochroneForm', () => {
       await wrapper.vm.$nextTick()
     }
 
+    function coordinatesShown(wrapper: ReturnType<typeof mount>): boolean {
+      return (wrapper.get('[data-testid="coordinates"]').element as HTMLElement).style.display !== 'none'
+    }
+
     it('starts with the chooser and keeps the coordinates folded away', () => {
       const wrapper = mount(IsochroneForm)
       expect(card(wrapper).exists()).toBe(false)
       expect(chooserShown(wrapper)).toBe(true)
-      const coordinates = wrapper.get('[data-testid="enter-coordinates"]')
-      expect(coordinates.element.tagName).toBe('DETAILS')
-      expect((coordinates.element as HTMLDetailsElement).open).toBe(false)
-      expect(coordinates.get('summary').text()).toBe('Enter coordinates instead')
-      expect(coordinates.find('input[data-testid="lat"]').exists()).toBe(true)
+      expect(coordinatesShown(wrapper)).toBe(false)
+      expect(wrapper.get('[data-testid="coordinates"]').find('input[data-testid="lat"]').exists()).toBe(true)
     })
 
-    it('styles the coordinates toggle as an action link with no disclosure arrow, and relabels it while open', async () => {
+    it('opens the coordinates from a globe icon button in the starting-point row', async () => {
       const wrapper = mount(IsochroneForm)
-      const details = wrapper.get('[data-testid="enter-coordinates"]')
-      const summary = details.get('summary')
-      expect(summary.classes()).toEqual(expect.arrayContaining(['uppercase', 'list-none', '[&::-webkit-details-marker]:hidden']))
-      expect(summary.classes()).not.toContain('underline')
+      const toggle = wrapper.get('[data-testid="enter-coordinates"]')
+      const row = wrapper.get('[data-testid="pick-on-map"]').element.parentElement
+      expect(row?.contains(toggle.element)).toBe(true)
+      expect(toggle.attributes('type')).toBe('button')
+      expect(toggle.attributes('aria-label')).toBe('Enter coordinates')
+      expect(toggle.get('[aria-hidden="true"]').text()).toBe('🌐')
+      expect(toggle.attributes('aria-controls')).toBe(wrapper.get('[data-testid="coordinates"]').attributes('id'))
+      expect(toggle.attributes('aria-expanded')).toBe('false')
 
-      ;(details.element as HTMLDetailsElement).open = true
-      await details.trigger('toggle')
-      expect(summary.text()).toBe('Hide coordinates')
+      await toggle.trigger('click')
+      expect(toggle.attributes('aria-expanded')).toBe('true')
+      expect(coordinatesShown(wrapper)).toBe(true)
+
+      await toggle.trigger('click')
+      expect(coordinatesShown(wrapper)).toBe(false)
+    })
+
+    it('keeps typed coordinates when the fields are closed', async () => {
+      const wrapper = mount(IsochroneForm)
+      const toggle = wrapper.get('[data-testid="enter-coordinates"]')
+      await toggle.trigger('click')
+      await wrapper.get('input[data-testid="lat"]').setValue('45.5231')
+      await toggle.trigger('click')
+
+      expect((wrapper.get('input[data-testid="lat"]').element as HTMLInputElement).value).toBe('45.5231')
     })
 
     it('names an address chosen from search', async () => {
