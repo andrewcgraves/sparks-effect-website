@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import IsochroneForm from '../IsochroneForm.vue'
+import PlotYourOwnPrototype from '../prototypes/plotYourOwn/PlotYourOwnPrototype.vue'
 import CopyLinkButton from '../components/CopyLinkButton.vue'
 import MapView from '../components/MapView.vue'
 import { PLOT_WITHOUT_MAP } from '../components/mapLoad'
@@ -186,7 +186,7 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
           :offline="offline"
         >
           <template #plot>
-            <IsochroneForm
+            <PlotYourOwnPrototype
               ref="isochroneForm"
               :error="fetchError"
               :loading="isLoading"
@@ -305,7 +305,7 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
           :offline="offline"
         >
           <template #plot>
-            <IsochroneForm
+            <PlotYourOwnPrototype
               ref="isochroneForm"
               :error="fetchError"
               :loading="isLoading"
