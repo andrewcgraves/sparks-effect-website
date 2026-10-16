@@ -18,7 +18,7 @@ import {
   ISOCHRONE_ORIGIN_DIM_OPACITY,
 } from './useIsochroneLayer'
 import { THEME_TOKEN_FALLBACKS } from '../themeTokens'
-import { staticIsochroneResponse } from '../fixtures/isochrone'
+import { staticIsochroneResponse } from '../test/sampleIsochrone'
 
 function makeMockMap(): Pick<Map, 'addSource' | 'addLayer' | 'getLayer'> {
   return {

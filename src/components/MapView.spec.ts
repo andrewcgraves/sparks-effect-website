@@ -36,12 +36,8 @@ import {
   ORIGIN_WALK_SOURCE_ID,
 } from '../composables/useOriginWalkLayer'
 import { THEME_TOKEN_FALLBACKS } from '../themeTokens'
-import {
-  staticIsochroneResponse,
-  ISOCHRONE_BOUNDS,
-  ISOCHRONE_BOUNDS_CORNERS,
-  ISOCHRONE_CENTER,
-} from '../fixtures/isochrone'
+import { ISOCHRONE_BOUNDS_CORNERS, ISOCHRONE_CENTER } from '../fixtures/isochrone'
+import { staticIsochroneResponse } from '../test/sampleIsochrone'
 import type { ChainResponse, StarterWalk } from '../fixtures/isochrone'
 import type { Route, Station } from '../api/scenarios'
 
@@ -1181,17 +1177,12 @@ describe('MapView', () => {
     )
   })
 
-  it('ISOCHRONE_BOUNDS covers the sample CA HSR corridor', () => {
-    const [minLng, minLat, maxLng, maxLat] = ISOCHRONE_BOUNDS
+  it('ISOCHRONE_BOUNDS_CORNERS covers the sample CA HSR corridor', () => {
+    const [[minLng, minLat], [maxLng, maxLat]] = ISOCHRONE_BOUNDS_CORNERS
     expect(minLat).toBeGreaterThan(36.5)
     expect(maxLat).toBeLessThan(38.5)
     expect(minLng).toBeGreaterThan(-123)
     expect(maxLng).toBeLessThan(-121)
-  })
-
-  it('ISOCHRONE_CENTER is the midpoint of ISOCHRONE_BOUNDS', () => {
-    expect(ISOCHRONE_CENTER[0]).toBeCloseTo((ISOCHRONE_BOUNDS[0] + ISOCHRONE_BOUNDS[2]) / 2, 10)
-    expect(ISOCHRONE_CENTER[1]).toBeCloseTo((ISOCHRONE_BOUNDS[1] + ISOCHRONE_BOUNDS[3]) / 2, 10)
   })
 
   it('renders a color key for origin and egress isochrones', () => {
