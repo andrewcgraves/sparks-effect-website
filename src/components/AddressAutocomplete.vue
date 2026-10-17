@@ -169,7 +169,7 @@ defineExpose({ setInputValue })
         <input
           :id="inputId"
           v-model="inputValue"
-          :class="[FIELD_INPUT_CLASS, 'h-9 w-full placeholder:text-placeholder']"
+          :class="[FIELD_INPUT_CLASS, 'h-9 w-full placeholder:text-placeholder pointer-coarse:h-11']"
           type="text"
           placeholder="Search for a place"
           autocomplete="off"
