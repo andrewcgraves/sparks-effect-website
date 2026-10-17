@@ -1,10 +1,11 @@
 export const THEME_TOKEN_FALLBACKS = {
-  '--color-data-origin': '#1034b1',
-  '--color-data-egress': '#f28f29',
+  '--color-data-origin': '#e1665b',
+  '--color-data-egress': '#ef9261',
   '--color-ink': '#121212',
   '--color-ink-muted': '#4a4a4f',
   '--color-ink-faint': '#b8b8be',
   '--color-coral': '#e1665b',
+  '--color-apricot': '#ef9261',
   '--color-error': '#c2453b',
 } as const
 

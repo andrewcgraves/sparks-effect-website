@@ -74,7 +74,7 @@ export function useStationHighlight(map: Map, callbacks: StationHighlightCallbac
     // Dimming is only worth doing when there is something to promote in its
     // place. A station the plot drew no polygon for would otherwise fade every
     // isochrone on the map and put nothing on top, which reads as the station's
-    // orange disappearing under the blue origin fill (SPA-224). Its name still
+    // highlight disappearing under the origin fill (SPA-224). Its name still
     // goes up in the popup — the dot was hovered either way.
     const active = callbacks.activeSlug()
     const promoted = active !== null && callbacks.egressSlugs().has(active) ? active : null

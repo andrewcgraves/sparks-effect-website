@@ -10,6 +10,12 @@ function tokenValueInThemeCss(name: string): string | undefined {
   return new RegExp(`^\\s*${name}:\\s*([^;]+);`, 'm').exec(themeCss)?.[1].trim()
 }
 
+function resolvedTokenInThemeCss(name: string): string | undefined {
+  const value = tokenValueInThemeCss(name)
+  const alias = value && /^var\((--[\w-]+)\)$/.exec(value)?.[1]
+  return alias ? resolvedTokenInThemeCss(alias) : value
+}
+
 function srgbChannel(channel: number): number {
   return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4
 }
@@ -34,9 +40,18 @@ describe('theme token fallbacks', () => {
   it.each(Object.keys(THEME_TOKEN_FALLBACKS) as ThemeTokenName[])(
     '%s matches its value in theme.css',
     (name) => {
-      expect(tokenValueInThemeCss(name)).toBe(THEME_TOKEN_FALLBACKS[name])
+      expect(resolvedTokenInThemeCss(name)).toBe(THEME_TOKEN_FALLBACKS[name])
     },
   )
+
+  // SPA-521: the splash zone, its key and the Stations card's boarded dot paint
+  // with these, so they alias the palette rather than holding colours of their own.
+  it.each([
+    ['--color-data-origin', '--color-coral'],
+    ['--color-data-egress', '--color-apricot'],
+  ])('%s is %s', (name, palette) => {
+    expect(tokenValueInThemeCss(name)).toBe(`var(${palette})`)
+  })
 
   it('finds real declarations in theme.css rather than silently matching nothing', () => {
     expect(tokenValueInThemeCss('--color-data-origin')).toBeDefined()
@@ -46,7 +61,7 @@ describe('theme token fallbacks', () => {
   it('falls back to the theme.css value when no stylesheet is loaded', () => {
     // The DOM environment loads no stylesheet, so getComputedStyle resolves the
     // custom property to '' and the fallback is what comes back.
-    expect(readThemeToken('--color-data-origin')).toBe('#1034b1')
+    expect(readThemeToken('--color-data-origin')).toBe('#e1665b')
     expect(readThemeToken('--color-coral')).toBe('#e1665b')
   })
 })

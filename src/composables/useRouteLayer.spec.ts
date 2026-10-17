@@ -228,7 +228,7 @@ describe('useRouteLayer', () => {
         { station_slug: 'sf', access_mins: 5, remaining_mins: 10 },
         { station_slug: 'gilroy', access_mins: 9, remaining_mins: 4 },
       ]),
-      '#f28f29',
+      '#ef9261',
     )
     const call = (map.addLayer as ReturnType<typeof vi.fn>).mock.calls.find(
       (c: unknown[]) => (c[0] as { id: string }).id === STATION_DOTS_LAYER_ID,
@@ -237,7 +237,7 @@ describe('useRouteLayer', () => {
       'match',
       ['get', 'slug'],
       ['sf', 'gilroy'],
-      '#f28f29',
+      '#ef9261',
       STATION_DOT_DEFAULT_COLOR,
     ])
   })
@@ -290,15 +290,15 @@ describe('useRouteLayer', () => {
 
   describe('stationDotColor', () => {
     it('falls back to the plain default color when nothing is reachable', () => {
-      expect(stationDotColor([], '#f28f29')).toBe(STATION_DOT_DEFAULT_COLOR)
+      expect(stationDotColor([], '#ef9261')).toBe(STATION_DOT_DEFAULT_COLOR)
     })
 
     it('builds a match expression keying the highlight color off the slug property', () => {
-      expect(stationDotColor(['sf'], '#f28f29')).toEqual([
+      expect(stationDotColor(['sf'], '#ef9261')).toEqual([
         'match',
         ['get', 'slug'],
         ['sf'],
-        '#f28f29',
+        '#ef9261',
         STATION_DOT_DEFAULT_COLOR,
       ])
     })
@@ -505,7 +505,7 @@ describe('useRouteLayer', () => {
     it('attaches the station layer already painted with the initial reach', () => {
       const map = makeMockMap()
       const data = chainWith([{ station_slug: 'sf', access_mins: 5, remaining_mins: 10 }])
-      const module = routeLayerModule(() => ({ routes: [route], stations: [station] }), () => data, '#f28f29')
+      const module = routeLayerModule(() => ({ routes: [route], stations: [station] }), () => data, '#ef9261')
       module.attach(map as Map)
       const call = (map.addLayer as ReturnType<typeof vi.fn>).mock.calls.find(
         (c: unknown[]) => (c[0] as { id: string }).id === STATION_DOTS_LAYER_ID,
@@ -514,7 +514,7 @@ describe('useRouteLayer', () => {
         'match',
         ['get', 'slug'],
         ['sf'],
-        '#f28f29',
+        '#ef9261',
         STATION_DOT_DEFAULT_COLOR,
       ])
     })
@@ -525,7 +525,7 @@ describe('useRouteLayer', () => {
         setPaintProperty: vi.fn(),
       }
       let data: ChainResponse | null = null
-      const module = routeLayerModule(() => ({ routes: [route], stations: [station] }), () => data, '#f28f29')
+      const module = routeLayerModule(() => ({ routes: [route], stations: [station] }), () => data, '#ef9261')
       module.attach(map as Map)
 
       data = chainWith([{ station_slug: 'sf', access_mins: 5, remaining_mins: 10 }])
@@ -535,7 +535,7 @@ describe('useRouteLayer', () => {
         'match',
         ['get', 'slug'],
         ['sf'],
-        '#f28f29',
+        '#ef9261',
         STATION_DOT_DEFAULT_COLOR,
       ])
     })
@@ -549,7 +549,7 @@ describe('useRouteLayer', () => {
       const module = routeLayerModule(
         () => ({ routes: [progressRoute], stations: [stationA, stationB] }),
         () => data,
-        '#f28f29',
+        '#ef9261',
       )
       module.attach(map as Map)
       expect(paintOf(map, ROUTE_LINE_LAYER_ID)['line-color']).toBe(routeLineColor(false))
@@ -578,7 +578,7 @@ describe('useRouteLayer', () => {
       const module = routeLayerModule(
         () => ({ routes: [progressRoute], stations: [stationA, stationB] }),
         () => data,
-        '#f28f29',
+        '#ef9261',
       )
       module.attach(map as unknown as Map)
 
@@ -603,7 +603,7 @@ describe('useRouteLayer', () => {
       const module = routeLayerModule(
         () => ({ routes: [progressRoute], stations: [station] }),
         () => data,
-        '#f28f29',
+        '#ef9261',
       )
       module.attach(map as unknown as Map)
 
@@ -629,7 +629,7 @@ describe('useRouteLayer', () => {
         [route],
         [station],
         chainWithProgress([progressEntry({ fraction: 0.5 })]),
-        '#f28f29',
+        '#ef9261',
       )
 
       const ids = (map.addLayer as ReturnType<typeof vi.fn>).mock.calls.map(
@@ -654,7 +654,7 @@ describe('useRouteLayer', () => {
       const [dash, gap] = stub.paint['line-dasharray']
       expect(gap).toBeGreaterThan(dash + 2)
       expect(stub.paint['line-color']).toBe('#121212')
-      expect(stub.paint['line-color']).not.toBe('#f28f29')
+      expect(stub.paint['line-color']).not.toBe('#ef9261')
       expect(stub.paint['line-width']).toBe(ROUTE_LINE_WIDTH)
     })
 
