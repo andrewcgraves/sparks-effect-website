@@ -273,7 +273,7 @@ function handleSubmit() {
             >
               {{ originName || 'Starting point' }}
             </p>
-            <p class="font-body text-caption text-ink-muted tabular-nums">
+            <p class="t-meta text-ink-muted tabular-nums">
               {{ coordsText }}
             </p>
           </div>
@@ -405,7 +405,7 @@ function handleSubmit() {
 
       <p
         v-if="locationError"
-        class="font-body text-caption text-error italic"
+        class="t-error"
         data-testid="location-error"
       >
         {{ locationError }}
@@ -437,7 +437,7 @@ function handleSubmit() {
             aria-hidden="true"
             class="text-2xl leading-none"
           >{{ option.icon }}</span>
-          <span class="font-body text-caption">{{ option.label }}</span>
+          <span class="t-meta">{{ option.label }}</span>
         </label>
       </div>
     </fieldset>
@@ -476,7 +476,7 @@ function handleSubmit() {
 
     <p
       v-if="showError"
-      class="font-body text-caption text-error"
+      class="t-error"
       role="alert"
       data-testid="fetch-error"
     >

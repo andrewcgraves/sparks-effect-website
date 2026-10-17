@@ -60,13 +60,13 @@ async function handleSubmit() {
       <h1 class="font-display text-display text-ink-true">
         Sign in
       </h1>
-      <p class="font-body text-micro text-ink-muted italic uppercase">
+      <p class="t-meta text-ink-muted">
         Invite-only · accounts are provisioned by an admin
       </p>
 
       <p
         v-if="auth.sessionExpired"
-        class="font-body text-caption text-error mt-4"
+        class="t-error mt-4"
         role="status"
         data-testid="session-expired"
       >
@@ -109,7 +109,7 @@ async function handleSubmit() {
 
         <p
           v-if="error"
-          class="font-body text-caption text-error"
+          class="t-error"
           role="alert"
           data-testid="login-error"
         >

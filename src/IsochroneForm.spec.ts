@@ -90,7 +90,7 @@ describe('IsochroneForm', () => {
 
   it('keeps the travel-time options out of the label, so they do not take its letter-spacing', () => {
     const wrapper = mount(IsochroneForm)
-    expect(wrapper.get('[data-testid="duration-slider"]').element.closest('.text-micro')).toBeNull()
+    expect(wrapper.get('[data-testid="duration-slider"]').element.closest('.t-eyebrow')).toBeNull()
   })
 
   it('moves the duration to the option that was selected', async () => {

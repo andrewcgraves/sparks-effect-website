@@ -107,14 +107,14 @@ async function confirmUnpublish(): Promise<void> {
 
     <p
       v-if="state === 'checking'"
-      class="font-body text-caption mt-3 text-ink-muted italic"
+      class="t-note mt-3 text-ink-muted"
     >
       Checking whether this line is published…
     </p>
 
     <p
       v-else-if="state === 'unknown'"
-      class="font-body text-caption mt-3 text-error"
+      class="t-error mt-3"
       role="alert"
       data-testid="publication-check-error"
     >
@@ -123,7 +123,7 @@ async function confirmUnpublish(): Promise<void> {
 
     <template v-else>
       <p
-        class="font-body text-caption mt-3 text-ink"
+        class="t-meta mt-3 text-ink"
         data-testid="publication-status"
       >
         <template v-if="state === 'unpublished'">
@@ -153,7 +153,7 @@ async function confirmUnpublish(): Promise<void> {
           :href="publicPath"
           target="_blank"
           rel="noopener"
-          :class="[INLINE_LINK_CLASS, 'font-body text-caption break-all text-ink']"
+          :class="[INLINE_LINK_CLASS, 't-meta break-all text-ink']"
           data-testid="public-url"
         >{{ publicUrl }}</a>
         <button
@@ -167,7 +167,7 @@ async function confirmUnpublish(): Promise<void> {
       </div>
       <p
         v-if="copyFailed"
-        class="font-body text-caption mt-2 text-ink-muted"
+        class="t-meta mt-2 text-ink-muted"
         role="status"
         data-testid="copy-public-url-failed"
       >
@@ -199,7 +199,7 @@ async function confirmUnpublish(): Promise<void> {
 
       <p
         v-if="error"
-        class="font-body text-caption mt-3 text-error"
+        class="t-error mt-3"
         role="alert"
         data-testid="publication-error"
       >

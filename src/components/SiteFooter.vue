@@ -21,7 +21,7 @@ const hasAttribution = useRoutedPath('/attribution')
 </script>
 
 <template>
-  <footer class="font-body text-micro flex flex-col gap-2 px-(--page-gutter) pb-8 text-ink-muted">
+  <footer class="t-meta flex flex-col gap-2 px-(--page-gutter) pb-8 text-ink-muted">
     <nav
       v-if="links.length > 0"
       class="flex flex-wrap gap-x-4 gap-y-1"

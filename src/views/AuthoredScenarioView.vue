@@ -214,7 +214,7 @@ async function recompileForInterchanges(): Promise<void> {
           >
             {{ scenario.name }}
           </h1>
-          <p class="font-body text-micro text-ink-muted uppercase">
+          <p class="t-meta text-ink-muted">
             {{ scenario.slug }}
           </p>
         </hgroup>
@@ -242,14 +242,14 @@ async function recompileForInterchanges(): Promise<void> {
 
       <p
         v-if="compiling && !graph"
-        class="font-body text-caption mt-8 text-ink-muted italic"
+        class="t-note mt-8 text-ink-muted"
         data-testid="compiling-status"
       >
         Compiling this network…
       </p>
       <p
         v-else-if="graphFailed"
-        class="font-body text-caption mt-8 text-error"
+        class="t-error mt-8"
         role="alert"
         data-testid="graph-error"
       >
@@ -258,7 +258,7 @@ async function recompileForInterchanges(): Promise<void> {
       
       <template v-else-if="compileError && !graph">
         <p
-          class="font-body text-caption mt-8 text-error"
+          class="t-error mt-8"
           role="alert"
           data-testid="compile-error"
         >
@@ -306,7 +306,7 @@ async function recompileForInterchanges(): Promise<void> {
                near miss. -->
           <p
             v-if="compileError"
-            class="font-body text-caption text-error"
+            class="t-error"
             role="alert"
             data-testid="interchange-compile-error"
           >

@@ -53,7 +53,7 @@ const nothingYet = computed(() =>
       <h1 class="font-display text-display text-ink-true">
         My authoring
       </h1>
-      <p class="font-body text-micro text-ink-muted italic uppercase">
+      <p class="t-meta text-ink-muted">
         Signed in as {{ auth.displayName ?? '…' }}
       </p>
     </hgroup>
@@ -80,7 +80,7 @@ const nothingYet = computed(() =>
           <div class="flex flex-wrap items-center justify-between gap-3">
             <p class="font-body text-body flex flex-col text-ink">
               {{ handover.service_name }}
-              <span class="text-caption text-ink-muted">
+              <span class="t-meta text-ink-muted">
                 From {{ handover.from_name }} · Expires {{ expiryDate(handover) }}
               </span>
             </p>
@@ -107,7 +107,7 @@ const nothingYet = computed(() =>
           </div>
           <p
             v-if="refusals[handover.id]"
-            class="font-body text-caption text-error"
+            class="t-error"
             role="alert"
             data-testid="handover-refusal"
           >
@@ -163,7 +163,7 @@ const nothingYet = computed(() =>
         />
         <p
           v-else-if="servicesError"
-          class="font-body text-caption mt-3 text-error"
+          class="t-error mt-3"
           role="alert"
           data-testid="services-error"
         >
@@ -171,7 +171,7 @@ const nothingYet = computed(() =>
         </p>
         <p
           v-else-if="services.length === 0"
-          class="font-body text-caption mt-3 text-ink-muted italic"
+          class="t-note mt-3 text-ink-muted"
           data-testid="services-empty"
         >
           {{ LINE_DEFINITION }} You haven't created one yet.
@@ -190,7 +190,7 @@ const nothingYet = computed(() =>
               data-testid="service-link"
             >
               {{ service.name }}
-              <span class="text-micro text-ink-muted">{{ service.slug }}</span>
+              <span class="t-meta text-ink-muted">{{ service.slug }}</span>
               <Tag
                 v-if="handoverPending.has(service.slug)"
                 tone="caution"
@@ -223,7 +223,7 @@ const nothingYet = computed(() =>
         />
         <p
           v-else-if="scenariosError"
-          class="font-body text-caption mt-3 text-error"
+          class="t-error mt-3"
           role="alert"
           data-testid="scenarios-error"
         >
@@ -236,13 +236,13 @@ const nothingYet = computed(() =>
         >
           <p
             v-if="hasLines"
-            class="font-body text-caption text-ink-muted italic"
+            class="t-note text-ink-muted"
           >
             Combine your lines into a network so riders can change between them.
           </p>
           <p
             v-else
-            class="font-body text-caption text-ink-muted italic"
+            class="t-note text-ink-muted"
           >
             A network combines lines so riders can change between them.
           </p>
@@ -269,7 +269,7 @@ const nothingYet = computed(() =>
               data-testid="scenario-link"
             >
               {{ scenario.name }}
-              <span class="text-micro text-ink-muted">{{ scenario.slug }}</span>
+              <span class="t-meta text-ink-muted">{{ scenario.slug }}</span>
             </router-link>
           </li>
         </ul>

@@ -46,7 +46,7 @@ async function copy(): Promise<void> {
     </div>
     <p
       v-if="copyFailed"
-      class="font-body text-micro text-ink-muted"
+      class="t-meta text-ink-muted"
       data-testid="copy-link-failed"
     >
       Couldn't copy. The link is selected; copy it by hand.

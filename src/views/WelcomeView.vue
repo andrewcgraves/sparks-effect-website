@@ -113,7 +113,7 @@ async function handleSubmit() {
 
       <p
         v-if="state === 'loading'"
-        class="font-body text-caption text-ink-muted mt-4"
+        class="t-note text-ink-muted mt-4"
         role="status"
       >
         Checking your link…
@@ -121,7 +121,7 @@ async function handleSubmit() {
 
       <p
         v-else-if="state === 'expired'"
-        class="font-body text-caption text-error mt-4"
+        class="t-error mt-4"
         role="alert"
         data-testid="link-expired"
       >
@@ -130,7 +130,7 @@ async function handleSubmit() {
 
       <p
         v-else-if="state === 'unavailable'"
-        class="font-body text-caption text-error mt-4"
+        class="t-error mt-4"
         role="alert"
         data-testid="load-error"
       >
@@ -166,7 +166,7 @@ async function handleSubmit() {
         </label>
         <p
           id="password-policy"
-          class="font-body text-micro text-ink-muted -mt-2"
+          class="t-note text-ink-muted -mt-2"
           data-testid="password-policy"
         >
           {{ POLICY_COPY }}
@@ -193,7 +193,7 @@ async function handleSubmit() {
 
         <p
           v-if="error"
-          class="font-body text-caption text-error"
+          class="t-error"
           role="alert"
           data-testid="password-error"
         >

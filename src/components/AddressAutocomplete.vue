@@ -190,14 +190,14 @@ defineExpose({ setInputValue })
         >
           <p
             v-if="isLoading"
-            class="font-body text-caption px-3 py-2 text-ink-muted italic"
+            class="t-note px-3 py-2 text-ink-muted"
             data-testid="suggestions-loading"
           >
             Searching…
           </p>
           <p
             v-else-if="unavailable"
-            class="font-body text-caption px-3 py-2 text-ink-muted not-italic normal-case"
+            class="t-note px-3 py-2 text-ink-muted"
             data-testid="suggestions-unavailable"
             role="status"
           >
@@ -225,7 +225,7 @@ defineExpose({ setInputValue })
           </ul>
           <p
             v-else
-            class="font-body text-caption px-3 py-2 text-ink-muted italic"
+            class="t-note px-3 py-2 text-ink-muted"
             data-testid="suggestions-empty"
           >
             No results found

@@ -17,7 +17,6 @@ const { confirm } = useConfirm()
 const { show: toast } = useToast()
 
 const SECTION_CLASS = 'flex flex-col gap-4 rounded-(--radius-box) border border-border bg-surface p-4'
-const ERROR_CLASS = 'font-body text-caption text-error'
 
 // The user record can land after the page does (restoreSession runs on boot),
 // so the field follows the stored name for as long as the user hasn't edited it.
@@ -108,7 +107,7 @@ async function signOutEverywhere(): Promise<void> {
           Account
         </h1>
         <p
-          class="font-body text-micro text-ink-muted italic uppercase"
+          class="t-meta text-ink-muted"
           data-testid="signed-in-as"
         >
           Signed in as {{ auth.displayName ?? '…' }}
@@ -144,7 +143,7 @@ async function signOutEverywhere(): Promise<void> {
           </label>
           <p
             id="account-name-hint"
-            class="font-body text-caption text-ink-muted"
+            class="t-note text-ink-muted"
           >
             Appears on your published pages, where anyone can see it.
           </p>
@@ -158,7 +157,7 @@ async function signOutEverywhere(): Promise<void> {
           </button>
           <p
             v-if="profileError"
-            :class="ERROR_CLASS"
+            class="t-error"
             role="alert"
             data-testid="profile-error"
           >
@@ -212,7 +211,7 @@ async function signOutEverywhere(): Promise<void> {
           </label>
           <p
             id="account-password-policy"
-            class="font-body text-caption text-ink-muted"
+            class="t-note text-ink-muted"
             data-testid="password-policy"
           >
             Use at least {{ PASSWORD_MIN_LENGTH }} characters. Changing it signs you out on your other devices.
@@ -227,7 +226,7 @@ async function signOutEverywhere(): Promise<void> {
           </button>
           <p
             v-if="passwordError"
-            :class="ERROR_CLASS"
+            class="t-error"
             role="alert"
             data-testid="password-error"
           >
@@ -235,7 +234,7 @@ async function signOutEverywhere(): Promise<void> {
           </p>
           <p
             v-if="passwordChanged"
-            class="font-body text-caption text-ink"
+            class="t-meta text-ink"
             role="status"
             data-testid="password-changed"
           >
@@ -252,7 +251,7 @@ async function signOutEverywhere(): Promise<void> {
           Sessions
         </h2>
         <div :class="[SECTION_CLASS, 'mt-3']">
-          <p class="font-body text-caption text-ink-muted">
+          <p class="t-note text-ink-muted">
             Signing out everywhere ends every session you have, on every device, this one included.
           </p>
           <div class="flex flex-wrap gap-3">
@@ -276,7 +275,7 @@ async function signOutEverywhere(): Promise<void> {
           </div>
           <p
             v-if="sessionsError"
-            :class="ERROR_CLASS"
+            class="t-error"
             role="alert"
             data-testid="sessions-error"
           >

@@ -6,7 +6,7 @@ import { useOutsidePointerDown } from '../composables/useOutsidePointerDown'
 import { ACTION_LINK_CLASS } from './linkStyles'
 
 const MENU_ITEM_CLASS =
-  'font-body text-caption block w-full cursor-pointer rounded-(--radius-field) px-3 py-1.5 text-left text-ink hover:bg-surface focus:bg-surface focus-visible:-outline-offset-(--focus-ring-width)'
+  't-meta block w-full cursor-pointer rounded-(--radius-field) px-3 py-1.5 text-left text-ink hover:bg-surface focus:bg-surface focus-visible:-outline-offset-(--focus-ring-width)'
 
 const route = useRoute()
 const { label, links, signOut } = useAccountNav()

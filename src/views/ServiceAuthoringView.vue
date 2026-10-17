@@ -578,7 +578,7 @@ watch(createdSlug, (created) => {
             </LoadingRegion>
             <p
               v-else-if="routesError"
-              class="font-body text-caption mt-3 text-error"
+              class="t-error mt-3"
               role="alert"
               data-testid="routes-error"
             >
@@ -612,7 +612,7 @@ watch(createdSlug, (created) => {
             </label>
             <p
               v-if="routeMissing"
-              class="font-body text-caption mt-2 text-error"
+              class="t-error mt-2"
               role="alert"
               data-testid="route-missing"
             >
@@ -660,7 +660,7 @@ watch(createdSlug, (created) => {
             <p
               v-if="orderWarning"
               :id="orderWarningId"
-              class="font-body text-caption mt-2 text-error"
+              class="t-error mt-2"
               role="alert"
               data-testid="order-warning"
             >
@@ -675,7 +675,7 @@ watch(createdSlug, (created) => {
               <li
                 v-for="(stop, index) in stops"
                 :key="stop.id"
-                class="font-body text-caption rounded-(--radius-field) border px-2 py-1.5 text-ink"
+                class="t-meta rounded-(--radius-field) border px-2 py-1.5 text-ink"
                 :class="stopRowClass(stop, index)"
                 :aria-current="stop.id === selectedStopId ? 'true' : undefined"
                 data-testid="stop-row"
@@ -783,7 +783,7 @@ watch(createdSlug, (created) => {
             </ol>
             <p
               v-else
-              class="font-body text-caption mt-3 text-ink-muted"
+              class="t-note mt-3 text-ink-muted"
               data-testid="stops-empty"
             >
               No stops yet. Choose "Add stops by clicking the map" below, then click along the route.
@@ -791,14 +791,14 @@ watch(createdSlug, (created) => {
 
             <p
               v-if="previewLoading"
-              class="font-body text-caption mt-2 text-ink-muted italic"
+              class="t-note mt-2 text-ink-muted"
               data-testid="preview-loading"
             >
               Checking against the route…
             </p>
             <p
               v-if="previewError"
-              class="font-body text-caption mt-2 text-error"
+              class="t-error mt-2"
               role="alert"
               data-testid="preview-error"
             >
@@ -819,7 +819,7 @@ watch(createdSlug, (created) => {
               class="mt-3"
               data-testid="add-by-coordinates"
             >
-              <summary class="font-body text-caption cursor-pointer text-ink-muted hover:text-ink">
+              <summary class="t-meta cursor-pointer text-ink-muted hover:text-ink">
                 Add by coordinates
               </summary>
               <div class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-[2fr_1fr_1fr_auto]">
@@ -922,7 +922,7 @@ watch(createdSlug, (created) => {
               <li
                 v-for="(window, index) in frequencyWindows"
                 :key="window.id"
-                class="font-body text-caption flex items-center justify-between gap-2 rounded-(--radius-field) border border-border bg-white px-3 py-2 text-ink"
+                class="t-meta flex items-center justify-between gap-2 rounded-(--radius-field) border border-border bg-white px-3 py-2 text-ink"
               >
                 <span>{{ window.start_time }}–{{ window.end_time }}, every {{ Math.round(window.headway_s / 60) }} min</span>
                 <button
@@ -980,7 +980,7 @@ watch(createdSlug, (created) => {
           <section class="rounded-(--radius-box) border border-border bg-surface p-4">
             <h2 class="font-display text-h3 text-ink-true">
               Description
-              <span class="font-body text-caption font-normal text-ink-muted">optional</span>
+              <span class="t-meta text-ink-muted">optional</span>
             </h2>
             <label :class="[FIELD_LABEL_CLASS, 'mt-3']">
               <span class="sr-only">Description</span>
@@ -1005,7 +1005,7 @@ watch(createdSlug, (created) => {
               class="flex flex-wrap items-center gap-x-3 gap-y-1"
             >
               <p
-                class="font-body text-caption flex items-center gap-2 text-error"
+                class="t-error flex items-center gap-2"
                 role="alert"
                 data-testid="compile-error"
               >
@@ -1022,7 +1022,7 @@ watch(createdSlug, (created) => {
             </div>
             <p
               v-else
-              class="font-body text-caption flex items-center gap-2 text-ink"
+              class="t-meta flex items-center gap-2 text-ink"
               role="status"
               data-testid="save-status"
             >
@@ -1057,7 +1057,7 @@ watch(createdSlug, (created) => {
 
           <p
             v-if="submitError"
-            class="font-body text-caption text-error"
+            class="t-error"
             role="alert"
             data-testid="submit-error"
           >

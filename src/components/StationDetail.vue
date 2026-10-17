@@ -10,7 +10,7 @@ const props = defineProps<{
 
 <template>
   <dl
-    class="font-body text-micro flex flex-col gap-0.5 text-ink-muted"
+    class="t-meta flex flex-col gap-0.5 text-ink-muted"
     data-testid="time-remaining-detail"
   >
     <div v-if="props.detail.rideSecs !== undefined">

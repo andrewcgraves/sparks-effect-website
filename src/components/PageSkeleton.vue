@@ -17,7 +17,7 @@ const props = withDefaults(defineProps<{
       <SkeletonShape class="font-display text-display w-3/4 max-w-[480px]" />
       <SkeletonShape
         v-if="props.subtitle"
-        class="font-body text-micro w-32"
+        class="t-meta w-32"
       />
     </div>
 

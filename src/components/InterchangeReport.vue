@@ -61,7 +61,7 @@ function formatMeters(total: number): string {
       <li
         v-for="row in nearMissRows"
         :key="row.key"
-        class="font-body text-caption flex flex-col items-start gap-2 text-ink"
+        class="t-meta flex flex-col items-start gap-2 text-ink"
         data-testid="near-miss-row"
       >
         <span>
@@ -119,7 +119,7 @@ function formatMeters(total: number): string {
       <li
         v-for="cluster in props.realisedClusters"
         :key="cluster.key"
-        class="font-body text-caption text-ink"
+        class="t-meta text-ink"
         data-testid="realised-cluster-row"
       >
         {{ cluster.names.join(', ') }}

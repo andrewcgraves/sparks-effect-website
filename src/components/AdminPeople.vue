@@ -193,7 +193,7 @@ async function sendInvite(): Promise<void> {
           data-testid="invite-name"
         >
       </label>
-      <label class="font-body text-caption flex items-center gap-2 text-ink">
+      <label class="t-meta flex items-center gap-2 text-ink">
         <input
           v-model="invite.isAdmin"
           type="checkbox"
@@ -203,7 +203,7 @@ async function sendInvite(): Promise<void> {
       </label>
       <p
         v-if="inviteError"
-        class="font-body text-caption text-error"
+        class="t-error"
         role="alert"
         data-testid="invite-error"
       >
@@ -234,27 +234,27 @@ async function sendInvite(): Promise<void> {
       class="mt-4 flex flex-col gap-2 rounded-(--radius-box) border border-border bg-surface p-4"
       data-testid="issued-link"
     >
-      <p class="font-body text-caption text-ink">
+      <p class="t-meta text-ink">
         {{ issued.kind }} link for <strong>{{ issued.email }}</strong>. Send it to them however you like; it works once.
       </p>
       <CopyLinkField
         :url="issued.url"
         :label="`${issued.kind} link for ${issued.email}`"
       />
-      <p class="font-body text-micro text-ink-muted">
+      <p class="t-meta text-ink-muted">
         Expires around {{ dateTimeFormat.format(issued.expiresAt) }}
       </p>
     </div>
 
     <p
       v-if="loading"
-      class="font-body text-caption mt-4 text-ink-muted italic"
+      class="t-note mt-4 text-ink-muted"
     >
       Loading…
     </p>
     <p
       v-else-if="loadFailed && users.length === 0"
-      class="font-body text-caption mt-4 text-error"
+      class="t-error mt-4"
       role="alert"
       data-testid="people-error"
     >
@@ -264,8 +264,8 @@ async function sendInvite(): Promise<void> {
       v-else
       class="mt-4 overflow-x-auto"
     >
-      <table class="font-body text-caption w-full border-collapse text-left text-ink">
-        <thead class="text-micro text-ink-muted uppercase">
+      <table class="t-meta w-full border-collapse text-left text-ink">
+        <thead class="t-eyebrow text-ink-muted">
           <tr>
             <th class="py-2 pr-4 font-normal">
               Email
@@ -304,7 +304,7 @@ async function sendInvite(): Promise<void> {
               {{ user.email }}
               <span
                 v-if="isSelf(user)"
-                class="text-micro text-ink-muted"
+                class="t-meta text-ink-muted"
               >(you)</span>
             </td>
             <td class="py-2 pr-4">

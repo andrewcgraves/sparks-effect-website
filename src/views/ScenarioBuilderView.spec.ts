@@ -370,7 +370,7 @@ describe('ScenarioBuilderView editing an existing scenario', () => {
 
     expect(replace).not.toHaveBeenCalled()
     const compileError = wrapper.get('[data-testid="compile-error"]')
-    expect(compileError.classes()).toContain('text-error')
+    expect(compileError.classes()).toContain('t-error')
     expect(compileError.classes()).not.toContain('text-coral')
     expect(wrapper.find('[data-testid="save-scenario"]').exists()).toBe(false)
   })
@@ -557,7 +557,7 @@ describe('ScenarioBuilderView editing an existing scenario', () => {
       await save(wrapper)
 
       const compileError = wrapper.get('[data-testid="compile-error"]')
-      expect(compileError.classes()).toContain('text-error')
+      expect(compileError.classes()).toContain('t-error')
       expect(compileError.classes()).not.toContain('text-coral')
       const vm = wrapper.vm as unknown as {
         editDraft: ScenarioInput
