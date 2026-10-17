@@ -6,7 +6,7 @@ import { join, resolve, sep } from 'node:path'
 const SRC = resolve(process.cwd(), 'src')
 
 const sourceFiles = readdirSync(SRC, { recursive: true, encoding: 'utf8' })
-  .filter((path) => /\.(vue|ts)$/.test(path) && !path.endsWith('.spec.ts'))
+  .filter((path) => /\.(vue|ts|css)$/.test(path) && !path.endsWith('.spec.ts'))
   .map((path) => ({ path, text: readFileSync(join(SRC, path), 'utf8') }))
 
 function filesUsing(className: string): string[] {
@@ -25,90 +25,63 @@ describe('design scheme', () => {
   })
 })
 
-// A ratchet on type and surface styles that bypass theme.css. Counts may only
-// fall: a file that gains one fails, and a file that loses one fails until its
-// baseline is lowered to match, so the baseline never leaves room for new drift.
+// Every type and surface style comes from theme.css: a raw size, radius,
+// shadow, weight, tint or colour anywhere in src fails, with no baseline to
+// absorb it. Changing the scheme means changing theme.css.
 const PATTERNS = {
   arbitraryText: /\btext-\[[^\]\s]*\]/g,
   arbitraryRadius: /\brounded(?:-[a-z]+)?-\[[^\]\s]*\]/g,
   arbitraryShadow: /\bshadow-\[[^\]\s]*\]/g,
+  scaleShadow: /(?<![-\w])shadow-(?:2xs|xs|sm|md|lg|xl|2xl|inner)\b/g,
   offScaleWeight: /\bfont-(?:medium|semibold)\b/g,
+  overlayTint: /\bbg-white\/(?!92\b)\d+/g,
   hexColour: /(?<![&\w])#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})\b/g,
   rawSmallText: /(?<![-\w])text-(?:micro|caption)\b/g,
 } as const
 
 type PatternName = keyof typeof PATTERNS
-type Counts = Partial<Record<PatternName, number>>
 
-const RATCHET_EXCLUDED = new Set(['src/themeTokens.ts'])
-
-const BASELINE: Record<string, Counts> = {
-  'src/components/AddressAutocomplete.vue': { arbitraryText: 1 },
-  'src/components/FieldSkeleton.vue': { arbitraryText: 1 },
-  'src/components/KeySwatch.vue': { arbitraryRadius: 1, hexColour: 1 },
-  'src/components/MapView.vue': { arbitraryText: 2 },
-  'src/components/PrerenderedIsochrones.vue': { arbitraryText: 1 },
-  'src/components/fieldStyles.ts': { arbitraryText: 1 },
-  'src/composables/useRouteLayer.ts': { hexColour: 1 },
-  'src/composables/useStopPreviewLayer.ts': { hexColour: 2 },
-  'src/views/ServiceAuthoringView.vue': { arbitraryShadow: 3, offScaleWeight: 1 },
+const HEX_ALLOWED: Record<string, string> = {
+  'src/theme.css': 'where the palette is defined',
+  'src/themeTokens.ts': 'fallbacks that mirror theme.css for code that reads tokens at runtime',
+  'src/composables/useRouteLayer.ts': 'MapLibre paint takes literal colour strings, not CSS variables',
+  'src/composables/useStopPreviewLayer.ts': 'MapLibre paint takes literal colour strings, not CSS variables',
+  'src/components/KeySwatch.vue': 'an SVG pattern fill, which needs a literal colour',
 }
 
-function countsIn(source: string): Counts {
-  const counts: Counts = {}
-  for (const [name, pattern] of Object.entries(PATTERNS) as [PatternName, RegExp][]) {
-    const found = source.match(pattern)?.length ?? 0
-    if (found > 0) counts[name] = found
-  }
-  return counts
+function matchesIn(source: string, name: PatternName): string[] {
+  return source.match(PATTERNS[name]) ?? []
 }
 
-const ratchetedFiles = sourceFiles
-  .map(({ path, text }) => ({ path: `src/${path.split(sep).join('/')}`, text }))
-  .filter(({ path }) => !RATCHET_EXCLUDED.has(path))
+const scannedFiles = sourceFiles.map(({ path, text }) => ({ path: `src/${path.split(sep).join('/')}`, text }))
 
-const current: Record<string, Counts> = Object.fromEntries(
-  ratchetedFiles
-    .map(({ path, text }) => [path, countsIn(text)] as const)
-    .filter(([, counts]) => Object.keys(counts).length > 0),
-)
-
-describe('design scheme ratchet', () => {
-  it('leaves themeTokens.ts, which mirrors theme.css values, out of the ratchet', () => {
-    expect(ratchetedFiles.map(({ path }) => path)).toContain('src/components/fieldStyles.ts')
-    expect(ratchetedFiles.map(({ path }) => path)).not.toContain('src/themeTokens.ts')
+describe('design scheme rule', () => {
+  it.each(Object.keys(HEX_ALLOWED))('%s still needs its hex exemption', (path) => {
+    const file = scannedFiles.find((f) => f.path === path)
+    expect(file, `${path} is gone; drop it from HEX_ALLOWED`).toBeDefined()
+    expect(matchesIn(file!.text, 'hexColour'), `${path} has no hex left; drop it from HEX_ALLOWED`).not.toEqual([])
   })
 
   it.each(Object.keys(PATTERNS) as PatternName[])('%s matches what it should and nothing else', (name) => {
     const samples: Record<PatternName, [string, string]> = {
-      arbitraryText: ['class="text-[13px]"', 'class="text-caption text-ink"'],
-      arbitraryRadius: ['class="rounded-t-[3px]"', 'class="rounded-(--radius-field)"'],
-      arbitraryShadow: ['class="shadow-[0_1px_2px_black]"', 'class="shadow-panel"'],
+      arbitraryText: ['class="text-[13px]"', 'class="t-meta text-ink"'],
+      arbitraryRadius: ['class="rounded-t-[2px]"', 'class="rounded-(--radius-field)"'],
+      arbitraryShadow: ['class="shadow-[0_1px_2px_black]"', 'class="shadow-(--shadow-panel)"'],
+      scaleShadow: ['class="p-2 shadow-sm"', 'class="lg:shadow-(--shadow-panel) drop-shadow-sm" box-shadow: none'],
       offScaleWeight: ['class="font-semibold"', 'class="font-bold"'],
+      overlayTint: ['class="bg-white/80"', 'class="bg-white/92 bg-white"'],
       hexColour: ["color: '#c2453b'", 'href="#main" &#8212;'],
       rawSmallText: ['class="text-micro uppercase"', 'class="t-meta" var(--text-caption)'],
     }
     const [hit, miss] = samples[name]
-    expect(countsIn(hit)[name]).toBe(1)
-    expect(countsIn(miss)[name]).toBeUndefined()
+    expect(matchesIn(hit, name)).toHaveLength(1)
+    expect(matchesIn(miss, name)).toEqual([])
   })
 
-  it('finds no off-scale style in a file the baseline does not list', () => {
-    const unlisted = Object.keys(current).filter((path) => !(path in BASELINE))
-    expect(unlisted, 'use a theme.css token or t-* role instead of a raw style').toEqual([])
-  })
-
-  it.each(Object.keys(BASELINE))('%s holds at its baseline', (path) => {
-    const now = current[path] ?? {}
-    for (const name of Object.keys(PATTERNS) as PatternName[]) {
-      const allowed = BASELINE[path][name] ?? 0
-      const found = now[name] ?? 0
-      expect(
-        found,
-        found > allowed
-          ? `${path} gained a ${name} style; use a theme.css token or t-* role instead`
-          : `${path} dropped to ${found} ${name}; lower its baseline in designScheme.spec.ts to ${found}`,
-      ).toBe(allowed)
-    }
+  it.each(Object.keys(PATTERNS) as PatternName[])('no source file uses %s', (name) => {
+    const offenders = scannedFiles
+      .filter(({ path }) => !(name === 'hexColour' && path in HEX_ALLOWED))
+      .flatMap(({ path, text }) => matchesIn(text, name).map((match) => `${path}: ${match}`))
+    expect(offenders, 'use a theme.css token or t-* role instead').toEqual([])
   })
 })

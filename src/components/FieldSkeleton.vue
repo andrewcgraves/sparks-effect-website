@@ -13,7 +13,7 @@ const props = withDefaults(defineProps<{ rows?: number }>(), { rows: 1 })
     <!-- A field is `rows` lines of 14px text plus py-1.5 and a 1px border. -->
     <SkeletonShape
       shape="block"
-      class="rounded-(--radius-field) text-[14px]"
+      class="t-field rounded-(--radius-field)"
       :style="{ height: `calc(${props.rows}lh + 14px)` }"
     />
   </div>

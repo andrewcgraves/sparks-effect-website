@@ -45,6 +45,16 @@ Each target installs dependencies automatically if needed, so `make test`, `make
 and `make run` all work from a clean checkout. `make dev-workflow` is the target to run for an
 end-to-end check (e.g. from an agent or pre-push hook) since it doesn't start a long-running server.
 
+## Styling
+
+Text uses one of the `t-*` roles in [`src/theme.css`](src/theme.css) (`t-body`, `t-field`,
+`t-meta` and so on), with a separate colour utility. Colours, radii and shadows use the
+tokens in the same file, e.g. `rounded-(--radius-field)` or `shadow-(--shadow-panel)`, and
+`bg-white/92` is the one translucent overlay. [`src/designScheme.spec.ts`](src/designScheme.spec.ts)
+enforces this. A raw size, radius, shadow, weight, tint or hex colour anywhere in `src`
+fails the test. Hex is allowed only in the few files it names, where MapLibre paint or an SVG
+fill needs a literal colour. To change the scheme, change `theme.css`.
+
 ## Analytics
 
 Page views come from `<Analytics />` (`@vercel/analytics/vue`, mounted in

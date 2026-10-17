@@ -60,6 +60,9 @@
   --radius-box: 0.5rem;
 
   --shadow-panel: 0 1px 4px rgb(0 0 0 / 20%);
+  --shadow-bar: 0 -4px 12px rgb(0 0 0 / 6%);
+  --shadow-drop-above: 0 -3px 0 var(--color-coral);
+  --shadow-drop-below: 0 3px 0 var(--color-coral);
 }
 
 /* Text roles. Each sets the whole recipe except colour, which stays a separate

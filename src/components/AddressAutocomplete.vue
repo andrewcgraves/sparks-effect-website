@@ -215,7 +215,7 @@ defineExpose({ setInputValue })
               v-for="(match, index) in matches"
               :id="optionId(index)"
               :key="match.gid"
-              class="font-body cursor-pointer border-b border-border px-3 py-2 text-[14px] text-ink not-italic normal-case transition-colors duration-200 ease-(--ease-smooth) last:border-b-0 hover:bg-surface aria-selected:bg-surface aria-selected:outline-2 aria-selected:-outline-offset-2 aria-selected:outline-coral"
+              class="t-field cursor-pointer border-b border-border px-3 py-2 text-ink transition-colors duration-200 ease-(--ease-smooth) last:border-b-0 hover:bg-surface aria-selected:bg-surface aria-selected:outline-2 aria-selected:-outline-offset-2 aria-selected:outline-coral"
               role="option"
               :aria-selected="index === activeIndex"
               @click="onSelect(match)"

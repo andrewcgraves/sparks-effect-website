@@ -368,8 +368,8 @@ function stopRowClass(stop: DraftStop, index: number): string[] {
   else classes.push('bg-white')
   if (stop.id === draggingStopId.value) classes.push('opacity-50')
   const edge = dropEdge(stop, index)
-  if (edge === 'before') classes.push('shadow-[0_-3px_0_var(--color-coral)]')
-  if (edge === 'after') classes.push('shadow-[0_3px_0_var(--color-coral)]')
+  if (edge === 'before') classes.push('shadow-(--shadow-drop-above)')
+  if (edge === 'after') classes.push('shadow-(--shadow-drop-below)')
   return classes
 }
 
@@ -706,7 +706,7 @@ watch(createdSlug, (created) => {
                   >{{ index + 1 }}</span>
                   <input
                     :value="stop.name"
-                    class="min-w-0 flex-1 border-b border-transparent bg-transparent font-medium not-italic normal-case hover:border-border focus:border-coral focus-visible:outline-none"
+                    class="t-field min-w-0 flex-1 border-b border-transparent bg-transparent hover:border-border focus:border-coral focus-visible:outline-none"
                     :aria-label="`Rename ${stopLabels[index]}`"
                     :data-testid="`stop-edit-name-${index}`"
                     type="text"
@@ -998,7 +998,7 @@ watch(createdSlug, (created) => {
         </fieldset>
 
         <div
-          class="sticky bottom-0 z-20 flex flex-col gap-2 rounded-t-(--radius-box) border border-b-0 border-border bg-white/95 px-4 py-3 shadow-[0_-4px_12px_rgb(0_0_0/6%)] backdrop-blur"
+          class="sticky bottom-0 z-20 flex flex-col gap-2 rounded-t-(--radius-box) border border-b-0 border-border bg-white/92 px-4 py-3 shadow-(--shadow-bar) backdrop-blur"
           data-testid="save-bar"
         >
           <div class="flex flex-wrap items-center justify-between gap-3">

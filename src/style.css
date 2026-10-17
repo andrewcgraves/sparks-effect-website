@@ -13,7 +13,7 @@ body {
   font-size: 16px;
   line-height: 1.5;
   color: var(--color-ink);
-  background: #ffffff;
+  background: var(--color-white);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -39,7 +39,7 @@ body {
 
 ::selection {
   background: var(--color-coral);
-  color: #ffffff;
+  color: var(--color-white);
 }
 
 @media (prefers-reduced-motion: reduce) {
