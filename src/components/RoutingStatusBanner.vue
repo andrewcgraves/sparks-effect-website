@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { RoutingStatus } from '../api/routingStatus'
+import Notice from './Notice.vue'
 
 const props = withDefaults(
   defineProps<{ status: RoutingStatus; hasExamples?: boolean | null }>(),
@@ -20,14 +21,14 @@ const offlineMessage = computed(() => {
 </script>
 
 <template>
-  <p
+  <Notice
     v-if="status === 'offline'"
-    class="font-body text-body rounded-(--radius-box) border border-apricot bg-apricot/15 p-4 text-ink"
-    role="status"
+    tone="caution"
+    size="banner"
     data-testid="routing-status"
   >
     {{ offlineMessage }}
-  </p>
+  </Notice>
   <p
     v-else-if="status === 'degraded'"
     class="t-note text-ink-muted"

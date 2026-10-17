@@ -48,11 +48,10 @@ const BASELINE: Record<string, Counts> = {
   'src/components/FieldSkeleton.vue': { arbitraryText: 1 },
   'src/components/KeySwatch.vue': { arbitraryRadius: 1, hexColour: 1 },
   'src/components/MapView.vue': { arbitraryText: 2 },
-  'src/components/PrerenderedIsochrones.vue': { arbitraryText: 1, rawSmallText: 1 },
+  'src/components/PrerenderedIsochrones.vue': { arbitraryText: 1 },
   'src/components/fieldStyles.ts': { arbitraryText: 1 },
   'src/composables/useRouteLayer.ts': { hexColour: 1 },
   'src/composables/useStopPreviewLayer.ts': { hexColour: 2 },
-  'src/views/AuthoringView.vue': { rawSmallText: 1 },
   'src/views/ServiceAuthoringView.vue': { arbitraryShadow: 3, offScaleWeight: 1 },
 }
 

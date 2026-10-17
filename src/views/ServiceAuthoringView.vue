@@ -13,6 +13,7 @@ import MapView from '../components/MapView.vue'
 import FieldSkeleton from '../components/FieldSkeleton.vue'
 import LoadingRegion from '../components/LoadingRegion.vue'
 import SkeletonShape from '../components/SkeletonShape.vue'
+import StatusDot from '../components/StatusDot.vue'
 import StopActionsMenu from '../components/StopActionsMenu.vue'
 import VehicleFields from '../components/VehicleFields.vue'
 import { PLACEMENT_TOGGLE_CLASS, PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS } from '../components/buttonStyles'
@@ -102,14 +103,7 @@ const submitLabel = computed(() => (props.slug ? 'Save changes' : 'Create line')
 // recompile landing and the navigation it starts.
 const locked = computed(() => submitting.value || compiling.value || !!compiledGraph.value)
 
-type SaveTone = 'quiet' | 'dirty' | 'busy' | 'error'
-
-const TONE_DOT_CLASS: Record<SaveTone, string> = {
-  quiet: 'bg-ink-faint',
-  dirty: 'bg-apricot',
-  busy: 'animate-pulse bg-coral',
-  error: 'bg-error',
-}
+type SaveTone = 'quiet' | 'caution' | 'busy' | 'error'
 
 // Described against the saved service, never against the copy in the browser,
 // which is kept on every keystroke and so is never behind. A failed recompile
@@ -121,7 +115,7 @@ const saveStatus = computed<{ label: string; note?: string; tone: SaveTone }>(()
     return { label: "Couldn't save", note: 'Your draft is still kept in this browser', tone: 'error' }
   }
   if (hasChanges.value) {
-    return { label: props.slug ? 'Unsaved changes' : 'Not created yet', note: 'Draft kept in this browser', tone: 'dirty' }
+    return { label: props.slug ? 'Unsaved changes' : 'Not created yet', note: 'Draft kept in this browser', tone: 'caution' }
   }
   return { label: props.slug ? 'No changes' : 'Nothing here yet', tone: 'quiet' }
 })
@@ -1015,10 +1009,7 @@ watch(createdSlug, (created) => {
                 role="alert"
                 data-testid="compile-error"
               >
-                <span
-                  class="size-2 shrink-0 rounded-full bg-error"
-                  aria-hidden="true"
-                />
+                <StatusDot tone="error" />
                 Saved, but compiling failed: {{ compileError }}
               </p>
               <router-link
@@ -1035,11 +1026,7 @@ watch(createdSlug, (created) => {
               role="status"
               data-testid="save-status"
             >
-              <span
-                class="size-2 shrink-0 rounded-full"
-                :class="TONE_DOT_CLASS[saveStatus.tone]"
-                aria-hidden="true"
-              />
+              <StatusDot :tone="saveStatus.tone" />
               {{ saveStatus.label }}<span
                 v-if="saveStatus.note"
                 class="text-ink-muted"
