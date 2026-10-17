@@ -710,8 +710,8 @@ describe('ServiceAuthoringView', () => {
       return { effectAllowed: '', dropEffect: '', setData: vi.fn(), setDragImage: vi.fn() }
     }
 
-    const DROP_BELOW = 'shadow-[0_3px_0_var(--color-coral)]'
-    const DROP_ABOVE = 'shadow-[0_-3px_0_var(--color-coral)]'
+    const DROP_BELOW = 'shadow-(--shadow-drop-below)'
+    const DROP_ABOVE = 'shadow-(--shadow-drop-above)'
 
     it('reorders by dragging a row down by its handle, keeping each row', async () => {
       const wrapper = await mountWithStops(['A', 'B', 'C'])

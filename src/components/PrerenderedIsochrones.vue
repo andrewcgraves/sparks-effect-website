@@ -80,7 +80,7 @@ function summarise(entry: PrerenderedIsochroneSummary): string {
       >
         <button
           type="button"
-          class="font-body flex size-full cursor-pointer flex-col gap-0.5 rounded-(--radius-field) border border-border bg-white px-2.5 py-1.5 text-left text-[14px] leading-tight text-ink transition-colors duration-200 ease-(--ease-smooth) hover:border-coral disabled:cursor-progress disabled:opacity-60"
+          class="t-field flex size-full cursor-pointer flex-col gap-0.5 rounded-(--radius-field) border border-border bg-white px-2.5 py-1.5 text-left leading-tight text-ink transition-colors duration-200 ease-(--ease-smooth) hover:border-coral disabled:cursor-progress disabled:opacity-60"
           :class="PRESSED_CHOICE_CLASS"
           :disabled="pendingId === entry.id"
           :aria-busy="pendingId === entry.id"

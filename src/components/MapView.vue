@@ -428,7 +428,7 @@ onUnmounted(() => {
     >
       <p
         v-if="mapFailure"
-        class="font-body max-w-sm text-center text-[15px] text-ink"
+        class="t-body max-w-sm text-center text-ink"
         data-testid="map-failed"
       >
         {{ failureMessage }}
@@ -436,7 +436,7 @@ onUnmounted(() => {
     </div>
     <div
       v-if="loading"
-      class="font-body pointer-events-none absolute inset-0 z-2 flex items-center justify-center gap-2.5 bg-white/65 text-[15px] text-ink"
+      class="t-body pointer-events-none absolute inset-0 z-2 flex items-center justify-center gap-2.5 bg-white/92 text-ink"
       data-testid="map-loading"
       aria-live="polite"
       aria-atomic="true"
