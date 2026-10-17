@@ -13,8 +13,8 @@ describe('svgDash', () => {
 describe('keySwatchPaint', () => {
   it('paints each swatch the way the map paints its layer', () => {
     expect(keySwatchPaint()).toEqual({
-      origin: '#1034b1',
-      egress: '#f28f29',
+      origin: '#e1665b',
+      egress: '#e1665b',
       unridden: '#b8b8be',
       ink: '#121212',
       pin: '#e1665b',

@@ -54,7 +54,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: 'ridden',
     name: 'Ridden',
     swatch: 'ridden',
-    caption: 'The parts of the line a trip rides. Orange stations are reached in time; white ones aren’t.',
+    caption: 'The parts of the line a trip rides. Coral stations are reached in time; white ones aren’t.',
     lit: ['ridden-line', 'station-dots'],
     camera: 'regional',
   },
