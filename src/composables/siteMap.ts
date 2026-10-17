@@ -41,6 +41,23 @@ export function withoutSourceCredits(
   return { ...next, sources }
 }
 
+const SLOW_ROAD_LAYER_IDS = new Set(['highway_major_subtle'])
+
+export function withoutSlowRoads(
+  _previous: StyleSpecification | undefined,
+  next: StyleSpecification,
+): StyleSpecification {
+  // Firefox spends its frame time drawing the basemap's road lines, not the
+  // splash zone. The faint major roads shown below zoom 11 cost the most:
+  // without them a 2019 MacBook Pro pans at 39 fps instead of 26, and zooms
+  // at 25 instead of 14. Chrome loses nothing, and motorways stay (SPA-526).
+  return { ...next, layers: next.layers.filter((layer) => !SLOW_ROAD_LAYER_IDS.has(layer.id)) }
+}
+
+export function basemapStyle(previous: StyleSpecification | undefined, next: StyleSpecification): StyleSpecification {
+  return withoutSlowRoads(previous, withoutSourceCredits(previous, next))
+}
+
 const MAX_PIXEL_RATIO = 2
 
 // Out of callers' reach, so no page can turn tilting or turning back on.
@@ -76,7 +93,7 @@ export function createSiteMap(
   map.touchZoomRotate.disableRotation()
   map.keyboard.disableRotation()
   // The constructor's `style` option takes no transformStyle.
-  map.setStyle(resolveMapStyleUrl(), { transformStyle: withoutSourceCredits })
+  map.setStyle(resolveMapStyleUrl(), { transformStyle: basemapStyle })
   return map
 }
 
