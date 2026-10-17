@@ -8,6 +8,7 @@ import type { Route } from '../api/authoring'
 import { useOwnedDetail } from '../composables/useOwnedDetail'
 import { usePageTitle } from '../composables/usePageTitle'
 import type { Route as ScenarioRoute } from '../api/scenarios'
+import PageHeader from '../components/PageHeader.vue'
 
 const props = defineProps<{ slug: string }>()
 
@@ -41,27 +42,21 @@ const mapRoutes = computed<ScenarioRoute[]>(() => {
     />
 
     <template v-else-if="notFound">
-      <h1 class="font-display text-display text-ink-true">
-        Route not found
-      </h1>
+      <PageHeader title="Route not found" />
       <p class="font-body text-body mt-3 text-ink-muted">
         No route matches "{{ props.slug }}".
       </p>
     </template>
 
     <template v-else-if="error">
-      <h1 class="font-display text-display text-ink-true">
-        Something went wrong
-      </h1>
+      <PageHeader title="Something went wrong" />
       <p class="font-body text-body mt-3 text-ink-muted">
         Failed to load this route. Please try again.
       </p>
     </template>
 
     <template v-else-if="route">
-      <h1 class="font-display text-display text-ink-true">
-        {{ route.name }}
-      </h1>
+      <PageHeader :title="route.name" />
 
       <div class="mt-8 grid grid-cols-1 items-start gap-4 lg:grid-cols-[2fr_1fr]">
         <div class="h-[70vh]">

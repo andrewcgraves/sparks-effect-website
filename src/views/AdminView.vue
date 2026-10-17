@@ -3,6 +3,7 @@ import { computed, nextTick, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AdminPeople from '../components/AdminPeople.vue'
 import AdminPublished from '../components/AdminPublished.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const TABS = [
   { id: 'people', label: 'People' },
@@ -35,9 +36,10 @@ async function onKeydown(event: KeyboardEvent, index: number): Promise<void> {
 
 <template>
   <main class="flex-1 p-(--page-padding)">
-    <h1 class="font-display text-display mt-8 text-ink-true">
-      Admin
-    </h1>
+    <PageHeader
+      class="mt-8"
+      title="Admin"
+    />
 
     <div
       role="tablist"

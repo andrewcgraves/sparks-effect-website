@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { fetchCoverIndex, type CoverCard, type CoverSource } from '../api/coverIndex'
 import { ACTION_LINK_CLASS, LIST_CARD_LINK_CLASS } from '../components/linkStyles'
 import ListSkeleton from '../components/ListSkeleton.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const UNAVAILABLE_COPY: Record<CoverSource, string> = {
   scenario: "Couldn't load the curated networks.",
@@ -26,9 +27,7 @@ fetchCoverIndex()
 <template>
   <main class="flex flex-1 flex-col p-(--page-padding)">
     <div class="flex-1">
-      <h1 class="font-display text-display text-ink-true">
-        Sparks Effect
-      </h1>
+      <PageHeader title="Sparks Effect" />
 
       <p
         class="font-body text-body mt-6 max-w-[560px] text-ink-muted"

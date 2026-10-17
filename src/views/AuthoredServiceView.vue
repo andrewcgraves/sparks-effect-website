@@ -19,6 +19,7 @@ import BreadcrumbTrail from '../components/BreadcrumbTrail.vue'
 import { AUTHORING_CRUMB } from '../components/crumbs'
 import DeleteMenu from '../components/DeleteMenu.vue'
 import PageSkeleton from '../components/PageSkeleton.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const props = defineProps<{ slug: string }>()
 
@@ -92,9 +93,10 @@ watch(service, (loaded) => {
     />
 
     <template v-else-if="notFound">
-      <h1 class="font-display text-display mt-8 text-ink-true">
-        Line not found
-      </h1>
+      <PageHeader
+        class="mt-8"
+        title="Line not found"
+      />
       <p
         class="font-body text-body mt-3 text-ink-muted"
         data-testid="service-not-found"
@@ -104,9 +106,10 @@ watch(service, (loaded) => {
     </template>
 
     <template v-else-if="error">
-      <h1 class="font-display text-display mt-8 text-ink-true">
-        Something went wrong
-      </h1>
+      <PageHeader
+        class="mt-8"
+        title="Something went wrong"
+      />
       <p
         class="font-body text-body mt-3 text-ink-muted"
         role="alert"
@@ -117,23 +120,14 @@ watch(service, (loaded) => {
     </template>
 
     <template v-else-if="service">
-      <div class="mt-8 flex items-start justify-between gap-4">
-        <hgroup class="flex flex-col gap-2">
-          <h1 class="font-display text-display text-ink-true">
-            {{ service.name }}
-          </h1>
-          <p
-            v-if="service.subtext"
-            class="t-meta text-ink-muted"
-            data-testid="service-subtext"
-          >
-            {{ service.subtext }}
-          </p>
-          <p class="t-meta text-ink-muted">
-            {{ service.slug }}
-          </p>
-        </hgroup>
-        <div class="flex items-start gap-6">
+      <PageHeader
+        class="mt-8"
+        :title="service.name"
+        :subtitle="service.subtext"
+        subtitle-testid="service-subtext"
+        :slug="service.slug"
+      >
+        <template #actions>
           <router-link
             :to="`/authoring/services/${service.slug}/edit`"
             :class="ACTION_LINK_CLASS"
@@ -156,8 +150,8 @@ watch(service, (loaded) => {
             :deleting="deleting"
             @delete="confirmAndDelete(service)"
           />
-        </div>
-      </div>
+        </template>
+      </PageHeader>
       <p
         v-if="service.description"
         class="font-body text-body mt-3 max-w-[720px] whitespace-pre-line text-ink"

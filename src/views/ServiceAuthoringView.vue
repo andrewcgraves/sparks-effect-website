@@ -21,6 +21,7 @@ import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
 import { ACTION_LINK_CLASS } from '../components/linkStyles'
 import { STOP_PLACEMENT_CUE } from '../components/placementCues'
 import { UNNAMED_STOP } from '../copy/names'
+import PageHeader from '../components/PageHeader.vue'
 
 // One view for both writes. The form, the map, the snap preview and fault
 // attribution are the same whichever way a draft is headed; only the edges
@@ -457,9 +458,10 @@ watch(createdSlug, (created) => {
 <template>
   <main class="flex-1 p-(--page-padding)">
     <BreadcrumbTrail :items="trail" />
-    <h1 class="mt-8 font-display text-display text-ink-true">
-      {{ slug ? 'Edit line' : 'New line' }}
-    </h1>
+    <PageHeader
+      class="mt-8"
+      :title="slug ? 'Edit line' : 'New line'"
+    />
 
     <div
       v-if="handedOver"

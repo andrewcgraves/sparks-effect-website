@@ -7,6 +7,7 @@ import { retryAfterSentence } from '../api/authoringFault'
 import { usePageTitle } from '../composables/usePageTitle'
 import { PRIMARY_BUTTON_CLASS } from '../components/buttonStyles'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
+import PageHeader from '../components/PageHeader.vue'
 
 const props = defineProps<{ token: string }>()
 
@@ -107,9 +108,7 @@ async function handleSubmit() {
 <template>
   <main class="flex-1 p-(--page-padding)">
     <div class="mx-auto flex max-w-[360px] flex-col gap-2">
-      <h1 class="font-display text-display text-ink-true">
-        {{ heading }}
-      </h1>
+      <PageHeader :title="heading" />
 
       <p
         v-if="state === 'loading'"

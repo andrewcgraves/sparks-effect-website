@@ -34,6 +34,7 @@ import BreadcrumbTrail from '../components/BreadcrumbTrail.vue'
 import { AUTHORING_CRUMB } from '../components/crumbs'
 import DeleteMenu from '../components/DeleteMenu.vue'
 import PageSkeleton from '../components/PageSkeleton.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const props = defineProps<{ slug: string }>()
 
@@ -100,7 +101,7 @@ const statusNote = computed(() => {
 })
 
 const declaredInterchanges = ref<InstanceType<typeof DeclaredInterchanges> | null>(null)
-const pageHeading = ref<HTMLElement | null>(null)
+const pageHeading = ref<InstanceType<typeof PageHeader> | null>(null)
 
 // The button a join or removal started from has usually gone with its row by
 // the time it finishes, which drops a keyboard user's focus to the page. Left
@@ -180,9 +181,10 @@ async function recompileForInterchanges(): Promise<void> {
     />
 
     <template v-else-if="notFound">
-      <h1 class="font-display text-display mt-8 text-ink-true">
-        Network not found
-      </h1>
+      <PageHeader
+        class="mt-8"
+        title="Network not found"
+      />
       <p
         class="font-body text-body mt-3 text-ink-muted"
         data-testid="scenario-not-found"
@@ -192,9 +194,10 @@ async function recompileForInterchanges(): Promise<void> {
     </template>
 
     <template v-else-if="error">
-      <h1 class="font-display text-display mt-8 text-ink-true">
-        Something went wrong
-      </h1>
+      <PageHeader
+        class="mt-8"
+        title="Something went wrong"
+      />
       <p
         class="font-body text-body mt-3 text-ink-muted"
         role="alert"
@@ -205,20 +208,13 @@ async function recompileForInterchanges(): Promise<void> {
     </template>
 
     <template v-else-if="scenario">
-      <div class="mt-8 flex items-start justify-between gap-4">
-        <hgroup class="flex flex-col gap-2">
-          <h1
-            ref="pageHeading"
-            tabindex="-1"
-            class="font-display text-display text-ink-true"
-          >
-            {{ scenario.name }}
-          </h1>
-          <p class="t-meta text-ink-muted">
-            {{ scenario.slug }}
-          </p>
-        </hgroup>
-        <div class="flex items-start gap-6">
+      <PageHeader
+        ref="pageHeading"
+        class="mt-8"
+        :title="scenario.name"
+        :slug="scenario.slug"
+      >
+        <template #actions>
           <router-link
             :to="`/authoring/scenarios/${scenario.slug}/edit`"
             :class="ACTION_LINK_CLASS"
@@ -231,8 +227,8 @@ async function recompileForInterchanges(): Promise<void> {
             :deleting="deleting"
             @delete="confirmAndDelete(scenario)"
           />
-        </div>
-      </div>
+        </template>
+      </PageHeader>
       <p
         v-if="scenario.description"
         class="font-body text-body mt-3 max-w-[720px] text-ink"

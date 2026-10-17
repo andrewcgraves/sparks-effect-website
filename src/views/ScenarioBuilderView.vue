@@ -19,6 +19,7 @@ import { AUTHORING_CRUMB, type Crumb } from '../components/crumbs'
 import { PRIMARY_BUTTON_CLASS } from '../components/buttonStyles'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
 import { ACTION_LINK_CLASS } from '../components/linkStyles'
+import PageHeader from '../components/PageHeader.vue'
 
 // One view for both writes, as with services: only the heading, the button,
 // where the form's state lives and where a save ends up differ.
@@ -229,9 +230,10 @@ async function handleSave(): Promise<void> {
 <template>
   <main class="flex-1 p-(--page-padding)">
     <BreadcrumbTrail :items="trail" />
-    <h1 class="mt-8 font-display text-display text-ink-true">
-      {{ slug ? 'Edit network' : 'New network' }}
-    </h1>
+    <PageHeader
+      class="mt-8"
+      :title="slug ? 'Edit network' : 'New network'"
+    />
 
     <p
       v-if="editNotFound"

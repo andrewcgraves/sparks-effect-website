@@ -11,6 +11,7 @@ import { ACTION_LINK_CLASS, LIST_CARD_LINK_CLASS } from '../components/linkStyle
 import AllLinesLink from '../components/AllLinesLink.vue'
 import ListSkeleton from '../components/ListSkeleton.vue'
 import Tag from '../components/Tag.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const auth = useAuthStore()
 
@@ -49,14 +50,11 @@ const nothingYet = computed(() =>
 <template>
   <main class="flex-1 p-(--page-padding)">
     <AllLinesLink />
-    <hgroup class="mt-8 flex flex-col gap-2">
-      <h1 class="font-display text-display text-ink-true">
-        My authoring
-      </h1>
-      <p class="t-meta text-ink-muted">
-        Signed in as {{ auth.displayName ?? '…' }}
-      </p>
-    </hgroup>
+    <PageHeader
+      class="mt-8"
+      title="My authoring"
+      :subtitle="`Signed in as ${auth.displayName ?? '…'}`"
+    />
 
     <section
       v-if="incoming.length"
