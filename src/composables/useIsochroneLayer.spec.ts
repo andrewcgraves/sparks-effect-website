@@ -176,11 +176,8 @@ describe('useIsochroneLayer', () => {
     expect(addedLayer(map, ISOCHRONE_LAYER_ID).paint['fill-color']).toBe('#222222')
   })
 
-  it('names the two reach areas', () => {
-    expect(isochroneLegend()).toEqual([
-      { source: 'origin', label: 'From starting point' },
-      { source: 'egress', label: 'From station' },
-    ])
+  it('names both reach areas in one row, since they share a colour', () => {
+    expect(isochroneLegend()).toEqual([{ source: 'origin', label: 'Reachable in time' }])
   })
 
   it('names the unfinished leg only when one is on the map', () => {

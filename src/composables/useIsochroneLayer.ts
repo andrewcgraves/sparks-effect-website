@@ -34,9 +34,11 @@ export function resolveIsochroneColors(): IsochroneColors {
 }
 
 export function isochroneLegend(drawn: { unfinished?: boolean; starterWalk?: boolean } = {}) {
-  const entries: { source: 'origin' | 'egress' | 'starter' | 'unfinished'; label: string }[] = [
-    { source: 'origin', label: 'From starting point' },
-    { source: 'egress', label: 'From station' },
+  // One row for both fills: they are the same coral (SPA-521), so two rows
+  // drew two identical boxes. Where an area was reached from is the tour's to
+  // explain, not the key's.
+  const entries: { source: 'origin' | 'starter' | 'unfinished'; label: string }[] = [
+    { source: 'origin', label: 'Reachable in time' },
   ]
   // Unlabelled, the starter walk was the one line on the map anchored at the
   // origin and ending on a single station, painted above everything else — and
