@@ -9,6 +9,7 @@ import {
   type PrerenderedIsochroneSummary,
 } from '../api/prerenderedIsochrones'
 import { modeLabel } from '../copy/modes'
+import { PRESSED_CHOICE_CLASS } from './buttonStyles'
 
 const props = defineProps<{ slug: string; selectedId: string | null }>()
 
@@ -78,7 +79,8 @@ function summarise(entry: PrerenderedIsochroneSummary): string {
       >
         <button
           type="button"
-          class="group font-body flex size-full cursor-pointer flex-col gap-0.5 rounded-(--radius-field) border border-border bg-white px-2.5 py-1.5 text-left text-[14px] leading-tight text-ink transition-colors duration-200 ease-(--ease-smooth) hover:border-coral disabled:cursor-progress disabled:opacity-60 aria-pressed:border-coral aria-pressed:bg-coral aria-pressed:text-white"
+          class="font-body flex size-full cursor-pointer flex-col gap-0.5 rounded-(--radius-field) border border-border bg-white px-2.5 py-1.5 text-left text-[14px] leading-tight text-ink transition-colors duration-200 ease-(--ease-smooth) hover:border-coral disabled:cursor-progress disabled:opacity-60"
+          :class="PRESSED_CHOICE_CLASS"
           :disabled="pendingId === entry.id"
           :aria-busy="pendingId === entry.id"
           :aria-pressed="selectedId === entry.id"
@@ -90,7 +92,7 @@ function summarise(entry: PrerenderedIsochroneSummary): string {
             {{ placeName(entry) }}
             <span
               v-if="entry.outdated"
-              class="font-display text-micro rounded-(--radius-field) border border-apricot bg-apricot/15 px-1 text-ink uppercase group-aria-pressed:border-white/70 group-aria-pressed:bg-white/25 group-aria-pressed:text-white"
+              class="font-display text-micro rounded-(--radius-field) border border-apricot bg-apricot/15 px-1 text-ink uppercase"
               :title="OUTDATED_HINT"
               :aria-label="`Out of date — ${OUTDATED_HINT}`"
               data-testid="prerendered-outdated"
@@ -99,7 +101,7 @@ function summarise(entry: PrerenderedIsochroneSummary): string {
             </span>
           </span>
           <span
-            class="t-meta text-ink-muted group-aria-pressed:text-white/80"
+            class="t-meta text-ink-muted"
             data-testid="prerendered-entry-detail"
           >
             {{ pendingId === entry.id ? 'Loading…' : summarise(entry) }}

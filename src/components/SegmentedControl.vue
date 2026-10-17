@@ -1,4 +1,6 @@
 <script setup lang="ts" generic="T extends string | number">
+import { SELECTED_CHOICE_CLASS } from './buttonStyles'
+
 withDefaults(
   defineProps<{
     modelValue: T
@@ -30,8 +32,8 @@ const emit = defineEmits<{
     <label
       v-for="option in options"
       :key="option"
-      class="t-meta cursor-pointer rounded-(--radius-selector) px-3 py-1.5 transition-colors duration-200 ease-(--ease-smooth) has-focus-visible:outline-(length:--focus-ring-width) has-focus-visible:outline-offset-(--focus-ring-offset) has-focus-visible:outline-focus"
-      :class="option === modelValue ? 'bg-coral text-white' : 'text-ink-muted hover:text-ink'"
+      class="t-meta cursor-pointer rounded-(--radius-selector) border px-3 py-1.5 transition-colors duration-200 ease-(--ease-smooth) has-focus-visible:outline-(length:--focus-ring-width) has-focus-visible:outline-offset-(--focus-ring-offset) has-focus-visible:outline-focus"
+      :class="option === modelValue ? SELECTED_CHOICE_CLASS : 'border-transparent text-ink-muted hover:text-ink'"
     >
       <input
         type="radio"
