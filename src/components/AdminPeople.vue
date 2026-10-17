@@ -19,6 +19,7 @@ import { PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS } from './buttonStyles'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from './fieldStyles'
 import { ACTION_LINK_CLASS } from './linkStyles'
 import CopyLinkField from './CopyLinkField.vue'
+import Tag from './Tag.vue'
 
 interface IssuedLink {
   kind: 'Invite' | 'Reset'
@@ -313,7 +314,13 @@ async function sendInvite(): Promise<void> {
               {{ user.is_admin ? 'Admin' : 'Member' }}
             </td>
             <td class="py-2 pr-4">
-              <span :class="user.disabled_at ? 'text-error' : ''">{{ user.disabled_at ? 'Disabled' : 'Active' }}</span>
+              <Tag
+                v-if="user.disabled_at"
+                tone="error"
+              >Disabled</Tag>
+              <template v-else>
+                Active
+              </template>
             </td>
             <td class="py-2 pr-4 whitespace-nowrap">
               {{ dateFormat.format(new Date(user.created_at)) }}

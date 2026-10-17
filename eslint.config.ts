@@ -15,8 +15,13 @@ const INLINE_ELEMENTS = [
 
 // A link component is as inline as the <a> it renders. Breaking its text onto
 // lines of its own puts a space inside the link, which running prose (the
-// legal pages, the footer's credits) shows as an underlined gap.
-const INLINE_COMPONENTS = ['RouterLink', 'router-link', 'ExternalLink']
+// legal pages, the footer's credits) shows as an underlined gap. A Tag is as
+// inline as its <span>, and the same space would sit inside its border.
+const INLINE_COMPONENTS = ['RouterLink', 'router-link', 'ExternalLink', 'Tag']
+
+// The rule guards against names HTML may one day take. Notice and Tag name
+// the design system's own parts and are not elements, so they keep one word.
+const ONE_WORD_COMPONENTS = ['Notice', 'Tag']
 
 export default defineConfig([
   globalIgnores(['dist', 'node_modules']),
@@ -32,6 +37,7 @@ export default defineConfig([
       },
     },
     rules: {
+      'vue/multi-word-component-names': ['error', { ignores: ONE_WORD_COMPONENTS }],
       'vue/singleline-html-element-content-newline': ['warn', { ignores: [...INLINE_ELEMENTS, ...INLINE_COMPONENTS] }],
       'vue/multiline-html-element-content-newline': ['warn', { ignores: [...INLINE_ELEMENTS, ...INLINE_COMPONENTS] }],
     },

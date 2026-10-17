@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import Notice from './Notice.vue'
 import SegmentedControl from './SegmentedControl.vue'
 
 type PlotSource = 'plot' | 'saved'
@@ -54,14 +55,14 @@ watch(
       v-show="!hasSaved || source === 'plot'"
       data-testid="plot-own"
     >
-      <p
+      <Notice
         v-if="hasSaved && offline"
-        class="font-body text-body rounded-(--radius-field) border border-error/40 bg-error/5 p-3 text-error"
-        role="alert"
+        tone="caution"
+        size="inline"
         data-testid="plot-unavailable"
       >
         Plotting your own splash zone isn’t available right now.
-      </p>
+      </Notice>
       <div v-show="!(hasSaved && offline)">
         <slot name="plot" />
       </div>
