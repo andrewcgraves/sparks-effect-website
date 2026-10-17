@@ -13,7 +13,7 @@ import {
   ISOCHRONE_HIGHLIGHT_OUTLINE_LAYER_ID,
   isochroneEgressOpacity,
   isochroneOriginOpacity,
-  isochroneHighlightFilter,
+  isochroneHighlightData,
 } from '../composables/useIsochroneLayer'
 import {
   PROGRESS_CAP_HIT_LAYER_ID,
@@ -1805,9 +1805,10 @@ describe('MapView', () => {
           isochroneData: staticIsochroneResponse,
         },
       })
+      mockGetSource.mockReturnValue({ setData: mockSetData })
       await triggerMapLoad()
       mockSetPaintProperty.mockClear()
-      mockSetFilter.mockClear()
+      mockSetData.mockClear()
 
       await wrapper.setProps({ activeStation: stubStation.slug })
 
@@ -1815,11 +1816,10 @@ describe('MapView', () => {
       // wash with them (SPA-224)...
       expect(mockSetPaintProperty).toHaveBeenCalledWith(ISOCHRONE_LAYER_ID, 'fill-opacity', isochroneEgressOpacity(true))
       expect(mockSetPaintProperty).toHaveBeenCalledWith(ISOCHRONE_ORIGIN_LAYER_ID, 'fill-opacity', isochroneOriginOpacity(true))
-      // ...and filters the dedicated top layer to just this station, which is
-      // what actually paints it above every other overlapping polygon —
+      // ...and hands the dedicated top layers just this station's polygon,
+      // which is what actually paints it above every other overlapping one —
       // fill-opacity alone can't reorder features within one layer.
-      expect(mockSetFilter).toHaveBeenCalledWith(ISOCHRONE_HIGHLIGHT_LAYER_ID, isochroneHighlightFilter(stubStation.slug))
-      expect(mockSetFilter).toHaveBeenCalledWith(ISOCHRONE_HIGHLIGHT_OUTLINE_LAYER_ID, isochroneHighlightFilter(stubStation.slug))
+      expect(mockSetData).toHaveBeenCalledWith(isochroneHighlightData(staticIsochroneResponse, stubStation.slug))
     })
 
     // SPA-224: a reachable station the plot drew no polygon for used to fade
@@ -1836,16 +1836,19 @@ describe('MapView', () => {
           isochroneData: staticIsochroneResponse,
         },
       })
+      mockGetSource.mockReturnValue({ setData: mockSetData })
       await triggerMapLoad()
       mockSetPaintProperty.mockClear()
-      mockSetFilter.mockClear()
+      mockSetData.mockClear()
 
       fireLayerEvent('mouseenter', STATION_DOTS_LAYER_ID, stationEvent(orphan))
       await wrapper.setProps({ activeStation: orphan.slug })
 
       expect(mockSetPaintProperty).toHaveBeenCalledWith(ISOCHRONE_LAYER_ID, 'fill-opacity', isochroneEgressOpacity(false))
       expect(mockSetPaintProperty).toHaveBeenCalledWith(ISOCHRONE_ORIGIN_LAYER_ID, 'fill-opacity', isochroneOriginOpacity(false))
-      expect(mockSetFilter).toHaveBeenCalledWith(ISOCHRONE_HIGHLIGHT_LAYER_ID, isochroneHighlightFilter(null))
+      const promoted = mockSetData.mock.calls.filter(([data]) =>
+        data?.features?.length > 0 && data.features.every((f: { properties?: { source?: string } }) => f.properties?.source === 'egress'))
+      expect(promoted).toEqual([])
       // The dot was still hovered, so the rider still gets its name.
       expect((mockPopupSetDOMContent.mock.calls[0]?.[0] as HTMLElement).textContent).toBe('Fresno')
     })

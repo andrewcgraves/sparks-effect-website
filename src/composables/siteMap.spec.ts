@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Map as MapLibreMap } from 'maplibre-gl'
 import type { StyleSpecification } from 'maplibre-gl'
-import { createSiteMap, MAP_CREDITS, splashZoneModules, withoutSourceCredits } from './siteMap'
+import { createSiteMap, drawSoftWhileMoving, MAP_CREDITS, restingPixelRatio, splashZoneModules, withoutSourceCredits } from './siteMap'
 import { mapModules } from './mapLifecycle'
 import { layerStack } from './layerStack'
 import { resolveIsochroneColors } from './useIsochroneLayer'
@@ -160,5 +160,51 @@ describe('splashZoneModules', () => {
       'station-dots',
       'origin-walk-line',
     ]))
+  })
+})
+
+describe('restingPixelRatio', () => {
+  it('caps at 2 for full sharpness and 1.5 when reduced, never above the screen', () => {
+    expect(restingPixelRatio('full', 3)).toBe(2)
+    expect(restingPixelRatio('reduced', 2)).toBe(1.5)
+    expect(restingPixelRatio('reduced', 1)).toBe(1)
+  })
+})
+
+describe('drawSoftWhileMoving', () => {
+  function movingMap() {
+    const handlers: Record<string, (() => void)[]> = {}
+    let ratio = 2
+    const fire = (type: string) => { for (const handler of handlers[type] ?? []) handler() }
+    const map = {
+      on: vi.fn((type: string, handler: () => void) => { (handlers[type] ??= []).push(handler) }),
+      getPixelRatio: () => ratio,
+      // Like MapLibre's: the resize of a map at rest fires its own movestart and moveend.
+      setPixelRatio: vi.fn((next: number) => { ratio = next; fire('movestart'); fire('moveend') }),
+    }
+    drawSoftWhileMoving(map as unknown as MapLibreMap, 2)
+    return { map, fire, ratio: () => ratio }
+  }
+
+  afterEach(() => { vi.useRealTimers() })
+
+  it('draws at 1x while the map moves and goes back to full once it settles', () => {
+    vi.useFakeTimers()
+    const { fire, ratio } = movingMap()
+    fire('movestart')
+    expect(ratio()).toBe(1)
+    fire('moveend')
+    vi.advanceTimersByTime(200)
+    expect(ratio()).toBe(2)
+  })
+
+  it('stays sharp at rest rather than reading its own resize as the map moving', () => {
+    vi.useFakeTimers()
+    const { map, fire, ratio } = movingMap()
+    fire('movestart')
+    fire('moveend')
+    vi.advanceTimersByTime(1000)
+    expect(ratio()).toBe(2)
+    expect(map.setPixelRatio).toHaveBeenCalledTimes(2)
   })
 })

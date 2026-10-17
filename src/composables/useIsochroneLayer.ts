@@ -1,10 +1,17 @@
-import type { ExpressionSpecification, FillLayerSpecification, GeoJSONSource, LineLayerSpecification, Map } from 'maplibre-gl'
+import type { FillLayerSpecification, GeoJSONSource, LineLayerSpecification, Map } from 'maplibre-gl'
 import type { MapModule } from './mapLifecycle'
-import type { FeatureCollection } from 'geojson'
+import type { Feature, FeatureCollection, MultiPolygon, Polygon } from 'geojson'
+import * as polygonClippingModule from 'polygon-clipping'
 import { readThemeToken } from '../themeTokens'
+import { mapTrial, type MapTrial } from '../mapTrial'
 import { addLayerInStack } from './layerStack'
 
+// Its ES build exports one default object, while its types declare named exports.
+const { union } = (polygonClippingModule as unknown as { default: typeof polygonClippingModule }).default
+
 export const ISOCHRONE_SOURCE_ID = 'isochrone-source'
+
+export const ISOCHRONE_HIGHLIGHT_SOURCE_ID = 'isochrone-highlight-source'
 
 export const ISOCHRONE_ORIGIN_LAYER_ID = 'isochrone-origin-fill'
 
@@ -20,6 +27,8 @@ export const ISOCHRONE_HIGHLIGHT_OPACITY = 0.8
 export const ISOCHRONE_DIM_OPACITY = 0.08
 
 export const ISOCHRONE_ORIGIN_DIM_OPACITY = 0.12
+
+export const ISOCHRONE_LIFT_OPACITY = 0.2
 
 export interface IsochroneColors {
   origin: string
@@ -64,6 +73,10 @@ export function isochroneOriginOpacity(dimmed: boolean): number {
   return dimmed ? ISOCHRONE_ORIGIN_DIM_OPACITY : ISOCHRONE_FILL_OPACITY
 }
 
+export function isochroneRestingOpacity(highlight: MapTrial['highlight'] = mapTrial.highlight): number {
+  return highlight === 'lift' ? ISOCHRONE_LIFT_OPACITY : ISOCHRONE_FILL_OPACITY
+}
+
 export function egressStationSlugs(data: FeatureCollection | null): Set<string> {
   const slugs = new Set<string>()
   for (const feature of data?.features ?? []) {
@@ -73,22 +86,81 @@ export function egressStationSlugs(data: FeatureCollection | null): Set<string> 
   return slugs
 }
 
-const MATCH_NO_STATION: ExpressionSpecification = ['in', ['get', 'station_slug'], ['literal', []]]
+const NO_FEATURES: FeatureCollection = { type: 'FeatureCollection', features: [] }
 
-export function isochroneHighlightFilter(highlightedStationSlug: string | null): ExpressionSpecification {
-  if (!highlightedStationSlug) return MATCH_NO_STATION
-  return ['==', ['get', 'station_slug'], highlightedStationSlug]
+export function isochroneHighlightData(data: FeatureCollection | null, slug: string | null): FeatureCollection {
+  if (!data || !slug) return NO_FEATURES
+  return {
+    type: 'FeatureCollection',
+    features: data.features.filter((feature) => {
+      const { source, station_slug: featureSlug } = (feature.properties ?? {}) as Record<string, unknown>
+      return source === 'egress' && featureSlug === slug
+    }),
+  }
+}
+
+export function flattenEgress(data: FeatureCollection): FeatureCollection {
+  const egress: (Polygon | MultiPolygon)['coordinates'][] = []
+  const rest: Feature[] = []
+  for (const feature of data.features) {
+    const { source } = (feature.properties ?? {}) as Record<string, unknown>
+    const { geometry } = feature
+    if (source === 'egress' && (geometry.type === 'Polygon' || geometry.type === 'MultiPolygon')) {
+      egress.push(geometry.coordinates)
+    } else {
+      rest.push(feature)
+    }
+  }
+  if (egress.length < 2) return data
+  // Thirteen stations' polygons laid over each other at 35% are what cost an
+  // older graphics chip its frame rate — the core is blended up to thirteen
+  // times a frame. One merged shape is blended once (SPA-524).
+  const [first, ...others] = egress as Parameters<typeof union>
+  const merged: Feature<MultiPolygon> = {
+    type: 'Feature',
+    properties: { source: 'egress' },
+    geometry: { type: 'MultiPolygon', coordinates: union(first, ...others) },
+  }
+  return { ...data, features: [...rest, merged] }
+}
+
+function splashZoneData(data: FeatureCollection, splash: MapTrial['splash']): FeatureCollection {
+  return splash === 'flat' ? flattenEgress(data) : data
+}
+
+interface PlottedHighlight {
+  data: FeatureCollection | null
+  slug: string | null
+}
+
+const plotted = new WeakMap<Map, PlottedHighlight>()
+
+export function showIsochroneHighlight(map: Map, slug: string | null): void {
+  const state = plotted.get(map)
+  if (!state || state.slug === slug) return
+  state.slug = slug
+  // A source of its own holding one station's polygon: filtering the full
+  // source instead makes MapLibre rebuild every splash-zone tile on each
+  // hover (SPA-524).
+  const source = map.getSource(ISOCHRONE_HIGHLIGHT_SOURCE_ID) as GeoJSONSource | undefined
+  source?.setData(isochroneHighlightData(state.data, slug))
 }
 
 export function useIsochroneLayer(
   map: Map,
   geojson: FeatureCollection,
   colors: IsochroneColors = resolveIsochroneColors(),
+  trial: MapTrial = mapTrial,
 ): void {
   map.addSource(ISOCHRONE_SOURCE_ID, {
     type: 'geojson',
-    data: geojson,
+    data: splashZoneData(geojson, trial.splash),
   })
+  map.addSource(ISOCHRONE_HIGHLIGHT_SOURCE_ID, {
+    type: 'geojson',
+    data: NO_FEATURES,
+  })
+  plotted.set(map, { data: geojson, slug: null })
 
   const originLayer: FillLayerSpecification = {
     id: ISOCHRONE_ORIGIN_LAYER_ID,
@@ -97,7 +169,7 @@ export function useIsochroneLayer(
     filter: ['==', ['get', 'source'], 'origin'],
     paint: {
       'fill-color': colors.origin,
-      'fill-opacity': isochroneOriginOpacity(false),
+      'fill-opacity': isochroneRestingOpacity(trial.highlight),
     },
   }
 
@@ -108,18 +180,17 @@ export function useIsochroneLayer(
     filter: ['==', ['get', 'source'], 'egress'],
     paint: {
       'fill-color': colors.egress,
-      'fill-opacity': isochroneEgressOpacity(false),
+      'fill-opacity': isochroneRestingOpacity(trial.highlight),
     },
   }
 
-  // Only egress polygons are ever highlighted, so these need no per-source
-  // filter of their own — and they start filtered to nothing, since attaching
-  // happens before any station has been hovered or clicked.
+  // The highlight source only ever holds the one station's egress polygon, and
+  // starts empty, since attaching happens before any station has been hovered
+  // or clicked.
   const highlightLayer: FillLayerSpecification = {
     id: ISOCHRONE_HIGHLIGHT_LAYER_ID,
     type: 'fill',
-    source: ISOCHRONE_SOURCE_ID,
-    filter: isochroneHighlightFilter(null),
+    source: ISOCHRONE_HIGHLIGHT_SOURCE_ID,
     paint: {
       'fill-color': colors.egress,
       'fill-opacity': ISOCHRONE_HIGHLIGHT_OPACITY,
@@ -129,8 +200,7 @@ export function useIsochroneLayer(
   const highlightOutlineLayer: LineLayerSpecification = {
     id: ISOCHRONE_HIGHLIGHT_OUTLINE_LAYER_ID,
     type: 'line',
-    source: ISOCHRONE_SOURCE_ID,
-    filter: isochroneHighlightFilter(null),
+    source: ISOCHRONE_HIGHLIGHT_SOURCE_ID,
     layout: { 'line-join': 'round' },
     paint: {
       'line-color': colors.egress,
@@ -159,7 +229,13 @@ export function isochroneLayerModule(
       const geojson = data()
       if (!geojson) return
       const source = map.getSource(ISOCHRONE_SOURCE_ID) as GeoJSONSource | undefined
-      source?.setData(geojson)
+      source?.setData(splashZoneData(geojson, mapTrial.splash))
+      // A new plot can redraw the highlighted station's polygon, or drop it.
+      const state = plotted.get(map)
+      if (!state) return
+      const slug = state.slug
+      plotted.set(map, { data: geojson, slug: null })
+      showIsochroneHighlight(map, slug)
     },
     detach: () => {},
   }
