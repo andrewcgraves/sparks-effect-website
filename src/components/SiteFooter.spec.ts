@@ -76,16 +76,21 @@ describe('SiteFooter', () => {
       { path: '/attribution', component: Blank },
       { path: '/privacy', component: Blank },
       { path: '/terms', component: Blank },
-      { path: '/how-it-works', component: Blank },
+      { path: '/about', component: Blank },
     ])
     const links = wrapper.findAll('[data-testid="footer-links"] a')
     expect(links.map((link) => [link.text(), link.attributes('href')])).toEqual([
-      ['How it works', '/how-it-works'],
+      ['About', '/about'],
       ['Privacy', '/privacy'],
       ['Terms', '/terms'],
       ['Attribution', '/attribution'],
       ['Report a problem', '/report'],
     ])
+  })
+
+  it('leaves How it works to the header (SPA-525)', () => {
+    const wrapper = mountFooter([{ path: '/how-it-works', component: Blank }])
+    expect(wrapper.findAll('[data-testid="footer-links"] a')).toHaveLength(0)
   })
 
   it('links only the pages whose routes exist', () => {

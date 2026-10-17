@@ -4,7 +4,7 @@ import { resolveTileCredit } from '../mapStyle'
 import { HIT_AREA_CLASS, INLINE_LINK_CLASS } from './linkStyles'
 
 const FOOTER_PAGES = [
-  { label: 'How it works', path: '/how-it-works' },
+  { label: 'About', path: '/about' },
   { label: 'Privacy', path: '/privacy' },
   { label: 'Terms', path: '/terms' },
   { label: 'Attribution', path: '/attribution' },
