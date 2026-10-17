@@ -14,7 +14,7 @@ const props = withDefaults(defineProps<{
     <!-- Mirrors the detail pages' layout classes (title, map panel grid, card
          grid) so the page keeps its shape when the real content swaps in. -->
     <div class="flex flex-col gap-2">
-      <SkeletonShape class="font-display text-display w-3/4 max-w-[480px]" />
+      <SkeletonShape class="t-display w-3/4 max-w-[480px]" />
       <SkeletonShape
         v-if="props.subtitle"
         class="t-meta w-32"

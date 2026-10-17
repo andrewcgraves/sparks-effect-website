@@ -10,6 +10,7 @@ import { DESTRUCTIVE_BUTTON_CLASS, PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS 
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
 import BreadcrumbTrail from '../components/BreadcrumbTrail.vue'
 import { AUTHORING_CRUMB } from '../components/crumbs'
+import PageHeader from '../components/PageHeader.vue'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -102,17 +103,11 @@ async function signOutEverywhere(): Promise<void> {
   <main class="flex-1 p-(--page-padding)">
     <BreadcrumbTrail :items="[AUTHORING_CRUMB, { label: 'Account' }]" />
     <div class="mx-auto mt-8 flex max-w-[480px] flex-col gap-8">
-      <hgroup class="flex flex-col gap-2">
-        <h1 class="font-display text-display text-ink-true">
-          Account
-        </h1>
-        <p
-          class="t-meta text-ink-muted"
-          data-testid="signed-in-as"
-        >
-          Signed in as {{ auth.displayName ?? '…' }}
-        </p>
-      </hgroup>
+      <PageHeader
+        title="Account"
+        :subtitle="`Signed in as ${auth.displayName ?? '…'}`"
+        subtitle-testid="signed-in-as"
+      />
 
       <section
         aria-labelledby="account-profile-heading"

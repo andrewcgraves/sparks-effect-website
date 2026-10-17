@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import AllLinesLink from './AllLinesLink.vue'
+import PageHeader from './PageHeader.vue'
 
 const props = defineProps<{
   title: string
@@ -35,15 +36,14 @@ const updatedInWords = computed(() => {
       </div>
 
       <article class="max-w-[720px]">
-        <h1 class="font-display text-display text-ink-true">
-          {{ title }}
-        </h1>
-        <p
-          class="t-meta mt-3 text-ink-muted"
-          data-testid="page-updated"
+        <PageHeader
+          :title="title"
+          subtitle-testid="page-updated"
         >
-          Last updated <time :datetime="updated">{{ updatedInWords }}</time>
-        </p>
+          <template #subtitle>
+            Last updated <time :datetime="updated">{{ updatedInWords }}</time>
+          </template>
+        </PageHeader>
         <slot />
       </article>
     </div>

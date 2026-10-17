@@ -30,6 +30,7 @@ import PhoneMapPage from '../components/PhoneMapPage.vue'
 import { usePhoneMapTabs } from '../components/phoneMapTabs'
 import { useIsPhone } from '../composables/useIsPhone'
 import { UNNAMED_LINE, UNNAMED_STATION } from '../copy/names'
+import PageHeader from '../components/PageHeader.vue'
 
 const props = defineProps<{ slug: string }>()
 
@@ -245,26 +246,18 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
     <LoadingRegion
       v-if="scenarioLoading"
       label="Loading network"
-      class="mt-8 max-w-[720px] font-display text-display"
+      class="t-display mt-8 max-w-[720px]"
       data-testid="scenario-title-loading"
     >
       <SkeletonShape class="w-3/4 max-w-[480px]" />
     </LoadingRegion>
-    <hgroup
+    <PageHeader
       v-else
-      class="mt-8 flex max-w-[720px] flex-col gap-2"
-    >
-      <h1 class="font-display text-display text-ink-true">
-        {{ name || 'Sparks Effect' }}
-      </h1>
-      <p
-        v-if="subtext.trim()"
-        class="t-meta text-ink-muted"
-        data-testid="scenario-subtext"
-      >
-        {{ subtext }}
-      </p>
-    </hgroup>
+      class="mt-8 max-w-[720px]"
+      :title="name || 'Sparks Effect'"
+      :subtitle="subtext.trim()"
+      subtitle-testid="scenario-subtext"
+    />
 
     <!-- On wide screens the sidebar spans both rows, so the description sits
          right under the map rather than below the sidebar's last card. The 1fr

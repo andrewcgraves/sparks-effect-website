@@ -15,6 +15,7 @@ import PageSkeleton from '../components/PageSkeleton.vue'
 import { graphStationTimeGroups } from '../components/stationTimes'
 import { useIsPhone } from '../composables/useIsPhone'
 import type { PhoneMapTab } from '../components/phoneMapTabs'
+import PageHeader from '../components/PageHeader.vue'
 
 const props = defineProps<{ slug: string }>()
 
@@ -109,9 +110,7 @@ void loadGraph(props.slug)
     />
 
     <template v-else-if="graphNotFound">
-      <h1 class="font-display text-display text-ink-true">
-        Line not found
-      </h1>
+      <PageHeader title="Line not found" />
       <p
         class="font-body text-body mt-3 text-ink-muted"
         data-testid="service-not-found"
@@ -121,9 +120,7 @@ void loadGraph(props.slug)
     </template>
 
     <template v-else-if="graphFailed">
-      <h1 class="font-display text-display text-ink-true">
-        Something went wrong
-      </h1>
+      <PageHeader title="Something went wrong" />
       <p
         class="font-body text-body mt-3 text-ink-muted"
         role="alert"
@@ -177,18 +174,12 @@ void loadGraph(props.slug)
     </template>
 
     <template v-else-if="publication">
-      <hgroup class="flex max-w-[720px] flex-col gap-2">
-        <h1 class="font-display text-display text-ink-true">
-          {{ publication.name }}
-        </h1>
-        <p
-          v-if="publication.subtext"
-          class="t-meta text-ink-muted"
-          data-testid="service-subtext"
-        >
-          {{ publication.subtext }}
-        </p>
-      </hgroup>
+      <PageHeader
+        class="max-w-[720px]"
+        :title="publication.name"
+        :subtitle="publication.subtext"
+        subtitle-testid="service-subtext"
+      />
 
       <ScenarioPreviewPanel
         :origin="origin"
