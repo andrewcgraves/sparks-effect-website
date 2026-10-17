@@ -16,6 +16,10 @@ const sourceFiles = readdirSync(SRC, { recursive: true, encoding: 'utf8' })
 // such as `bg-coral/10` under ink text passes.
 const QUOTED = /"[^"\n]*"|'[^'\n]*'|`[^`]*`/g
 
+// An icon component draws a graphic, not text, and WCAG 1.4.11 asks 3:1 of a
+// graphic, which coral on white meets (SPA-518), so its tag is not scanned.
+const ICON_TAG = /<[A-Z]\w*Icon\b[^>]*>/g
+
 function utilities(classString: string): { variants: string, utility: string }[] {
   return classString.split(/[\s'"`]+/).filter(Boolean).map((token) => {
     const split = token.lastIndexOf(':')
@@ -25,7 +29,7 @@ function utilities(classString: string): { variants: string, utility: string }[]
 
 function contrastFailures(source: string): string[] {
   const failures: string[] = []
-  for (const [quoted] of source.matchAll(QUOTED)) {
+  for (const [quoted] of source.replace(ICON_TAG, '').matchAll(QUOTED)) {
     const found = utilities(quoted.slice(1, -1))
     if (found.some(({ utility }) => utility === 'bg-coral') && found.some(({ utility }) => utility === 'text-white')) {
       failures.push(`bg-coral with text-white in ${quoted}`)
@@ -60,6 +64,7 @@ describe('text contrast in class strings', () => {
     "'bg-ink text-white hover:bg-ink-muted'",
     '"focus-visible:text-coral"',
     '"aria-[current=page]:decoration-coral"',
+    '<PinIcon class="size-5 text-coral" />',
   ])('passes %s', (sample) => {
     expect(contrastFailures(sample)).toEqual([])
   })

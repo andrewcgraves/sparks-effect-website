@@ -43,7 +43,6 @@ type Counts = Partial<Record<PatternName, number>>
 const RATCHET_EXCLUDED = new Set(['src/themeTokens.ts'])
 
 const BASELINE: Record<string, Counts> = {
-  'src/IsochroneForm.vue': { arbitraryText: 1 },
   'src/components/AddressAutocomplete.vue': { arbitraryText: 1 },
   'src/components/FieldSkeleton.vue': { arbitraryText: 1 },
   'src/components/KeySwatch.vue': { arbitraryRadius: 1, hexColour: 1 },
