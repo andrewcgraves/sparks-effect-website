@@ -44,11 +44,13 @@ describe('theme token fallbacks', () => {
     },
   )
 
-  // SPA-521: the splash zone, its key and the Stations card's boarded dot paint
-  // with these, so they alias the palette rather than holding colours of their own.
+  // SPA-521: the splash zone, its key and the station dots paint with these, so
+  // they alias the palette rather than holding colours of their own. One accent:
+  // coral is what was reached, and the walk from the starting point is grey
+  // rather than a second orange.
   it.each([
-    ['--color-data-origin', '--color-coral'],
-    ['--color-data-egress', '--color-apricot'],
+    ['--color-data-origin', '--color-ink-muted'],
+    ['--color-data-egress', '--color-coral'],
   ])('%s is %s', (name, palette) => {
     expect(tokenValueInThemeCss(name)).toBe(`var(${palette})`)
   })
@@ -61,7 +63,7 @@ describe('theme token fallbacks', () => {
   it('falls back to the theme.css value when no stylesheet is loaded', () => {
     // The DOM environment loads no stylesheet, so getComputedStyle resolves the
     // custom property to '' and the fallback is what comes back.
-    expect(readThemeToken('--color-data-origin')).toBe('#e1665b')
+    expect(readThemeToken('--color-data-origin')).toBe('#4a4a4f')
     expect(readThemeToken('--color-coral')).toBe('#e1665b')
   })
 })

@@ -96,8 +96,9 @@ function reached(row: StationRow): boolean {
 
 function dotClass(row: StationRow): string {
   if (!props.plot) return 'size-1.5 bg-ink-muted'
-  if (row.boardedAfterSecs !== null) return 'size-2.5 bg-data-origin ring-2 ring-surface'
-  return reached(row) ? 'size-2 bg-ink' : 'size-1.5 border border-ink-muted bg-surface'
+  // A reached stop is the dot the map draws for its station: coral, ringed in ink.
+  if (row.boardedAfterSecs !== null) return 'size-2.5 border border-ink bg-data-egress ring-2 ring-surface'
+  return reached(row) ? 'size-2 border border-ink bg-data-egress' : 'size-1.5 border border-ink-muted bg-surface'
 }
 
 function notes(row: StationRow): string[] {

@@ -8,7 +8,7 @@ const paint = keySwatchPaint()
 
 <!-- Each swatch is drawn with the ends the map draws it with: the first leg
      runs from the coral pin to a reached station's ringed dot, and an
-     unfinished ride stops on a bare ink dot. Two thin dashed lines in navy and
+     unfinished ride stops on a bare ink dot. Two thin dashed lines in grey and
      near-black were otherwise indistinguishable at swatch size. -->
 <template>
   <span
