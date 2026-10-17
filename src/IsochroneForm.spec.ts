@@ -630,6 +630,11 @@ describe('IsochroneForm', () => {
       expect(wrapper.get(`[data-testid="${testid}"]`).classes()).toContain('pointer-coarse:size-11')
     })
 
+    it('grows the place search to the icon buttons\' 44px on a touch screen, so the row lines up', () => {
+      const wrapper = mount(IsochroneForm)
+      expect(wrapper.get('[role="combobox"]').classes()).toContain('pointer-coarse:h-11')
+    })
+
     it('makes each mode tile at least 44px tall', () => {
       const wrapper = mount(IsochroneForm)
       for (const mode of ['walk', 'bike', 'drive', 'transit']) {
