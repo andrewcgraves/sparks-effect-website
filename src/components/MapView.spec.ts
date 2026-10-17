@@ -1185,11 +1185,12 @@ describe('MapView', () => {
     expect(maxLng).toBeLessThan(-121)
   })
 
-  it('renders a color key for origin and egress isochrones', () => {
+  it('renders one color key row for the splash zone', () => {
     const wrapper = mount(MapView, { props: defaultProps })
     const legend = wrapper.get('[aria-label="Splash zone color key"]')
-    expect(legend.text()).toContain('From starting point')
-    expect(legend.text()).toContain('From station')
+    expect(legend.text()).toContain('Reachable in time')
+    expect(legend.findAll('[data-testid^="legend-swatch-"]')).toHaveLength(1)
+    expect(legend.text()).not.toContain('From station')
     expect(legend.text()).not.toContain('Travel time ran out here')
   })
 
