@@ -12,7 +12,7 @@
 
   --color-focus: var(--color-coral);
 
-  --color-data-origin: var(--color-ink-muted);
+  --color-data-origin: var(--color-coral);
   --color-data-egress: var(--color-coral);
 
   --font-display: "Inter Variable", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;

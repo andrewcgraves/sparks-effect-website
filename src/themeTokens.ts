@@ -1,5 +1,5 @@
 export const THEME_TOKEN_FALLBACKS = {
-  '--color-data-origin': '#4a4a4f',
+  '--color-data-origin': '#e1665b',
   '--color-data-egress': '#e1665b',
   '--color-ink': '#121212',
   '--color-ink-muted': '#4a4a4f',
