@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Map as MapLibreMap } from 'maplibre-gl'
 import type { StyleSpecification } from 'maplibre-gl'
-import { createSiteMap, MAP_CREDITS, splashZoneModules, withoutSourceCredits } from './siteMap'
+import { basemapStyle, createSiteMap, MAP_CREDITS, splashZoneModules, withoutSlowRoads, withoutSourceCredits } from './siteMap'
 import { mapModules } from './mapLifecycle'
 import { layerStack } from './layerStack'
 import { resolveIsochroneColors } from './useIsochroneLayer'
@@ -53,7 +53,7 @@ describe('createSiteMap', () => {
     createSiteMap({ container: document.createElement('div') })
     const options = MockMap.mock.calls.at(-1)![0]
     expect(setStyle).toHaveBeenLastCalledWith('https://tiles.openfreemap.org/styles/positron', {
-      transformStyle: withoutSourceCredits,
+      transformStyle: basemapStyle,
     })
     expect(options.attributionControl).toEqual({ customAttribution: MAP_CREDITS })
     expect(MAP_CREDITS).toHaveLength(1)
@@ -73,6 +73,30 @@ describe('createSiteMap', () => {
     const next = withoutSourceCredits(undefined, style)
     expect(Object.values(next.sources).map((source) => 'attribution' in source && source.attribution)).toEqual(['', ''])
     expect(next.layers).toBe(style.layers)
+  })
+
+  it('drops the faint major roads, which cost Firefox the most frames, and keeps every other layer', () => {
+    const style = {
+      version: 8,
+      sources: { openmaptiles: { type: 'vector', url: 'https://tiles.openfreemap.org/planet' } },
+      layers: [
+        { id: 'background', type: 'background' },
+        { id: 'highway_major_subtle', type: 'line', source: 'openmaptiles', 'source-layer': 'transportation' },
+        { id: 'highway_motorway', type: 'line', source: 'openmaptiles', 'source-layer': 'transportation' },
+      ],
+    } as StyleSpecification
+    expect(withoutSlowRoads(undefined, style).layers.map((layer) => layer.id)).toEqual(['background', 'highway_motorway'])
+  })
+
+  it('applies both rewrites to the basemap', () => {
+    const style = {
+      version: 8,
+      sources: { openmaptiles: { type: 'vector', url: 'https://tiles.openfreemap.org/planet', attribution: 'OpenMapTiles' } },
+      layers: [{ id: 'highway_major_subtle', type: 'line', source: 'openmaptiles', 'source-layer': 'transportation' }],
+    } as StyleSpecification
+    const next = basemapStyle(undefined, style)
+    expect(next.layers).toEqual([])
+    expect(next.sources.openmaptiles).toMatchObject({ attribution: '' })
   })
 
   describe('drawing load', () => {
