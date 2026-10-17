@@ -20,6 +20,7 @@ describe('AboutView', () => {
   it('says who builds Sparks Effect, who keeps it running, and that it takes no donations', async () => {
     const wrapper = await mountView()
     expect(wrapper.get('h1').text()).toBe('About')
+    expect(wrapper.get('[data-testid="page-updated"] time').attributes('datetime')).toMatch(/^\d{4}-\d{2}-\d{2}$/)
     const text = wrapper.text()
     expect(text).toContain('Built with love by Californians for Electric Rail')
     expect(text).toContain('maintained by volunteers')
