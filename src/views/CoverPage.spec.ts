@@ -68,6 +68,26 @@ describe('CoverPage', () => {
     expect(wrapper.get('h1').text()).toBe('Sparks Effect')
   })
 
+  it('says what the name means right under the heading, before the lede', async () => {
+    vi.mocked(fetchCoverIndex).mockResolvedValue(index([]))
+    const { wrapper } = await mountCover()
+    const blurb = wrapper.get('[data-testid="cover-name-blurb"]')
+    expect(blurb.text()).toBe(
+      'When a railway goes electric, more people start riding it. Railway folks call this the '
+      + 'sparks effect. This site lets you see how far a better line could take you, and why that '
+      + 'brings people on board.',
+    )
+    expect(wrapper.get('h1').element.nextElementSibling).toBe(blurb.element)
+    expect(blurb.element.nextElementSibling).toBe(wrapper.get('[data-testid="cover-lede"]').element)
+  })
+
+  it('explains the name without domain words', async () => {
+    vi.mocked(fetchCoverIndex).mockResolvedValue(index([]))
+    const { wrapper } = await mountCover()
+    const blurb = wrapper.get('[data-testid="cover-name-blurb"]').text()
+    expect(blurb).not.toMatch(/isochrone|scenario|service|origin|budget/i)
+  })
+
   it('links the How it works page', async () => {
     vi.mocked(fetchCoverIndex).mockResolvedValue(index([]))
     const { wrapper } = await mountCover()

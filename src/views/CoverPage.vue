@@ -31,6 +31,15 @@ fetchCoverIndex()
 
       <p
         class="font-body text-body mt-6 max-w-[560px] text-ink-muted"
+        data-testid="cover-name-blurb"
+      >
+        When a railway goes electric, more people start riding it. Railway folks call this the
+        sparks effect. This site lets you see how far a better line could take you, and why that
+        brings people on board.
+      </p>
+
+      <p
+        class="font-body text-body mt-4 max-w-[560px] text-ink-muted"
         data-testid="cover-lede"
       >
         A splash zone is everywhere you can reach from one spot within a set travel time, on foot,
