@@ -31,13 +31,7 @@ import { Popup } from 'maplibre-gl'
 import { TOOLTIP_MAP_POPUP_CLASS, TOOLTIP_PANEL_CLASS } from '../components/tooltip'
 import { useStationHighlight } from './useStationHighlight'
 import { PROGRESS_CAP_HIT_LAYER_ID, STATION_DOTS_LAYER_ID } from './useRouteLayer'
-import {
-  ISOCHRONE_LAYER_ID,
-  ISOCHRONE_ORIGIN_LAYER_ID,
-  isochroneEgressOpacity,
-  isochroneOriginOpacity,
-  showIsochroneHighlight,
-} from './useIsochroneLayer'
+import { showIsochroneHighlight } from './useIsochroneLayer'
 
 type Handler = (event: unknown) => void
 
@@ -170,58 +164,27 @@ describe('useStationHighlight', () => {
     expect(mockPopupAddTo).toHaveBeenCalled()
   })
 
-  it('dims the base layer and puts that station on the highlight layers', () => {
+  // SPA-524, SPA-526: the rest of the splash zone rests light already, so a
+  // hover raises the one station without fading the whole map.
+  it('leaves both fills alone and puts that station on the highlight layers', () => {
     const { fire, setPaintProperty, showHighlight } = setup()
-
-    fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))
-
-    expect(setPaintProperty).toHaveBeenCalledWith(ISOCHRONE_LAYER_ID, 'fill-opacity', isochroneEgressOpacity(true))
-    // The highlight layer, not the base layer's opacity, is what actually
-    // promotes the hovered station's polygon above its overlapping neighbours.
-    expect(showHighlight).toHaveBeenLastCalledWith(expect.anything(), 'sf')
-  })
-
-  // SPA-224: the blue origin wash used to hold its full opacity, and on a
-  // large driving plot the promoted orange read through it as a muted tan.
-  it('dims the origin fill too', () => {
-    const { fire, setPaintProperty, showHighlight } = setup()
-
-    fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))
-
-    expect(setPaintProperty).toHaveBeenCalledWith(ISOCHRONE_ORIGIN_LAYER_ID, 'fill-opacity', isochroneOriginOpacity(true))
-    expect(showHighlight).toHaveBeenLastCalledWith(expect.anything(), 'sf')
-  })
-
-  // SPA-524: lifted, the rest of the splash zone rests dim already, so a hover
-  // raises the one station without fading the whole map.
-  it('leaves both fills alone and only raises the station when highlighting lifts', () => {
-    const { map, fire, setPaintProperty, showHighlight } = makeMockMap()
-    useStationHighlight(map as unknown as Map, {
-      idleCursor: () => '',
-      egressSlugs: () => new Set(['sf']),
-      activeSlug: () => 'sf',
-      remainingSecs: () => null,
-      stationName: (slug) => slug,
-      onHover: () => {},
-    }, 'lift')
 
     fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))
 
     expect(setPaintProperty).not.toHaveBeenCalled()
-    expect(showHighlight).toHaveBeenLastCalledWith(map, 'sf')
+    expect(showHighlight).toHaveBeenLastCalledWith(expect.anything(), 'sf')
   })
 
   // The other half of SPA-224: a station the plot drew no polygon for used to
   // fade every isochrone on the map and promote nothing in their place, which
   // looked exactly like its orange vanishing under the blue.
   describe('a station with no egress polygon in the plot', () => {
-    it('leaves both fills at their undimmed opacity and promotes nothing', () => {
+    it('promotes nothing', () => {
       const { fire, setPaintProperty, showHighlight } = setup(() => '', () => new Set(['gilroy']))
 
       fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))
 
-      expect(setPaintProperty).toHaveBeenCalledWith(ISOCHRONE_LAYER_ID, 'fill-opacity', isochroneEgressOpacity(false))
-      expect(setPaintProperty).toHaveBeenCalledWith(ISOCHRONE_ORIGIN_LAYER_ID, 'fill-opacity', isochroneOriginOpacity(false))
+      expect(setPaintProperty).not.toHaveBeenCalled()
       expect(showHighlight).toHaveBeenLastCalledWith(expect.anything(), null)
     })
 
@@ -237,32 +200,15 @@ describe('useStationHighlight', () => {
 
   })
 
-  // Each layer is guarded on its own, so one that is not plotted yet is
-  // skipped without taking the others with it.
-  it.each([ISOCHRONE_LAYER_ID, ISOCHRONE_ORIGIN_LAYER_ID])(
-    'does not touch %s paint property when that layer does not exist yet',
-    (missing) => {
-      const { fire, getLayer, setPaintProperty } = setup()
-      getLayer.mockImplementation((id: string) => (id === missing ? undefined : { id }))
-
-      fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))
-
-      expect(setPaintProperty).not.toHaveBeenCalledWith(missing, expect.anything(), expect.anything())
-      expect(setPaintProperty).toHaveBeenCalledTimes(1)
-    },
-  )
-
-  it('removes the popup and resets both layers when the pointer leaves', () => {
-    const { fire, setPaintProperty, showHighlight } = setup()
+  it('removes the popup and drops the highlight when the pointer leaves', () => {
+    const { fire, showHighlight } = setup()
     fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))
-    setPaintProperty.mockClear()
     showHighlight.mockClear()
     mockPopupRemove.mockClear()
 
     fire('mouseleave', STATION_DOTS_LAYER_ID)
 
     expect(mockPopupRemove).toHaveBeenCalled()
-    expect(setPaintProperty).toHaveBeenCalledWith(ISOCHRONE_LAYER_ID, 'fill-opacity', isochroneEgressOpacity(false))
     expect(showHighlight).toHaveBeenLastCalledWith(expect.anything(), null)
   })
 
@@ -481,7 +427,7 @@ describe('useStationHighlight', () => {
 
       expect(canvas.style.cursor).toBe('pointer')
       expect(onHover).not.toHaveBeenCalled()
-      expect(setPaintProperty).toHaveBeenCalledWith(ISOCHRONE_LAYER_ID, 'fill-opacity', isochroneEgressOpacity(false))
+      expect(setPaintProperty).not.toHaveBeenCalled()
       expect(showHighlight).toHaveBeenLastCalledWith(expect.anything(), null)
     })
 

@@ -11,9 +11,8 @@ import {
   ISOCHRONE_LAYER_ID,
   ISOCHRONE_HIGHLIGHT_LAYER_ID,
   ISOCHRONE_HIGHLIGHT_OUTLINE_LAYER_ID,
-  isochroneEgressOpacity,
-  isochroneOriginOpacity,
   isochroneHighlightData,
+  flattenEgress,
 } from '../composables/useIsochroneLayer'
 import {
   PROGRESS_CAP_HIT_LAYER_ID,
@@ -306,7 +305,7 @@ describe('MapView', () => {
     await triggerMapLoad()
     expect(mockAddSource).toHaveBeenCalledWith(ISOCHRONE_SOURCE_ID, {
       type: 'geojson',
-      data: staticIsochroneResponse,
+      data: flattenEgress(staticIsochroneResponse),
     })
     expect(mockAddLayer).toHaveBeenCalledWith(
       expect.objectContaining({ id: ISOCHRONE_LAYER_ID, type: 'fill', source: ISOCHRONE_SOURCE_ID }),
@@ -319,7 +318,7 @@ describe('MapView', () => {
     await wrapper.setProps({ isochroneData: staticIsochroneResponse })
     expect(mockAddSource).toHaveBeenCalledWith(ISOCHRONE_SOURCE_ID, {
       type: 'geojson',
-      data: staticIsochroneResponse,
+      data: flattenEgress(staticIsochroneResponse),
     })
   })
 
@@ -434,7 +433,7 @@ describe('MapView', () => {
     await wrapper.setProps({ isochroneData: staticIsochroneResponse })
     expect(mockAddSource).toHaveBeenCalledWith(ISOCHRONE_SOURCE_ID, {
       type: 'geojson',
-      data: staticIsochroneResponse,
+      data: flattenEgress(staticIsochroneResponse),
     })
     expect(mockAddLayer).toHaveBeenCalledWith(
       expect.objectContaining({ id: ISOCHRONE_LAYER_ID }),
@@ -1812,13 +1811,10 @@ describe('MapView', () => {
 
       await wrapper.setProps({ activeStation: stubStation.slug })
 
-      // Dims the base layer's egress fills uniformly, and the blue origin
-      // wash with them (SPA-224)...
-      expect(mockSetPaintProperty).toHaveBeenCalledWith(ISOCHRONE_LAYER_ID, 'fill-opacity', isochroneEgressOpacity(true))
-      expect(mockSetPaintProperty).toHaveBeenCalledWith(ISOCHRONE_ORIGIN_LAYER_ID, 'fill-opacity', isochroneOriginOpacity(true))
-      // ...and hands the dedicated top layers just this station's polygon,
-      // which is what actually paints it above every other overlapping one —
-      // fill-opacity alone can't reorder features within one layer.
+      // Leaves the resting fills as they are (SPA-526) and hands the dedicated
+      // top layers just this station's polygon, which is what paints it above
+      // the merged splash zone.
+      expect(mockSetPaintProperty).not.toHaveBeenCalled()
       expect(mockSetData).toHaveBeenCalledWith(isochroneHighlightData(staticIsochroneResponse, stubStation.slug))
     })
 
@@ -1844,8 +1840,7 @@ describe('MapView', () => {
       fireLayerEvent('mouseenter', STATION_DOTS_LAYER_ID, stationEvent(orphan))
       await wrapper.setProps({ activeStation: orphan.slug })
 
-      expect(mockSetPaintProperty).toHaveBeenCalledWith(ISOCHRONE_LAYER_ID, 'fill-opacity', isochroneEgressOpacity(false))
-      expect(mockSetPaintProperty).toHaveBeenCalledWith(ISOCHRONE_ORIGIN_LAYER_ID, 'fill-opacity', isochroneOriginOpacity(false))
+      expect(mockSetPaintProperty).not.toHaveBeenCalled()
       const promoted = mockSetData.mock.calls.filter(([data]) =>
         data?.features?.length > 0 && data.features.every((f: { properties?: { source?: string } }) => f.properties?.source === 'egress'))
       expect(promoted).toEqual([])

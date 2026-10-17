@@ -3,7 +3,6 @@ import type { MapModule } from './mapLifecycle'
 import type { Feature, FeatureCollection, MultiPolygon, Polygon } from 'geojson'
 import * as polygonClippingModule from 'polygon-clipping'
 import { readThemeToken } from '../themeTokens'
-import { mapTrial, type MapTrial } from '../mapTrial'
 import { addLayerInStack } from './layerStack'
 
 // Its ES build exports one default object, while its types declare named exports.
@@ -21,14 +20,12 @@ export const ISOCHRONE_HIGHLIGHT_LAYER_ID = 'isochrone-highlight-fill'
 
 export const ISOCHRONE_HIGHLIGHT_OUTLINE_LAYER_ID = 'isochrone-highlight-outline'
 
-export const ISOCHRONE_FILL_OPACITY = 0.35
+export const ISOCHRONE_FILL_OPACITY = 0.2
 
 export const ISOCHRONE_HIGHLIGHT_OPACITY = 0.8
 export const ISOCHRONE_DIM_OPACITY = 0.08
 
 export const ISOCHRONE_ORIGIN_DIM_OPACITY = 0.12
-
-export const ISOCHRONE_LIFT_OPACITY = 0.2
 
 export interface IsochroneColors {
   origin: string
@@ -73,10 +70,6 @@ export function isochroneOriginOpacity(dimmed: boolean): number {
   return dimmed ? ISOCHRONE_ORIGIN_DIM_OPACITY : ISOCHRONE_FILL_OPACITY
 }
 
-export function isochroneRestingOpacity(highlight: MapTrial['highlight'] = mapTrial.highlight): number {
-  return highlight === 'lift' ? ISOCHRONE_LIFT_OPACITY : ISOCHRONE_FILL_OPACITY
-}
-
 export function egressStationSlugs(data: FeatureCollection | null): Set<string> {
   const slugs = new Set<string>()
   for (const feature of data?.features ?? []) {
@@ -112,9 +105,11 @@ export function flattenEgress(data: FeatureCollection): FeatureCollection {
     }
   }
   if (egress.length < 2) return data
-  // Thirteen stations' polygons laid over each other at 35% are what cost an
-  // older graphics chip its frame rate — the core is blended up to thirteen
-  // times a frame. One merged shape is blended once (SPA-524).
+  // Thirteen see-through station polygons laid over each other are what cost
+  // an older graphics chip its frame rate — the core is blended up to
+  // thirteen times a frame. One merged shape is blended once, and holds 60 fps
+  // at full sharpness where the stack held 28 (SPA-524, SPA-526). It gives up
+  // the darker core where stations' reach overlapped.
   const [first, ...others] = egress as Parameters<typeof union>
   const merged: Feature<MultiPolygon> = {
     type: 'Feature',
@@ -122,10 +117,6 @@ export function flattenEgress(data: FeatureCollection): FeatureCollection {
     geometry: { type: 'MultiPolygon', coordinates: union(first, ...others) },
   }
   return { ...data, features: [...rest, merged] }
-}
-
-function splashZoneData(data: FeatureCollection, splash: MapTrial['splash']): FeatureCollection {
-  return splash === 'flat' ? flattenEgress(data) : data
 }
 
 interface PlottedHighlight {
@@ -150,11 +141,10 @@ export function useIsochroneLayer(
   map: Map,
   geojson: FeatureCollection,
   colors: IsochroneColors = resolveIsochroneColors(),
-  trial: MapTrial = mapTrial,
 ): void {
   map.addSource(ISOCHRONE_SOURCE_ID, {
     type: 'geojson',
-    data: splashZoneData(geojson, trial.splash),
+    data: flattenEgress(geojson),
   })
   map.addSource(ISOCHRONE_HIGHLIGHT_SOURCE_ID, {
     type: 'geojson',
@@ -169,7 +159,7 @@ export function useIsochroneLayer(
     filter: ['==', ['get', 'source'], 'origin'],
     paint: {
       'fill-color': colors.origin,
-      'fill-opacity': isochroneRestingOpacity(trial.highlight),
+      'fill-opacity': ISOCHRONE_FILL_OPACITY,
     },
   }
 
@@ -180,7 +170,7 @@ export function useIsochroneLayer(
     filter: ['==', ['get', 'source'], 'egress'],
     paint: {
       'fill-color': colors.egress,
-      'fill-opacity': isochroneRestingOpacity(trial.highlight),
+      'fill-opacity': ISOCHRONE_FILL_OPACITY,
     },
   }
 
@@ -229,7 +219,7 @@ export function isochroneLayerModule(
       const geojson = data()
       if (!geojson) return
       const source = map.getSource(ISOCHRONE_SOURCE_ID) as GeoJSONSource | undefined
-      source?.setData(splashZoneData(geojson, mapTrial.splash))
+      source?.setData(flattenEgress(geojson))
       // A new plot can redraw the highlighted station's polygon, or drop it.
       const state = plotted.get(map)
       if (!state) return

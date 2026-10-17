@@ -8,7 +8,6 @@ import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&ur
 import type { Route, Station } from '../api/scenarios'
 import type { ChainResponse } from '../fixtures/isochrone'
 import { resolveMapStyleUrl } from '../mapStyle'
-import { mapTrial, type MapTrial } from '../mapTrial'
 import { isochroneLayerModule, type IsochroneColors } from './useIsochroneLayer'
 import type { MapModule } from './mapLifecycle'
 import { originMarkerModule } from './useOriginMarker'
@@ -42,45 +41,24 @@ export function withoutSourceCredits(
   return { ...next, sources }
 }
 
+const SLOW_ROAD_LAYER_IDS = new Set(['highway_major_subtle'])
+
+export function withoutSlowRoads(
+  _previous: StyleSpecification | undefined,
+  next: StyleSpecification,
+): StyleSpecification {
+  // Firefox spends its frame time drawing the basemap's road lines, not the
+  // splash zone. The faint major roads shown below zoom 11 cost the most:
+  // without them a 2019 MacBook Pro pans at 39 fps instead of 26, and zooms
+  // at 25 instead of 14. Chrome loses nothing, and motorways stay (SPA-526).
+  return { ...next, layers: next.layers.filter((layer) => !SLOW_ROAD_LAYER_IDS.has(layer.id)) }
+}
+
+export function basemapStyle(previous: StyleSpecification | undefined, next: StyleSpecification): StyleSpecification {
+  return withoutSlowRoads(previous, withoutSourceCredits(previous, next))
+}
+
 const MAX_PIXEL_RATIO = 2
-
-const REDUCED_PIXEL_RATIO = 1.5
-
-const MOVING_PIXEL_RATIO = 1
-
-const SETTLE_MS = 150
-
-export function restingPixelRatio(sharpness: MapTrial['sharpness'], devicePixelRatio: number): number {
-  return Math.min(devicePixelRatio, sharpness === 'reduced' ? REDUCED_PIXEL_RATIO : MAX_PIXEL_RATIO)
-}
-
-export function drawSoftWhileMoving(map: Map, resting: number): void {
-  if (resting <= MOVING_PIXEL_RATIO) return
-  let settle: ReturnType<typeof setTimeout> | undefined
-  let resizing = false
-  // setPixelRatio resizes the map, and a resize of a map at rest fires its own
-  // movestart and moveend — which would undo the change it was making.
-  const setRatio = (ratio: number) => {
-    resizing = true
-    map.setPixelRatio(ratio)
-    resizing = false
-  }
-  // On an older graphics chip a 2× frame of a big splash zone takes about
-  // twice as long as the 16 ms a smooth pan needs. Drawn at 1× while the map
-  // moves, the blur hides in the motion, and the full sharpness comes back
-  // once it settles (SPA-524).
-  map.on('movestart', () => {
-    if (resizing) return
-    clearTimeout(settle)
-    if (map.getPixelRatio() !== MOVING_PIXEL_RATIO) setRatio(MOVING_PIXEL_RATIO)
-  })
-  map.on('moveend', () => {
-    if (resizing) return
-    clearTimeout(settle)
-    settle = setTimeout(() => setRatio(resting), SETTLE_MS)
-  })
-  map.on('remove', () => clearTimeout(settle))
-}
 
 // Out of callers' reach, so no page can turn tilting or turning back on.
 type FlatMapOption = 'maxPitch' | 'dragRotate' | 'pitchWithRotate' | 'touchPitch' | 'rollEnabled'
@@ -102,7 +80,7 @@ export function createSiteMap(
     touchPitch: false,
     // Past 2× the extra sharpness is hard to see, and a 3× phone or laptop
     // pays more than twice 2×'s pixels for it on every frame (SPA-492).
-    pixelRatio: restingPixelRatio(mapTrial.sharpness, window.devicePixelRatio),
+    pixelRatio: Math.min(window.devicePixelRatio, MAX_PIXEL_RATIO),
     // `compact` left unset by default: visible on load, folding behind ⓘ on a
     // phone once the map is touched.
     attributionControl: credits.compact === undefined
@@ -115,10 +93,7 @@ export function createSiteMap(
   map.touchZoomRotate.disableRotation()
   map.keyboard.disableRotation()
   // The constructor's `style` option takes no transformStyle.
-  map.setStyle(resolveMapStyleUrl(), { transformStyle: withoutSourceCredits })
-  if (mapTrial.sharpness === 'adaptive') {
-    drawSoftWhileMoving(map, restingPixelRatio('full', window.devicePixelRatio))
-  }
+  map.setStyle(resolveMapStyleUrl(), { transformStyle: basemapStyle })
   return map
 }
 

@@ -2,14 +2,7 @@ import { Popup, type Map, type MapLayerMouseEvent, type MapMouseEvent } from 'ma
 import type { MapModule } from './mapLifecycle'
 import { PROGRESS_CAP_HIT_LAYER_ID, STATION_DOTS_LAYER_ID } from './useRouteLayer'
 import { TOOLTIP_MAP_POPUP_CLASS, progressTooltipContent, stationTooltipContent } from '../components/tooltip'
-import {
-  ISOCHRONE_LAYER_ID,
-  ISOCHRONE_ORIGIN_LAYER_ID,
-  isochroneEgressOpacity,
-  isochroneOriginOpacity,
-  showIsochroneHighlight,
-} from './useIsochroneLayer'
-import { mapTrial, type MapTrial } from '../mapTrial'
+import { showIsochroneHighlight } from './useIsochroneLayer'
 
 interface HighlightedStation {
   slug: string
@@ -52,11 +45,7 @@ function unfinishedCapOf(event: MapLayerMouseEvent): UnfinishedCap | null {
   return { to, fraction: frac, rideSecs: ride, lngLat: feature.geometry.coordinates as [number, number] }
 }
 
-export function useStationHighlight(
-  map: Map,
-  callbacks: StationHighlightCallbacks,
-  highlightStyle: MapTrial['highlight'] = mapTrial.highlight,
-): { release: () => void; sync: () => void } {
+export function useStationHighlight(map: Map, callbacks: StationHighlightCallbacks): { release: () => void; sync: () => void } {
   const canvas = map.getCanvas()
   const popup = new Popup({
     closeButton: false,
@@ -82,20 +71,11 @@ export function useStationHighlight(
     const active = callbacks.activeSlug()
     const promoted = active !== null && callbacks.egressSlugs().has(active) ? active : null
 
-    // Lifted, the rest of the splash zone already rests dim and stays put: a
-    // fade across the whole map on every hover is a third of a second of
-    // full redraws, which an older graphics chip feels (SPA-524).
-    if (highlightStyle === 'dim') {
-      if (map.getLayer(ISOCHRONE_LAYER_ID)) {
-        map.setPaintProperty(ISOCHRONE_LAYER_ID, 'fill-opacity', isochroneEgressOpacity(promoted !== null))
-      }
-      if (map.getLayer(ISOCHRONE_ORIGIN_LAYER_ID)) {
-        map.setPaintProperty(ISOCHRONE_ORIGIN_LAYER_ID, 'fill-opacity', isochroneOriginOpacity(promoted !== null))
-      }
-    }
-    // The highlighted polygon is repainted on separate top layers so it reads
-    // above every other station's — fill-opacity alone can't reorder features
-    // within a single layer.
+    // The rest of the splash zone rests light and stays put while the one
+    // station is lifted out on separate top layers. Dimming the whole map on
+    // every hover was a third of a second of full redraws, which an older
+    // graphics chip feels: a hover settles in about 30 ms without it, against
+    // about 350 ms with it (SPA-524, SPA-526).
     showIsochroneHighlight(map, promoted)
     // The popup belongs to this map's own pointer. A station made active from
     // the card has no dot under the cursor to hang one off, and putting one up

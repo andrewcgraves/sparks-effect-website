@@ -7,13 +7,11 @@ import {
   isochroneEgressOpacity,
   isochroneOriginOpacity,
   isochroneHighlightData,
-  isochroneRestingOpacity,
   showIsochroneHighlight,
   flattenEgress,
   egressStationSlugs,
   ISOCHRONE_SOURCE_ID,
   ISOCHRONE_HIGHLIGHT_SOURCE_ID,
-  ISOCHRONE_LIFT_OPACITY,
   ISOCHRONE_ORIGIN_LAYER_ID,
   ISOCHRONE_LAYER_ID,
   ISOCHRONE_HIGHLIGHT_LAYER_ID,
@@ -40,12 +38,12 @@ function addedLayer(map: Pick<Map, 'addLayer'>, id: string) {
 }
 
 describe('useIsochroneLayer', () => {
-  it('registers a geojson source with the fixture data', () => {
+  it('registers a geojson source with the fixture data, its station polygons merged', () => {
     const map = makeMockMap()
     useIsochroneLayer(map as Map, staticIsochroneResponse)
     expect(map.addSource).toHaveBeenCalledWith(ISOCHRONE_SOURCE_ID, {
       type: 'geojson',
-      data: staticIsochroneResponse,
+      data: flattenEgress(staticIsochroneResponse),
     })
   })
 
@@ -58,10 +56,10 @@ describe('useIsochroneLayer', () => {
     })
   })
 
-  // SPA-524: one merged shape, so the GPU blends the core once, not once per station.
-  it('merges the station polygons into one egress shape when the splash zone is flat', () => {
+  // SPA-524, SPA-526: one merged shape, so the GPU blends the core once, not once per station.
+  it('merges the station polygons into one egress shape', () => {
     const map = makeMockMap()
-    useIsochroneLayer(map as Map, staticIsochroneResponse, undefined, { splash: 'flat', sharpness: 'full', highlight: 'dim' })
+    useIsochroneLayer(map as Map, staticIsochroneResponse)
     const data = (map.addSource as ReturnType<typeof vi.fn>).mock.calls
       .find(([id]) => id === ISOCHRONE_SOURCE_ID)?.[1].data as FeatureCollection
     const egress = data.features.filter((f) => f.properties?.['source'] === 'egress')
@@ -82,7 +80,7 @@ describe('useIsochroneLayer', () => {
     useIsochroneLayer(map as Map, transit)
     expect(map.addSource).toHaveBeenCalledWith(ISOCHRONE_SOURCE_ID, {
       type: 'geojson',
-      data: transit,
+      data: flattenEgress(transit),
     })
     expect(map.addLayer).toHaveBeenCalledWith(
       expect.objectContaining({ id: ISOCHRONE_ORIGIN_LAYER_ID, type: 'fill' }),
@@ -354,12 +352,6 @@ describe('useIsochroneLayer', () => {
     it('keeps the plot\'s metadata', () => {
       expect(flattenEgress(staticIsochroneResponse)).toMatchObject({ metadata: staticIsochroneResponse.metadata })
     })
-  })
-
-  it('rests the fills dimmer when highlighting lifts one station instead of dimming the rest', () => {
-    expect(isochroneRestingOpacity('dim')).toBe(ISOCHRONE_FILL_OPACITY)
-    expect(isochroneRestingOpacity('lift')).toBe(ISOCHRONE_LIFT_OPACITY)
-    expect(ISOCHRONE_LIFT_OPACITY).toBeLessThan(ISOCHRONE_FILL_OPACITY)
   })
 
   it('fixture polygon coordinates are in the CA HSR Bay Area corridor', () => {

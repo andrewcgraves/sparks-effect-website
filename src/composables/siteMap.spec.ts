@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Map as MapLibreMap } from 'maplibre-gl'
 import type { StyleSpecification } from 'maplibre-gl'
-import { createSiteMap, drawSoftWhileMoving, MAP_CREDITS, restingPixelRatio, splashZoneModules, withoutSourceCredits } from './siteMap'
+import { basemapStyle, createSiteMap, MAP_CREDITS, splashZoneModules, withoutSlowRoads, withoutSourceCredits } from './siteMap'
 import { mapModules } from './mapLifecycle'
 import { layerStack } from './layerStack'
 import { resolveIsochroneColors } from './useIsochroneLayer'
@@ -53,7 +53,7 @@ describe('createSiteMap', () => {
     createSiteMap({ container: document.createElement('div') })
     const options = MockMap.mock.calls.at(-1)![0]
     expect(setStyle).toHaveBeenLastCalledWith('https://tiles.openfreemap.org/styles/positron', {
-      transformStyle: withoutSourceCredits,
+      transformStyle: basemapStyle,
     })
     expect(options.attributionControl).toEqual({ customAttribution: MAP_CREDITS })
     expect(MAP_CREDITS).toHaveLength(1)
@@ -73,6 +73,30 @@ describe('createSiteMap', () => {
     const next = withoutSourceCredits(undefined, style)
     expect(Object.values(next.sources).map((source) => 'attribution' in source && source.attribution)).toEqual(['', ''])
     expect(next.layers).toBe(style.layers)
+  })
+
+  it('drops the faint major roads, which cost Firefox the most frames, and keeps every other layer', () => {
+    const style = {
+      version: 8,
+      sources: { openmaptiles: { type: 'vector', url: 'https://tiles.openfreemap.org/planet' } },
+      layers: [
+        { id: 'background', type: 'background' },
+        { id: 'highway_major_subtle', type: 'line', source: 'openmaptiles', 'source-layer': 'transportation' },
+        { id: 'highway_motorway', type: 'line', source: 'openmaptiles', 'source-layer': 'transportation' },
+      ],
+    } as StyleSpecification
+    expect(withoutSlowRoads(undefined, style).layers.map((layer) => layer.id)).toEqual(['background', 'highway_motorway'])
+  })
+
+  it('applies both rewrites to the basemap', () => {
+    const style = {
+      version: 8,
+      sources: { openmaptiles: { type: 'vector', url: 'https://tiles.openfreemap.org/planet', attribution: 'OpenMapTiles' } },
+      layers: [{ id: 'highway_major_subtle', type: 'line', source: 'openmaptiles', 'source-layer': 'transportation' }],
+    } as StyleSpecification
+    const next = basemapStyle(undefined, style)
+    expect(next.layers).toEqual([])
+    expect(next.sources.openmaptiles).toMatchObject({ attribution: '' })
   })
 
   describe('drawing load', () => {
@@ -160,51 +184,5 @@ describe('splashZoneModules', () => {
       'station-dots',
       'origin-walk-line',
     ]))
-  })
-})
-
-describe('restingPixelRatio', () => {
-  it('caps at 2 for full sharpness and 1.5 when reduced, never above the screen', () => {
-    expect(restingPixelRatio('full', 3)).toBe(2)
-    expect(restingPixelRatio('reduced', 2)).toBe(1.5)
-    expect(restingPixelRatio('reduced', 1)).toBe(1)
-  })
-})
-
-describe('drawSoftWhileMoving', () => {
-  function movingMap() {
-    const handlers: Record<string, (() => void)[]> = {}
-    let ratio = 2
-    const fire = (type: string) => { for (const handler of handlers[type] ?? []) handler() }
-    const map = {
-      on: vi.fn((type: string, handler: () => void) => { (handlers[type] ??= []).push(handler) }),
-      getPixelRatio: () => ratio,
-      // Like MapLibre's: the resize of a map at rest fires its own movestart and moveend.
-      setPixelRatio: vi.fn((next: number) => { ratio = next; fire('movestart'); fire('moveend') }),
-    }
-    drawSoftWhileMoving(map as unknown as MapLibreMap, 2)
-    return { map, fire, ratio: () => ratio }
-  }
-
-  afterEach(() => { vi.useRealTimers() })
-
-  it('draws at 1x while the map moves and goes back to full once it settles', () => {
-    vi.useFakeTimers()
-    const { fire, ratio } = movingMap()
-    fire('movestart')
-    expect(ratio()).toBe(1)
-    fire('moveend')
-    vi.advanceTimersByTime(200)
-    expect(ratio()).toBe(2)
-  })
-
-  it('stays sharp at rest rather than reading its own resize as the map moving', () => {
-    vi.useFakeTimers()
-    const { map, fire, ratio } = movingMap()
-    fire('movestart')
-    fire('moveend')
-    vi.advanceTimersByTime(1000)
-    expect(ratio()).toBe(2)
-    expect(map.setPixelRatio).toHaveBeenCalledTimes(2)
   })
 })
