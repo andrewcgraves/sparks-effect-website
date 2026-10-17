@@ -445,8 +445,8 @@ describe('IsochroneForm', () => {
 
     it('keeps the pin out of what a screen reader says for the pick-on-map button', () => {
       const wrapper = mount(IsochroneForm)
-      const pin = pickButton(wrapper).findAll('[aria-hidden="true"]').map((hidden) => hidden.text())
-      expect(pin).toEqual(['📍'])
+      expect(pickButton(wrapper).text()).toBe('')
+      expect(pickButton(wrapper).get('svg').attributes('aria-hidden')).toBe('true')
     })
 
     it('arms on click and reports it, so the parent can arm the map', async () => {
@@ -600,6 +600,30 @@ describe('IsochroneForm', () => {
     })
   })
 
+  // SPA-518: the starting-point controls draw line icons, never emoji, so the
+  // row reads as one icon style. Mode tiles keep their emoji on purpose.
+  describe('starting-point icons', () => {
+    const EMOJI = /\p{Extended_Pictographic}/u
+
+    it.each(['use-current-location', 'pick-on-map', 'enter-coordinates'])('draws the %s button as a line icon, not emoji', (testid) => {
+      const wrapper = mount(IsochroneForm)
+      const button = wrapper.get(`[data-testid="${testid}"]`)
+      expect(button.find('svg').exists()).toBe(true)
+      expect(button.text()).not.toMatch(EMOJI)
+    })
+
+    it('marks the chosen-start card with a line pin, not emoji', async () => {
+      const wrapper = mount(IsochroneForm)
+      await wrapper.get('[data-testid="pick-on-map"]').trigger('click')
+      ;(wrapper.vm as unknown as { setOriginFromMap: (coord: { lat: number; lng: number }) => void })
+        .setOriginFromMap({ lat: 45.5, lng: -122.6 })
+      await wrapper.vm.$nextTick()
+      const card = wrapper.get('[data-testid="origin-card"]')
+      expect(card.find('svg').exists()).toBe(true)
+      expect(card.text()).not.toMatch(EMOJI)
+    })
+  })
+
   describe('thumb-sized hit areas (SPA-494)', () => {
     it.each(['pick-on-map', 'use-current-location', 'enter-coordinates'])('grows the %s icon button to 44px on a touch screen', (testid) => {
       const wrapper = mount(IsochroneForm)
@@ -652,7 +676,7 @@ describe('IsochroneForm', () => {
       expect(row?.contains(toggle.element)).toBe(true)
       expect(toggle.attributes('type')).toBe('button')
       expect(toggle.attributes('aria-label')).toBe('Enter coordinates')
-      expect(toggle.get('[aria-hidden="true"]').text()).toBe('🌐')
+      expect(toggle.get('svg').attributes('aria-hidden')).toBe('true')
       expect(toggle.attributes('aria-controls')).toBe(wrapper.get('[data-testid="coordinates"]').attributes('id'))
       expect(toggle.attributes('aria-expanded')).toBe('false')
 

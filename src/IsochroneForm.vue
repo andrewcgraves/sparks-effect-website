@@ -2,6 +2,9 @@
 import { computed, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
 import AddressAutocomplete from './components/AddressAutocomplete.vue'
 import SegmentedControl from './components/SegmentedControl.vue'
+import GlobeIcon from './components/icons/GlobeIcon.vue'
+import LocateIcon from './components/icons/LocateIcon.vue'
+import PinIcon from './components/icons/PinIcon.vue'
 import { PRIMARY_BUTTON_CLASS, SELECTED_CHOICE_CLASS } from './components/buttonStyles'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from './components/fieldStyles'
 import { ACTION_LINK_CLASS } from './components/linkStyles'
@@ -29,6 +32,8 @@ const MODE_OPTIONS: { value: TravelMode; label: string; icon: string }[] = TRAVE
 
 const ICON_BUTTON_CLASS =
   'flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-(--radius-field) border transition-colors duration-200 ease-(--ease-smooth) pointer-coarse:size-11 disabled:cursor-not-allowed disabled:opacity-50'
+
+const ICON_BUTTON_IDLE_CLASS = 'border-border bg-white text-ink-muted hover:border-coral hover:text-ink'
 
 function formatDuration(value: number): string {
   return `${value} min`
@@ -259,16 +264,13 @@ function handleSubmit() {
       >
         <span :class="FIELD_LABEL_CLASS">Starting point</span>
         <div
-          class="flex items-center gap-3 rounded-(--radius-field) border border-coral/60 bg-white px-3 py-2"
+          class="flex items-center gap-3 rounded-(--radius-field) border border-coral bg-white px-3 py-2"
           data-testid="origin-card"
         >
-          <span
-            aria-hidden="true"
-            class="text-lg"
-          >📍</span>
+          <PinIcon class="size-5 shrink-0 text-coral" />
           <div class="min-w-0 flex-1">
             <p
-              class="font-body truncate text-[14px] text-ink"
+              class="t-field truncate text-ink"
               data-testid="origin-name"
             >
               {{ originName || 'Starting point' }}
@@ -302,7 +304,7 @@ function handleSubmit() {
           <template #trailing>
             <button
               type="button"
-              :class="[ICON_BUTTON_CLASS, 'border-border bg-white text-ink-muted hover:border-coral hover:text-ink']"
+              :class="[ICON_BUTTON_CLASS, ICON_BUTTON_IDLE_CLASS]"
               data-testid="use-current-location"
               aria-label="Use my location"
               title="Use my location"
@@ -310,41 +312,25 @@ function handleSubmit() {
               :disabled="locating"
               @click="onUseCurrentLocation"
             >
-              <svg
-                aria-hidden="true"
-                viewBox="0 0 24 24"
-                class="size-5 fill-none stroke-current stroke-2"
+              <LocateIcon
+                class="size-5"
                 :class="{ 'animate-pulse': locating }"
-                stroke-linecap="round"
-              >
-                <circle
-                  cx="12"
-                  cy="12"
-                  r="7"
-                />
-                <circle
-                  cx="12"
-                  cy="12"
-                  r="2.5"
-                  class="fill-current"
-                />
-                <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
-              </svg>
+              />
             </button>
             <button
               type="button"
-              :class="[ICON_BUTTON_CLASS, pickArmed ? SELECTED_CHOICE_CLASS : 'border-border bg-white hover:border-coral']"
+              :class="[ICON_BUTTON_CLASS, pickArmed ? SELECTED_CHOICE_CLASS : ICON_BUTTON_IDLE_CLASS]"
               data-testid="pick-on-map"
               aria-label="Pick the starting point on the map"
               title="Pick on the map"
               :aria-pressed="pickArmed"
               @click="pickArmed = !pickArmed"
             >
-              <span aria-hidden="true">📍</span>
+              <PinIcon class="size-5" />
             </button>
             <button
               type="button"
-              :class="[ICON_BUTTON_CLASS, coordinatesOpen ? SELECTED_CHOICE_CLASS : 'border-border bg-white hover:border-coral']"
+              :class="[ICON_BUTTON_CLASS, coordinatesOpen ? SELECTED_CHOICE_CLASS : ICON_BUTTON_IDLE_CLASS]"
               data-testid="enter-coordinates"
               aria-label="Enter coordinates"
               title="Enter coordinates"
@@ -352,7 +338,7 @@ function handleSubmit() {
               :aria-controls="coordinatesId"
               @click="coordinatesOpen = !coordinatesOpen"
             >
-              <span aria-hidden="true">🌐</span>
+              <GlobeIcon class="size-5" />
             </button>
           </template>
         </AddressAutocomplete>
