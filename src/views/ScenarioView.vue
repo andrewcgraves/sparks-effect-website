@@ -230,7 +230,7 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
         </p>
         <p
           v-if="description.trim()"
-          class="font-body text-body whitespace-pre-line text-ink-muted"
+          class="t-body whitespace-pre-line text-ink-muted"
           data-testid="scenario-description"
         >
           {{ description }}
@@ -344,7 +344,7 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
           Description
         </h2>
         <p
-          class="font-body text-body mt-3 whitespace-pre-line text-ink-muted"
+          class="t-body mt-3 whitespace-pre-line text-ink-muted"
           data-testid="scenario-description"
         >
           {{ description }}

@@ -4,6 +4,7 @@ import { fetchCoverIndex, type CoverCard, type CoverSource } from '../api/coverI
 import { ACTION_LINK_CLASS, LIST_CARD_LINK_CLASS } from '../components/linkStyles'
 import ListSkeleton from '../components/ListSkeleton.vue'
 import PageHeader from '../components/PageHeader.vue'
+import { PROSE_LEAD_CLASS } from '../components/proseStyles'
 
 const UNAVAILABLE_COPY: Record<CoverSource, string> = {
   scenario: "Couldn't load the curated networks.",
@@ -30,7 +31,8 @@ fetchCoverIndex()
       <PageHeader title="Sparks Effect" />
 
       <p
-        class="font-body text-body mt-6 max-w-[560px] text-ink-muted"
+        :class="PROSE_LEAD_CLASS"
+        class="max-w-[560px]"
         data-testid="cover-lede"
       >
         A splash zone is everywhere you can reach from one spot within a set travel time, on foot,

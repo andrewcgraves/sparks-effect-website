@@ -103,7 +103,7 @@ onUnmounted(() => resize?.disconnect())
             />
             {{ step.name }}
           </h3>
-          <p class="font-body text-body mt-2 mb-0 text-ink-muted">
+          <p class="t-body mt-2 mb-0 text-ink-muted">
             {{ step.caption }}
           </p>
         </div>
