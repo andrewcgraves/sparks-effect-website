@@ -13,6 +13,7 @@ const NAV_PAGES = [
   { label: 'Networks', path: '/networks' },
   { label: 'Lines', path: '/lines' },
   { label: 'How it works', path: '/how-it-works' },
+  { label: 'About', path: '/about' },
 ]
 
 const PRIMARY_LINK_CLASS =

@@ -68,11 +68,25 @@ describe('App routing', () => {
     expect(signedIn.find('header nav[aria-label="Primary"] a[href="/how-it-works"]').exists()).toBe(true)
   })
 
-  it('links How it works from the footer', async () => {
+  it('links About from the header', async () => {
     const wrapper = mount(App, { global: { plugins: [router] } })
     await flushPromises()
-    const links = wrapper.findAll('[data-testid="footer-links"] a')
-    expect(links.map((link) => [link.text(), link.attributes('href')])).toContainEqual(['How it works', '/how-it-works'])
+    expect(wrapper.find('header nav[aria-label="Primary"] a[href="/about"]').exists()).toBe(true)
+  })
+
+  it('links About from the footer, and leaves How it works to the header', async () => {
+    const wrapper = mount(App, { global: { plugins: [router] } })
+    await flushPromises()
+    const links = wrapper.findAll('[data-testid="footer-links"] a').map((link) => link.attributes('href'))
+    expect(links).toContain('/about')
+    expect(links).not.toContain('/how-it-works')
+  })
+
+  it('renders the About page at /about', async () => {
+    await router.push('/about')
+    const wrapper = mount(App, { global: { plugins: [router] } })
+    await flushPromises()
+    expect(wrapper.get('h1').text()).toBe('About')
   })
 
   it('renders the How it works page at /how-it-works', async () => {
