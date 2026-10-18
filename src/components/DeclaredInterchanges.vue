@@ -78,7 +78,7 @@ defineExpose({ focusHeading })
           {{ row.a }} and {{ row.b }}
           <span
             v-if="row.missing"
-            class="text-ink-muted italic"
+            class="t-note text-ink-muted"
             data-testid="declared-interchange-missing"
           >— no longer in this network</span>
         </span>

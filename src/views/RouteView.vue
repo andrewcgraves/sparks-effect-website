@@ -43,14 +43,14 @@ const mapRoutes = computed<ScenarioRoute[]>(() => {
 
     <template v-else-if="notFound">
       <PageHeader title="Route not found" />
-      <p class="font-body text-body mt-3 text-ink-muted">
+      <p class="t-body mt-3 text-ink-muted">
         No route matches "{{ props.slug }}".
       </p>
     </template>
 
     <template v-else-if="error">
       <PageHeader title="Something went wrong" />
-      <p class="font-body text-body mt-3 text-ink-muted">
+      <p class="t-body mt-3 text-ink-muted">
         Failed to load this route. Please try again.
       </p>
     </template>

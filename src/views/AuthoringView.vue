@@ -76,7 +76,7 @@ const nothingYet = computed(() =>
           data-testid="incoming-handover"
         >
           <div class="flex flex-wrap items-center justify-between gap-3">
-            <p class="font-body text-body flex flex-col text-ink">
+            <p class="t-body flex flex-col text-ink">
               {{ handover.service_name }}
               <span class="t-meta text-ink-muted">
                 From {{ handover.from_name }} · Expires {{ expiryDate(handover) }}
@@ -123,7 +123,7 @@ const nothingYet = computed(() =>
       <h2 class="font-display text-h2 text-ink-true">
         Start by drawing a line
       </h2>
-      <p class="font-body text-body mt-3 text-ink-muted">
+      <p class="t-body mt-3 text-ink-muted">
         {{ LINE_DEFINITION }}
         A network combines lines so riders can change between them.
       </p>

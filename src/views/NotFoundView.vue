@@ -6,7 +6,7 @@ import PageHeader from '../components/PageHeader.vue'
 <template>
   <main class="flex-1 p-(--page-padding)">
     <PageHeader title="Page not found" />
-    <p class="font-body text-body mt-3 text-ink-muted">
+    <p class="t-body mt-3 text-ink-muted">
       The page you're looking for doesn't exist.
     </p>
     <!-- Home is where the lines and networks are listed until an Explore page

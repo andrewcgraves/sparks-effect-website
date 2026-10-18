@@ -37,6 +37,8 @@ const PATTERNS = {
   overlayTint: /\bbg-white\/(?!92\b)\d+/g,
   hexColour: /(?<![&\w])#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})\b/g,
   rawSmallText: /(?<![-\w])text-(?:micro|caption)\b/g,
+  rawParagraphText: /(?<![-\w])(?:font-body|text-body|text-lead)\b/g,
+  rawItalic: /(?<![-\w])italic\b/g,
 } as const
 
 type PatternName = keyof typeof PATTERNS
@@ -72,6 +74,8 @@ describe('design scheme rule', () => {
       overlayTint: ['class="bg-white/80"', 'class="bg-white/92 bg-white"'],
       hexColour: ["color: '#c2453b'", 'href="#main" &#8212;'],
       rawSmallText: ['class="text-micro uppercase"', 'class="t-meta" var(--text-caption)'],
+      rawParagraphText: ['class="font-body mt-3"', 'class="t-body" var(--font-body) var(--text-lead)'],
+      rawItalic: ['class="text-ink-muted italic"', 'class="t-note not-italic"'],
     }
     const [hit, miss] = samples[name]
     expect(matchesIn(hit, name)).toHaveLength(1)
@@ -81,6 +85,8 @@ describe('design scheme rule', () => {
   it.each(Object.keys(PATTERNS) as PatternName[])('no source file uses %s', (name) => {
     const offenders = scannedFiles
       .filter(({ path }) => !(name === 'hexColour' && path in HEX_ALLOWED))
+      // CSS sets font-style itself; the italic utility only means something in markup.
+      .filter(({ path }) => !(name === 'rawItalic' && path.endsWith('.css')))
       .flatMap(({ path, text }) => matchesIn(text, name).map((match) => `${path}: ${match}`))
     expect(offenders, 'use a theme.css token or t-* role instead').toEqual([])
   })

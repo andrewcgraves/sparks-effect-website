@@ -468,7 +468,7 @@ watch(createdSlug, (created) => {
       class="mt-3 flex flex-col items-start gap-3"
     >
       <p
-        class="font-body text-body text-ink"
+        class="t-body text-ink"
         role="alert"
         data-testid="service-handed-over"
       >
@@ -484,14 +484,14 @@ watch(createdSlug, (created) => {
     </div>
     <p
       v-else-if="editNotFound"
-      class="font-body text-body mt-3 text-ink-muted"
+      class="t-body mt-3 text-ink-muted"
       data-testid="service-not-found"
     >
       No line of yours matches "{{ slug }}".
     </p>
     <p
       v-else-if="editLoadFailed"
-      class="font-body text-body mt-3 text-ink-muted"
+      class="t-body mt-3 text-ink-muted"
       role="alert"
       data-testid="service-error"
     >

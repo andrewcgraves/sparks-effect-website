@@ -237,14 +237,14 @@ async function handleSave(): Promise<void> {
 
     <p
       v-if="editNotFound"
-      class="font-body text-body mt-3 text-ink-muted"
+      class="t-body mt-3 text-ink-muted"
       data-testid="scenario-not-found"
     >
       No network of yours matches "{{ slug }}".
     </p>
     <p
       v-else-if="editLoadFailed"
-      class="font-body text-body mt-3 text-ink-muted"
+      class="t-body mt-3 text-ink-muted"
       role="alert"
       data-testid="scenario-error"
     >
@@ -359,7 +359,7 @@ async function handleSave(): Promise<void> {
             v-for="service in services"
             :key="service.id"
           >
-            <label class="font-body text-body flex cursor-pointer items-center gap-2 rounded-(--radius-field) border border-border bg-white px-3 py-2 text-ink">
+            <label class="t-body flex cursor-pointer items-center gap-2 rounded-(--radius-field) border border-border bg-white px-3 py-2 text-ink">
               <input
                 type="checkbox"
                 :checked="isSelected(service.id)"

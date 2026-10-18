@@ -186,7 +186,7 @@ async function recompileForInterchanges(): Promise<void> {
         title="Network not found"
       />
       <p
-        class="font-body text-body mt-3 text-ink-muted"
+        class="t-body mt-3 text-ink-muted"
         data-testid="scenario-not-found"
       >
         No network of yours matches "{{ props.slug }}".
@@ -199,7 +199,7 @@ async function recompileForInterchanges(): Promise<void> {
         title="Something went wrong"
       />
       <p
-        class="font-body text-body mt-3 text-ink-muted"
+        class="t-body mt-3 text-ink-muted"
         role="alert"
         data-testid="scenario-error"
       >
@@ -231,7 +231,7 @@ async function recompileForInterchanges(): Promise<void> {
       </PageHeader>
       <p
         v-if="scenario.description"
-        class="font-body text-body mt-3 max-w-[720px] text-ink"
+        class="t-body mt-3 max-w-[720px] text-ink-muted"
       >
         {{ scenario.description }}
       </p>

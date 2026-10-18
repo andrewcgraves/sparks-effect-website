@@ -112,7 +112,7 @@ void loadGraph(props.slug)
     <template v-else-if="graphNotFound">
       <PageHeader title="Line not found" />
       <p
-        class="font-body text-body mt-3 text-ink-muted"
+        class="t-body mt-3 text-ink-muted"
         data-testid="service-not-found"
       >
         No published line lives at "{{ props.slug }}".
@@ -122,7 +122,7 @@ void loadGraph(props.slug)
     <template v-else-if="graphFailed">
       <PageHeader title="Something went wrong" />
       <p
-        class="font-body text-body mt-3 text-ink-muted"
+        class="t-body mt-3 text-ink-muted"
         role="alert"
         data-testid="service-error"
       >
@@ -164,7 +164,7 @@ void loadGraph(props.slug)
           </p>
           <p
             v-if="publication.description"
-            class="font-body text-body whitespace-pre-line text-ink-muted"
+            class="t-body whitespace-pre-line text-ink-muted"
             data-testid="service-description"
           >
             {{ publication.description }}
@@ -214,7 +214,7 @@ void loadGraph(props.slug)
           Description
         </h2>
         <p
-          class="font-body text-body mt-3 whitespace-pre-line text-ink-muted"
+          class="t-body mt-3 whitespace-pre-line text-ink-muted"
           data-testid="service-description"
         >
           {{ publication.description }}

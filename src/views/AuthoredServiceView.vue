@@ -98,7 +98,7 @@ watch(service, (loaded) => {
         title="Line not found"
       />
       <p
-        class="font-body text-body mt-3 text-ink-muted"
+        class="t-body mt-3 text-ink-muted"
         data-testid="service-not-found"
       >
         No line of yours matches "{{ props.slug }}".
@@ -111,7 +111,7 @@ watch(service, (loaded) => {
         title="Something went wrong"
       />
       <p
-        class="font-body text-body mt-3 text-ink-muted"
+        class="t-body mt-3 text-ink-muted"
         role="alert"
         data-testid="service-error"
       >
@@ -154,7 +154,7 @@ watch(service, (loaded) => {
       </PageHeader>
       <p
         v-if="service.description"
-        class="font-body text-body mt-3 max-w-[720px] whitespace-pre-line text-ink"
+        class="t-body mt-3 max-w-[720px] whitespace-pre-line text-ink-muted"
         data-testid="service-description"
       >
         {{ service.description }}
