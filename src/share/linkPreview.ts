@@ -93,6 +93,10 @@ export const STATIC_PAGES: ReadonlyMap<string, PageMeta> = new Map<string, PageM
     description:
       'How to read a splash zone, colour by colour, and what it assumes: door-to-door minutes, an 8 a.m. weekday start for transit, free-flowing roads.',
   }],
+  ['/about', {
+    name: 'About',
+    description: `Who builds ${SITE_NAME}: Californians for Electric Rail, with volunteers keeping it running.`,
+  }],
 ])
 
 const PUBLIC_PATH = /^\/([a-z]+)\/([A-Za-z0-9_-]+)$/
