@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import ExternalLink from '../components/ExternalLink.vue'
 import ProsePage from '../components/ProsePage.vue'
-import { PROSE_LIST_CLASS, PROSE_P_CLASS } from '../components/proseStyles'
+import { PROSE_LEAD_CLASS, PROSE_LIST_CLASS, PROSE_P_CLASS } from '../components/proseStyles'
 
 const UPDATED = '2026-10-17'
 
@@ -17,7 +17,7 @@ const CER_LINKS = [
     title="About"
     :updated="UPDATED"
   >
-    <p :class="PROSE_P_CLASS">
+    <p :class="PROSE_LEAD_CLASS">
       The “sparks effect” is a term from British railway planning for the rise in passenger numbers
       that often follows the electrification of a line, beyond what faster journeys, more frequent
       services and better reliability alone would predict.
