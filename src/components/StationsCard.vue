@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { TILE_CLASS, TILE_HEADING_CLASS } from './tileStyles'
+import { HIGHLIGHTED_ROW_CLASS } from './buttonStyles'
 import { computed, inject, nextTick, ref, useId, watch } from 'vue'
 import SegmentedControl from './SegmentedControl.vue'
 import LoadingRegion from './LoadingRegion.vue'
@@ -298,7 +299,7 @@ function onToggle(line: StationLine, event: Event): void {
               <li
                 class="flex items-stretch gap-3 rounded-(--radius-field) focus-visible:-outline-offset-(--focus-ring-width)"
                 :class="[
-                  props.activeSlug === row.slug ? 'bg-white' : '',
+                  props.activeSlug === row.slug ? HIGHLIGHTED_ROW_CLASS : '',
                   props.plot && !reached(row) ? 'opacity-60' : '',
                 ]"
                 :tabindex="props.plot ? 0 : undefined"

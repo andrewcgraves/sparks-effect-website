@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { TILE_CLASS, TILE_HEADING_CLASS } from './tileStyles'
+import { HIGHLIGHTED_ROW_CLASS } from './buttonStyles'
 import { computed, inject, ref, watch, nextTick, useId } from 'vue'
 import SegmentedControl from './SegmentedControl.vue'
 import TooltipPanel from './TooltipPanel.vue'
@@ -128,7 +129,7 @@ watch(
         v-for="row in rows"
         :key="row.key"
         class="flex cursor-default items-stretch gap-3 rounded-(--radius-field) focus-visible:-outline-offset-(--focus-ring-width)"
-        :class="isExpanded(row) ? 'bg-white' : ''"
+        :class="isExpanded(row) ? HIGHLIGHTED_ROW_CLASS : ''"
         tabindex="0"
         :data-station-slug="row.slug ?? undefined"
         data-testid="time-remaining-row"
