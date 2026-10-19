@@ -37,9 +37,12 @@ body {
   }
 }
 
+/* Ink on a coral tint, like a selected choice (SPA-510): white on solid coral
+   is 3.36:1. The tint is 30% rather than the choice's 10% so a selection still
+   stands out from the page around it. */
 ::selection {
-  background: var(--color-coral);
-  color: var(--color-white);
+  background: color-mix(in srgb, var(--color-coral) 30%, transparent);
+  color: var(--color-ink);
 }
 
 @media (prefers-reduced-motion: reduce) {
