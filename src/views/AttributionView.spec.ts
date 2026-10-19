@@ -3,6 +3,7 @@ import { mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import AttributionView from './AttributionView.vue'
 import { CONTACT_EMAIL, SOURCE_URL } from '../legal/contact'
+import { GENERATION, MANIFEST_DATE, TRANSIT_AGENCIES } from '../legal/transitAgencies'
 import { seriousA11yViolations } from '../test/axe'
 
 const Blank = { template: '<div />' }
@@ -94,6 +95,17 @@ describe('AttributionView', () => {
       'https://creativecommons.org/licenses/by/3.0/',
       'https://github.com/PinpointAVL/TAPS-GTFS/blob/main/LICENSE',
     ]))
+  })
+
+  it('names every agency whose schedules the routing graph holds, linked to its feed, with the generation they came from', async () => {
+    const paragraph = (await mountView()).get('[data-testid="all-agencies"]')
+    expect(paragraph.text().replace(/\s+/g, ' ')).toContain(
+      `Schedules from these agencies, found through the Mobility Database (generation ${GENERATION}, fetched ${MANIFEST_DATE}):`,
+    )
+    const links = paragraph.findAll('a').map((a) => [a.text(), a.attributes('href')])
+    expect(links[0]).toEqual(['Mobility Database', 'https://mobilitydatabase.org'])
+    expect(links.slice(1)).toEqual(TRANSIT_AGENCIES.map(({ name, href }) => [name, href]))
+    expect(links.map(([name]) => name)).toContainEqual(expect.stringMatching(/^Orange County Transportation Authority/))
   })
 
   it('says the schedules were changed, as CC BY asks, and disclaims any endorsement', async () => {
