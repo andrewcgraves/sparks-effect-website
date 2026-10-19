@@ -110,8 +110,17 @@ describe('text on fill', () => {
     ['ink-muted on coral at 10% over white (selected saved splash zone detail)', () => token('--color-ink-muted'), () => tintOver(token('--color-coral'), 0.1, WHITE)],
     ['white on error (destructive button hover)', () => WHITE, () => token('--color-error')],
     ['error on white (destructive button)', () => token('--color-error'), () => WHITE],
+    ['ink on coral at 30% over white (selected text)', () => token('--color-ink'), () => tintOver(token('--color-coral'), 0.3, WHITE)],
+    ['ink on coral at 30% over surface (selected text in a card)', () => token('--color-ink'), () => tintOver(token('--color-coral'), 0.3, token('--color-surface'))],
   ])('%s clears WCAG AA 4.5:1', (_, foreground, background) => {
     expect(contrastRatio(foreground(), background())).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it('selects text as ink on a 30% coral tint, the pair checked above', () => {
+    const styleCss = readFileSync(resolve(process.cwd(), 'src/style.css'), 'utf8')
+    const selection = /::selection\s*\{([^}]*)\}/.exec(styleCss)?.[1] ?? ''
+    expect(selection).toMatch(/background:\s*color-mix\(in srgb, var\(--color-coral\) 30%, transparent\);/)
+    expect(selection).toMatch(/color:\s*var\(--color-ink\);/)
   })
 
   it('would catch white on coral', () => {
