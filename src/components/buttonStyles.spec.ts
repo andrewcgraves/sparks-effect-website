@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   DESTRUCTIVE_BUTTON_CLASS,
-  HIGHLIGHTED_ROW_CLASS,
   PLACEMENT_TOGGLE_CLASS,
   PRESSED_CHOICE_CLASS,
   PRIMARY_BUTTON_CLASS,
@@ -26,10 +25,6 @@ describe('button styles', () => {
   it('selects a choice with the coral border and tint under ink text', () => {
     expect(classes(SELECTED_CHOICE_CLASS)).toEqual(['border-coral', 'bg-coral/10', 'text-ink'])
     expect(classes(PRESSED_CHOICE_CLASS)).toEqual(classes(SELECTED_CHOICE_CLASS).map((name) => `aria-pressed:${name}`))
-  })
-
-  it('highlights a row with the selected choice\'s coral tint', () => {
-    expect(classes(SELECTED_CHOICE_CLASS)).toContain(HIGHLIGHTED_ROW_CLASS)
   })
 
   it.each([PLACEMENT_TOGGLE_CLASS, TOGGLE_BUTTON_CLASS])('presses a toggle with the selected-choice classes', (toggle) => {

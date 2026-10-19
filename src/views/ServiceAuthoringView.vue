@@ -16,7 +16,7 @@ import SkeletonShape from '../components/SkeletonShape.vue'
 import StatusDot from '../components/StatusDot.vue'
 import StopActionsMenu from '../components/StopActionsMenu.vue'
 import VehicleFields from '../components/VehicleFields.vue'
-import { HIGHLIGHTED_ROW_CLASS, PLACEMENT_TOGGLE_CLASS, PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS } from '../components/buttonStyles'
+import { PLACEMENT_TOGGLE_CLASS, PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS } from '../components/buttonStyles'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
 import { ACTION_LINK_CLASS } from '../components/linkStyles'
 import { STOP_PLACEMENT_CUE } from '../components/placementCues'
@@ -364,7 +364,7 @@ function dropEdge(stop: DraftStop, index: number): 'before' | 'after' | null {
 // once, so neither is drawn with the other's mark.
 function stopRowClass(stop: DraftStop, index: number): string[] {
   const classes = [stop.id === selectedStopId.value ? 'border-coral ring-1 ring-coral' : 'border-border']
-  if (stop.id === hoveredStopId.value) classes.push(HIGHLIGHTED_ROW_CLASS)
+  if (stop.id === hoveredStopId.value) classes.push('bg-coral/10')
   else classes.push('bg-white')
   if (stop.id === draggingStopId.value) classes.push('opacity-50')
   const edge = dropEdge(stop, index)

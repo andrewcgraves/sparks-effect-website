@@ -3,8 +3,6 @@ const SOLID_BUTTON_CLASS =
 
 export const SELECTED_CHOICE_CLASS = 'border-coral bg-coral/10 text-ink'
 
-export const HIGHLIGHTED_ROW_CLASS = 'bg-coral/10'
-
 export const PRESSED_CHOICE_CLASS = 'aria-pressed:border-coral aria-pressed:bg-coral/10 aria-pressed:text-ink'
 
 export const PRIMARY_BUTTON_CLASS =
