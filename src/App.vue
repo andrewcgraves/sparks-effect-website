@@ -6,6 +6,10 @@ import ConfirmDialog from './components/ConfirmDialog.vue'
 import SiteFooter from './components/SiteFooter.vue'
 import SiteHeader from './components/SiteHeader.vue'
 import ToastRegion from './components/ToastRegion.vue'
+import PrototypeSwitcher from './components/PrototypeSwitcher.vue'
+import { PIN_VARIANT_NAMES, pinVariantKey } from './prototype/pinVariantState'
+
+const isDev = import.meta.env.DEV
 
 const redactAnalyticsEvent: BeforeSend = (event) => ({ ...event, url: redactUrl(event.url) })
 
@@ -41,6 +45,12 @@ function skipToContent(): void {
     <SiteFooter />
     <ConfirmDialog />
     <ToastRegion />
+    <PrototypeSwitcher
+      v-if="isDev"
+      v-model="pinVariantKey"
+      label="Pin"
+      :variants="PIN_VARIANT_NAMES"
+    />
     <Analytics :before-send="redactAnalyticsEvent" />
   </div>
 </template>
