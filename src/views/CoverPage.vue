@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { fetchCoverIndex, type CoverCard, type CoverSource } from '../api/coverIndex'
-import { INLINE_LINK_CLASS, LIST_CARD_LINK_CLASS } from '../components/linkStyles'
+import { ACTION_LINK_CLASS, LIST_CARD_LINK_CLASS } from '../components/linkStyles'
 import ListSkeleton from '../components/ListSkeleton.vue'
+import PageHeader from '../components/PageHeader.vue'
+import { PROSE_LEAD_CLASS } from '../components/proseStyles'
 
 const UNAVAILABLE_COPY: Record<CoverSource, string> = {
   scenario: "Couldn't load the curated networks.",
@@ -26,18 +28,25 @@ fetchCoverIndex()
 <template>
   <main class="flex flex-1 flex-col p-(--page-padding)">
     <div class="flex-1">
-      <h1 class="font-display text-display text-ink-true">
-        Sparks Effect
-      </h1>
+      <PageHeader title="Sparks Effect" />
 
       <p
-        class="font-body text-body mt-6 max-w-[560px] text-ink-muted"
+        :class="PROSE_LEAD_CLASS"
+        class="max-w-[560px]"
         data-testid="cover-lede"
       >
-        A splash zone is everywhere you can reach from one spot within a time budget, on foot,
+        A splash zone is everywhere you can reach from one spot within a set travel time, on foot,
         by bike, by car, or by riding a hypothetical transit line. Pick a line or network below,
         then choose where to start.
       </p>
+      <router-link
+        to="/how-it-works"
+        :class="ACTION_LINK_CLASS"
+        class="mt-4 inline-block"
+        data-testid="cover-how-it-works"
+      >
+        How it works →
+      </router-link>
 
       <section class="mt-12">
         <h2 class="font-display text-h2 text-ink-true">
@@ -51,7 +60,7 @@ fetchCoverIndex()
         />
         <p
           v-else-if="error"
-          class="font-body text-caption mt-3 text-error"
+          class="t-error mt-3"
           role="alert"
           data-testid="scenarios-error"
         >
@@ -61,7 +70,7 @@ fetchCoverIndex()
           <p
             v-for="source in unavailable"
             :key="source"
-            class="font-body text-caption mt-3 text-error"
+            class="t-error mt-3"
             role="alert"
             data-testid="scenarios-partial"
           >
@@ -71,16 +80,10 @@ fetchCoverIndex()
                empty list is not evidence that nothing is published. -->
           <p
             v-if="cards.length === 0 && unavailable.length === 0"
-            class="font-body text-caption mt-3 text-ink-muted italic"
+            class="t-note mt-3 text-ink-muted"
             data-testid="scenarios-empty"
           >
             No lines or networks yet.
-            <router-link
-              to="/how-it-works"
-              :class="['not-italic', INLINE_LINK_CLASS]"
-            >
-              How it works
-            </router-link>
           </p>
           <ul
             v-if="cards.length > 0"
@@ -98,7 +101,7 @@ fetchCoverIndex()
                 {{ card.name }}
                 <span
                   v-if="card.caption"
-                  class="text-micro text-ink-muted"
+                  class="t-meta text-ink-muted"
                 >{{ card.caption }}</span>
               </router-link>
             </li>

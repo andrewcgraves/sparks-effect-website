@@ -26,6 +26,12 @@ export const STATION_DOT_DEFAULT_COLOR = '#ffffff'
 
 export const ROUTE_LINE_WIDTH = 2.5
 
+export const PROGRESS_LINE_DASH = [1, 3.5] as const
+
+export const STATION_DOT_RADIUS = 5
+
+export const STATION_DOT_STROKE_WIDTH = 2
+
 // The furthest a stop may sit from the alignment it is a stop on: the authoring
 // API rejects a placement further off-route than this. A leg whose two stations
 // both project inside it is a leg of the line it is being drawn along.
@@ -326,7 +332,7 @@ export function useRouteLayer(
     paint: {
       'line-color': ink,
       'line-width': ROUTE_LINE_WIDTH,
-      'line-dasharray': [1, 3.5],
+      'line-dasharray': [...PROGRESS_LINE_DASH],
     },
   })
 
@@ -377,9 +383,9 @@ export function useRouteLayer(
     type: 'circle',
     source: STATION_SOURCE_ID,
     paint: {
-      'circle-radius': 5,
+      'circle-radius': STATION_DOT_RADIUS,
       'circle-color': stationDotColor(reachableStationSlugs(plot), highlightColor),
-      'circle-stroke-width': 2,
+      'circle-stroke-width': STATION_DOT_STROKE_WIDTH,
       'circle-stroke-color': ink,
     },
   })

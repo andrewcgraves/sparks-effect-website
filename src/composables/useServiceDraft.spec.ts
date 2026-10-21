@@ -357,6 +357,35 @@ describe('useServiceDraft', () => {
       expect(useDraftsStore().editingServiceId).toBe('svc1')
     })
 
+    it('says the line now belongs to someone else, and discards the edit, when the save 404s', async () => {
+      vi.mocked(updateService).mockRejectedValue(new ApiError('PUT /api/services/northbound-express failed: 404', 404))
+      const draft = useServiceDraft('northbound-express')
+      await draft.start()
+      draft.name.value = 'Renamed'
+
+      await draft.submit()
+
+      expect(draft.handedOver.value).toBe(true)
+      expect(useDraftsStore().editingServiceId).toBeNull()
+      expect(useDraftsStore().serviceDraft).toBeNull()
+      expect(compileService).not.toHaveBeenCalled()
+    })
+
+    it('hands a set-aside create draft back when a transferred-away edit is discarded', async () => {
+      vi.mocked(updateService).mockRejectedValue(new ApiError('PUT /api/services/northbound-express failed: 404', 404))
+      const drafts = useDraftsStore()
+      drafts.startServiceDraft()
+      drafts.addStop({ name: 'Half-authored', lat: 1, lng: 2, seq: 0 })
+      const draft = useServiceDraft('northbound-express')
+      await draft.start()
+      draft.name.value = 'Renamed'
+
+      await draft.submit()
+
+      expect(drafts.editingServiceId).toBeNull()
+      expect(drafts.serviceDraft?.stops.map((s) => s.name)).toEqual(['Half-authored'])
+    })
+
     // The saved edit stays on the form until the page is left, so the recompile
     // can be waited on, or fail, in front of it.
     it('sets aside a create draft in progress and hands it back once the edit is saved and left', async () => {

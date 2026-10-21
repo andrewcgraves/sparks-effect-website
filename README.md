@@ -1,7 +1,7 @@
 # sparks-effect-website
 
 Vue (Vite) frontend for the Sparks Effect isochrone map — visualizing "splash zones" reachable by
-walking, biking, transit, and driving from an imaginary transit route, talking to a Go API proxy.
+walking, biking, transit, and driving from an imaginary transit line, talking to a Go API proxy.
 
 ## Branching and releases
 
@@ -45,6 +45,16 @@ Each target installs dependencies automatically if needed, so `make test`, `make
 and `make run` all work from a clean checkout. `make dev-workflow` is the target to run for an
 end-to-end check (e.g. from an agent or pre-push hook) since it doesn't start a long-running server.
 
+## Styling
+
+Text uses one of the `t-*` roles in [`src/theme.css`](src/theme.css) (`t-body`, `t-field`,
+`t-meta` and so on), with a separate colour utility. Colours, radii and shadows use the
+tokens in the same file, e.g. `rounded-(--radius-field)` or `shadow-(--shadow-panel)`, and
+`bg-white/92` is the one translucent overlay. [`src/designScheme.spec.ts`](src/designScheme.spec.ts)
+enforces this. A raw size, radius, shadow, weight, tint or hex colour anywhere in `src`
+fails the test. Hex is allowed only in the few files it names, where MapLibre paint or an SVG
+fill needs a literal colour. To change the scheme, change `theme.css`.
+
 ## Analytics
 
 Page views come from `<Analytics />` (`@vercel/analytics/vue`, mounted in
@@ -79,6 +89,11 @@ Errors go to Grafana Cloud Frontend Observability through the Faro Web SDK
 (`src/errorReporting/`, SPA-380), next to the API's error reports. Like
 analytics, this only switches on in a production build, and only when
 `VITE_FARO_URL` is set. Dev keeps errors in the console.
+
+The SDK is imported after the app mounts, so first render does not wait on it
+(SPA-493). Until it starts, reports, uncaught errors and unhandled rejections
+are queued and handed to it when it does; if its chunk fails to load, the queue
+is dropped.
 
 What is reported:
 
@@ -255,15 +270,70 @@ route's editor; the line editor picks that route once its draft has started
 and drops the query, so a reload or a shared link does not pick it again over
 whatever was chosen since. Only a path on this site is followed back.
 
+## Legal pages
+
+`/privacy`, `/terms` and `/attribution` (SPA-420) are static Vue views
+(`src/views/PrivacyView.vue`, `TermsView.vue`, `AttributionView.vue`) on the
+shared `ProsePage` shell, which dates each one. Every page holds an `UPDATED`
+constant; bump it whenever that page's copy changes, since the date is the
+only thing that tells a reader the text moved. The one address all three ask
+people to write to is `CONTACT_EMAIL` in `src/legal/contact.ts`.
+
+`/about` (SPA-525) sits on the same shell: where the name comes from, what the
+site is for, who builds and maintains Sparks Effect, Californians for Electric Rail's own description of
+itself (quoted word for word from calelectricrail.org/about, so re-check it
+there before editing), and their website and Bluesky.
+
+`/how-it-works` sits on the same shell and is dated the same way. It explains
+where the numbers come from but leaves every credit to `/attribution`. Its
+tour (`src/components/MapTour.vue`) draws a real plot, 90 minutes by Transit
+from Little Tokyo on California High-Speed Rail, frozen in
+`src/fixtures/tourSample.json` by `make tour-fixture`, through the same layer
+modules the network page uses (`splashZoneModules` in
+`src/composables/siteMap.ts`); its key swatches are the map key's own
+(`src/components/KeySwatch.vue`). The fixture's lines are simplified to keep it
+small, so the script re-measures each unfinished leg on the simplified line and
+fails if the point its budget ran out moves more than 50 m. Re-run it when the network or the
+router changes what a plot looks like; the tour's captions read their station
+names and minutes from the fixture, so they follow it.
+
+What each page says follows the code, so a change to the code is a change to
+the copy:
+
+- The privacy policy names every third party that receives data: Vercel
+  (hosting, analytics), Railway (API, database), Stadia Maps (address search,
+  tiles on previews), OpenFreeMap (tiles) and Grafana Cloud (error reports,
+  cluster logs). Adding a processor, a custom analytics event, or anything
+  kept in `localStorage` means adding it there.
+- The terms link How it works and Report a problem only once those routes
+  exist, the same rule as the footer.
+- The attribution page carries the wording SPA-419 found each licence to
+  require. Its tile credit follows `resolveTileCredit`, like the footer's. Two
+  things it cannot yet state are offered on request instead: the per-build
+  Geofabrik extract dates and Valhalla version (the ODbL §4.6 "method of
+  making the alterations"), and the full agency list from the serving
+  generation's `gtfs-manifest.csv`, which lives in the private cluster config.
+  Both become static text once the API exposes generation metadata.
+
+The map itself credits only OpenStreetMap (`MAP_CREDITS` in
+`src/composables/siteMap.ts`, SPA-507). `createSiteMap` loads the style through
+`withoutSourceCredits`, which blanks each source's `attribution` so the tile
+host, OpenMapTiles and OpenStreetMap entries in the style's TileJSON don't show.
+Every provider credit (511, San Joaquin RTD, the tile host, OpenMapTiles,
+Stadia, MapLibre) lives in the footer and on `/attribution` instead, even where
+SPA-419 found a licence asking for a credit next to the data.
+
 ## Link previews
 
 Link-unfurl crawlers (Slackbot, Discordbot, iMessage, …) run no JavaScript, so a
 shared link's title and description have to be in the HTML. `middleware.ts` is
-Vercel Routing Middleware for the public pages only — `/`, `/scenario/:slug`,
-`/services/:slug`, `/routes/:slug`. It fetches the deployment's own
-`/index.html` and the page's public read (both within 1.5 s, side by side), and
-splices that page's `<title>`, `description`, `og:*` and `twitter:card` tags
-into the head. The tag building lives in `src/share/linkPreview.ts`.
+Vercel Routing Middleware for the public pages only — `/`, `/how-it-works`,
+`/about`, `/scenario/:slug`, `/services/:slug`, `/routes/:slug`. It fetches the
+deployment's own `/index.html` and the page's public read (both within 1.5 s,
+side by side), and splices that page's `<title>`, `description`, `og:*` and
+`twitter:card` tags into the head. `/how-it-works` and `/about` read nothing:
+their cards are fixed copy (`STATIC_PAGES`). The tag building lives in
+`src/share/linkPreview.ts`.
 
 - `og:url` comes from the request's host, never the build, so a build promoted
   from staging names production.

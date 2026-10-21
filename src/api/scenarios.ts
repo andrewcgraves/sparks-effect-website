@@ -65,6 +65,7 @@ export interface ScenarioDetail {
   id: string
   slug: string
   name: string
+  subtext?: string
   description: string
   status: string
   routes: Route[]
@@ -83,6 +84,7 @@ export function fetchScenarioTravelTimes(scenarioSlug: string): Promise<TravelTi
 export interface ScenarioSummary {
   slug: string
   name: string
+  subtext?: string
   description: string
 }
 

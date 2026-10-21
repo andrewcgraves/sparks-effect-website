@@ -13,7 +13,7 @@ body {
   font-size: 16px;
   line-height: 1.5;
   color: var(--color-ink);
-  background: #ffffff;
+  background: var(--color-white);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -26,15 +26,23 @@ body {
   min-height: 100svh;
 }
 
-*:focus-visible {
-  outline: var(--focus-ring-width) solid var(--color-focus);
-  outline-offset: var(--focus-ring-offset);
-  border-radius: 8px;
+/* A hairline just off the element, so keyboard focus reads as an edge rather
+   than a halo. It lives in the base layer so that focus-visible utilities on
+   individual elements win over it; unlayered, it would beat every utility
+   regardless of specificity, and FIELD_INPUT_CLASS's outline-none would lose. */
+@layer base {
+  *:focus-visible {
+    outline: var(--focus-ring-width) solid var(--color-focus);
+    outline-offset: var(--focus-ring-offset);
+  }
 }
 
+/* Ink on a coral tint, like a selected choice (SPA-510): white on solid coral
+   is 3.36:1. The tint is 30% rather than the choice's 10% so a selection still
+   stands out from the page around it. */
 ::selection {
-  background: var(--color-coral);
-  color: #ffffff;
+  background: color-mix(in srgb, var(--color-coral) 30%, transparent);
+  color: var(--color-ink);
 }
 
 @media (prefers-reduced-motion: reduce) {

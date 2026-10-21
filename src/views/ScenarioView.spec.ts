@@ -16,7 +16,7 @@ vi.mock('../api/isochrone', async (importOriginal) => {
 
 const mockUseScenario = vi.fn()
 vi.mock('../composables/useScenario', () => ({
-  useScenario: (slug: string) => mockUseScenario(slug),
+  useScenario: (slug: string) => ({ subtext: ref(''), ...mockUseScenario(slug) }),
 }))
 
 vi.mock('../api/scenarios', async (importOriginal) => {
@@ -46,6 +46,7 @@ import type { PrerenderedIsochrone } from '../api/prerenderedIsochrones'
 import type { ChainResponse } from '../fixtures/isochrone'
 import { formatTimeRemaining } from '../components/timeRemaining'
 import { busyRegion, visibleText } from '../test/loading'
+import { hopCells } from '../test/stationTimes'
 
 const stubStations: Station[] = [
   {
@@ -75,6 +76,11 @@ const stubStations: Station[] = [
 ]
 
 const NEARBY_ORIGIN = { lat: 37.71, lng: -122.41 }
+
+// v-show hides with an inline display: none somewhere up the tree.
+function shown(element: Element): boolean {
+  return !element.closest('[style*="display: none"]')
+}
 
 const DISTANT_ORIGIN = { lat: 51.5074, lng: -0.1278 }
 
@@ -207,6 +213,28 @@ describe('ScenarioView', () => {
     const wrapper = mountScenarioView()
     expect(wrapper.findAll('h2').map((h) => h.text())).toContain('Description')
     expect(wrapper.text()).toContain('California High-Speed Rail')
+  })
+
+  it('shows the subtext under the name and keeps the description\'s paragraph breaks', () => {
+    mockUseScenario.mockReturnValue({
+      name: ref('CA HSR'),
+      subtext: ref('Electrified · High-speed rail · Greenfield'),
+      description: ref('San Francisco to Anaheim.\n\nSources: CAHSR.'),
+      routes: ref([]),
+      stations: ref(stubStations),
+      services: ref([]),
+      loading: ref(false),
+    })
+    const wrapper = mountScenarioView()
+    expect(wrapper.get('hgroup [data-testid="scenario-subtext"]').text()).toBe('Electrified · High-speed rail · Greenfield')
+    const description = wrapper.get('[data-testid="scenario-description"]')
+    expect(description.classes()).toContain('whitespace-pre-line')
+    expect(description.element.textContent).toContain('Anaheim.\n\nSources')
+  })
+
+  it('shows no subtext line when the scenario has none', () => {
+    const wrapper = mountScenarioView()
+    expect(wrapper.find('[data-testid="scenario-subtext"]').exists()).toBe(false)
   })
 
   it.each([
@@ -345,7 +373,7 @@ describe('ScenarioView', () => {
     await flushPromises()
     expect(wrapper.findComponent({ name: 'MapView' }).props('loading')).toBe(false)
     expect(wrapper.findComponent({ name: 'IsochroneForm' }).props('error')).toBe(
-      'Failed to generate isochrone. Please try again.',
+      "Couldn't plot this splash zone. Please try again.",
     )
   })
 
@@ -418,18 +446,17 @@ describe('ScenarioView', () => {
     await flushPromises()
     expect(fetchScenarioTravelTimes).toHaveBeenCalledWith('ca-hsr')
     expect(wrapper.text()).not.toContain('Speed graph')
-    const section = wrapper.get('[data-testid="time-between-stations"]')
-    expect(section.get('[data-testid="station-time-row"]').findAll('td').map((td) => td.text()))
-      .toEqual(['San Francisco', 'San Jose', '40:45'])
+    const section = wrapper.get('[data-testid="stations"]')
+    expect(hopCells(section)[0]).toEqual(['San Francisco', 'San Jose', '40:45'])
   })
 
   // The fixture is one symmetric hop on one route: nothing to toggle between,
-  // and one table needs no heading to be told apart from its neighbours.
-  it('offers no direction toggle or heading for a scenario of one symmetric corridor', async () => {
+  // and with no route name the group is titled by the stations at its ends.
+  it('offers no direction toggle for a scenario of one symmetric corridor', async () => {
     const wrapper = mountScenarioView()
     await flushPromises()
     expect(wrapper.find('[data-testid="direction-toggle"]').exists()).toBe(false)
-    expect(wrapper.find('[data-testid="station-time-group-label"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="station-time-group-label"]').text()).toBe('San Francisco – San Jose')
   })
 
   // The shape the seeded ca-hsr payload actually has: a mainline, then a spur
@@ -486,7 +513,7 @@ describe('ScenarioView', () => {
       })
     })
 
-    it('draws one table per route, each headed with the line it belongs to', async () => {
+    it('draws one group per route, each headed with the line it belongs to', async () => {
       const wrapper = mountScenarioView()
       await flushPromises()
       const groups = wrapper.findAll('[data-testid="station-time-group"]')
@@ -498,9 +525,9 @@ describe('ScenarioView', () => {
       const wrapper = mountScenarioView()
       await flushPromises()
       const groups = wrapper.findAll('[data-testid="station-time-group"]')
-      expect(groups[0].findAll('[data-testid="direction-toggle"]').map((b) => b.text()))
+      expect(groups[0].findAll('[data-testid="direction-toggle"] label').map((b) => b.text()))
         .toEqual(['To Anaheim', 'To San Francisco'])
-      expect(groups[1].findAll('[data-testid="direction-toggle"]').map((b) => b.text()))
+      expect(groups[1].findAll('[data-testid="direction-toggle"] label').map((b) => b.text()))
         .toEqual(['To Las Vegas', 'To Palmdale'])
     })
 
@@ -510,9 +537,8 @@ describe('ScenarioView', () => {
       const wrapper = mountScenarioView()
       await flushPromises()
       const mainline = wrapper.findAll('[data-testid="station-time-group"]')[0]
-      await mainline.findAll('[data-testid="direction-toggle"]')[1].trigger('click')
-      expect(mainline.findAll('[data-testid="station-time-row"]')
-        .map((row) => row.findAll('td').map((td) => td.text())))
+      await mainline.get('[data-testid="direction-toggle-option-1"]').setValue(true)
+      expect(hopCells(mainline))
         .toEqual([
           ['Anaheim', 'Palmdale', '20:00'],
           ['Palmdale', 'San Jose', '40:00'],
@@ -545,6 +571,238 @@ describe('ScenarioView', () => {
     expect(wrapper.findComponent({ name: 'MapView' }).props('origin')).toBeNull()
   })
 
+  // SPA-504: one card reads the network in line order before a plot and after
+  // it, where Time remaining and Time between stations used to sit stacked.
+  describe('the Stations card', () => {
+    const corridor: TravelTimes = {
+      ...stubTravelTimes,
+      segments: [
+        { from: 'sf', to: 'sj', run_seconds: 2445 },
+        { from: 'sj', to: 'gilroy', run_seconds: 900, reverse_run_seconds: 960 },
+      ],
+    }
+
+    // Boarded at San Francisco, rode to San Jose, ran out halfway to Gilroy.
+    const corridorIsochrone: ChainResponse = {
+      ...stubIsochrone,
+      metadata: {
+        ...stubIsochrone.metadata,
+        origin_budget_mins: 120,
+        reachable_stations: [
+          { station_slug: 'sf', access_mins: 5, access_secs: 300, remaining_mins: 115, remaining_secs: 6900 },
+          {
+            station_slug: 'sj',
+            access_mins: 5,
+            access_secs: 300,
+            remaining_mins: 70,
+            remaining_secs: 4200,
+            predecessor_slug: 'sf',
+            board_slug: 'sf',
+            legs: [{ from: 'sf', to: 'sj', service_id: 'svc-trunk', secs: 2445, dwell_s: 60 }],
+          },
+        ],
+        trip_progress: [{
+          from: 'sj',
+          to: 'gilroy',
+          route_id: 'route-1',
+          service_id: 'svc-trunk',
+          fraction: 0.5,
+          from_chainage_m: 0,
+          to_chainage_m: 1,
+          remaining_secs: 0,
+          ride_secs: 900,
+        }],
+      },
+    }
+
+    function leftColumn(wrapper: ReturnType<typeof mountScenarioView>): string[] {
+      return wrapper.findAll('[data-testid="station-time-left"]').map((cell) => visibleText(cell).trim())
+    }
+
+    function stationRow(wrapper: ReturnType<typeof mountScenarioView>, name: string) {
+      return wrapper.findAll('[data-testid="station-time-stop"]')
+        .find((row) => row.get('[data-testid="station-time-stop-name"]').text() === name)!
+    }
+
+    async function corridorPage(plotted = true) {
+      vi.mocked(fetchScenarioTravelTimes).mockResolvedValue(corridor)
+      vi.mocked(fetchIsochrone).mockResolvedValue(corridorIsochrone)
+      const wrapper = mountScenarioView()
+      await flushPromises()
+      if (plotted) {
+        await wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('submit', {
+          ...NEARBY_ORIGIN,
+          duration: 120,
+          mode: 'walk',
+        })
+        await flushPromises()
+      }
+      return wrapper
+    }
+
+    it('replaces both of the old cards, before a plot and after one', async () => {
+      const before = await corridorPage(false)
+      const after = await corridorPage()
+      for (const wrapper of [before, after]) {
+        expect(wrapper.find('[data-testid="stations"]').exists()).toBe(true)
+        expect(wrapper.find('[data-testid="time-remaining"]').exists()).toBe(false)
+        expect(wrapper.find('[data-testid="time-between-stations"]').exists()).toBe(false)
+      }
+    })
+
+    it('reads as the timetable before a plot: run times, a direction toggle, no time left', async () => {
+      const wrapper = await corridorPage(false)
+
+      expect(hopCells(wrapper)).toEqual([
+        ['San Francisco', 'San Jose', '40:45'],
+        ['San Jose', 'Gilroy', '15:00'],
+      ])
+      expect(wrapper.find('[data-testid="direction-toggle"]').exists()).toBe(true)
+      expect(wrapper.get('[data-testid="station-time-group-summary"]').text()).toBe('3 stops · 56 min')
+      expect(wrapper.find('[data-testid="station-time-left"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="stations-plot-summary"]').exists()).toBe(false)
+    })
+
+    it('adds the time left on arrival after a plot, in the same line order', async () => {
+      const wrapper = await corridorPage()
+
+      expect(wrapper.findAll('[data-testid="station-time-stop-name"]').map((n) => n.text()))
+        .toEqual(['San Francisco', 'San Jose', 'Gilroy'])
+      expect(leftColumn(wrapper)).toEqual(['1h 55m', '1h 10m', '—'])
+      expect(wrapper.get('[data-testid="station-time-group-summary"]').text()).toBe('2 of 3 reached')
+      expect(wrapper.get('[data-testid="stations-plot-summary"]').text())
+        .toBe('Starting point · Walk · 2h 0m travel time')
+    })
+
+    it('reads each hop the way it was ridden, and how far an unfinished one got', async () => {
+      const wrapper = await corridorPage()
+
+      expect(wrapper.find('[data-testid="direction-toggle"]').exists()).toBe(false)
+      expect(hopCells(wrapper)).toEqual([
+        ['San Francisco', 'San Jose', '↓ 40:45'],
+        ['San Jose', 'Gilroy', '↓ 50% of 15:00'],
+      ])
+    })
+
+    it('marks the station boarded from the starting point', async () => {
+      const wrapper = await corridorPage()
+
+      expect(stationRow(wrapper, 'San Francisco').findAll('[data-testid="station-time-stop-note"]').map((n) => n.text()))
+        .toEqual(['Boarded here · 5m from starting point'])
+    })
+
+    it('hands the map the same time left the card shows', async () => {
+      const wrapper = await corridorPage()
+      const remainingSecs = wrapper.findComponent({ name: 'MapView' }).props('remainingSecs') as
+        (slug: string) => number | null
+
+      expect(formatTimeRemaining(remainingSecs('sj')!)).toBe(leftColumn(wrapper)[1])
+    })
+
+    it('raises a hovered station to the map and opens what its number hides', async () => {
+      const wrapper = await corridorPage()
+
+      await stationRow(wrapper, 'San Jose').trigger('mouseenter')
+
+      expect(wrapper.findComponent({ name: 'MapView' }).props('activeStation')).toBe('sj')
+      expect(stationRow(wrapper, 'San Jose').get('[data-testid="time-remaining-detail"]').text())
+        .toContain('Rode in from San Francisco')
+    })
+
+    it('opens a station hovered on the map and scrolls it into view inside the card', async () => {
+      const wrapper = await corridorPage()
+      const list = wrapper.get('[data-testid="station-time-group"]').element.parentElement as HTMLElement
+      const row = stationRow(wrapper, 'San Jose').element as HTMLElement
+      list.getBoundingClientRect = () => ({ top: 100, bottom: 300 }) as DOMRect
+      row.getBoundingClientRect = () => ({ top: 340, bottom: 380 }) as DOMRect
+
+      await wrapper.findComponent({ name: 'MapView' }).vm.$emit('station-hover', 'sj')
+      await flushPromises()
+
+      expect(list.scrollTop).toBe(80)
+      expect(stationRow(wrapper, 'San Jose').find('[data-testid="time-remaining-detail"]').exists()).toBe(true)
+    })
+
+    it('falls back to the time-remaining graph when there are no run times to read a plot along', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+      vi.mocked(fetchScenarioTravelTimes).mockRejectedValue(new Error('down'))
+      vi.mocked(fetchIsochrone).mockResolvedValue(corridorIsochrone)
+      const wrapper = mountScenarioView()
+      await wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('submit', {
+        ...NEARBY_ORIGIN,
+        duration: 120,
+        mode: 'walk',
+      })
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="stations"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="time-remaining"]').exists()).toBe(true)
+    })
+
+    it('scrolls its own list beside the desktop map', async () => {
+      const wrapper = await corridorPage()
+      const list = wrapper.get('[data-testid="station-time-group"]').element.parentElement as HTMLElement
+
+      expect(list.className).toContain('overflow-y-auto')
+      expect(list.className).toContain('max-h-')
+    })
+
+    // SPA-508: the list used to scroll inside the scrolling phone panel, and a
+    // swipe that started on it stopped at the list's end.
+    describe('in the phone panel', () => {
+      beforeEach(() => {
+        window.innerWidth = 390
+      })
+
+      afterEach(() => {
+        window.innerWidth = 1024
+      })
+
+      function lists(wrapper: ReturnType<typeof mountScenarioView>) {
+        return {
+          panel: wrapper.get('[data-testid="phone-panel-scroller"]').element as HTMLElement,
+          list: wrapper.get('[data-testid="station-time-group"]').element.parentElement as HTMLElement,
+        }
+      }
+
+      it('leaves the scrolling to the panel', async () => {
+        const wrapper = await corridorPage()
+        const { list } = lists(wrapper)
+
+        expect(list.className).not.toContain('overflow-y-auto')
+        expect(list.className).not.toContain('max-h-')
+      })
+
+      it('scrolls the panel, not the list, to a station picked on the map', async () => {
+        const wrapper = await corridorPage()
+        const { panel, list } = lists(wrapper)
+        panel.getBoundingClientRect = () => ({ top: 100, bottom: 300 }) as DOMRect
+        ;(stationRow(wrapper, 'San Jose').element as HTMLElement).getBoundingClientRect =
+          () => ({ top: 340, bottom: 380 }) as DOMRect
+
+        await wrapper.findComponent({ name: 'MapView' }).vm.$emit('station-hover', 'sj')
+        await flushPromises()
+
+        expect(panel.scrollTop).toBe(80)
+        expect(list.scrollTop).toBe(0)
+      })
+
+      // Hidden by v-show, the row measures as a zero box at the top of the
+      // viewport, which would read as "above the panel" and scroll the Plot tab.
+      it('leaves the tab in view where it was when the station is on another tab', async () => {
+        const wrapper = await corridorPage(false)
+        const { panel } = lists(wrapper)
+        panel.getBoundingClientRect = () => ({ top: 100, bottom: 300 }) as DOMRect
+        panel.scrollTop = 120
+
+        await wrapper.findComponent({ name: 'MapView' }).vm.$emit('station-hover', 'sj')
+        await flushPromises()
+
+        expect(panel.scrollTop).toBe(120)
+      })
+    })
+  })
+
   describe('picking the origin on the map', () => {
     it('arms MapView with an origin cue when IsochroneForm emits pick-armed', async () => {
       const wrapper = mountScenarioView()
@@ -553,7 +811,7 @@ describe('ScenarioView', () => {
       await wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('pick-armed', true)
 
       expect(wrapper.findComponent({ name: 'MapView' }).props('placementArmed')).toBe(true)
-      expect(wrapper.findComponent({ name: 'MapView' }).props('placementCue')).toBe('Click the map to set origin — Esc to cancel')
+      expect(wrapper.findComponent({ name: 'MapView' }).props('placementCue')).toBe('Click the map to set the starting point — Esc to cancel')
     })
 
     it('disarms MapView when IsochroneForm reports the pick is over', async () => {
@@ -576,508 +834,6 @@ describe('ScenarioView', () => {
     })
   })
 
-  describe('the Time remaining card', () => {
-    // alpha --trunk--> beta, with beta forking on to gamma and delta. Enough
-    // shape to see the graph fork, the flags, and a change of service.
-    const journeyIsochrone: ChainResponse = {
-      type: 'FeatureCollection',
-      features: [],
-      metadata: {
-        reachable_stations: [
-          { station_slug: 'sf', access_mins: 5, access_secs: 300, remaining_mins: 115, remaining_secs: 6900 },
-          {
-            station_slug: 'sj',
-            access_mins: 5,
-            access_secs: 300,
-            remaining_mins: 90,
-            remaining_secs: 5400,
-            predecessor_slug: 'sf',
-            board_slug: 'sf',
-            board_wait_secs: 600,
-            legs: [{ from: 'sf', to: 'sj', service_id: 'svc-trunk', secs: 900, dwell_s: 60 }],
-          },
-        ],
-        origin_budget_mins: 120,
-        compile_job_id: 'compile-1',
-        mode: 'walk',
-        wait_model: 'headway_over_2_peak',
-        origin_iso_available: true,
-      },
-    }
-
-    // happy-dom implements no scrolling. The card no longer calls this at all,
-    // and one case below is here to keep it that way — a stub rather than the
-    // real thing so a call would be caught rather than silently ignored.
-    const scrollIntoView = vi.fn()
-    beforeEach(() => {
-      scrollIntoView.mockClear()
-      Element.prototype.scrollIntoView = scrollIntoView
-    })
-
-    async function plot(isochrone: ChainResponse = journeyIsochrone) {
-      vi.mocked(fetchIsochrone).mockResolvedValue(isochrone)
-      const wrapper = mountScenarioView()
-      await wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('submit', {
-        ...NEARBY_ORIGIN,
-        duration: 120,
-        mode: 'walk',
-      })
-      await flushPromises()
-      return wrapper
-    }
-
-    it('is absent until a plot has succeeded', () => {
-      const wrapper = mountScenarioView()
-      expect(wrapper.find('[data-testid="time-remaining"]').exists()).toBe(false)
-    })
-
-    it('stays absent while a plot is still computing, rather than flashing a skeleton', async () => {
-      vi.mocked(fetchIsochrone).mockImplementation(() => new Promise(() => {}))
-      const wrapper = mountScenarioView()
-      await wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('submit', {
-        ...NEARBY_ORIGIN,
-        duration: 120,
-        mode: 'walk',
-      })
-      await flushPromises()
-
-      expect(wrapper.find('[data-testid="time-remaining"]').exists()).toBe(false)
-    })
-
-    it('renders the starting location and every station reached, in countdown order', async () => {
-      const wrapper = await plot()
-
-      const rows = wrapper.findAll('[data-testid="time-remaining-row"]')
-      expect(rows.map((row) => row.get('[data-testid="time-remaining-value"]').text()))
-        .toEqual(['2h 0m', '1h 45m', '1h 30m'])
-      expect(rows[0].text()).toContain('Starting location')
-      expect(rows[1].text()).toContain('San Francisco')
-      expect(rows[2].text()).toContain('San Jose')
-    })
-
-    it('flags how the rider leaves each row, and leaves the end of a branch unflagged', async () => {
-      const wrapper = await plot()
-
-      const flags = wrapper.findAll('[data-testid="time-remaining-row"]')
-        .map((row) => row.find('[data-testid="time-remaining-flag"]'))
-      expect(flags[0].text()).toBe('Walk')
-      expect(flags[1].text()).toBe('svc-trunk')
-      expect(flags[2].exists()).toBe(false)
-    })
-
-    it('expands a row on hover, with the detail its single number hides', async () => {
-      const wrapper = await plot()
-      const row = wrapper.findAll('[data-testid="time-remaining-row"]')[2]
-      expect(row.find('[data-testid="time-remaining-detail"]').exists()).toBe(false)
-
-      await row.trigger('mouseenter')
-
-      const detail = wrapper.findAll('[data-testid="time-remaining-row"]')[2]
-        .get('[data-testid="time-remaining-detail"]').text()
-      expect(detail).toContain('Arrived with')
-      expect(detail).toContain('Stopped here for')
-      expect(detail).toContain('Rode in from San Francisco')
-    })
-
-    // The detail is a journey, so it reads in the order the rider lives it:
-    // the leg in, what that left them with, then the stop served here.
-    it('reads the detail in the order the rider travels it', async () => {
-      const wrapper = await plot()
-
-      await wrapper.findAll('[data-testid="time-remaining-row"]')[2].trigger('mouseenter')
-
-      const terms = wrapper.findAll('[data-testid="time-remaining-row"]')[2]
-        .get('[data-testid="time-remaining-detail"]')
-        .findAll('dt').map((term) => term.text())
-      expect(terms).toEqual(['Rode in from San Francisco', 'Arrived with', 'Stopped here for'])
-    })
-
-    // The detail used to grow the row it belonged to, which reflowed the list
-    // under the pointer and moved every row below the one being read.
-    it('shows the detail out of the list flow, so no row resizes', async () => {
-      const wrapper = await plot()
-
-      await wrapper.findAll('[data-testid="time-remaining-row"]')[2].trigger('mouseenter')
-
-      const tip = wrapper.findAll('[data-testid="time-remaining-row"]')[2]
-        .get('[data-testid="time-remaining-detail"]').element.parentElement
-      expect(tip?.className).toContain('fixed')
-      // Nothing about the row animates open any more.
-      expect(wrapper.html()).not.toContain('grid-rows-[0fr]')
-    })
-
-    it('expands a row on focus too, so the detail is reachable from the keyboard', async () => {
-      const wrapper = await plot()
-
-      await wrapper.findAll('[data-testid="time-remaining-row"]')[2].trigger('focus')
-
-      expect(wrapper.findAll('[data-testid="time-remaining-row"]')[2]
-        .find('[data-testid="time-remaining-detail"]').exists()).toBe(true)
-    })
-
-    it('expands only one row at a time', async () => {
-      const wrapper = await plot()
-      const rows = () => wrapper.findAll('[data-testid="time-remaining-row"]')
-
-      await rows()[1].trigger('mouseenter')
-      await rows()[2].trigger('mouseenter')
-
-      expect(wrapper.findAll('[data-testid="time-remaining-detail"]')).toHaveLength(1)
-    })
-
-    it('raises the hovered row all the way to the map', async () => {
-      const wrapper = await plot()
-
-      await wrapper.findAll('[data-testid="time-remaining-row"]')[2].trigger('mouseenter')
-
-      expect(wrapper.findComponent({ name: 'MapView' }).props('activeStation')).toBe('sj')
-    })
-
-    it('hands the map the same remaining number the card shows for that station', async () => {
-      const wrapper = await plot()
-      const remainingSecs = wrapper.findComponent({ name: 'MapView' }).props('remainingSecs') as
-        (slug: string) => number | null
-      const sf = wrapper.findAll('[data-testid="time-remaining-row"]')
-        .find((row) => row.attributes('data-station-slug') === 'sf')
-        ?.get('[data-testid="time-remaining-value"]').text()
-
-      expect(formatTimeRemaining(remainingSecs('sf')!)).toBe(sf)
-      expect(remainingSecs('nowhere')).toBeNull()
-    })
-
-    it('takes a station hovered on the map back and expands its row', async () => {
-      const wrapper = await plot()
-
-      await wrapper.findComponent({ name: 'MapView' }).vm.$emit('station-hover', 'sj')
-
-      const row = wrapper.findAll('[data-testid="time-remaining-row"]')[2]
-      expect(row.find('[data-testid="time-remaining-detail"]').exists()).toBe(true)
-    })
-
-    // happy-dom lays nothing out, so the geometry the card measures is stated
-    // here: a list showing rows between y=100 and y=300, and a row sitting 80px
-    // below the foot of it.
-    function placeBelowTheFold(wrapper: ReturnType<typeof mountScenarioView>, index: number) {
-      const list = wrapper.get('[data-testid="time-remaining"] ul').element as HTMLElement
-      const row = wrapper.findAll('[data-testid="time-remaining-row"]')[index].element as HTMLElement
-      list.getBoundingClientRect = () => ({ top: 100, bottom: 300 }) as DOMRect
-      row.getBoundingClientRect = () => ({ top: 340, bottom: 380 }) as DOMRect
-      return list
-    }
-
-    it('scrolls a map-originated row into view, and one of its own never', async () => {
-      const wrapper = await plot()
-      const list = placeBelowTheFold(wrapper, 1)
-
-      await wrapper.findAll('[data-testid="time-remaining-row"]')[2].trigger('mouseenter')
-      await flushPromises()
-      expect(list.scrollTop).toBe(0)
-
-      await wrapper.findComponent({ name: 'MapView' }).vm.$emit('station-hover', 'sf')
-      await flushPromises()
-      expect(list.scrollTop).toBe(80)
-    })
-
-    // scrollIntoView scrolls every scrollable ancestor an element has, the
-    // window included, so a map hover used to yank the page down to wherever
-    // this card sat.
-    it('never scrolls the page under the rider pointing at the map', async () => {
-      const wrapper = await plot()
-      placeBelowTheFold(wrapper, 1)
-
-      await wrapper.findComponent({ name: 'MapView' }).vm.$emit('station-hover', 'sf')
-      await flushPromises()
-
-      expect(scrollIntoView).not.toHaveBeenCalled()
-    })
-
-    // The connectors used to sit in a scroller, which clipped the bottom of a
-    // branch behind the scrollbar and put far lanes out of sight entirely.
-    it('never puts the connectors behind a scrollbar', async () => {
-      const wrapper = await plot()
-
-      expect(wrapper.find('[data-graph-scroller]').exists()).toBe(false)
-      expect(wrapper.html()).not.toContain('overflow-x-auto')
-    })
-
-    // San Francisco branching two ways, which is the only shape that puts a
-    // second lane on the page and so the only one that draws a fork bar.
-    const branchingIsochrone: ChainResponse = {
-      ...journeyIsochrone,
-      metadata: {
-        ...journeyIsochrone.metadata,
-        reachable_stations: [
-          ...journeyIsochrone.metadata.reachable_stations,
-          {
-            station_slug: 'gilroy',
-            access_mins: 5,
-            access_secs: 300,
-            remaining_mins: 70,
-            remaining_secs: 4200,
-            predecessor_slug: 'sf',
-            board_slug: 'sf',
-            board_wait_secs: 600,
-            legs: [{ from: 'sf', to: 'gilroy', service_id: 'svc-trunk', secs: 1500, dwell_s: 60 }],
-          },
-        ],
-      },
-    }
-
-    it('branches along a bar level with the node, then drops down each lane', async () => {
-      const wrapper = await plot(branchingIsochrone)
-      const sf = wrapper.findAll('[data-testid="time-remaining-row"]')
-        .find((row) => row.attributes('data-station-slug') === 'sf')
-
-      expect(sf).toBeDefined()
-      // One bar joining the lanes the branches leave for...
-      expect(sf!.findAll('span.h-px')).toHaveLength(1)
-      // ...and a drop down each of them, held to the row's bottom edge so it
-      // stretches as the row expands rather than being redrawn at a new angle.
-      const drops = sf!.findAll('span.w-px')
-        .filter((line) => line.attributes('style')?.includes('bottom: 0'))
-      expect(drops).toHaveLength(2)
-      // No diagonal, so nothing about the branch depends on the row's height.
-      expect(sf!.html()).not.toContain('<svg')
-    })
-
-    // A scenario with a spur: the rider rides the trunk to San Jose and
-    // changes there for the branch line.
-    const twoServiceIsochrone: ChainResponse = {
-      ...journeyIsochrone,
-      metadata: {
-        ...journeyIsochrone.metadata,
-        reachable_stations: [
-          ...journeyIsochrone.metadata.reachable_stations,
-          {
-            station_slug: 'gilroy',
-            access_mins: 5,
-            access_secs: 300,
-            remaining_mins: 60,
-            remaining_secs: 3600,
-            predecessor_slug: 'sj',
-            board_slug: 'sf',
-            board_wait_secs: 600,
-            legs: [
-              { from: 'sf', to: 'sj', service_id: 'svc-trunk', secs: 900, dwell_s: 60 },
-              { from: 'sj', to: 'gilroy', service_id: 'svc-spur', secs: 1800, dwell_s: 30 },
-            ],
-          },
-        ],
-      },
-    }
-
-    it('offers a switcher between the lines, opening on the first of them', () => {
-      return plot(twoServiceIsochrone).then((wrapper) => {
-        const labels = wrapper.findAll('[data-testid="time-remaining-service"] label').map((l) => l.text())
-        // One tab per line and no tab for the walk to San Francisco, which the
-        // trunk's own view already opens with (SPA-243).
-        expect(labels).toEqual(['svc-trunk', 'svc-spur'])
-        expect(wrapper.findAll('[data-testid="time-remaining-row"]').map((r) => r.text()))
-          .toEqual(expect.arrayContaining([expect.stringContaining('San Jose')]))
-      })
-    })
-
-    it('cuts to the line chosen, showing that one alone', () => {
-      return plot(twoServiceIsochrone).then(async (wrapper) => {
-        await wrapper.find('[data-testid="time-remaining-service-option-1"]').setValue()
-
-        const slugs = wrapper.findAll('[data-testid="time-remaining-row"]')
-          .map((r) => r.attributes('data-station-slug'))
-        expect(slugs).toContain('gilroy')
-        // San Francisco belongs to the trunk's story, not the spur's: it is
-        // named on the starting location as where the walk went, not as a row.
-        expect(slugs).not.toContain('sf')
-      })
-    })
-
-    // SPA-342: San Jose is walked to as well, and the spur is boarded there
-    // rather than by changing off the trunk. The search set off from both.
-    const boardedApartIsochrone: ChainResponse = {
-      ...journeyIsochrone,
-      metadata: {
-        ...journeyIsochrone.metadata,
-        reachable_stations: [
-          journeyIsochrone.metadata.reachable_stations[0],
-          { station_slug: 'sj', access_mins: 20, access_secs: 1200, remaining_mins: 100, remaining_secs: 6000 },
-          {
-            station_slug: 'gilroy',
-            access_mins: 20,
-            access_secs: 1200,
-            remaining_mins: 70,
-            remaining_secs: 4200,
-            predecessor_slug: 'sj',
-            board_slug: 'sj',
-            board_wait_secs: 600,
-            legs: [{ from: 'sj', to: 'gilroy', service_id: 'svc-spur', secs: 1200 }],
-          },
-          {
-            station_slug: 'sf-north',
-            access_mins: 5,
-            access_secs: 300,
-            remaining_mins: 90,
-            remaining_secs: 5400,
-            predecessor_slug: 'sf',
-            board_slug: 'sf',
-            board_wait_secs: 600,
-            legs: [{ from: 'sf', to: 'sf-north', service_id: 'svc-trunk', secs: 900 }],
-          },
-        ],
-      },
-    }
-
-    it('names on the starting location the station the chosen line was boarded at', async () => {
-      const wrapper = await plot(boardedApartIsochrone)
-      const access = () => wrapper.findAll('[data-testid="time-remaining-access"]').map((a) => a.text())
-
-      expect(access()).toEqual(['to San Francisco, 5m'])
-      await wrapper.find('[data-testid="time-remaining-service-option-1"]').setValue()
-      expect(access()).toEqual(['to San Jose, 20m'])
-    })
-
-    it('reads Walk, not Transit, where a transit access leg walked the whole way', async () => {
-      const metadata = boardedApartIsochrone.metadata
-      const wrapper = await plot({
-        ...boardedApartIsochrone,
-        metadata: {
-          ...metadata,
-          mode: 'transit',
-          reachable_stations: metadata.reachable_stations.map((station) => ({
-            ...station,
-            access_rode_transit: (station.legs?.[0]?.from ?? station.station_slug) === 'sj',
-          })),
-        },
-      })
-      const origin = () => wrapper.findAll('[data-testid="time-remaining-row"]')[0]
-
-      expect(origin().find('[data-testid="time-remaining-flag"]').text()).toBe('Walk')
-      expect(origin().find('[data-testid="time-remaining-access"]').text()).toBe('to San Francisco, 5m')
-      await wrapper.find('[data-testid="time-remaining-service-option-1"]').setValue()
-      expect(origin().find('[data-testid="time-remaining-flag"]').text()).toBe('Transit')
-      expect(origin().find('[data-testid="time-remaining-access"]').text()).toBe('to San Jose, 20m')
-    })
-
-    it('says how each access leg was covered when one line was reached both ways', async () => {
-      const metadata = boardedApartIsochrone.metadata
-      const wrapper = await plot({
-        ...boardedApartIsochrone,
-        metadata: {
-          ...metadata,
-          mode: 'transit',
-          reachable_stations: metadata.reachable_stations.map((station) => ({
-            ...station,
-            legs: station.legs?.map((leg) => ({ ...leg, service_id: 'svc-trunk' })),
-            access_rode_transit: (station.legs?.[0]?.from ?? station.station_slug) === 'sj',
-          })),
-        },
-      })
-
-      expect(wrapper.find('[data-testid="time-remaining-flag"]').text()).toBe('Transit')
-      expect(wrapper.findAll('[data-testid="time-remaining-access"]').map((a) => a.text())).toEqual([
-        'Walk to San Francisco, 5m',
-        'Transit to San Jose, 20m',
-      ])
-    })
-
-    it('cuts to the line a station hovered on the map is on', async () => {
-      const wrapper = await plot(twoServiceIsochrone)
-      expect(wrapper.findAll('[data-testid="time-remaining-row"]').map((r) => r.text())
-        .some((text) => text.includes('Gilroy'))).toBe(false)
-
-      await wrapper.findComponent({ name: 'MapView' }).vm.$emit('station-hover', 'gilroy')
-      await flushPromises()
-
-      expect(wrapper.findAll('[data-testid="time-remaining-row"]').map((r) => r.text())
-        .some((text) => text.includes('Gilroy'))).toBe(true)
-    })
-
-    it('offers no switcher when the trip is over one line', async () => {
-      const wrapper = await plot({
-        ...journeyIsochrone,
-        metadata: {
-          ...journeyIsochrone.metadata,
-          reachable_stations: [journeyIsochrone.metadata.reachable_stations[0]],
-        },
-      })
-
-      expect(wrapper.find('[data-testid="time-remaining-service"]').exists()).toBe(false)
-    })
-
-    // The same trip, told to a page that knows both services run over one
-    // railway. That knowledge is the whole difference between two tabs and one.
-    function servicesShareOneLine() {
-      const service = (id: string, name: string) => ({
-        id,
-        route_id: 'route-1',
-        name,
-        vehicle_type: { id: 'vt-1', name: 'HSR', propulsion: 'electric', max_speed_kmh: 350 },
-        direction: 'both',
-        provenance: 'calibrated' as const,
-        stop_count: 3,
-        frequency_windows: [],
-      })
-      mockUseScenario.mockReturnValue({
-        name: ref('CA HSR'),
-        description: ref('California High-Speed Rail'),
-        routes: ref([{
-          id: 'route-1',
-          scenario_id: 's1',
-          name: 'CA HSR Phase 1 — San Francisco to Anaheim',
-          mode: 'rail',
-          geometry: { type: 'LineString' as const, coordinates: [] },
-          bidirectional: true,
-        }]),
-        stations: ref(stubStations),
-        services: ref([service('svc-trunk', 'HSR Local'), service('svc-spur', 'HSR Express')]),
-      })
-    }
-
-    it('offers one tab per railway, not one per timetable', async () => {
-      servicesShareOneLine()
-      const wrapper = await plot(twoServiceIsochrone)
-
-      // Two services over one railway are one line, and one line is the whole
-      // trip — so there is nothing left to switch between.
-      expect(wrapper.find('[data-testid="time-remaining-service"]').exists()).toBe(false)
-    })
-
-    it('draws the two services as branches of that one line, each row naming its own', async () => {
-      servicesShareOneLine()
-      const wrapper = await plot(twoServiceIsochrone)
-
-      // Both stations on one tab, where before they were a tab apart.
-      const names = wrapper.findAll('[data-testid="time-remaining-row"]').map((r) => r.text())
-      expect(names.some((text) => text.includes('San Jose'))).toBe(true)
-      expect(names.some((text) => text.includes('Gilroy'))).toBe(true)
-      // The line is one railway; which train is still the row's own business.
-      expect(wrapper.findAll('[data-testid="time-remaining-flag"]').map((f) => f.text()))
-        .toEqual(['Walk', 'HSR Local', 'HSR Express'])
-    })
-
-    it('sits above the station times, being the answer to what was just asked', async () => {
-      const wrapper = await plot()
-      const html = wrapper.html()
-      const remaining = html.indexOf('data-testid="time-remaining"')
-      const between = html.indexOf('data-testid="time-between-stations"')
-
-      // Both on the page, or the comparison below proves nothing: a card that
-      // is absent reports -1, which comes before everything.
-      expect(remaining).toBeGreaterThanOrEqual(0)
-      expect(between).toBeGreaterThanOrEqual(0)
-      expect(remaining).toBeLessThan(between)
-    })
-
-    it('draws a lone reachable station as a two-row graph', async () => {
-      const wrapper = await plot({
-        ...journeyIsochrone,
-        metadata: {
-          ...journeyIsochrone.metadata,
-          reachable_stations: [journeyIsochrone.metadata.reachable_stations[0]],
-        },
-      })
-
-      expect(wrapper.findAll('[data-testid="time-remaining-row"]')).toHaveLength(2)
-    })
-  })
   // The pre-rendered list is a second way into the same map, so what matters
   // here is that a pick lands in the same place a generated chain does.
   describe('the pre-rendered isochrones card', () => {
@@ -1128,6 +884,54 @@ describe('ScenarioView', () => {
       expect(wrapper.get('[data-testid="prerendered-entry"]').attributes('aria-pressed')).toBe('false')
     })
 
+    // SPA-501: the form and the saved splash zones were two boxes with two
+    // headings, and how to move between them was unclear.
+    it('shares one panel with the form: one heading, one box', async () => {
+      vi.mocked(listPrerenderedIsochrones).mockResolvedValue([prerendered])
+      const wrapper = mountScenarioView('ca-hsr', { MapView: true })
+      await flushPromises()
+
+      const panels = wrapper.findAll('[data-testid="plot-panel"]')
+      expect(panels).toHaveLength(1)
+      expect(panels[0].findAll('h2').map((h) => h.text())).toEqual(['Plot a splash zone'])
+      expect(panels[0].find('[data-testid="prerendered-isochrones"]').exists()).toBe(true)
+      expect(panels[0].find('form').classes()).not.toContain('border')
+    })
+
+    it('opens on Plot your own, with the saved splash zones one switch away', async () => {
+      vi.mocked(listPrerenderedIsochrones).mockResolvedValue([prerendered])
+      const wrapper = mountScenarioView('ca-hsr', { MapView: true })
+      await flushPromises()
+
+      expect(shown(wrapper.get('form').element)).toBe(true)
+      expect(shown(wrapper.get('[data-testid="plot-saved"]').element)).toBe(false)
+
+      await wrapper.get('[data-testid="plot-source-option-saved"]').setValue(true)
+
+      expect(shown(wrapper.get('form').element)).toBe(false)
+      expect(shown(wrapper.get('[data-testid="plot-saved"]').element)).toBe(true)
+    })
+
+    it('fills the form with the picked entry, and moves the pin to its starting point', async () => {
+      const wrapper = await pickFirstEntry()
+
+      expect((wrapper.get('[data-testid="lat"]').element as HTMLInputElement).value).toBe('37.7749')
+      expect((wrapper.get('[data-testid="lng"]').element as HTMLInputElement).value).toBe('-122.4194')
+      expect((wrapper.get('[data-testid="duration-slider-option-30"]').element as HTMLInputElement).checked)
+        .toBe(true)
+      expect((wrapper.get('[data-testid="mode-walk"]').element as HTMLInputElement).checked).toBe(true)
+      expect(wrapper.findComponent({ name: 'MapView' }).props('origin'))
+        .toEqual({ lat: 37.7749, lng: -122.4194 })
+    })
+
+    it('is a single form with no switch for a network that ships none', async () => {
+      const wrapper = mountScenarioView('ca-hsr', { MapView: true })
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="plot-source"]').exists()).toBe(false)
+      expect(shown(wrapper.get('form').element)).toBe(true)
+    })
+
     it('lists the isochrones this scenario ships, beside the generate form', async () => {
       vi.mocked(listPrerenderedIsochrones).mockResolvedValue([prerendered])
       const wrapper = mountScenarioView('ca-hsr', { MapView: true })
@@ -1158,12 +962,11 @@ describe('ScenarioView', () => {
 
     // The card reads isochroneData.metadata, so a pre-rendered chain has to
     // reach it by the same route a generated one does.
-    it('fills the Time remaining card from the picked chain', async () => {
+    it('fills the Stations card from the picked chain', async () => {
       const wrapper = await pickFirstEntry()
 
-      const rows = wrapper.findAll('[data-testid="time-remaining-row"]')
-      expect(rows).toHaveLength(2)
-      expect(rows[1].text()).toContain('San Francisco')
+      expect(wrapper.findAll('[data-testid="station-time-left"]').map((cell) => visibleText(cell).trim()))
+        .toEqual(['25m', '—'])
     })
 
     it('clears a stale generation error, the picked chain being the answer now', async () => {
@@ -1216,18 +1019,40 @@ describe('ScenarioView', () => {
       return wrapper.get('button[type="submit"]').element as HTMLButtonElement
     }
 
-    it('says so, disables Plot, and puts the saved examples ahead of the form', async () => {
+    it('says so, opens on the saved splash zones, and puts an explanation where the form was', async () => {
       vi.mocked(fetchRoutingStatus).mockResolvedValue('offline')
       vi.mocked(listPrerenderedIsochrones).mockResolvedValue([saved])
 
       const wrapper = await mountWithOrigin()
 
       expect(wrapper.get('[data-testid="routing-status"]').text())
-        .toBe('Live routing is offline right now. Here are some saved examples.')
+        .toBe('Live routing is offline right now. Here are some saved splash zones.')
+      expect(shown(wrapper.get('[data-testid="plot-saved"]').element)).toBe(true)
+      expect(shown(wrapper.get('[data-testid="plot-own"]').element)).toBe(false)
+
+      await wrapper.get('[data-testid="plot-source-option-plot"]').setValue(true)
+
+      expect(wrapper.get('[data-testid="plot-unavailable"]').text())
+        .toContain('isn’t available right now')
+      expect(shown(wrapper.get('form').element)).toBe(false)
       expect(plotButton(wrapper).disabled).toBe(true)
-      const examples = wrapper.get('[data-testid="prerendered-isochrones"]').element
-      const form = wrapper.get('form').element
-      expect(examples.compareDocumentPosition(form) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    })
+
+    // One outage, one colour: the banner and the panel's explanation are the
+    // same caution, so the page never shows the condition as an error as well.
+    it('shows the banner and the explanation in the same caution, with no alert', async () => {
+      vi.mocked(fetchRoutingStatus).mockResolvedValue('offline')
+      vi.mocked(listPrerenderedIsochrones).mockResolvedValue([saved])
+
+      const wrapper = await mountWithOrigin()
+      await wrapper.get('[data-testid="plot-source-option-plot"]').setValue(true)
+
+      for (const testid of ['routing-status', 'plot-unavailable']) {
+        const notice = wrapper.get(`[data-testid="${testid}"]`)
+        expect(notice.attributes('role')).toBe('status')
+        expect(notice.classes()).toEqual(expect.arrayContaining(['border-apricot', 'bg-apricot/15']))
+      }
+      expect(wrapper.find('[data-testid="plot-panel"] [role="alert"]').exists()).toBe(false)
     })
 
     it('neither promises nor rules out examples until the list has answered', async () => {
@@ -1241,7 +1066,7 @@ describe('ScenarioView', () => {
       answerList([saved])
       await flushPromises()
       expect(wrapper.get('[data-testid="routing-status"]').text())
-        .toBe('Live routing is offline right now. Here are some saved examples.')
+        .toBe('Live routing is offline right now. Here are some saved splash zones.')
     })
 
     it('only explains, without promising examples, for a network that ships none', async () => {
@@ -1251,7 +1076,7 @@ describe('ScenarioView', () => {
 
       const banner = wrapper.get('[data-testid="routing-status"]').text()
       expect(banner).toContain('Live routing is offline right now.')
-      expect(banner).not.toContain('saved examples')
+      expect(banner).not.toContain('saved splash zones')
       expect(plotButton(wrapper).disabled).toBe(true)
     })
 
@@ -1343,10 +1168,196 @@ describe('ScenarioView', () => {
     it('stops naming a plotted isochrone once a pre-rendered one replaces it', async () => {
       vi.mocked(fetchIsochrone).mockResolvedValue(stubIsochrone)
       const { wrapper, router } = await mountScenarioViewAt(linked)
-      await wrapper.findComponent({ name: 'PrerenderedIsochrones' }).vm.$emit('select', stubIsochrone)
+      await wrapper.findComponent({ name: 'PrerenderedIsochrones' }).vm.$emit('select', {
+        id: 'pre-1',
+        label: 'Downtown SF, 30 min walk',
+        lat: 37.7749,
+        lng: -122.4194,
+        budget_mins: 30,
+        mode: 'walk',
+        outdated: false,
+        created_at: '2026-08-01T12:00:00Z',
+        result: stubIsochrone,
+      } satisfies PrerenderedIsochrone)
       await flushPromises()
       expect(router.currentRoute.value.query).toEqual({})
       expect(wrapper.find('[data-testid="copy-link"]').exists()).toBe(false)
+    })
+  })
+
+  // SPA-429: below md the page gives the screen to the map and moves its
+  // controls into a tabbed panel, so a shared link opened on a phone can be
+  // plotted and read without scrolling.
+  describe('on a phone', () => {
+    const reachedIsochrone: ChainResponse = {
+      ...stubIsochrone,
+      metadata: {
+        ...stubIsochrone.metadata,
+        reachable_stations: [
+          { station_slug: 'sf', access_mins: 5, access_secs: 300, remaining_mins: 25, remaining_secs: 1500 },
+        ],
+      },
+    }
+
+    beforeEach(() => {
+      window.innerWidth = 390
+    })
+
+    afterEach(() => {
+      window.innerWidth = 1024
+    })
+
+    function tabLabels(wrapper: ReturnType<typeof mountScenarioView>) {
+      return wrapper.findAll('[role="tab"]').map((tab) => tab.text())
+    }
+
+    function tabNamed(wrapper: ReturnType<typeof mountScenarioView>, label: string) {
+      return wrapper.findAll('[role="tab"]').find((tab) => tab.text() === label)!
+    }
+
+    it('has no serious or critical accessibility violations with a splash zone plotted', async () => {
+      vi.mocked(fetchIsochrone).mockResolvedValue(reachedIsochrone)
+      const router = await testRouterAt(`/scenario/ca-hsr?at=${NEARBY_ORIGIN.lat},${NEARBY_ORIGIN.lng}&mode=walk&mins=30`)
+      const wrapper = mount(ScenarioView, {
+        props: { slug: 'ca-hsr' },
+        global: { stubs: { MapView: true }, plugins: [router] },
+        attachTo: document.body,
+      })
+      await flushPromises()
+      expect(wrapper.find('[data-testid="phone-map-page"]').exists()).toBe(true)
+      expect(await seriousA11yViolations(wrapper)).toEqual([])
+    })
+
+    it('shows the map with the controls in a tabbed panel instead of the stacked page', () => {
+      const wrapper = mountScenarioView()
+      expect(wrapper.find('[data-testid="phone-map-page"]').exists()).toBe(true)
+      expect(wrapper.get('h1').text()).toBe('CA HSR')
+      expect(tabLabels(wrapper)).toEqual(['Plot', 'Stations', 'About'])
+      expect(wrapper.findComponent({ name: 'MapView' }).exists()).toBe(true)
+      expect(wrapper.findComponent({ name: 'IsochroneForm' }).exists()).toBe(true)
+      expect(wrapper.findAll('h2').map((h) => h.text())).not.toContain('Description')
+    })
+
+    it('holds the title line with a skeleton until the network loads', () => {
+      mockUseScenario.mockReturnValue({
+        name: ref(''),
+        description: ref(''),
+        routes: ref([]),
+        stations: ref([]),
+        services: ref([]),
+        loading: ref(true),
+      })
+      const wrapper = mountScenarioView()
+      expect(wrapper.find('h1').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="phone-map-page"] [aria-busy="true"]').exists()).toBe(true)
+    })
+
+    it('keeps the stacked page on a desktop', () => {
+      window.innerWidth = 1024
+      const wrapper = mountScenarioView()
+      expect(wrapper.find('[data-testid="phone-map-page"]').exists()).toBe(false)
+      expect(wrapper.findAll('h2').map((h) => h.text())).toContain('Description')
+    })
+
+    it('opens on Plot with the timetable behind Stations, then turns to Stations on a plot', async () => {
+      vi.mocked(fetchIsochrone).mockResolvedValue(reachedIsochrone)
+      const wrapper = mountScenarioView()
+      await flushPromises()
+      expect(tabNamed(wrapper, 'Plot').attributes('aria-selected')).toBe('true')
+      expect(tabNamed(wrapper, 'Stations').attributes('disabled')).toBeUndefined()
+
+      await wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('submit', {
+        ...NEARBY_ORIGIN,
+        duration: 30,
+        mode: 'walk',
+      })
+      await flushPromises()
+
+      expect(tabNamed(wrapper, 'Stations').attributes('aria-selected')).toBe('true')
+      const results = wrapper.get('[data-testid="stations"]')
+      expect(visibleText(results.get('[data-testid="station-time-left"]')).trim()).toBe('25m')
+      expect((results.element.closest('[role="tabpanel"]') as HTMLElement).style.display).not.toBe('none')
+    })
+
+    // A refused plot clears the splash zone and says why in the form, so a
+    // panel left on the Stations tab would hide the explanation.
+    it('returns to Plot when a later plot is refused', async () => {
+      vi.mocked(fetchIsochrone).mockResolvedValue(reachedIsochrone)
+      const wrapper = mountScenarioView()
+      const form = wrapper.findComponent({ name: 'IsochroneForm' })
+      await form.vm.$emit('submit', { ...NEARBY_ORIGIN, duration: 30, mode: 'walk' })
+      await flushPromises()
+      expect(tabNamed(wrapper, 'Stations').attributes('aria-selected')).toBe('true')
+
+      await form.vm.$emit('submit', { ...DISTANT_ORIGIN, duration: 30, mode: 'walk' })
+      await flushPromises()
+
+      expect(tabNamed(wrapper, 'Plot').attributes('aria-selected')).toBe('true')
+      expect(form.props('error')).toContain('nearest station')
+    })
+
+    it('turns back to Stations for a second plot made from the Plot tab', async () => {
+      vi.mocked(fetchIsochrone).mockResolvedValue(reachedIsochrone)
+      const wrapper = mountScenarioView()
+      await wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('submit', {
+        ...NEARBY_ORIGIN,
+        duration: 30,
+        mode: 'walk',
+      })
+      await flushPromises()
+      await tabNamed(wrapper, 'Plot').trigger('click')
+      expect(tabNamed(wrapper, 'Plot').attributes('aria-selected')).toBe('true')
+
+      vi.mocked(fetchIsochrone).mockResolvedValue({ ...reachedIsochrone, features: [] })
+      await wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('submit', {
+        ...NEARBY_ORIGIN,
+        duration: 45,
+        mode: 'walk',
+      })
+      await flushPromises()
+
+      expect(tabNamed(wrapper, 'Stations').attributes('aria-selected')).toBe('true')
+    })
+
+    it('puts the time between stations behind the Stations tab', async () => {
+      const wrapper = mountScenarioView()
+      await flushPromises()
+      await tabNamed(wrapper, 'Stations').trigger('click')
+      const card = wrapper.get('[data-testid="stations"]')
+      expect((card.element.closest('[role="tabpanel"]') as HTMLElement).style.display).not.toBe('none')
+    })
+
+    it('puts the description behind the About tab, and drops the tab without one', async () => {
+      const wrapper = mountScenarioView()
+      await tabNamed(wrapper, 'About').trigger('click')
+      expect(wrapper.text()).toContain('California High-Speed Rail')
+
+      mockUseScenario.mockReturnValue({
+        name: ref('CA HSR'),
+        description: ref('   '),
+        routes: ref([]),
+        stations: ref(stubStations),
+        services: ref([]),
+        loading: ref(false),
+      })
+      expect(tabLabels(mountScenarioView())).toEqual(['Plot', 'Stations'])
+    })
+
+    it('puts the subtext behind the About tab too, keeping the tab for a scenario with only a subtext', async () => {
+      mockUseScenario.mockReturnValue({
+        name: ref('CA HSR'),
+        subtext: ref('Electrified · High-speed rail · Greenfield'),
+        description: ref(''),
+        routes: ref([]),
+        stations: ref(stubStations),
+        services: ref([]),
+        loading: ref(false),
+      })
+      const wrapper = mountScenarioView()
+      expect(tabLabels(wrapper)).toEqual(['Plot', 'Stations', 'About'])
+      await tabNamed(wrapper, 'About').trigger('click')
+      expect(wrapper.get('[data-testid="scenario-subtext"]').text()).toBe('Electrified · High-speed rail · Greenfield')
+      expect(wrapper.find('[data-testid="scenario-description"]').exists()).toBe(false)
     })
   })
 })

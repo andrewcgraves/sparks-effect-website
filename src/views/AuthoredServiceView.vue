@@ -5,17 +5,21 @@ import type { Service } from '../api/authoring/types'
 import { useOwnedDetail } from '../composables/useOwnedDetail'
 import { isochroneWaitMessage } from '../api/isochroneFault'
 import { useAuthoredGraph } from '../composables/useAuthoredGraph'
+import { useRoutingStatus } from '../composables/useRoutingStatus'
 import { usePageTitle } from '../composables/usePageTitle'
 import { useServiceDeletion } from '../composables/useDeletion'
+import { expiryDate, useHandovers } from '../composables/useHandovers'
 import ScenarioPreviewPanel from '../components/ScenarioPreviewPanel.vue'
 import PublicationControl from '../components/PublicationControl.vue'
 import TimeBetweenStations from '../components/TimeBetweenStations.vue'
 import { graphStationTimeGroups } from '../components/stationTimes'
 import { ACTION_LINK_CLASS } from '../components/linkStyles'
+import { SECONDARY_BUTTON_CLASS } from '../components/buttonStyles'
 import BreadcrumbTrail from '../components/BreadcrumbTrail.vue'
 import { AUTHORING_CRUMB } from '../components/crumbs'
 import DeleteMenu from '../components/DeleteMenu.vue'
 import PageSkeleton from '../components/PageSkeleton.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const props = defineProps<{ slug: string }>()
 
@@ -24,6 +28,8 @@ const { item: service, loading, notFound, error } = useOwnedDetail<Service>(fetc
 usePageTitle(() => service.value?.name)
 
 const stops = computed(() => [...(service.value?.stops ?? [])].sort((a, b) => a.seq - b.seq))
+
+const { offline: routingOffline } = useRoutingStatus()
 
 const {
   compiling,
@@ -47,7 +53,7 @@ const {
   compile: compileService,
   fetchGraph: fetchServiceGraph,
   isochrone: fetchServiceIsochrone,
-})
+}, { offline: () => routingOffline.value })
 
 const services = computed(() => (service.value ? [service.value] : []))
 
@@ -64,6 +70,9 @@ async function recompile(slug: string): Promise<boolean> {
 }
 
 const { deleting, confirmAndDelete } = useServiceDeletion()
+
+const handovers = useHandovers()
+const pendingHandover = computed(() => handovers.outgoingFor(props.slug))
 
 watch(service, (loaded) => {
   if (loaded) void loadGraph(loaded.slug)
@@ -84,11 +93,12 @@ watch(service, (loaded) => {
     />
 
     <template v-else-if="notFound">
-      <h1 class="font-display text-display mt-8 text-ink-true">
-        Line not found
-      </h1>
+      <PageHeader
+        class="mt-8"
+        title="Line not found"
+      />
       <p
-        class="font-body text-body mt-3 text-ink-muted"
+        class="t-body mt-3 text-ink-muted"
         data-testid="service-not-found"
       >
         No line of yours matches "{{ props.slug }}".
@@ -96,11 +106,12 @@ watch(service, (loaded) => {
     </template>
 
     <template v-else-if="error">
-      <h1 class="font-display text-display mt-8 text-ink-true">
-        Something went wrong
-      </h1>
+      <PageHeader
+        class="mt-8"
+        title="Something went wrong"
+      />
       <p
-        class="font-body text-body mt-3 text-ink-muted"
+        class="t-body mt-3 text-ink-muted"
         role="alert"
         data-testid="service-error"
       >
@@ -109,23 +120,14 @@ watch(service, (loaded) => {
     </template>
 
     <template v-else-if="service">
-      <div class="mt-8 flex items-start justify-between gap-4">
-        <hgroup class="flex flex-col gap-2">
-          <h1 class="font-display text-display text-ink-true">
-            {{ service.name }}
-          </h1>
-          <p
-            v-if="service.subtext"
-            class="font-body text-micro text-ink-muted italic uppercase"
-            data-testid="service-subtext"
-          >
-            {{ service.subtext }}
-          </p>
-          <p class="font-body text-micro text-ink-muted uppercase">
-            {{ service.slug }}
-          </p>
-        </hgroup>
-        <div class="flex items-start gap-6">
+      <PageHeader
+        class="mt-8"
+        :title="service.name"
+        :subtitle="service.subtext"
+        subtitle-testid="service-subtext"
+        :slug="service.slug"
+      >
+        <template #actions>
           <router-link
             :to="`/authoring/services/${service.slug}/edit`"
             :class="ACTION_LINK_CLASS"
@@ -133,20 +135,50 @@ watch(service, (loaded) => {
           >
             Edit
           </router-link>
+          <button
+            v-if="!pendingHandover"
+            type="button"
+            :class="ACTION_LINK_CLASS"
+            :disabled="handovers.busy.value"
+            data-testid="offer-handover"
+            @click="handovers.offer(service)"
+          >
+            Transfer…
+          </button>
           <DeleteMenu
             noun="service"
             :deleting="deleting"
             @delete="confirmAndDelete(service)"
           />
-        </div>
-      </div>
+        </template>
+      </PageHeader>
       <p
         v-if="service.description"
-        class="font-body text-body mt-3 max-w-[720px] whitespace-pre-line text-ink"
+        class="t-body mt-3 max-w-[720px] whitespace-pre-line text-ink-muted"
         data-testid="service-description"
       >
         {{ service.description }}
       </p>
+
+      <div
+        v-if="pendingHandover"
+        class="mt-6 flex max-w-[720px] flex-wrap items-center justify-between gap-3 rounded-(--radius-box) border border-border bg-surface p-4"
+        data-testid="pending-handover"
+      >
+        <p class="t-meta text-ink">
+          Waiting for {{ pendingHandover.to_name }} to accept this line.
+          The offer expires {{ expiryDate(pendingHandover) }}.
+        </p>
+        <button
+          type="button"
+          :class="SECONDARY_BUTTON_CLASS"
+          :disabled="handovers.busy.value"
+          data-testid="cancel-handover"
+          @click="handovers.cancel(pendingHandover)"
+        >
+          Cancel transfer
+        </button>
+      </div>
 
       <PublicationControl
         :slug="service.slug"
@@ -158,23 +190,23 @@ watch(service, (loaded) => {
       
       <p
         v-if="compiling && !graph"
-        class="font-body text-caption mt-8 text-ink-muted italic"
+        class="t-note mt-8 text-ink-muted"
         data-testid="compiling-status"
       >
         Compiling this line…
       </p>
       <p
         v-else-if="graphFailed"
-        class="font-body text-caption mt-8 text-error"
+        class="t-error mt-8"
         role="alert"
         data-testid="graph-error"
       >
-        Couldn't load this line's compiled graph.
+        Couldn't load this line's latest build.
       </p>
       
       <p
         v-else-if="compileError && !graph"
-        class="font-body text-caption mt-8 text-error"
+        class="t-error mt-8"
         role="alert"
         data-testid="compile-error"
       >
@@ -206,7 +238,7 @@ watch(service, (loaded) => {
           </h2>
           <p
             v-if="stops.length === 0"
-            class="font-body text-caption mt-3 text-ink-muted italic"
+            class="t-note mt-3 text-ink-muted"
             data-testid="service-stops-empty"
           >
             This line has no stops yet. Edit it to place stops along its route.
@@ -218,7 +250,7 @@ watch(service, (loaded) => {
             <li
               v-for="stop in stops"
               :key="stop.seq"
-              class="font-body text-caption flex justify-between gap-3 text-ink"
+              class="t-meta flex justify-between gap-3 text-ink"
               data-testid="service-stop-row"
             >
               <span>{{ stop.seq + 1 }}. {{ stop.name }}</span>
@@ -237,7 +269,7 @@ watch(service, (loaded) => {
           <h2 class="font-display text-h3 text-ink-true">
             Vehicle
           </h2>
-          <dl class="font-body text-caption mt-3 flex flex-col gap-1 text-ink">
+          <dl class="t-meta mt-3 flex flex-col gap-1 text-ink">
             <div class="flex justify-between gap-3">
               <dt class="text-ink-muted">
                 Max speed
@@ -271,7 +303,7 @@ watch(service, (loaded) => {
           </h2>
           <p
             v-if="service.frequency_windows.length === 0"
-            class="font-body text-caption mt-3 text-ink-muted italic"
+            class="t-note mt-3 text-ink-muted"
             data-testid="service-windows-empty"
           >
             This line has no timetable yet. Edit it to say how often it runs.
@@ -283,7 +315,7 @@ watch(service, (loaded) => {
             <li
               v-for="(window, index) in service.frequency_windows"
               :key="index"
-              class="font-body text-caption text-ink"
+              class="t-meta text-ink"
               data-testid="service-window-row"
             >
               {{ window.start_time }}–{{ window.end_time }}, every {{ Math.round(window.headway_s / 60) }} min

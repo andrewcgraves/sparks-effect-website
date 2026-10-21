@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
+import type { RouteLocationNormalized } from 'vue-router'
 
 vi.mock('../analytics/index', () => ({
   trackPageView: vi.fn(),
@@ -19,8 +20,13 @@ vi.mock('../views/PublishedServiceView.vue', () => ({ default: { props: ['slug']
 vi.mock('../views/NotFoundView.vue', () => ({ default: { template: '<div />' } }))
 vi.mock('../views/AdminView.vue', () => ({ default: { template: '<div />' } }))
 vi.mock('../views/WelcomeView.vue', () => ({ default: { props: ['token'], template: '<div />' } }))
+vi.mock('../views/HowItWorksView.vue', () => ({ default: { template: '<div />' } }))
+vi.mock('../views/PrivacyView.vue', () => ({ default: { template: '<div />' } }))
+vi.mock('../views/TermsView.vue', () => ({ default: { template: '<div />' } }))
+vi.mock('../views/AttributionView.vue', () => ({ default: { template: '<div />' } }))
 
 import { router, redirectAfterSessionExpiry } from './index'
+import { STATIC_PAGES } from '../share/linkPreview'
 import { trackPageView } from '../analytics/index'
 import { AUTH_STORAGE_KEY, useAuthStore } from '../stores/auth'
 
@@ -54,9 +60,46 @@ describe('router', () => {
     expect(trackPageView).toHaveBeenCalledWith('/routes/main-line')
   })
 
+  it('opens the How it works page to a signed-out visitor', async () => {
+    await router.push('/how-it-works')
+    expect(router.currentRoute.value.name).toBe('how-it-works')
+    expect(trackPageView).toHaveBeenCalledWith('/how-it-works')
+  })
+
   it('tracks a page view for unmatched paths using the actual route path', async () => {
     await router.push('/nope')
     expect(trackPageView).toHaveBeenCalledWith('/nope')
+  })
+
+  it('opens the privacy, terms and attribution pages to a signed-out visitor', async () => {
+    for (const [path, name] of [['/privacy', 'privacy'], ['/terms', 'terms'], ['/attribution', 'attribution']]) {
+      await router.push(path)
+      expect(router.currentRoute.value.name).toBe(name)
+      expect(trackPageView).toHaveBeenCalledWith(path)
+    }
+  })
+
+  describe('scroll position', () => {
+    const scrollBehavior = router.options.scrollBehavior!
+    const at = (path: string) => router.resolve(path) as RouteLocationNormalized
+
+    it('opens a new page at the top', async () => {
+      expect(await scrollBehavior(at('/privacy'), at('/'), null)).toEqual({ top: 0 })
+    })
+
+    it('scrolls to an anchor, as the footer\'s link to the transit agencies does', async () => {
+      expect(await scrollBehavior(at('/attribution#transit-schedules'), at('/'), null)).toEqual({ el: '#transit-schedules' })
+    })
+
+    it('stays put when only the query changes, as a plot does', async () => {
+      const from = at('/scenario/ca-hsr')
+      const to = at('/scenario/ca-hsr?at=37.3,-121.8&mode=walk&mins=60')
+      expect(await scrollBehavior(to, from, null)).toBe(false)
+    })
+
+    it('returns to where the visitor was on back and forward', async () => {
+      expect(await scrollBehavior(at('/'), at('/privacy'), { left: 0, top: 640 })).toEqual({ left: 0, top: 640 })
+    })
   })
 
   it('does not count a query change on the same page as another page view', async () => {
@@ -279,6 +322,17 @@ describe('router', () => {
     it('names a static page, suffixed with the site name', async () => {
       await router.push('/login')
       expect(document.title).toBe('Sign in · Sparks Effect')
+      await router.push('/how-it-works')
+      expect(document.title).toBe('How it works · Sparks Effect')
+    })
+
+    it('names the legal pages', async () => {
+      await router.push('/privacy')
+      expect(document.title).toBe('Privacy policy · Sparks Effect')
+      await router.push('/terms')
+      expect(document.title).toBe('Terms of use · Sparks Effect')
+      await router.push('/attribution')
+      expect(document.title).toBe('Attribution · Sparks Effect')
     })
 
     it('names the signed-in pages', async () => {
@@ -340,6 +394,46 @@ describe('router', () => {
       await router.push('/login')
       await router.push('/')
       expect(document.title).toBe('Sparks Effect')
+    })
+  })
+
+  describe('scroll position', () => {
+    const scrollBehavior = router.options.scrollBehavior!
+    const at = (path: string) => router.resolve(path) as RouteLocationNormalized
+
+    it('opens a new page at the top', async () => {
+      const from = at('/')
+      const to = at('/how-it-works')
+      expect(await scrollBehavior(to, from, null)).toEqual({ top: 0 })
+    })
+
+    it('stays put when only the query changes, as a plot does', async () => {
+      const from = at('/scenario/ca-hsr')
+      const to = at('/scenario/ca-hsr?at=37.3,-121.8&mode=walk&mins=60')
+      expect(await scrollBehavior(to, from, null)).toBe(false)
+    })
+
+    it('returns to where the visitor was on back and forward', async () => {
+      const from = at('/how-it-works')
+      const to = at('/')
+      expect(await scrollBehavior(to, from, { left: 0, top: 640 })).toEqual({ left: 0, top: 640 })
+    })
+
+    it('scrolls to an anchor', async () => {
+      const from = at('/')
+      const to = at('/how-it-works#where')
+      expect(await scrollBehavior(to, from, null)).toEqual({ el: '#where' })
+    })
+  })
+
+  describe('link previews', () => {
+    it('names each fixed-copy preview exactly as its route titles the page', () => {
+      expect(STATIC_PAGES.size).toBeGreaterThan(0)
+      for (const [path, page] of STATIC_PAGES) {
+        const route = router.resolve(path)
+        expect(route.name).not.toBe('not-found')
+        expect(page.name).toBe(route.meta.title)
+      }
     })
   })
 

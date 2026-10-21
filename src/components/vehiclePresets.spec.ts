@@ -83,8 +83,8 @@ describe('vehicleWarnings', () => {
     expect(vehicleWarnings({ max_speed_kmh: 450, acceleration_ms2: 1.6, deceleration_ms2: 2, dwell_s: 400 })).toEqual({
       max_speed_kmh: 'Faster than any passenger rail in service',
       acceleration_ms2: 'Higher than most passenger rail',
-      deceleration_ms2: 'Harder than a normal station stop',
-      dwell_s: 'Longer than most station stops',
+      deceleration_ms2: 'Harder than a normal stop',
+      dwell_s: 'Longer than most stops',
     })
   })
 
@@ -120,7 +120,7 @@ describe('vehicleFieldHelp', () => {
       'How quickly it slows for a stop; 0.4–1.3 m/s² is typical for passenger rail',
     )
     expect(vehicleFieldHelp('dwell_s', 'kmh')).toBe(
-      'Time stopped at each station for boarding; 20–90 s is typical',
+      'Time stopped at each stop for boarding; 20–90 s is typical',
     )
   })
 

@@ -3,16 +3,23 @@ import { computed } from 'vue'
 import { fetchPublicationIsochrone, fetchServicePublication } from '../api/publications'
 import { isochroneWaitMessage } from '../api/isochroneFault'
 import { useAuthoredGraph } from '../composables/useAuthoredGraph'
+import { useRoutingStatus } from '../composables/useRoutingStatus'
 import { usePageTitle } from '../composables/usePageTitle'
 import AllLinesLink from '../components/AllLinesLink.vue'
 import { useIsochroneQuery } from '../composables/useIsochroneQuery'
 import CopyLinkButton from '../components/CopyLinkButton.vue'
 import ScenarioPreviewPanel from '../components/ScenarioPreviewPanel.vue'
+import ServiceStops from '../components/ServiceStops.vue'
 import TimeBetweenStations from '../components/TimeBetweenStations.vue'
 import PageSkeleton from '../components/PageSkeleton.vue'
 import { graphStationTimeGroups } from '../components/stationTimes'
+import { useIsPhone } from '../composables/useIsPhone'
+import type { PhoneMapTab } from '../components/phoneMapTabs'
+import PageHeader from '../components/PageHeader.vue'
 
 const props = defineProps<{ slug: string }>()
+
+const { offline: routingOffline } = useRoutingStatus()
 
 // A pinned target: no `compile`, so nothing on this page can compile — the
 // reader has no session to compile with, and the publication's graph cannot go
@@ -38,7 +45,7 @@ const {
 } = useAuthoredGraph(() => props.slug, {
   fetchGraph: fetchServicePublication,
   isochrone: fetchPublicationIsochrone,
-})
+}, { offline: () => routingOffline.value })
 
 // Unpublished and unknown are one 404, here as in the API, and the not-found
 // copy keeps it that way: saying which would tell a stranger that a draft sits
@@ -71,12 +78,27 @@ const { initial: linkedIsochrone, submit: submitIsochrone, shareable } = useIsoc
   ready: () => publication.value !== null,
 })
 
+const isPhone = useIsPhone()
+
+const phoneTabs = computed<PhoneMapTab[]>(() => [
+  { key: 'stops', label: 'Stops' },
+  ...(publication.value?.subtext || publication.value?.description ? [{ key: 'about', label: 'About' }] : []),
+])
+
 void loadGraph(props.slug)
 </script>
 
 <template>
-  <main class="flex-1 p-(--page-padding)">
-    <div class="mb-8">
+  <!-- The phone page is fixed over the screen, so the page padding would only
+       leave the document scrollable behind it. -->
+  <main
+    class="flex-1"
+    :class="{ 'p-(--page-padding)': !(publication && isPhone) }"
+  >
+    <div
+      v-if="!isPhone"
+      class="mb-8"
+    >
       <AllLinesLink />
     </div>
 
@@ -88,11 +110,9 @@ void loadGraph(props.slug)
     />
 
     <template v-else-if="graphNotFound">
-      <h1 class="font-display text-display text-ink-true">
-        Line not found
-      </h1>
+      <PageHeader title="Line not found" />
       <p
-        class="font-body text-body mt-3 text-ink-muted"
+        class="t-body mt-3 text-ink-muted"
         data-testid="service-not-found"
       >
         No published line lives at "{{ props.slug }}".
@@ -100,11 +120,9 @@ void loadGraph(props.slug)
     </template>
 
     <template v-else-if="graphFailed">
-      <h1 class="font-display text-display text-ink-true">
-        Something went wrong
-      </h1>
+      <PageHeader title="Something went wrong" />
       <p
-        class="font-body text-body mt-3 text-ink-muted"
+        class="t-body mt-3 text-ink-muted"
         role="alert"
         data-testid="service-error"
       >
@@ -112,19 +130,56 @@ void loadGraph(props.slug)
       </p>
     </template>
 
+    <template v-else-if="publication && isPhone">
+      <ScenarioPreviewPanel
+        :phone="{ title: publication.name, tabs: phoneTabs }"
+        :origin="origin"
+        :isochrone-data="isochroneData"
+        :loading="isochroneFormLoading"
+        :loading-message="isochroneWaitMessage(isochroneProgress)"
+        :error="isochroneError"
+        :near-misses="nearMisses"
+        :realised-clusters="realisedClusters"
+        :services="services"
+        :map-stations="mapStations"
+        :map-routes="mapRoutes"
+        :initial="linkedIsochrone"
+        @submit="submitIsochrone"
+        @origin-change="onOriginChange"
+      >
+        <template #after-form>
+          <CopyLinkButton v-if="shareable" />
+        </template>
+        <template #panel-stops>
+          <ServiceStops :stops="stops" />
+          <TimeBetweenStations :groups="stationTimeGroups" />
+        </template>
+        <template #panel-about>
+          <p
+            v-if="publication.subtext"
+            class="t-meta text-ink-muted"
+            data-testid="service-subtext"
+          >
+            {{ publication.subtext }}
+          </p>
+          <p
+            v-if="publication.description"
+            class="t-body whitespace-pre-line text-ink-muted"
+            data-testid="service-description"
+          >
+            {{ publication.description }}
+          </p>
+        </template>
+      </ScenarioPreviewPanel>
+    </template>
+
     <template v-else-if="publication">
-      <hgroup class="flex max-w-[720px] flex-col gap-2">
-        <h1 class="font-display text-display text-ink-true">
-          {{ publication.name }}
-        </h1>
-        <p
-          v-if="publication.subtext"
-          class="font-body text-micro text-ink-muted italic uppercase"
-          data-testid="service-subtext"
-        >
-          {{ publication.subtext }}
-        </p>
-      </hgroup>
+      <PageHeader
+        class="max-w-[720px]"
+        :title="publication.name"
+        :subtitle="publication.subtext"
+        subtitle-testid="service-subtext"
+      />
 
       <ScenarioPreviewPanel
         :origin="origin"
@@ -147,22 +202,7 @@ void loadGraph(props.slug)
       </ScenarioPreviewPanel>
 
       <div class="mt-8 grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] items-start gap-4">
-        <section class="rounded-(--radius-box) border border-border bg-surface p-4">
-          <h2 class="font-display text-h3 text-ink-true">
-            Stops
-          </h2>
-          <ol class="mt-3 flex flex-col gap-2">
-            <li
-              v-for="(name, index) in stops"
-              :key="index"
-              class="font-body text-caption text-ink"
-              data-testid="service-stop-row"
-            >
-              {{ index + 1 }}. {{ name }}
-            </li>
-          </ol>
-        </section>
-
+        <ServiceStops :stops="stops" />
         <TimeBetweenStations :groups="stationTimeGroups" />
       </div>
 
@@ -174,7 +214,7 @@ void loadGraph(props.slug)
           Description
         </h2>
         <p
-          class="font-body text-body mt-3 whitespace-pre-line text-ink-muted"
+          class="t-body mt-3 whitespace-pre-line text-ink-muted"
           data-testid="service-description"
         >
           {{ publication.description }}

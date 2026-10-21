@@ -7,6 +7,7 @@ import {
   formatProgressPercent,
   formatTimeRemaining,
   remainingSecsBySlug,
+  wholeMinutes,
   laneWidthFor,
   shortLineName,
   ACCESS_VIEW_KEY,
@@ -338,7 +339,7 @@ describe('buildTimeRemainingGraph', () => {
 
     it('shows station names rather than the slugs the wire carries', () => {
       expect(viewFor(INTERCHANGE, 'trunk').rows.map((r) => r.label))
-        .toEqual(['Starting location', 'Alpha', 'Beta', 'Gamma'])
+        .toEqual(['Starting point', 'Alpha', 'Beta', 'Gamma'])
     })
 
     it('falls back to the slug for a station the page has no name for', () => {
@@ -709,6 +710,14 @@ describe('formatTimeRemaining', () => {
 
   it('never reports a negative time', () => {
     expect(formatTimeRemaining(-60)).toBe('0m')
+  })
+})
+
+describe('wholeMinutes', () => {
+  it('counts the minutes the time remaining shows: whole ones, never below zero', () => {
+    expect(wholeMinutes(745)).toBe(12)
+    expect(wholeMinutes(59)).toBe(0)
+    expect(wholeMinutes(-30)).toBe(0)
   })
 })
 

@@ -20,18 +20,39 @@ export function planarFrame(coordinates: [number, number][]): PlanarFrame {
   }
 }
 
-export function chainageAlong(coordinates: [number, number][]): number[] {
-  if (coordinates.length === 0) return []
+interface Measurement {
+  frame: PlanarFrame
+  chainage: readonly number[]
+}
 
-  const { x, y } = planarFrame(coordinates)
+// Keyed on the array itself. One ridden leg projects both its stations onto
+// every route and then slices the nearest, and re-measuring a 20,000-vertex
+// alignment for each of those was most of what drawing a plot cost (SPA-487).
+// Coordinates come from the API and are only ever replaced, never edited in
+// place, which is what makes identity a safe key; a WeakMap lets a replaced
+// network's measurements go with it.
+const measurements = new WeakMap<[number, number][], Measurement>()
 
-  const out = [0]
+function measure(coordinates: [number, number][]): Measurement {
+  const cached = measurements.get(coordinates)
+  if (cached) return cached
+
+  const frame = planarFrame(coordinates)
+  const { x, y } = frame
+  const chainage = [0]
   for (let i = 1; i < coordinates.length; i++) {
     const [aLng, aLat] = coordinates[i - 1]
     const [bLng, bLat] = coordinates[i]
-    out.push(out[i - 1] + Math.hypot(x(bLng) - x(aLng), y(bLat) - y(aLat)))
+    chainage.push(chainage[i - 1] + Math.hypot(x(bLng) - x(aLng), y(bLat) - y(aLat)))
   }
-  return out
+  const measurement = { frame, chainage }
+  measurements.set(coordinates, measurement)
+  return measurement
+}
+
+export function chainageAlong(coordinates: [number, number][]): readonly number[] {
+  if (coordinates.length === 0) return []
+  return measure(coordinates).chainage
 }
 
 export interface AlignmentProjection {
@@ -45,8 +66,7 @@ export function projectOntoAlignment(
 ): AlignmentProjection | null {
   if (coordinates.length < 2) return null
 
-  const { x, y } = planarFrame(coordinates)
-  const chainage = chainageAlong(coordinates)
+  const { frame: { x, y }, chainage } = measure(coordinates)
   const px = x(point[0])
   const py = y(point[1])
 
@@ -97,7 +117,7 @@ function spanBetween(
   loM: number,
   hiM: number,
 ): [number, number][] {
-  const chainage = chainageAlong(coordinates)
+  const { chainage } = measure(coordinates)
   const lineLengthM = chainage[chainage.length - 1]
   if (lineLengthM <= 0) return []
 
@@ -123,7 +143,7 @@ function spanBetween(
 
 function pointAt(
   coordinates: [number, number][],
-  chainage: number[],
+  chainage: readonly number[],
   atM: number,
 ): [number, number] {
   if (atM <= 0) return coordinates[0]

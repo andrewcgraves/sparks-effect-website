@@ -1,7 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
-import { FullscreenControl } from 'maplibre-gl'
+import { FullscreenControl, Map } from 'maplibre-gl'
 import MapView from './MapView.vue'
+import { MAP_LOAD_TIMEOUT_MS } from './mapLoad'
+import { configureErrorSink, type ErrorReport } from '../errorReporting'
 import { seriousA11yViolations } from '../test/axe'
 import {
   ISOCHRONE_SOURCE_ID,
@@ -9,9 +11,8 @@ import {
   ISOCHRONE_LAYER_ID,
   ISOCHRONE_HIGHLIGHT_LAYER_ID,
   ISOCHRONE_HIGHLIGHT_OUTLINE_LAYER_ID,
-  isochroneEgressOpacity,
-  isochroneOriginOpacity,
-  isochroneHighlightFilter,
+  isochroneHighlightData,
+  flattenEgress,
 } from '../composables/useIsochroneLayer'
 import {
   PROGRESS_CAP_HIT_LAYER_ID,
@@ -34,12 +35,8 @@ import {
   ORIGIN_WALK_SOURCE_ID,
 } from '../composables/useOriginWalkLayer'
 import { THEME_TOKEN_FALLBACKS } from '../themeTokens'
-import {
-  staticIsochroneResponse,
-  ISOCHRONE_BOUNDS,
-  ISOCHRONE_BOUNDS_CORNERS,
-  ISOCHRONE_CENTER,
-} from '../fixtures/isochrone'
+import { ISOCHRONE_BOUNDS_CORNERS, ISOCHRONE_CENTER } from '../fixtures/isochrone'
+import { staticIsochroneResponse } from '../test/sampleIsochrone'
 import type { ChainResponse, StarterWalk } from '../fixtures/isochrone'
 import type { Route, Station } from '../api/scenarios'
 import type { MapModule } from '../composables/mapLifecycle'
@@ -74,6 +71,7 @@ const {
   mockPopupAddTo,
   mockPopupRemove,
   mockGetZoom,
+  mockSetStyle,
 } = vi.hoisted(() => {
   const canvas = { style: { cursor: '' } }
   return {
@@ -104,16 +102,21 @@ const {
     mockPopupAddTo: vi.fn(),
     mockPopupRemove: vi.fn(),
     mockGetZoom: vi.fn(() => 7),
+    mockSetStyle: vi.fn(),
   }
 })
 
+let notifyResize: () => void = () => {}
+
 class ResizeObserverStub {
+  constructor(callback: () => void) {
+    notifyResize = callback
+  }
   observe = vi.fn()
   disconnect = vi.fn()
   unobserve = vi.fn()
 }
 
-vi.stubGlobal('ResizeObserver', ResizeObserverStub)
 
 vi.mock('maplibre-gl', () => ({
   setWorkerUrl: vi.fn(),
@@ -135,6 +138,9 @@ vi.mock('maplibre-gl', () => ({
     this['setPaintProperty'] = mockSetPaintProperty
     this['setFilter'] = mockSetFilter
     this['getZoom'] = mockGetZoom
+    this['touchZoomRotate'] = { disableRotation: vi.fn() }
+    this['keyboard'] = { disableRotation: vi.fn() }
+    this['setStyle'] = mockSetStyle
     this['doubleClickZoom'] = {
       enable: mockDoubleClickZoomEnable,
       disable: mockDoubleClickZoomDisable,
@@ -243,6 +249,8 @@ function clickEventAt(lat: number, lng: number) {
 describe('MapView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.stubGlobal('ResizeObserver', ResizeObserverStub)
+    notifyResize = () => {}
     mockGetSource.mockReturnValue(null)
     mockSetLngLat.mockReturnValue({ addTo: mockMarkerAddTo })
     mockGetCanvas.mockReturnValue(mockCanvas)
@@ -263,6 +271,18 @@ describe('MapView', () => {
   it('takes the name its page gives it', () => {
     const wrapper = mount(MapView, { props: { ...defaultProps, label: 'Splash zone map' } })
     expect(wrapper.get('[role="region"]').attributes('aria-label')).toBe('Splash zone map')
+  })
+
+  it('is a framed card with room for a stacked page by default', () => {
+    const wrapper = mount(MapView, { props: defaultProps })
+    expect(wrapper.classes()).toEqual(expect.arrayContaining(['border', 'min-h-[70vh]']))
+  })
+
+  it('fills its box edge to edge when a phone page asks for it flush', () => {
+    const wrapper = mount(MapView, { props: { ...defaultProps, flush: true } })
+    expect(wrapper.classes()).not.toEqual(expect.arrayContaining(['border']))
+    expect(wrapper.classes()).not.toEqual(expect.arrayContaining(['min-h-[70vh]']))
+    expect(wrapper.find('[class*="min-h-[70vh]"]').exists()).toBe(false)
   })
 
   it('has no serious or critical accessibility violations with a splash zone drawn', async () => {
@@ -286,7 +306,7 @@ describe('MapView', () => {
     await triggerMapLoad()
     expect(mockAddSource).toHaveBeenCalledWith(ISOCHRONE_SOURCE_ID, {
       type: 'geojson',
-      data: staticIsochroneResponse,
+      data: flattenEgress(staticIsochroneResponse),
     })
     expect(mockAddLayer).toHaveBeenCalledWith(
       expect.objectContaining({ id: ISOCHRONE_LAYER_ID, type: 'fill', source: ISOCHRONE_SOURCE_ID }),
@@ -299,7 +319,7 @@ describe('MapView', () => {
     await wrapper.setProps({ isochroneData: staticIsochroneResponse })
     expect(mockAddSource).toHaveBeenCalledWith(ISOCHRONE_SOURCE_ID, {
       type: 'geojson',
-      data: staticIsochroneResponse,
+      data: flattenEgress(staticIsochroneResponse),
     })
   })
 
@@ -414,7 +434,7 @@ describe('MapView', () => {
     await wrapper.setProps({ isochroneData: staticIsochroneResponse })
     expect(mockAddSource).toHaveBeenCalledWith(ISOCHRONE_SOURCE_ID, {
       type: 'geojson',
-      data: staticIsochroneResponse,
+      data: flattenEgress(staticIsochroneResponse),
     })
     expect(mockAddLayer).toHaveBeenCalledWith(
       expect.objectContaining({ id: ISOCHRONE_LAYER_ID }),
@@ -433,6 +453,184 @@ describe('MapView', () => {
     await triggerMapLoad()
     await wrapper.vm.$nextTick()
     expect(wrapper.find('[data-testid="map-skeleton"]').exists()).toBe(false)
+  })
+
+  // SPA-492: a map without hardware acceleration redraws in seconds a frame.
+  describe('drawing load', () => {
+    afterEach(() => {
+      vi.restoreAllMocks()
+      vi.unstubAllGlobals()
+    })
+
+    it('draws at no more than twice the CSS pixels on a 3× screen', () => {
+      vi.stubGlobal('devicePixelRatio', 3)
+      mount(MapView, { props: defaultProps })
+      expect(vi.mocked(Map)).toHaveBeenCalledWith(expect.objectContaining({ pixelRatio: 2 }))
+    })
+
+    it('draws at the screen density below 2×', () => {
+      vi.stubGlobal('devicePixelRatio', 1.5)
+      mount(MapView, { props: defaultProps })
+      expect(vi.mocked(Map)).toHaveBeenCalledWith(expect.objectContaining({ pixelRatio: 1.5 }))
+    })
+
+    it('resizes the map once for several size changes within one frame', async () => {
+      const frames: FrameRequestCallback[] = []
+      vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => frames.push(cb))
+      vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(390)
+      vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(400)
+      mount(MapView, { props: defaultProps })
+      await triggerMapLoad()
+      mockResize.mockClear()
+
+      notifyResize()
+      notifyResize()
+      notifyResize()
+      expect(mockResize).not.toHaveBeenCalled()
+
+      frames.splice(0).forEach((cb) => cb(0))
+      expect(mockResize).toHaveBeenCalledTimes(1)
+
+      notifyResize()
+      frames.splice(0).forEach((cb) => cb(0))
+      expect(mockResize).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  // SPA-488: without WebGL2 maplibre throws from the Map constructor, and a
+  // style it cannot fetch only ever says so as an `error` event. Either way the
+  // skeleton used to shimmer forever with nothing said about why.
+  describe('a map that cannot start', () => {
+    let reports: ErrorReport[]
+
+    beforeEach(() => {
+      reports = []
+      configureErrorSink((report) => reports.push(report))
+    })
+
+    afterEach(() => {
+      configureErrorSink(() => {})
+      vi.useRealTimers()
+    })
+
+    it('says the browser cannot draw it when the Map constructor throws', async () => {
+      vi.mocked(Map).mockImplementationOnce(() => {
+        throw new Error('WebGL2 is required to display this map')
+      })
+      const wrapper = mount(MapView, { props: defaultProps })
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('[data-testid="map-skeleton"]').exists()).toBe(false)
+      expect(wrapper.get('[role="status"]').text()).toContain("This browser can't draw the map.")
+      expect(reports).toHaveLength(1)
+      expect(reports[0].context).toMatchObject({ map_failure: 'no-webgl' })
+      expect(mockOn).not.toHaveBeenCalled()
+      expect(wrapper.find('[aria-label="Splash zone color key"]').exists()).toBe(false)
+    })
+
+    it('says the map could not load when an error arrives before load', async () => {
+      const wrapper = mount(MapView, { props: defaultProps })
+      fireMapEvent('error', { error: new Error('Failed to fetch style') })
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('[data-testid="map-skeleton"]').exists()).toBe(false)
+      expect(wrapper.get('[data-testid="map-failed"]').text()).toContain("The map couldn't load.")
+      expect(reports).toHaveLength(1)
+      expect(reports[0].context).toMatchObject({ map_failure: 'style' })
+    })
+
+    it('reports a run of errors before load once', async () => {
+      const wrapper = mount(MapView, { props: defaultProps })
+      fireMapEvent('error', { error: new Error('Failed to fetch style') })
+      fireMapEvent('error', { error: new Error('Failed to fetch tile') })
+      await wrapper.vm.$nextTick()
+
+      expect(reports).toHaveLength(1)
+    })
+
+    it('says the map could not load when it has not loaded within the timeout', async () => {
+      vi.useFakeTimers()
+      const wrapper = mount(MapView, { props: defaultProps })
+      vi.advanceTimersByTime(MAP_LOAD_TIMEOUT_MS - 1)
+      await wrapper.vm.$nextTick()
+      expect(wrapper.find('[data-testid="map-failed"]').exists()).toBe(false)
+
+      vi.advanceTimersByTime(1)
+      await wrapper.vm.$nextTick()
+      expect(wrapper.get('[data-testid="map-failed"]').text()).toContain("The map couldn't load.")
+      expect(reports[0].context).toMatchObject({ map_failure: 'timeout' })
+    })
+
+    it('waits for a background tab to be looked at before timing it out', async () => {
+      vi.useFakeTimers()
+      const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
+      const wrapper = mount(MapView, { props: defaultProps })
+      vi.advanceTimersByTime(MAP_LOAD_TIMEOUT_MS * 3)
+      await wrapper.vm.$nextTick()
+      expect(wrapper.find('[data-testid="map-failed"]').exists()).toBe(false)
+
+      visibility.mockReturnValue('visible')
+      vi.advanceTimersByTime(MAP_LOAD_TIMEOUT_MS)
+      await wrapper.vm.$nextTick()
+      expect(wrapper.find('[data-testid="map-failed"]').exists()).toBe(true)
+      visibility.mockRestore()
+    })
+
+    it('does not time out a map that has loaded', async () => {
+      vi.useFakeTimers()
+      const wrapper = mount(MapView, { props: defaultProps })
+      await triggerMapLoad()
+      vi.advanceTimersByTime(MAP_LOAD_TIMEOUT_MS)
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('[data-testid="map-failed"]').exists()).toBe(false)
+      expect(reports).toEqual([])
+    })
+
+    it('keeps an error after load to itself', async () => {
+      const wrapper = mount(MapView, { props: defaultProps })
+      await triggerMapLoad()
+      fireMapEvent('error', { error: new Error('Failed to fetch tile') })
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('[data-testid="map-failed"]').exists()).toBe(false)
+      expect(reports).toEqual([])
+    })
+
+    it('draws the map after all if a slow one loads after giving up on it', async () => {
+      vi.useFakeTimers()
+      const wrapper = mount(MapView, { props: defaultProps })
+      vi.advanceTimersByTime(MAP_LOAD_TIMEOUT_MS)
+      await triggerMapLoad()
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('[data-testid="map-failed"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="map-skeleton"]').exists()).toBe(false)
+    })
+
+    it('adds what the page can still do without the map', async () => {
+      vi.mocked(Map).mockImplementationOnce(() => {
+        throw new Error('WebGL2 is required to display this map')
+      })
+      const wrapper = mount(MapView, {
+        props: { ...defaultProps, withoutMap: 'You can still plot a splash zone and read the results.' },
+      })
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.get('[data-testid="map-failed"]').text()).toBe(
+        "This browser can't draw the map. You can still plot a splash zone and read the results.",
+      )
+    })
+
+    it('has no serious or critical accessibility violations while saying so', async () => {
+      vi.mocked(Map).mockImplementationOnce(() => {
+        throw new Error('WebGL2 is required to display this map')
+      })
+      const wrapper = mount(MapView, { props: defaultProps, attachTo: document.body })
+      await wrapper.vm.$nextTick()
+      expect(await seriousA11yViolations(wrapper)).toEqual([])
+      wrapper.unmount()
+    })
   })
 
   it('shows the loading overlay when loading prop is true', () => {
@@ -821,10 +1019,28 @@ describe('MapView', () => {
   })
 
   it('initializes map with a keyless OpenFreeMap style by default', async () => {
+    mount(MapView, { props: defaultProps })
+    expect(mockSetStyle.mock.calls.at(-1)![0]).toBe('https://tiles.openfreemap.org/styles/positron')
+  })
+
+  it('credits OpenStreetMap and no provider on the map itself', async () => {
     const { Map } = await import('maplibre-gl')
     mount(MapView, { props: defaultProps })
     const options = (Map as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(options.style).toBe('https://tiles.openfreemap.org/styles/positron')
+    const credits: string[] = options.attributionControl.customAttribution
+    expect(credits).toHaveLength(1)
+    expect(credits[0]).toContain('href="https://www.openstreetmap.org/copyright"')
+    expect(credits[0]).toContain('>OpenStreetMap</a> contributors')
+  })
+
+  it.each([
+    ['leaves a plain scroll or one-finger drag to the page when the map sits in a scrolling page', false, true],
+    ['takes every gesture directly when a phone page gives it the screen', true, false],
+  ])('%s', async (_, flush, cooperative) => {
+    const { Map } = await import('maplibre-gl')
+    mount(MapView, { props: { ...defaultProps, flush } })
+    const options = (Map as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(options.cooperativeGestures).toBe(cooperative)
   })
 
   it('fits bounds to all isochrone segments after load', async () => {
@@ -893,6 +1109,63 @@ describe('MapView', () => {
     expect(mockFitBounds).not.toHaveBeenCalled()
   })
 
+  it('offers no recenter button before the map has loaded', () => {
+    const wrapper = mount(MapView, { props: { ...defaultProps, routes: [stubRoute] } })
+    expect(wrapper.find('[data-testid="map-recenter"]').exists()).toBe(false)
+  })
+
+  it('offers no recenter button when there is no route to recenter on', async () => {
+    const wrapper = mount(MapView, { props: defaultProps })
+    await triggerMapLoad()
+    expect(wrapper.find('[data-testid="map-recenter"]').exists()).toBe(false)
+  })
+
+  // SPA-494: on the flush phone map the controls grow to 40px for a thumb, so
+  // the recenter button matches them and sits one 40px button lower.
+  it('sizes the recenter button for a thumb on the flush phone map', async () => {
+    const wrapper = mount(MapView, { props: { ...defaultProps, routes: [stubRoute], flush: true } })
+    await triggerMapLoad()
+    expect(wrapper.get('[data-testid="map-recenter"]').classes()).toEqual(expect.arrayContaining(['size-10', 'top-[60px]']))
+  })
+
+  it('keeps the recenter button at MapLibre\'s 29px size off the phone layout', async () => {
+    const wrapper = mount(MapView, { props: { ...defaultProps, routes: [stubRoute] } })
+    await triggerMapLoad()
+    expect(wrapper.get('[data-testid="map-recenter"]').classes()).toEqual(expect.arrayContaining(['size-[29px]', 'top-[49px]']))
+  })
+
+  it('animates the map back to the route frame when recenter is pressed', async () => {
+    const wrapper = mount(MapView, { props: { ...defaultProps, routes: [stubRoute] } })
+    await triggerMapLoad()
+    mockFitBounds.mockClear()
+
+    const button = wrapper.get('[data-testid="map-recenter"]')
+    expect(button.attributes('aria-label')).toBe('Recenter map on the route')
+    await button.trigger('click')
+
+    expect(mockFitBounds).toHaveBeenCalledOnce()
+    expect(mockFitBounds).toHaveBeenCalledWith(
+      stubRouteCorners,
+      expect.objectContaining({
+        duration: 800,
+        maxZoom: 11,
+        padding: expect.objectContaining({ top: 56, bottom: 112, left: 56, right: 56 }),
+      }),
+    )
+  })
+
+  it('recenters on the route rather than the plot when a plot is drawn', async () => {
+    const wrapper = mount(MapView, {
+      props: { ...defaultProps, routes: [stubRoute], isochroneData: staticIsochroneResponse },
+    })
+    await triggerMapLoad()
+    mockFitBounds.mockClear()
+
+    await wrapper.get('[data-testid="map-recenter"]').trigger('click')
+
+    expect(mockFitBounds).toHaveBeenCalledWith(stubRouteCorners, expect.anything())
+  })
+
   it('prefers the isochrone frame over route bounds when isochroneData is also provided', async () => {
     mount(MapView, {
       props: { ...defaultProps, routes: [stubRoute], isochroneData: staticIsochroneResponse },
@@ -930,25 +1203,21 @@ describe('MapView', () => {
     )
   })
 
-  it('ISOCHRONE_BOUNDS covers the sample CA HSR corridor', () => {
-    const [minLng, minLat, maxLng, maxLat] = ISOCHRONE_BOUNDS
+  it('ISOCHRONE_BOUNDS_CORNERS covers the sample CA HSR corridor', () => {
+    const [[minLng, minLat], [maxLng, maxLat]] = ISOCHRONE_BOUNDS_CORNERS
     expect(minLat).toBeGreaterThan(36.5)
     expect(maxLat).toBeLessThan(38.5)
     expect(minLng).toBeGreaterThan(-123)
     expect(maxLng).toBeLessThan(-121)
   })
 
-  it('ISOCHRONE_CENTER is the midpoint of ISOCHRONE_BOUNDS', () => {
-    expect(ISOCHRONE_CENTER[0]).toBeCloseTo((ISOCHRONE_BOUNDS[0] + ISOCHRONE_BOUNDS[2]) / 2, 10)
-    expect(ISOCHRONE_CENTER[1]).toBeCloseTo((ISOCHRONE_BOUNDS[1] + ISOCHRONE_BOUNDS[3]) / 2, 10)
-  })
-
-  it('renders a color key for origin and egress isochrones', () => {
+  it('renders one color key row for the splash zone', () => {
     const wrapper = mount(MapView, { props: defaultProps })
-    const legend = wrapper.get('[aria-label="Isochrone color key"]')
-    expect(legend.text()).toContain('Origin reach')
-    expect(legend.text()).toContain('From station')
-    expect(legend.text()).not.toContain('Budget ran out here')
+    const legend = wrapper.get('[aria-label="Splash zone color key"]')
+    expect(legend.text()).toContain('Reachable in time')
+    expect(legend.findAll('[data-testid^="legend-swatch-"]')).toHaveLength(1)
+    expect(legend.text()).not.toContain('From station')
+    expect(legend.text()).not.toContain('Travel time ran out here')
   })
 
   it('names the unfinished stub in the key only when the plot drew one', () => {
@@ -975,8 +1244,8 @@ describe('MapView', () => {
         },
       },
     })
-    const legend = wrapper.get('[aria-label="Isochrone color key"]')
-    expect(legend.text()).toContain('Budget ran out here')
+    const legend = wrapper.get('[aria-label="Splash zone color key"]')
+    expect(legend.text()).toContain('Travel time ran out here')
 
     // Ink dashes stopping on a bare ink dot, as the stub is drawn on the map.
     const unfinished = wrapper.get('[data-testid="legend-swatch-unfinished"]')
@@ -991,7 +1260,7 @@ describe('MapView', () => {
   // route the rider was being sent down.
   it('names the starter walk in the key as the first leg, in the origin colour', () => {
     const wrapper = mount(MapView, { props: { ...defaultProps, isochroneData: walkedToStub } })
-    const legend = wrapper.get('[aria-label="Isochrone color key"]')
+    const legend = wrapper.get('[aria-label="Splash zone color key"]')
     expect(legend.text()).toContain('First leg — nearest station')
 
     // Origin-blue dashes from the origin pin's coral to a ringed station dot, so
@@ -1005,7 +1274,7 @@ describe('MapView', () => {
 
   it('leaves the starter walk out of the key when there is no walk to draw', () => {
     const noWalk = mount(MapView, { props: { ...defaultProps, isochroneData: chainWith(walkedToStub.metadata.reachable_stations) } })
-    expect(noWalk.get('[aria-label="Isochrone color key"]').text()).not.toContain('First leg')
+    expect(noWalk.get('[aria-label="Splash zone color key"]').text()).not.toContain('First leg')
 
     // A walk naming a station the plot does not list is not drawn either.
     const contradicted = mount(MapView, {
@@ -1014,12 +1283,12 @@ describe('MapView', () => {
         isochroneData: chainWith(walkedToStub.metadata.reachable_stations, { ...routedToStub, station_slug: 'nowhere' }),
       },
     })
-    expect(contradicted.get('[aria-label="Isochrone color key"]').text()).not.toContain('First leg')
+    expect(contradicted.get('[aria-label="Splash zone color key"]').text()).not.toContain('First leg')
   })
 
   it('hides the isochrone legend when hideIsochroneLegend is set', () => {
     const wrapper = mount(MapView, { props: { ...defaultProps, hideIsochroneLegend: true } })
-    expect(wrapper.find('[aria-label="Isochrone color key"]').exists()).toBe(false)
+    expect(wrapper.find('[aria-label="Splash zone color key"]').exists()).toBe(false)
   })
 
   it('adds a fullscreen control so the map can be expanded', () => {
@@ -1112,6 +1381,37 @@ describe('MapView', () => {
         center: [-122.5, 38.0],
         zoom: 9,
       }),
+    )
+  })
+
+  // SPA-501: choosing a saved splash zone draws it and moves the pin to its
+  // starting point in the same moment; snapping in on the pin would undo the
+  // frame that shows the whole splash zone.
+  it('keeps the splash zone framed when the pin moves to its starting point', async () => {
+    const wrapper = mount(MapView, { props: defaultProps })
+    await triggerMapLoad()
+    mockFitBounds.mockClear()
+    mockFlyTo.mockClear()
+
+    const [lng, lat] = ISOCHRONE_CENTER
+    await wrapper.setProps({ isochroneData: staticIsochroneResponse, origin: { lat, lng } })
+
+    expect(mockFitBounds).toHaveBeenCalledWith(ISOCHRONE_BOUNDS_CORNERS, expect.anything())
+    expect(mockFlyTo).not.toHaveBeenCalled()
+  })
+
+  it('still flies to a pin moved outside the drawn splash zone', async () => {
+    const wrapper = mount(MapView, {
+      props: { ...defaultProps, isochroneData: staticIsochroneResponse },
+    })
+    await triggerMapLoad()
+    mockFlyTo.mockClear()
+
+    const [, [maxLng, maxLat]] = ISOCHRONE_BOUNDS_CORNERS
+    await wrapper.setProps({ origin: { lat: maxLat + 1, lng: maxLng + 1 } })
+
+    expect(mockFlyTo).toHaveBeenCalledWith(
+      expect.objectContaining({ center: [maxLng + 1, maxLat + 1], zoom: 9 }),
     )
   })
 
@@ -1226,20 +1526,20 @@ describe('MapView', () => {
     })
 
     it('renders whatever cue the caller passes, so each armed mode can say its own thing', async () => {
-      const wrapper = mount(MapView, { props: { ...defaultProps, placementArmed: true, placementCue: 'Click the map to set origin — Esc to cancel' } })
+      const wrapper = mount(MapView, { props: { ...defaultProps, placementArmed: true, placementCue: 'Click the map to set the starting point — Esc to cancel' } })
       await triggerMapLoad()
 
-      expect(wrapper.get('[data-testid="map-placement-cue"]').text()).toBe('Click the map to set origin — Esc to cancel')
+      expect(wrapper.get('[data-testid="map-placement-cue"]').text()).toBe('Click the map to set the starting point — Esc to cancel')
     })
 
     it('hides the isochrone legend while armed, since the cue takes the same corner', async () => {
-      const wrapper = mount(MapView, { props: { ...defaultProps, placementArmed: true, placementCue: 'Click the map to set origin — Esc to cancel' } })
+      const wrapper = mount(MapView, { props: { ...defaultProps, placementArmed: true, placementCue: 'Click the map to set the starting point — Esc to cancel' } })
       await triggerMapLoad()
 
-      expect(wrapper.find('[aria-label="Isochrone color key"]').exists()).toBe(false)
+      expect(wrapper.find('[aria-label="Splash zone color key"]').exists()).toBe(false)
 
       await wrapper.setProps({ placementArmed: false })
-      expect(wrapper.find('[aria-label="Isochrone color key"]').exists()).toBe(true)
+      expect(wrapper.find('[aria-label="Splash zone color key"]').exists()).toBe(true)
     })
 
     it('does not place a stop when an armed click lands on an existing pin', async () => {
@@ -1531,21 +1831,18 @@ describe('MapView', () => {
           isochroneData: staticIsochroneResponse,
         },
       })
+      mockGetSource.mockReturnValue({ setData: mockSetData })
       await triggerMapLoad()
       mockSetPaintProperty.mockClear()
-      mockSetFilter.mockClear()
+      mockSetData.mockClear()
 
       await wrapper.setProps({ activeStation: stubStation.slug })
 
-      // Dims the base layer's egress fills uniformly, and the blue origin
-      // wash with them (SPA-224)...
-      expect(mockSetPaintProperty).toHaveBeenCalledWith(ISOCHRONE_LAYER_ID, 'fill-opacity', isochroneEgressOpacity(true))
-      expect(mockSetPaintProperty).toHaveBeenCalledWith(ISOCHRONE_ORIGIN_LAYER_ID, 'fill-opacity', isochroneOriginOpacity(true))
-      // ...and filters the dedicated top layer to just this station, which is
-      // what actually paints it above every other overlapping polygon —
-      // fill-opacity alone can't reorder features within one layer.
-      expect(mockSetFilter).toHaveBeenCalledWith(ISOCHRONE_HIGHLIGHT_LAYER_ID, isochroneHighlightFilter(stubStation.slug))
-      expect(mockSetFilter).toHaveBeenCalledWith(ISOCHRONE_HIGHLIGHT_OUTLINE_LAYER_ID, isochroneHighlightFilter(stubStation.slug))
+      // Leaves the resting fills as they are (SPA-526) and hands the dedicated
+      // top layers just this station's polygon, which is what paints it above
+      // the merged splash zone.
+      expect(mockSetPaintProperty).not.toHaveBeenCalled()
+      expect(mockSetData).toHaveBeenCalledWith(isochroneHighlightData(staticIsochroneResponse, stubStation.slug))
     })
 
     // SPA-224: a reachable station the plot drew no polygon for used to fade
@@ -1562,16 +1859,18 @@ describe('MapView', () => {
           isochroneData: staticIsochroneResponse,
         },
       })
+      mockGetSource.mockReturnValue({ setData: mockSetData })
       await triggerMapLoad()
       mockSetPaintProperty.mockClear()
-      mockSetFilter.mockClear()
+      mockSetData.mockClear()
 
       fireLayerEvent('mouseenter', STATION_DOTS_LAYER_ID, stationEvent(orphan))
       await wrapper.setProps({ activeStation: orphan.slug })
 
-      expect(mockSetPaintProperty).toHaveBeenCalledWith(ISOCHRONE_LAYER_ID, 'fill-opacity', isochroneEgressOpacity(false))
-      expect(mockSetPaintProperty).toHaveBeenCalledWith(ISOCHRONE_ORIGIN_LAYER_ID, 'fill-opacity', isochroneOriginOpacity(false))
-      expect(mockSetFilter).toHaveBeenCalledWith(ISOCHRONE_HIGHLIGHT_LAYER_ID, isochroneHighlightFilter(null))
+      expect(mockSetPaintProperty).not.toHaveBeenCalled()
+      const promoted = mockSetData.mock.calls.filter(([data]) =>
+        data?.features?.length > 0 && data.features.every((f: { properties?: { source?: string } }) => f.properties?.source === 'egress'))
+      expect(promoted).toEqual([])
       // The dot was still hovered, so the rider still gets its name.
       expect((mockPopupSetDOMContent.mock.calls[0]?.[0] as HTMLElement).textContent).toBe('Fresno')
     })

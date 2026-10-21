@@ -18,9 +18,25 @@ describe('SiteFooter', () => {
     vi.unstubAllEnvs()
   })
 
-  it('credits OpenStreetMap for the map data', () => {
-    const osm = mountFooter().get('a[href="https://www.openstreetmap.org/copyright"]')
+  it('credits OpenStreetMap for the map data, naming its licence', () => {
+    const footer = mountFooter()
+    const osm = footer.get('a[href="https://www.openstreetmap.org/copyright"]')
     expect(osm.text()).toBe('OpenStreetMap')
+    const odbl = footer.get('a[href="https://opendatacommons.org/licenses/odbl/1-0/"]')
+    expect(odbl.text()).toBe('ODbL')
+  })
+
+  it('credits 511 in its required words, whatever else is on the page', () => {
+    const credit = mountFooter().get('[data-testid="credit-511"]')
+    expect(credit.text()).toBe('Data provided by 511.org')
+    expect(credit.attributes('href')).toBe('https://www.511.org')
+  })
+
+  it('points at the agency list once the attribution page exists', () => {
+    expect(mountFooter().find('[data-testid="agencies-link"]').exists()).toBe(false)
+    const link = mountFooter([{ path: '/attribution', component: Blank }]).get('[data-testid="agencies-link"]')
+    expect(link.text()).toBe('these agencies')
+    expect(link.attributes('href')).toBe('/attribution#transit-schedules')
   })
 
   it('credits OpenFreeMap for tiles when no Stadia key is configured', () => {
@@ -60,11 +76,11 @@ describe('SiteFooter', () => {
       { path: '/attribution', component: Blank },
       { path: '/privacy', component: Blank },
       { path: '/terms', component: Blank },
-      { path: '/how-it-works', component: Blank },
+      { path: '/about', component: Blank },
     ])
     const links = wrapper.findAll('[data-testid="footer-links"] a')
     expect(links.map((link) => [link.text(), link.attributes('href')])).toEqual([
-      ['How it works', '/how-it-works'],
+      ['About', '/about'],
       ['Privacy', '/privacy'],
       ['Terms', '/terms'],
       ['Attribution', '/attribution'],
@@ -72,9 +88,33 @@ describe('SiteFooter', () => {
     ])
   })
 
+  it('leaves How it works to the header (SPA-525)', () => {
+    const wrapper = mountFooter([{ path: '/how-it-works', component: Blank }])
+    expect(wrapper.findAll('[data-testid="footer-links"] a')).toHaveLength(0)
+  })
+
   it('links only the pages whose routes exist', () => {
     const wrapper = mountFooter([{ path: '/terms', component: Blank }])
     const links = wrapper.findAll('[data-testid="footer-links"] a')
     expect(links.map((link) => link.text())).toEqual(['Terms'])
+  })
+
+  it('pads each page link to a thumb-sized target on a touch screen without moving it (SPA-494)', () => {
+    const wrapper = mountFooter([
+      { path: '/privacy', component: Blank },
+      { path: '/terms', component: Blank },
+    ])
+    for (const link of wrapper.findAll('[data-testid="footer-links"] a')) {
+      expect(link.classes()).toEqual(expect.arrayContaining(['pointer-coarse:py-3', 'pointer-coarse:-my-3']))
+    }
+  })
+
+  it('hovers every credit link to ink like the page links, not left without a hover (SPA-519)', () => {
+    const wrapper = mountFooter([{ path: '/attribution', component: Blank }])
+    const credits = wrapper.findAll('p a')
+    expect(credits.length).toBeGreaterThanOrEqual(6)
+    for (const link of credits) {
+      expect(link.classes()).toEqual(expect.arrayContaining(['underline', 'hover:text-ink', 'hover:decoration-2']))
+    }
   })
 })

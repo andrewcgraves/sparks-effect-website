@@ -3,6 +3,7 @@ import { computed, nextTick, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AdminPeople from '../components/AdminPeople.vue'
 import AdminPublished from '../components/AdminPublished.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const TABS = [
   { id: 'people', label: 'People' },
@@ -35,9 +36,10 @@ async function onKeydown(event: KeyboardEvent, index: number): Promise<void> {
 
 <template>
   <main class="flex-1 p-(--page-padding)">
-    <h1 class="font-display text-display mt-8 text-ink-true">
-      Admin
-    </h1>
+    <PageHeader
+      class="mt-8"
+      title="Admin"
+    />
 
     <div
       role="tablist"
@@ -55,7 +57,7 @@ async function onKeydown(event: KeyboardEvent, index: number): Promise<void> {
         :aria-controls="`admin-panel-${tab.id}`"
         :tabindex="active === tab.id ? 0 : -1"
         class="font-display text-btn -mb-px cursor-pointer border-b-2 px-3 py-2 uppercase transition-colors duration-200 ease-(--ease-smooth)"
-        :class="active === tab.id ? 'border-coral text-ink-true' : 'border-transparent text-ink-muted hover:text-coral'"
+        :class="active === tab.id ? 'border-coral text-ink-true' : 'border-transparent text-ink-muted underline-offset-4 hover:text-ink hover:underline'"
         :data-testid="`tab-${tab.id}`"
         @click="select(tab.id)"
         @keydown="onKeydown($event, index)"

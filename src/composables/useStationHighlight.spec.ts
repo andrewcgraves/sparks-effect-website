@@ -22,19 +22,16 @@ vi.mock('maplibre-gl', () => ({
   }),
 }))
 
+vi.mock('./useIsochroneLayer', async (importOriginal) => ({
+  ...await importOriginal<typeof import('./useIsochroneLayer')>(),
+  showIsochroneHighlight: vi.fn(),
+}))
+
 import { Popup } from 'maplibre-gl'
 import { TOOLTIP_MAP_POPUP_CLASS, TOOLTIP_PANEL_CLASS } from '../components/tooltip'
 import { useStationHighlight } from './useStationHighlight'
 import { PROGRESS_CAP_HIT_LAYER_ID, STATION_DOTS_LAYER_ID } from './useRouteLayer'
-import {
-  ISOCHRONE_LAYER_ID,
-  ISOCHRONE_ORIGIN_LAYER_ID,
-  ISOCHRONE_HIGHLIGHT_LAYER_ID,
-  ISOCHRONE_HIGHLIGHT_OUTLINE_LAYER_ID,
-  isochroneEgressOpacity,
-  isochroneOriginOpacity,
-  isochroneHighlightFilter,
-} from './useIsochroneLayer'
+import { showIsochroneHighlight } from './useIsochroneLayer'
 
 type Handler = (event: unknown) => void
 
@@ -42,7 +39,7 @@ function makeMockMap() {
   const handlers: { type: string; layer: string | null; handler: Handler }[] = []
   const canvas = { style: { cursor: '' } }
   const setPaintProperty = vi.fn()
-  const setFilter = vi.fn()
+  const showHighlight = vi.mocked(showIsochroneHighlight)
   // Truthy for any layer id by default; tests that need to simulate one layer
   // missing (e.g. the isochrone not plotted yet) override per id.
   const getLayer = vi.fn((id: string): { id: string } | undefined => ({ id }))
@@ -58,7 +55,6 @@ function makeMockMap() {
     getCanvas: () => canvas,
     getLayer,
     setPaintProperty,
-    setFilter,
   }
 
   function fire(type: string, layer: string | null, event: unknown = {}) {
@@ -67,7 +63,24 @@ function makeMockMap() {
     return matches.length
   }
 
-  return { map, canvas, fire, getLayer, setPaintProperty, setFilter }
+  // MapLibre hands one click event to the layer listeners that have features
+  // under it and then to the map-wide ones, in the order they were bound.
+  function tap(event: { features?: unknown[] }) {
+    let prevented = false
+    const click = {
+      ...event,
+      preventDefault: () => { prevented = true },
+      get defaultPrevented() { return prevented },
+    }
+    for (const h of handlers) {
+      if (h.type !== 'click') continue
+      if (h.layer === null || (h.layer === STATION_DOTS_LAYER_ID && (event.features?.length ?? 0) > 0)) {
+        h.handler(click)
+      }
+    }
+  }
+
+  return { map, canvas, fire, tap, getLayer, setPaintProperty, showHighlight }
 }
 
 function stationEvent(slug: string, name: string, lng: number, lat: number) {
@@ -151,40 +164,28 @@ describe('useStationHighlight', () => {
     expect(mockPopupAddTo).toHaveBeenCalled()
   })
 
-  it('dims the base layer and filters the highlight layer to that station', () => {
-    const { fire, setPaintProperty, setFilter } = setup()
+  // SPA-524, SPA-526: the rest of the splash zone rests light already, so a
+  // hover raises the one station without fading the whole map.
+  it('leaves both fills alone and puts that station on the highlight layers', () => {
+    const { fire, setPaintProperty, showHighlight } = setup()
 
     fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))
 
-    expect(setPaintProperty).toHaveBeenCalledWith(ISOCHRONE_LAYER_ID, 'fill-opacity', isochroneEgressOpacity(true))
-    // The highlight layer, not the base layer's opacity, is what actually
-    // promotes the hovered station's polygon above its overlapping neighbours.
-    expect(setFilter).toHaveBeenCalledWith(ISOCHRONE_HIGHLIGHT_LAYER_ID, isochroneHighlightFilter('sf'))
-  })
-
-  // SPA-224: the blue origin wash used to hold its full opacity, and on a
-  // large driving plot the promoted orange read through it as a muted tan.
-  it('dims the origin fill and strokes the highlighted polygon too', () => {
-    const { fire, setPaintProperty, setFilter } = setup()
-
-    fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))
-
-    expect(setPaintProperty).toHaveBeenCalledWith(ISOCHRONE_ORIGIN_LAYER_ID, 'fill-opacity', isochroneOriginOpacity(true))
-    expect(setFilter).toHaveBeenCalledWith(ISOCHRONE_HIGHLIGHT_OUTLINE_LAYER_ID, isochroneHighlightFilter('sf'))
+    expect(setPaintProperty).not.toHaveBeenCalled()
+    expect(showHighlight).toHaveBeenLastCalledWith(expect.anything(), 'sf')
   })
 
   // The other half of SPA-224: a station the plot drew no polygon for used to
   // fade every isochrone on the map and promote nothing in their place, which
   // looked exactly like its orange vanishing under the blue.
   describe('a station with no egress polygon in the plot', () => {
-    it('leaves both fills at their undimmed opacity and promotes nothing', () => {
-      const { fire, setPaintProperty, setFilter } = setup(() => '', () => new Set(['gilroy']))
+    it('promotes nothing', () => {
+      const { fire, setPaintProperty, showHighlight } = setup(() => '', () => new Set(['gilroy']))
 
       fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))
 
-      expect(setPaintProperty).toHaveBeenCalledWith(ISOCHRONE_LAYER_ID, 'fill-opacity', isochroneEgressOpacity(false))
-      expect(setPaintProperty).toHaveBeenCalledWith(ISOCHRONE_ORIGIN_LAYER_ID, 'fill-opacity', isochroneOriginOpacity(false))
-      expect(setFilter).toHaveBeenCalledWith(ISOCHRONE_HIGHLIGHT_LAYER_ID, isochroneHighlightFilter(null))
+      expect(setPaintProperty).not.toHaveBeenCalled()
+      expect(showHighlight).toHaveBeenLastCalledWith(expect.anything(), null)
     })
 
     it('still names the station in the popup, since its dot was hovered all the same', () => {
@@ -199,46 +200,16 @@ describe('useStationHighlight', () => {
 
   })
 
-  // Each layer is guarded on its own, so one that is not plotted yet is
-  // skipped without taking the others with it.
-  it.each([ISOCHRONE_LAYER_ID, ISOCHRONE_ORIGIN_LAYER_ID])(
-    'does not touch %s paint property when that layer does not exist yet',
-    (missing) => {
-      const { fire, getLayer, setPaintProperty } = setup()
-      getLayer.mockImplementation((id: string) => (id === missing ? undefined : { id }))
-
-      fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))
-
-      expect(setPaintProperty).not.toHaveBeenCalledWith(missing, expect.anything(), expect.anything())
-      expect(setPaintProperty).toHaveBeenCalledTimes(1)
-    },
-  )
-
-  it.each([ISOCHRONE_HIGHLIGHT_LAYER_ID, ISOCHRONE_HIGHLIGHT_OUTLINE_LAYER_ID])(
-    'does not touch %s filter when that layer does not exist yet',
-    (missing) => {
-      const { fire, getLayer, setFilter } = setup()
-      getLayer.mockImplementation((id: string) => (id === missing ? undefined : { id }))
-
-      fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))
-
-      expect(setFilter).not.toHaveBeenCalledWith(missing, expect.anything())
-      expect(setFilter).toHaveBeenCalledTimes(1)
-    },
-  )
-
-  it('removes the popup and resets both layers when the pointer leaves', () => {
-    const { fire, setPaintProperty, setFilter } = setup()
+  it('removes the popup and drops the highlight when the pointer leaves', () => {
+    const { fire, showHighlight } = setup()
     fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))
-    setPaintProperty.mockClear()
-    setFilter.mockClear()
+    showHighlight.mockClear()
     mockPopupRemove.mockClear()
 
     fire('mouseleave', STATION_DOTS_LAYER_ID)
 
     expect(mockPopupRemove).toHaveBeenCalled()
-    expect(setPaintProperty).toHaveBeenCalledWith(ISOCHRONE_LAYER_ID, 'fill-opacity', isochroneEgressOpacity(false))
-    expect(setFilter).toHaveBeenCalledWith(ISOCHRONE_HIGHLIGHT_LAYER_ID, isochroneHighlightFilter(null))
+    expect(showHighlight).toHaveBeenLastCalledWith(expect.anything(), null)
   })
 
   it('restores the caller-owned idle cursor on leave, not a hardcoded default', () => {
@@ -251,33 +222,114 @@ describe('useStationHighlight', () => {
   })
 
   it('ignores a hover event that carries no matching feature', () => {
-    const { fire, canvas, setPaintProperty, setFilter } = setup()
+    const { fire, canvas, setPaintProperty, showHighlight } = setup()
 
     fire('mouseenter', STATION_DOTS_LAYER_ID, { features: [] })
 
     expect(canvas.style.cursor).toBe('')
     expect(setPaintProperty).not.toHaveBeenCalled()
-    expect(setFilter).not.toHaveBeenCalled()
+    expect(showHighlight).not.toHaveBeenCalled()
   })
 
-  // SPA-211 shipped click-to-persist and SPA-223 takes it back: with the trip's
-  // detail now in the Time remaining card, a second highlight mechanism only
-  // strands a selection on the map that nothing on the page agrees with.
-  describe('hover is the only way a station is highlighted', () => {
-    it('binds no click handler to the station dots at all', () => {
-      const { fire } = setup()
+  // SPA-223 took click-to-persist away because it stranded a selection the
+  // page disagreed with; SPA-494 brings a tap back for touch screens, which
+  // have no hover, and reports it through onHover so the card agrees.
+  describe('tapping a station', () => {
+    it('opens the popup with its name and promotes its polygon', () => {
+      const { tap, onHover, showHighlight } = setup()
 
-      expect(fire('click', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))).toBe(0)
+      tap(stationEvent('sf', 'San Francisco', -122.41, 37.77))
+
+      expect(mockPopupSetLngLat).toHaveBeenCalledWith([-122.41, 37.77])
+      expect(popupNamed('San Francisco')).toBe(true)
+      expect(mockPopupAddTo).toHaveBeenCalled()
+      expect(onHover).toHaveBeenLastCalledWith('sf')
+      expect(showHighlight).toHaveBeenLastCalledWith(expect.anything(), 'sf')
     })
 
-    it('drops the highlight the moment the pointer leaves, with nothing left standing', () => {
-      const { fire, setFilter } = setup()
+    it('keeps the popup up when the emulated pointer leaves the dot', () => {
+      const { fire, tap, onHover } = setup()
       fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))
-      setFilter.mockClear()
+      tap(stationEvent('sf', 'San Francisco', -122.41, 37.77))
+      mockPopupRemove.mockClear()
+      mockPopupSetDOMContent.mockClear()
 
       fire('mouseleave', STATION_DOTS_LAYER_ID)
 
-      expect(setFilter).toHaveBeenCalledWith(ISOCHRONE_HIGHLIGHT_LAYER_ID, isochroneHighlightFilter(null))
+      expect(mockPopupRemove).not.toHaveBeenCalled()
+      expect(popupNamed('San Francisco')).toBe(true)
+      expect(onHover).toHaveBeenLastCalledWith('sf')
+    })
+
+    it('closes the popup and drops the promote on a tap anywhere off the dots', () => {
+      const { tap, onHover, showHighlight } = setup()
+      tap(stationEvent('sf', 'San Francisco', -122.41, 37.77))
+      mockPopupRemove.mockClear()
+      showHighlight.mockClear()
+
+      tap({ features: [] })
+
+      expect(mockPopupRemove).toHaveBeenCalled()
+      expect(onHover).toHaveBeenLastCalledWith(null)
+      expect(showHighlight).toHaveBeenLastCalledWith(expect.anything(), null)
+    })
+
+    it('moves the popup to the next station tapped', () => {
+      const { tap, onHover } = setup()
+      tap(stationEvent('sf', 'San Francisco', -122.41, 37.77))
+      mockPopupSetDOMContent.mockClear()
+
+      tap(stationEvent('gilroy', 'Gilroy', -121.57, 37.0))
+
+      expect(popupNamed('Gilroy')).toBe(true)
+      expect(onHover).toHaveBeenLastCalledWith('gilroy')
+    })
+
+    // A touch screen's emulated pointer moves straight from one dot to the
+    // next, and MapLibre only fires mouseenter on entering the layer, so the
+    // second tap arrives with the first station still counted as hovered.
+    it('names the second station when one dot is tapped straight after another', () => {
+      const { fire, tap, onHover } = setup()
+      fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))
+      tap(stationEvent('sf', 'San Francisco', -122.41, 37.77))
+      mockPopupSetDOMContent.mockClear()
+
+      tap(stationEvent('gilroy', 'Gilroy', -121.57, 37.0))
+
+      expect(popupNamed('Gilroy')).toBe(true)
+      expect(onHover).toHaveBeenLastCalledWith('gilroy')
+    })
+
+    it('comes back to the tapped station when the pointer leaves the unfinished-leg cap', () => {
+      const { fire, tap, onHover, canvas } = setup(() => 'crosshair')
+      tap(stationEvent('sf', 'San Francisco', -122.41, 37.77))
+      fire('mouseenter', PROGRESS_CAP_HIT_LAYER_ID, capEvent('merced', 0.38, 1839))
+      expect(onHover).toHaveBeenLastCalledWith(null)
+      mockPopupSetDOMContent.mockClear()
+
+      fire('mouseleave', PROGRESS_CAP_HIT_LAYER_ID)
+
+      expect(onHover).toHaveBeenLastCalledWith('sf')
+      expect(popupNamed('San Francisco')).toBe(true)
+      expect(canvas.style.cursor).toBe('crosshair')
+    })
+
+    it('leaves the page alone on a tap off the dots when nothing was tapped', () => {
+      const { tap, onHover } = setup()
+
+      tap({ features: [] })
+
+      expect(onHover).not.toHaveBeenCalled()
+    })
+
+    it('still drops a mouse hover the moment the pointer leaves, with nothing tapped', () => {
+      const { fire, showHighlight } = setup()
+      fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))
+      showHighlight.mockClear()
+
+      fire('mouseleave', STATION_DOTS_LAYER_ID)
+
+      expect(showHighlight).toHaveBeenLastCalledWith(expect.anything(), null)
     })
   })
 
@@ -293,12 +345,12 @@ describe('useStationHighlight', () => {
     })
 
     it('promotes a station made active elsewhere, without a pointer ever touching the map', () => {
-      const { highlight, setActive, setFilter } = setup()
+      const { highlight, setActive, showHighlight } = setup()
 
       setActive('gilroy')
       highlight.sync()
 
-      expect(setFilter).toHaveBeenCalledWith(ISOCHRONE_HIGHLIGHT_LAYER_ID, isochroneHighlightFilter('gilroy'))
+      expect(showHighlight).toHaveBeenLastCalledWith(expect.anything(), 'gilroy')
     })
 
     it('puts up no popup for one, since no dot on this map is under the pointer', () => {
@@ -369,14 +421,14 @@ describe('useStationHighlight', () => {
     })
 
     it('shows a pointer cursor without promoting a station, because the cap is not one', () => {
-      const { fire, canvas, onHover, setPaintProperty, setFilter } = setup()
+      const { fire, canvas, onHover, setPaintProperty, showHighlight } = setup()
 
       fire('mouseenter', PROGRESS_CAP_HIT_LAYER_ID, capEvent('merced', 0.38, 1839))
 
       expect(canvas.style.cursor).toBe('pointer')
       expect(onHover).not.toHaveBeenCalled()
-      expect(setPaintProperty).toHaveBeenCalledWith(ISOCHRONE_LAYER_ID, 'fill-opacity', isochroneEgressOpacity(false))
-      expect(setFilter).toHaveBeenCalledWith(ISOCHRONE_HIGHLIGHT_LAYER_ID, isochroneHighlightFilter(null))
+      expect(setPaintProperty).not.toHaveBeenCalled()
+      expect(showHighlight).toHaveBeenLastCalledWith(expect.anything(), null)
     })
 
     it('falls back to the slug when the stations list has no name for that hop', () => {
@@ -423,16 +475,16 @@ describe('useStationHighlight', () => {
     })
 
     it('drops a leftover station promote when the pointer moves onto the cap', () => {
-      const { fire, onHover, setFilter } = setup()
+      const { fire, onHover, showHighlight } = setup()
       fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))
       onHover.mockClear()
-      setFilter.mockClear()
+      showHighlight.mockClear()
       mockPopupSetDOMContent.mockClear()
 
       fire('mouseenter', PROGRESS_CAP_HIT_LAYER_ID, capEvent('merced', 0.38, 1839))
 
       expect(onHover).toHaveBeenCalledWith(null)
-      expect(setFilter).toHaveBeenCalledWith(ISOCHRONE_HIGHLIGHT_LAYER_ID, isochroneHighlightFilter(null))
+      expect(showHighlight).toHaveBeenLastCalledWith(expect.anything(), null)
       expect(popupNode()?.textContent).toBe('38% of the way to merced — 19m short')
     })
 

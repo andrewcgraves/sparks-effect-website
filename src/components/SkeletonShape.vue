@@ -23,7 +23,7 @@ const LINE_WIDTHS = ['w-full', 'w-5/6', 'w-2/3']
     >
       <span class="skeleton h-[1em] w-2/5 rounded-(--radius-field)" />
     </div>
-    <div class="font-body text-caption mt-3 flex flex-col gap-2">
+    <div class="t-meta mt-3 flex flex-col gap-2">
       <div
         v-for="index in props.lines"
         :key="index"

@@ -22,7 +22,10 @@ codes, the job statuses) is defined once in
 [sparks-effect-api's `CONTEXT.md`](https://github.com/andrewcgraves/sparks-effect-api/blob/main/CONTEXT.md),
 and chain vocabulary in
 [sparks-effect-routing-worker's](https://github.com/andrewcgraves/sparks-effect-routing-worker/blob/main/CONTEXT.md).
-Use those words; do not mint synonyms.
+Use those words; do not mint synonyms. Visitor copy follows the Product
+vocabulary table in `CONTEXT.md`: product words (line, network, route, splash
+zone) in anything a person reads, domain words in identifiers, test ids, router
+names, URLs and API fields.
 
 Declaration-level comments were deliberately removed from this source in SPA-307
 because they restated their declarations. Domain meaning belongs in `CONTEXT.md`;

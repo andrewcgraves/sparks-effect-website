@@ -218,4 +218,78 @@ describe('ConfirmDialog', () => {
       expect(document.activeElement).toBe(buttons[buttons.length - 1])
     })
   })
+
+  describe('with an email', () => {
+    const TRANSFER = { title: 'Transfer Coast Line?', body: 'They can accept it.', confirmLabel: 'Send offer', emailLabel: 'Their email' }
+
+    async function askForEmail(): Promise<{ answer: Promise<string | null> }> {
+      const answer = useConfirm().confirmWithEmail(TRANSFER)
+      await flushPromises()
+      return { answer }
+    }
+
+    function email() {
+      return host.get('[data-testid="confirm-dialog-email"]')
+    }
+
+    function confirmButton() {
+      return host.get('[data-testid="confirm-dialog-confirm"]')
+    }
+
+    it('shows no email field for a plain confirm', async () => {
+      await ask()
+      expect(host.find('[data-testid="confirm-dialog-email"]').exists()).toBe(false)
+    })
+
+    it('asks for an email address under the caller\'s label, focused on open', async () => {
+      await askForEmail()
+      const field = email().element as HTMLInputElement
+      expect(field.type).toBe('email')
+      expect(field.labels?.[0]?.textContent).toContain('Their email')
+      expect(document.activeElement).toBe(field)
+    })
+
+    it('cannot be confirmed until the address looks like one', async () => {
+      await askForEmail()
+      expect(confirmButton().attributes('disabled')).toBeDefined()
+      await email().setValue('ada')
+      expect(confirmButton().attributes('disabled')).toBeDefined()
+      await email().setValue('ada@example.com')
+      expect(confirmButton().attributes('disabled')).toBeUndefined()
+    })
+
+    it('resolves with the trimmed address when confirmed', async () => {
+      const { answer } = await askForEmail()
+      await email().setValue('  ada@example.com ')
+      await confirmButton().trigger('click')
+      await expect(answer).resolves.toBe('ada@example.com')
+    })
+
+    it('confirms on Enter in the field once the address is complete', async () => {
+      const { answer } = await askForEmail()
+      await email().setValue('ada')
+      await email().trigger('keydown', { key: 'Enter' })
+      expect(dialog().open).toBe(true)
+      await email().setValue('ada@example.com')
+      await email().trigger('keydown', { key: 'Enter' })
+      await expect(answer).resolves.toBe('ada@example.com')
+    })
+
+    it('resolves null when cancelled', async () => {
+      const { answer } = await askForEmail()
+      await email().setValue('ada@example.com')
+      await host.get('[data-testid="confirm-dialog-cancel"]').trigger('click')
+      await expect(answer).resolves.toBeNull()
+    })
+
+    it('keeps the email field inside the Tab cycle', async () => {
+      await askForEmail()
+      await email().setValue('ada@example.com')
+      const field = email().element
+      const buttons = [...dialog().querySelectorAll('button')]
+      buttons[buttons.length - 1].focus()
+      expect(key('Tab').defaultPrevented).toBe(true)
+      expect(document.activeElement).toBe(field)
+    })
+  })
 })

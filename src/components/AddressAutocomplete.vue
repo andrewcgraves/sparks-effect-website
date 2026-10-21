@@ -162,16 +162,16 @@ defineExpose({ setInputValue })
       :for="inputId"
       :class="FIELD_LABEL_CLASS"
     >
-      Location
+      Starting point
     </label>
     <div class="flex items-center gap-2">
       <div class="relative min-w-0 flex-1">
         <input
           :id="inputId"
           v-model="inputValue"
-          :class="[FIELD_INPUT_CLASS, 'h-9 w-full placeholder:text-placeholder']"
+          :class="[FIELD_INPUT_CLASS, 'h-9 w-full placeholder:text-placeholder pointer-coarse:h-11']"
           type="text"
-          placeholder="Start typing a place name"
+          placeholder="Search for a place"
           autocomplete="off"
           role="combobox"
           aria-autocomplete="list"
@@ -190,14 +190,14 @@ defineExpose({ setInputValue })
         >
           <p
             v-if="isLoading"
-            class="font-body text-caption px-3 py-2 text-ink-muted italic"
+            class="t-note px-3 py-2 text-ink-muted"
             data-testid="suggestions-loading"
           >
             Searching…
           </p>
           <p
             v-else-if="unavailable"
-            class="font-body text-caption px-3 py-2 text-ink-muted not-italic normal-case"
+            class="t-note px-3 py-2 text-ink-muted"
             data-testid="suggestions-unavailable"
             role="status"
           >
@@ -215,7 +215,7 @@ defineExpose({ setInputValue })
               v-for="(match, index) in matches"
               :id="optionId(index)"
               :key="match.gid"
-              class="font-body cursor-pointer border-b border-border px-3 py-2 text-[14px] text-ink not-italic normal-case transition-colors duration-200 ease-(--ease-smooth) last:border-b-0 hover:bg-surface aria-selected:bg-surface aria-selected:outline-2 aria-selected:-outline-offset-2 aria-selected:outline-coral"
+              class="t-field cursor-pointer border-b border-border px-3 py-2 text-ink transition-colors duration-200 ease-(--ease-smooth) last:border-b-0 hover:bg-surface aria-selected:bg-surface aria-selected:outline-2 aria-selected:-outline-offset-2 aria-selected:outline-coral"
               role="option"
               :aria-selected="index === activeIndex"
               @click="onSelect(match)"
@@ -225,7 +225,7 @@ defineExpose({ setInputValue })
           </ul>
           <p
             v-else
-            class="font-body text-caption px-3 py-2 text-ink-muted italic"
+            class="t-note px-3 py-2 text-ink-muted"
             data-testid="suggestions-empty"
           >
             No results found

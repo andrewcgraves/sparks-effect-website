@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { afterEach, describe, it, expect, vi } from 'vitest'
 import { chainageAlong, projectOntoAlignment, sliceAlignment } from './chainage'
 import chainageFixture from './fixtures/chainage.golden.json'
 
@@ -185,5 +185,39 @@ describe('sliceAlignment', () => {
     // the geometry does.
     const got = sliceAlignment(line, 0, expectedChainage[3] * 2, 1)
     expect(got[got.length - 1]).toEqual([-121.8, 37.5])
+  })
+})
+
+describe('measuring a line', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  // A ridden leg projects both its stations onto a route and then slices it.
+  // Measuring the chainage builds the line's planar frame, and that is the only
+  // Math.cos on the path, so counting it counts the measurements: one per line,
+  // not one per call (SPA-487).
+  it('measures a line once however often it is projected onto and sliced', () => {
+    const fresh = line.map(([lng, lat]) => [lng, lat] as [number, number])
+    const cos = vi.spyOn(Math, 'cos')
+
+    const from = projectOntoAlignment(fresh, [-122.0, 37.1])
+    const to = projectOntoAlignment(fresh, [-121.8, 37.4])
+    sliceAlignment(fresh, from!.chainageM, to!.chainageM, 1)
+    chainageAlong(fresh)
+
+    expect(cos).toHaveBeenCalledTimes(1)
+  })
+
+  it('hands back the same chainage table for the same line', () => {
+    const fresh = line.map(([lng, lat]) => [lng, lat] as [number, number])
+    expect(chainageAlong(fresh)).toBe(chainageAlong(fresh))
+  })
+
+  it('measures an equal but separate line on its own', () => {
+    const a = line.map(([lng, lat]) => [lng, lat] as [number, number])
+    const b = line.map(([lng, lat]) => [lng, lat] as [number, number])
+    expect(chainageAlong(a)).not.toBe(chainageAlong(b))
+    expect(chainageAlong(a)).toEqual(chainageAlong(b))
   })
 })

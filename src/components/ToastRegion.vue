@@ -59,7 +59,7 @@ watch(toasts, () => {
       data-testid="toast"
     >
       <p
-        class="font-body text-caption flex-1"
+        class="t-meta flex-1"
         aria-hidden="true"
         data-testid="toast-message"
       >

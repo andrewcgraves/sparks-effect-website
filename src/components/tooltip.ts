@@ -62,7 +62,7 @@ export function tooltipStyle(placement: TooltipPlacement): Record<string, string
 
 export function tooltipContent(text: string): HTMLElement {
   const node = document.createElement('div')
-  node.className = `${TOOLTIP_PANEL_CLASS} font-body text-caption text-ink`
+  node.className = `${TOOLTIP_PANEL_CLASS} t-meta text-ink`
   node.textContent = text
   return node
 }
@@ -85,13 +85,13 @@ export function stationTooltipContent(name: string, remainingSecs: number | null
   node.className = TOOLTIP_PANEL_CLASS
 
   const title = document.createElement('p')
-  title.className = 'font-body text-caption text-ink'
+  title.className = 't-meta text-ink'
   title.textContent = name
   node.append(title)
 
   if (remainingSecs !== null) {
     const remaining = document.createElement('p')
-    remaining.className = 'font-body text-micro tabular-nums text-ink-muted'
+    remaining.className = 't-meta tabular-nums text-ink-muted'
     remaining.textContent = `${formatTimeRemaining(remainingSecs)} left`
     node.append(remaining)
   }

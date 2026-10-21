@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest'
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { STATIC_PAGES } from './share/linkPreview'
 
 interface Condition {
   type: string
@@ -152,6 +153,10 @@ describe('vercel.json headers', () => {
     expect(headersFor('/robots.txt', PRODUCTION)['cache-control']).toBeUndefined()
     expect(headersFor('/sitemap.xml', PRODUCTION)['cache-control']).toBeUndefined()
     expect(headersFor('/login', PRODUCTION)['cache-control']).toBe('no-cache')
+  })
+
+  it('leaves caching to the middleware on every page with a fixed-copy preview', () => {
+    for (const path of STATIC_PAGES.keys()) expect(headersFor(path, PRODUCTION)['cache-control'], path).toBeUndefined()
   })
 
   it('tells crawlers not to index anything served on staging, a preview or a vercel.app alias', () => {

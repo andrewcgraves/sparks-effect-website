@@ -15,7 +15,7 @@ function mountLink(routes: RouteRecordRaw[] = []) {
 
 describe('AllLinesLink', () => {
   it('reads as a way back to all lines', () => {
-    expect(mountLink().get('a').text()).toBe('← All lines')
+    expect(mountLink().get('a').text()).toBe('← All lines and networks')
   })
 
   it('leads home while there is no Explore page', () => {
