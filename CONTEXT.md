@@ -30,10 +30,22 @@ not renamed to match, and URLs are tidied separately (SPA-456).
 | --- | --- | --- |
 | **Line** | service | Everywhere a person reads about one stopping pattern: the cover page, a published line's page, authoring ("My lines", "+ New line", "Line name", "Delete line"), publication status, admin's published list, and errors and confirmations about one |
 | **Network** | scenario | A set of lines, curated or authored: the cover page, the network page, authoring ("My networks", "+ New network", "Network name"), the network builder's list of member lines, and errors and confirmations about one |
-| **Route** | route | The geometry a line runs along — a drawn LineString. Only authors see it: picking a route for a line, stops sitting on or off the route, the route page, authoring ("My routes", "+ New route", "Route name", "Delete route"). Never use it for a line or a network, and never say *alignment* or *track* in copy. See [Routes an author draws](#routes-an-author-draws) |
+| **Route** | route | The geometry a line runs along — a drawn LineString. Seen mostly by authors — picking a route for a line, stops sitting on or off the route, authoring ("My routes", "+ New route", "Route name", "Delete route") — though public route pages exist (`/routes/:slug`, in the sitemap and link previews). Never use it for a line or a network, and never say *alignment* or *track* in copy. See [Routes an author draws](#routes-an-author-draws) |
 | **Point** | coordinate, vertex | One position along a route. The builder counts them ("2 points"), a fault names one ("Point 3"), and never says *vertex* or *coordinate* in copy |
 | **In use** | dependents | A route that lines are built on. Read "Used by N lines"; a route with none is "Not used yet". See [Routes an author draws](#routes-an-author-draws) |
 | **Splash zone** | isochrone | See [Splash zone](#splash-zone) |
+| **Transfer** | handover | Moving a line to another author: "Transfer…" on a line's page, "Incoming transfers" and the "Transfer pending" badge on My authoring, and the confirms and toasts about one. The API reserves *transfer* for a rider changing service, but copy never uses it that way (a rider's change reads "Changed from"), so the product word is free. Code, test ids and API calls say *handover* |
+| **Stop** | stop | A place *on a line*: what an author adds, names, orders and snaps ("Click the map to add a stop", "A line needs at least two stops"), a published line's Stops list, a dwell hint ("Longer than most stops"), and a count of a line's calls even where the places are stations (the Stations card's "3 stops · 1 h 11 min"). The API defines a stop as *a service calling at a place*, not a place; on the authored model each stop also carries its own name and coordinate, and that is what an author edits |
+| **Station** | station / node | A place *a rider reaches*: rows of the time-remaining graph, the network page's Stations card, the map's station dots and hover, "Time between stations", "The nearest station is about …", the map key's "From station". Never "station stop" |
+| **Travel time** | budget (`budget_mins`) | How long the visitor gives a plot: the form's "Travel time", "raise the travel time", the map key's "Travel time ran out here". *Budget* stays in code and in the worker's vocabulary |
+| **Starting point** | origin | Where a plot starts: "Pick starting point on map", "Click the map to set the starting point", the time-remaining graph's top row, the map key's "From starting point". *Pin* only for the map marker itself; *origin* never in copy |
+| **Saved splash zones** | prerendered isochrone | The ready-made plots a network page offers in its one plot panel, behind the "Saved splash zones" side of its switch ("Plot your own" is the other). Choosing one draws it and fills the form with its starting point, travel time and mode. Never *pre-rendered* or *curated* in copy |
+| **Plot** | generate / enqueue | The one verb for making a splash zone: "Plot a splash zone", "Plot splash zone", "Plotting…" |
+| **Build** | compile job / compiled graph | What compiling produces. *Compile* and *Recompile* stay as the author's actions ("Compiling this line…", "Recompile"); the result is "this line's latest build", never *compiled graph* |
+| **Headway** / **every N min** | headway (`headway_s`), frequency window | Authors may read *headway* and *frequency window* on the authoring form ("Headway (min)", "Half the headway"). Anywhere else a gap between departures reads "every N min" |
+| **Walk**, **Bike**, **Drive**, **Transit** | `walk`, `bike`, `drive`, `transit` | The travel-mode labels, held once in `MODE_LABELS` (`src/copy/modes.ts`) with the matching trip nouns ("bike ride", "transit trip"). Never the raw lowercase mode. A route's own mode (`rail`, `metro`, …) is a different thing, shown only to authors |
+| **My authoring** | — | The signed-in author's page listing their lines, networks and incoming transfers (`/authoring`), and its breadcrumb |
+| **Unnamed line** / **Unnamed stop** / **Unnamed station** / **Removed stop** | — | What a label says when the page has no name for the thing (`src/copy/names.ts`). *Removed stop* when the page knows the line and the line no longer has the stop (a declared interchange that outlived it); *Unnamed* when it has nothing to check against. Never the slug or id it was looked up by |
 
 The words are kept apart because the API's two senses of *scenario* and
 *service* (its `CONTEXT.md`, "The one that catches everyone") are a code
@@ -43,14 +55,57 @@ the copy, not in this table. Each noun maps to its word once, in
 `AUTHORING_NOUN_WORDS` (`src/api/authoringFault.ts`); copy built from an
 `AuthoringNoun` goes through that map rather than printing the noun.
 
+The API's human-readable `message` is in its words, not these, so copy never
+prints it: a fault is read by its `code` (and `detail`), mapped to a sentence
+here, and the raw text goes to the console. A validation fault's field path is
+named through `authoringFault.ts`'s field maps, and a spec walks every field of
+`ServiceInput` and `ScenarioInput` to hold each one to a word.
+
 *Line* also names a drawn stroke on the route map ("The three states of a line",
 below). That is a word for developers about drawing, not copy.
 
 ## Splash zone
 
-The product-facing name for an isochrone — the area reachable from a point
-within a time budget. Used on the cover page and in copy aimed at readers; the
-code says *isochrone*.
+The product-facing name for an isochrone — the area reachable from a starting
+point within a travel time. Used in every heading, button, map key and message a
+person reads; the code, the API and the analytics events say *isochrone*.
+
+## The phone map page
+
+Below `md` (Tailwind's 48rem) a map page — the network page and a published
+line's page — stops stacking a card map above its cards and becomes a **phone
+map page** (`src/components/PhoneMapPage.vue`): the map on top, a **panel**
+fixed to the bottom, and the panel's content behind **tabs**. Nothing is
+dragged; a header button switches the panel between **tall** (room to read)
+and **short** (room to aim), and arming tap-to-pick shortens it. The panel is
+the page's one scroller: a card that caps and scrolls its own list elsewhere
+lets the panel scroll it here (`PHONE_PANEL_SCROLLER`), so one swipe runs the
+panel's whole length (SPA-508). Every phone
+map page has a **Plot** tab (the splash-zone form and whatever plots with it)
+and a **Results** tab (the time-remaining graph), disabled until a plot reaches
+a station; the page adds its own after them — About on the network page, Stops
+and About on a line's page, Interchanges where stops did not connect. The
+network page calls its Results tab **Stations**: it holds the Stations card, the
+timetable before a plot and the answer after it, so it is never disabled while
+run times load. Plotting turns the panel to Results, and a plot that goes away
+turns it back to Plot. Authoring pages are desktop
+pages for launch and keep the stacked layout at any width.
+
+## The Stations card
+
+The network page's one card about stations (`src/components/StationsCard.vue`,
+model in `stationsCard.ts`), in place of Time remaining and Time between
+stations (SPA-504). One group per route, stops in **line order** before and
+after a plot. Before a plot it is the timetable: run times between stops and a
+direction toggle where a route runs at different times each way. After a plot
+the order does not change; each stop gains its **time left** on arrival (the
+number the map shows for that station, or "—"), and the rail is drawn as the map
+draws a line — **ridden** in ink, **unridden** faint, **unfinished** dashed
+with how far it got ("50% of 15:00"). A ridden hop shows the run time in the
+direction ridden, marked ↑ or ↓. The stop boarded from the starting point reads
+"Boarded here"; a change of train reads "Changed from"; a station on several
+routes appears in each, with "Also on". With no run times to read a plot along,
+the page falls back to the time-remaining graph. Line pages keep both cards.
 
 ## Routes an author draws
 
@@ -80,7 +135,7 @@ where. Four words carry the whole layout.
 
 | Term | Definition |
 | --- | --- |
-| **View** | One tab of the graph, and one line's worth of the trip. Memberships are grouped by the service a station was *arrived on*, so each view shows a single line plus the station where it was boarded — the only row a view borrows, and never a destination of that view. With no transit legs at all there is one view, keyed `access` and labelled by mode |
+| **View** | One tab of the graph, and one line's worth of the trip. Memberships are grouped by the service a station was *arrived on*, so each view shows a single line plus the station where it was boarded — the only row a view borrows, and never a destination of that view. On a curated network's page, services that share a route share a view, labelled with the route's short name (`shortLineName`, "Brightline West"), because that is what riders call the line. With no transit legs at all there is one view, keyed `access` and labelled by mode |
 | **Row** | One station in one view. Row **content** — which service the rider leaves on, what they waited, whether they change — is computed once from the whole trip, so a station reads the same in every view it appears in. Only membership, parentage and lane geometry are per-view |
 | **Lane** | A vertical column in the gutter. Lanes are assigned greedily as rows are walked and freed the moment their row is drawn, so a lane is reused down the page rather than reserved per branch. `laneCount` is the peak, and lane *width* shrinks to fit `GRAPH_COLUMN_PX` |
 | **Through** | The lanes that pass a row without terminating at it — branches still pending further down. Drawn as vertical strokes beside the row |
@@ -89,7 +144,7 @@ where. Four words carry the whole layout.
 Three related row facts, all per-view:
 
 - **Flag** — the service a rider departs a row on. If they stay aboard what they
-  arrived on, that; otherwise the first onward branch. On the starting location
+  arrived on, that; otherwise the first onward branch. On the starting point
   it is the mode the plot asked for, except that a transit access leg Valhalla
   walked the whole way (`access_rode_transit: false`) reads "Walk": when every
   access line in the view walked, the flag does; when they disagree, the flag
@@ -97,11 +152,11 @@ Three related row facts, all per-view:
 - **Transfer from** — set only when they do *not* stay aboard, naming the
   service they arrived on. This is the frontend's own presentation of a change of
   train; there is no transfer edge in the graph it is reading.
-- **Access** — on the starting location only: the station or stations the
+- **Access** — on the starting point only: the station or stations the
   view's own line was reached from, each with its access time. Several when the
   search boarded that line at more than one station; in the access view, the
   starter station alone. Never one name for the whole trip — a single station on
-  the starting location of every tab read as the place the rider was being sent
+  the starting point of every tab read as the place the rider was being sent
   (SPA-342).
 
 ## The three states of a line
@@ -140,12 +195,12 @@ its service, so the same unfinished leg is not repeated across tabs.
 ## The three states of a publication
 
 *Publish*, *publication* and *draft* are the API's words (ADR-0005 in
-sparks-effect-api). The authoring page for a service reports one of three
+sparks-effect-api). The authoring page for a line reports one of three
 states, never two:
 
 | State | When | What it means |
 | --- | --- | --- |
-| **Unpublished** | No publication exists | Only the owner can see the service |
+| **Unpublished** | No publication exists | Only the owner can see the line |
 | **Published** | A publication exists, and the draft's `updated_at` is no later than its `published_at` | Visitors see the draft as it is now |
 | **Unpublished changes** | A publication exists, and the draft has been edited since | Visitors still see the publication. A publication is a snapshot, so no edit — prose included — reaches the public page until the owner republishes |
 

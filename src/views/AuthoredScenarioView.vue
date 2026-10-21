@@ -21,6 +21,7 @@ import { useOwnedDetail } from '../composables/useOwnedDetail'
 import { useOwnedList } from '../composables/useOwnedList'
 import { isochroneWaitMessage } from '../api/isochroneFault'
 import { useAuthoredGraph } from '../composables/useAuthoredGraph'
+import { useRoutingStatus } from '../composables/useRoutingStatus'
 import { usePageTitle } from '../composables/usePageTitle'
 import { useScenarioDeletion } from '../composables/useDeletion'
 import DeclaredInterchanges from '../components/DeclaredInterchanges.vue'
@@ -33,12 +34,15 @@ import BreadcrumbTrail from '../components/BreadcrumbTrail.vue'
 import { AUTHORING_CRUMB } from '../components/crumbs'
 import DeleteMenu from '../components/DeleteMenu.vue'
 import PageSkeleton from '../components/PageSkeleton.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const props = defineProps<{ slug: string }>()
 
 const { item: scenario, loading, notFound, error } = useOwnedDetail<Scenario>(fetchScenario, props.slug)
 
 usePageTitle(() => scenario.value?.name)
+
+const { offline: routingOffline } = useRoutingStatus()
 
 const {
   compiling,
@@ -63,7 +67,7 @@ const {
   noun: 'scenario',
   fetchGraph: fetchScenarioGraph,
   isochrone: fetchScenarioIsochrone,
-})
+}, { offline: () => routingOffline.value })
 
 const { items: services } = useOwnedList(fetchMyServices)
 
@@ -97,7 +101,7 @@ const statusNote = computed(() => {
 })
 
 const declaredInterchanges = ref<InstanceType<typeof DeclaredInterchanges> | null>(null)
-const pageHeading = ref<HTMLElement | null>(null)
+const pageHeading = ref<InstanceType<typeof PageHeader> | null>(null)
 
 // The button a join or removal started from has usually gone with its row by
 // the time it finishes, which drops a keyboard user's focus to the page. Left
@@ -177,11 +181,12 @@ async function recompileForInterchanges(): Promise<void> {
     />
 
     <template v-else-if="notFound">
-      <h1 class="font-display text-display mt-8 text-ink-true">
-        Network not found
-      </h1>
+      <PageHeader
+        class="mt-8"
+        title="Network not found"
+      />
       <p
-        class="font-body text-body mt-3 text-ink-muted"
+        class="t-body mt-3 text-ink-muted"
         data-testid="scenario-not-found"
       >
         No network of yours matches "{{ props.slug }}".
@@ -189,11 +194,12 @@ async function recompileForInterchanges(): Promise<void> {
     </template>
 
     <template v-else-if="error">
-      <h1 class="font-display text-display mt-8 text-ink-true">
-        Something went wrong
-      </h1>
+      <PageHeader
+        class="mt-8"
+        title="Something went wrong"
+      />
       <p
-        class="font-body text-body mt-3 text-ink-muted"
+        class="t-body mt-3 text-ink-muted"
         role="alert"
         data-testid="scenario-error"
       >
@@ -202,20 +208,13 @@ async function recompileForInterchanges(): Promise<void> {
     </template>
 
     <template v-else-if="scenario">
-      <div class="mt-8 flex items-start justify-between gap-4">
-        <hgroup class="flex flex-col gap-2">
-          <h1
-            ref="pageHeading"
-            tabindex="-1"
-            class="font-display text-display text-ink-true"
-          >
-            {{ scenario.name }}
-          </h1>
-          <p class="font-body text-micro text-ink-muted uppercase">
-            {{ scenario.slug }}
-          </p>
-        </hgroup>
-        <div class="flex items-start gap-6">
+      <PageHeader
+        ref="pageHeading"
+        class="mt-8"
+        :title="scenario.name"
+        :slug="scenario.slug"
+      >
+        <template #actions>
           <router-link
             :to="`/authoring/scenarios/${scenario.slug}/edit`"
             :class="ACTION_LINK_CLASS"
@@ -228,34 +227,34 @@ async function recompileForInterchanges(): Promise<void> {
             :deleting="deleting"
             @delete="confirmAndDelete(scenario)"
           />
-        </div>
-      </div>
+        </template>
+      </PageHeader>
       <p
         v-if="scenario.description"
-        class="font-body text-body mt-3 max-w-[720px] text-ink"
+        class="t-body mt-3 max-w-[720px] text-ink-muted"
       >
         {{ scenario.description }}
       </p>
 
       <p
         v-if="compiling && !graph"
-        class="font-body text-caption mt-8 text-ink-muted italic"
+        class="t-note mt-8 text-ink-muted"
         data-testid="compiling-status"
       >
         Compiling this network…
       </p>
       <p
         v-else-if="graphFailed"
-        class="font-body text-caption mt-8 text-error"
+        class="t-error mt-8"
         role="alert"
         data-testid="graph-error"
       >
-        Couldn't load this network's compiled graph.
+        Couldn't load this network's latest build.
       </p>
       
       <template v-else-if="compileError && !graph">
         <p
-          class="font-body text-caption mt-8 text-error"
+          class="t-error mt-8"
           role="alert"
           data-testid="compile-error"
         >
@@ -303,7 +302,7 @@ async function recompileForInterchanges(): Promise<void> {
                near miss. -->
           <p
             v-if="compileError"
-            class="font-body text-caption text-error"
+            class="t-error"
             role="alert"
             data-testid="interchange-compile-error"
           >

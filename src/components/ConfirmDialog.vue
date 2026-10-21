@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useConfirmHost } from '../composables/useConfirm'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from './fieldStyles'
 import { DESTRUCTIVE_BUTTON_CLASS, PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS } from './buttonStyles'
@@ -9,6 +9,17 @@ const { pending, note, settle } = useConfirmHost()
 const dialog = ref<HTMLDialogElement | null>(null)
 const cancelButton = ref<HTMLButtonElement | null>(null)
 const noteField = ref<HTMLTextAreaElement | null>(null)
+const emailField = ref<HTMLInputElement | null>(null)
+
+// Only the shape the API would refuse outright: whether the address belongs to
+// anyone is the API's to know, and it never says.
+const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+$/
+
+const awaitingEmail = computed(() => !!pending.value?.emailLabel && !EMAIL_SHAPE.test(note.value.trim()))
+
+function confirmIfReady(): void {
+  if (!awaitingEmail.value) settle(true)
+}
 
 watch(pending, (now, before) => {
   const el = dialog.value
@@ -16,8 +27,9 @@ watch(pending, (now, before) => {
   if (now) {
     if (!el.open) el.showModal()
     // Whatever is asked must be chosen deliberately, so Enter on open lands on
-    // the safe choice, or in the note, where Enter only starts a new line.
-    ;(noteField.value ?? cancelButton.value)?.focus()
+    // the safe choice, or in the note, where Enter only starts a new line. An
+    // address is typed before anything can be chosen, so it takes focus too.
+    ;(noteField.value ?? emailField.value ?? cancelButton.value)?.focus()
     return
   }
   if (el.open) el.close()
@@ -27,7 +39,7 @@ watch(pending, (now, before) => {
 // A modal <dialog> makes the page inert in browsers, but Tab can still leave
 // for the browser's own chrome; this keeps it cycling through the dialog.
 function trapTab(event: KeyboardEvent): void {
-  const focusable = [...(dialog.value?.querySelectorAll<HTMLElement>('textarea, button:not([disabled])') ?? [])]
+  const focusable = [...(dialog.value?.querySelectorAll<HTMLElement>('textarea, input, button:not([disabled])') ?? [])]
   if (focusable.length === 0) return
   const first = focusable[0]
   const last = focusable[focusable.length - 1]
@@ -72,7 +84,7 @@ function onKeydown(event: KeyboardEvent): void {
       </h2>
       <p
         id="confirm-dialog-body"
-        class="font-body text-caption mt-3 text-ink"
+        class="t-meta mt-3 text-ink"
       >
         {{ pending.body }}
       </p>
@@ -89,6 +101,22 @@ function onKeydown(event: KeyboardEvent): void {
           data-testid="confirm-dialog-note"
         />
       </label>
+      <label
+        v-else-if="pending.emailLabel"
+        :class="['mt-4', FIELD_LABEL_CLASS]"
+      >
+        {{ pending.emailLabel }}
+        <input
+          ref="emailField"
+          v-model="note"
+          type="email"
+          autocomplete="email"
+          required
+          :class="FIELD_INPUT_CLASS"
+          data-testid="confirm-dialog-email"
+          @keydown.enter.prevent="confirmIfReady"
+        >
+      </label>
       <div class="mt-5 flex flex-wrap justify-end gap-3">
         <button
           ref="cancelButton"
@@ -103,7 +131,8 @@ function onKeydown(event: KeyboardEvent): void {
           type="button"
           :class="pending.destructive ? DESTRUCTIVE_BUTTON_CLASS : PRIMARY_BUTTON_CLASS"
           data-testid="confirm-dialog-confirm"
-          @click="settle(true)"
+          :disabled="awaitingEmail"
+          @click="confirmIfReady"
         >
           {{ pending.confirmLabel }}
         </button>

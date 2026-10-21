@@ -104,7 +104,7 @@ export function useServiceDeletion() {
 export function useScenarioDeletion() {
   return useDeletion(
     'scenario',
-    async () => `Its compiled graph goes too. Its lines aren't deleted. ${NO_UNDO}`,
+    async () => `Its builds go too. Its lines aren't deleted. ${NO_UNDO}`,
     deleteScenario,
   )
 }

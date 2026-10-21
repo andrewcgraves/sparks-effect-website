@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { defineComponent, h } from 'vue'
 import { flushPromises } from '@vue/test-utils'
 import { mount } from '@vue/test-utils'
 import IsochroneForm from './IsochroneForm.vue'
@@ -24,6 +25,17 @@ import { trackModeToggle } from './analytics/index'
 import { getCurrentPosition } from './api/geolocation'
 import { reverseGeocode } from './api/geocoding'
 
+// The form's location buttons sit in the field's trailing slot, so a stub
+// that stands in for the field still has to render it.
+const AddressAutocompleteStub = defineComponent({
+  name: 'AddressAutocomplete',
+  emits: ['select'],
+  setup(_, { expose, slots }) {
+    expose({ setInputValue: () => {} })
+    return () => h('div', slots.trailing?.())
+  },
+})
+
 describe('IsochroneForm', () => {
   beforeEach(() => {
     vi.mocked(trackModeToggle).mockClear()
@@ -39,6 +51,23 @@ describe('IsochroneForm', () => {
   it('renders a longitude input', () => {
     const wrapper = mount(IsochroneForm)
     expect(wrapper.find('input[data-testid="lng"]').exists()).toBe(true)
+  })
+
+  it.each(['lat', 'lng'])('lets a scroll over the focused %s field move the page instead of the value', async (field) => {
+    const wrapper = mount(IsochroneForm, { attachTo: document.body })
+    const input = wrapper.find(`input[data-testid="${field}"]`)
+    await input.setValue('37.7749')
+    const element = input.element as HTMLInputElement
+    element.focus()
+    expect(document.activeElement).toBe(element)
+
+    const wheel = new WheelEvent('wheel', { deltaY: 100, bubbles: true, cancelable: true })
+    element.dispatchEvent(wheel)
+
+    expect(element.value).toBe('37.7749')
+    expect(document.activeElement).not.toBe(element)
+    expect(wheel.defaultPrevented).toBe(false)
+    wrapper.unmount()
   })
 
   it('renders a duration slider', () => {
@@ -57,6 +86,11 @@ describe('IsochroneForm', () => {
       const option = wrapper.find(`input[data-testid="duration-slider-option-${minutes}"]`)
       expect(option.element.parentElement?.textContent?.trim()).toBe(`${minutes} min`)
     }
+  })
+
+  it('keeps the travel-time options out of the label, so they do not take its letter-spacing', () => {
+    const wrapper = mount(IsochroneForm)
+    expect(wrapper.get('[data-testid="duration-slider"]').element.closest('.t-eyebrow')).toBeNull()
   })
 
   it('moves the duration to the option that was selected', async () => {
@@ -306,34 +340,36 @@ describe('IsochroneForm', () => {
     expect((wrapper.find('button[type="submit"]').element as HTMLButtonElement).disabled).toBe(false)
   })
 
-  it('shows the insufficient-data hint while the button is disabled', () => {
+  it('asks for a starting point on the disabled button rather than in a hint', () => {
     const wrapper = mount(IsochroneForm)
-    const hint = wrapper.find('[data-testid="submit-hint"]')
-    expect(hint.exists()).toBe(true)
-    expect(hint.text()).toBe('Enter a location and travel time to continue.')
+    expect(wrapper.get('button[type="submit"]').text()).toBe('Choose a starting point first')
+    expect(wrapper.find('[data-testid="submit-hint"]').exists()).toBe(false)
   })
 
-  it('hides the hint once the form is valid', async () => {
+  it('names the plot on the button once there is a starting point', async () => {
     const wrapper = mount(IsochroneForm)
     await wrapper.find('input[data-testid="lat"]').setValue('51.5074')
     await wrapper.find('input[data-testid="lng"]').setValue('-0.1278')
-    expect(wrapper.find('[data-testid="submit-hint"]').exists()).toBe(false)
+    expect(wrapper.get('button[type="submit"]').text()).toBe('Plot a 60-min walk')
+
+    await wrapper.get('input[data-testid="mode-transit"]').trigger('change')
+    await wrapper.get('input[data-testid="duration-slider-option-120"]').trigger('change')
+    expect(wrapper.get('button[type="submit"]').text()).toBe('Plot a 120-min transit trip')
   })
 
-  it('renders the error prop under the submit button, taking precedence over the hint', () => {
+  it('renders the error prop under the submit button', () => {
     const wrapper = mount(IsochroneForm, {
-      props: { error: 'Failed to generate isochrone. Please try again.' },
+      props: { error: "Couldn't plot this splash zone. Please try again." },
     })
     const error = wrapper.find('[data-testid="fetch-error"]')
     expect(error.exists()).toBe(true)
-    expect(error.text()).toBe('Failed to generate isochrone. Please try again.')
+    expect(error.text()).toBe("Couldn't plot this splash zone. Please try again.")
     expect(error.attributes('role')).toBe('alert')
-    expect(wrapper.find('[data-testid="submit-hint"]').exists()).toBe(false)
   })
 
   it('clears the displayed error when a field is edited', async () => {
     const wrapper = mount(IsochroneForm, {
-      props: { error: 'Failed to generate isochrone. Please try again.' },
+      props: { error: "Couldn't plot this splash zone. Please try again." },
     })
     expect(wrapper.find('[data-testid="fetch-error"]').exists()).toBe(true)
     await wrapper.find('input[data-testid="lat"]').setValue('51.5074')
@@ -344,7 +380,7 @@ describe('IsochroneForm', () => {
     const wrapper = mount(IsochroneForm, { props: { loading: true } })
     const button = wrapper.find('button[type="submit"]')
     expect((button.element as HTMLButtonElement).disabled).toBe(true)
-    expect(button.text()).toBe('Generating…')
+    expect(button.text()).toBe('Plotting…')
   })
 
   it('ignores overlapping use-current-location clicks while locating', async () => {
@@ -397,13 +433,20 @@ describe('IsochroneForm', () => {
       const button = pickButton(wrapper)
       expect(button.exists()).toBe(true)
       expect(button.attributes('type')).toBe('button')
-      expect(button.text()).toContain('Pick location on map')
+      expect(button.attributes('aria-label')).toBe('Pick the starting point on the map')
+      expect(button.attributes('aria-pressed')).toBe('false')
+    })
+
+    it('sits the pick-on-map button in the starting-point row beside use-current-location', () => {
+      const wrapper = mount(IsochroneForm)
+      const row = wrapper.get('[data-testid="use-current-location"]').element.parentElement
+      expect(row?.contains(pickButton(wrapper).element)).toBe(true)
     })
 
     it('keeps the pin out of what a screen reader says for the pick-on-map button', () => {
       const wrapper = mount(IsochroneForm)
-      const pin = pickButton(wrapper).findAll('[aria-hidden="true"]').map((hidden) => hidden.text())
-      expect(pin).toEqual(['📍'])
+      expect(pickButton(wrapper).text()).toBe('')
+      expect(pickButton(wrapper).get('svg').attributes('aria-hidden')).toBe('true')
     })
 
     it('arms on click and reports it, so the parent can arm the map', async () => {
@@ -411,7 +454,9 @@ describe('IsochroneForm', () => {
       await pickButton(wrapper).trigger('click')
 
       expect(lastPickArmed(wrapper)).toBe(true)
-      expect(pickButton(wrapper).text()).toBe('Cancel')
+      expect(pickButton(wrapper).attributes('aria-pressed')).toBe('true')
+      expect(pickButton(wrapper).classes()).toEqual(expect.arrayContaining(['border-coral', 'bg-coral/10']))
+      expect(pickButton(wrapper).classes()).not.toContain('bg-coral')
     })
 
     it('disarms when the armed button is clicked again', async () => {
@@ -420,7 +465,7 @@ describe('IsochroneForm', () => {
       await pickButton(wrapper).trigger('click')
 
       expect(lastPickArmed(wrapper)).toBe(false)
-      expect(pickButton(wrapper).text()).toContain('Pick location on map')
+      expect(pickButton(wrapper).attributes('aria-pressed')).toBe('false')
     })
 
     it('disarms on Escape without touching the origin', async () => {
@@ -488,12 +533,12 @@ describe('IsochroneForm', () => {
       await pickOnMap(wrapper, { lat: 45.5231, lng: -122.6784 })
 
       expect(lastPickArmed(wrapper)).toBe(false)
-      expect(pickButton(wrapper).text()).toContain('Pick location on map')
+      expect(pickButton(wrapper).attributes('aria-pressed')).toBe('false')
     })
 
     it('disarms when the origin is set by autocomplete instead', async () => {
       const wrapper = mount(IsochroneForm, {
-        global: { stubs: { AddressAutocomplete: true } },
+        global: { stubs: { AddressAutocomplete: AddressAutocompleteStub } },
       })
       await pickButton(wrapper).trigger('click')
 
@@ -553,5 +598,269 @@ describe('IsochroneForm', () => {
       expect((wrapper.get('input[data-testid="mode-bike"]').element as HTMLInputElement).checked).toBe(true)
       expect((wrapper.get('input[data-testid="duration-slider-option-60"]').element as HTMLInputElement).checked).toBe(true)
     })
+  })
+
+  // SPA-518: the starting-point controls draw line icons, never emoji, so the
+  // row reads as one icon style. Mode tiles keep their emoji on purpose.
+  describe('starting-point icons', () => {
+    const EMOJI = /\p{Extended_Pictographic}/u
+
+    it.each(['use-current-location', 'pick-on-map', 'enter-coordinates'])('draws the %s button as a line icon, not emoji', (testid) => {
+      const wrapper = mount(IsochroneForm)
+      const button = wrapper.get(`[data-testid="${testid}"]`)
+      expect(button.find('svg').exists()).toBe(true)
+      expect(button.text()).not.toMatch(EMOJI)
+    })
+
+    it('marks the chosen-start card with a line pin, not emoji', async () => {
+      const wrapper = mount(IsochroneForm)
+      await wrapper.get('[data-testid="pick-on-map"]').trigger('click')
+      ;(wrapper.vm as unknown as { setOriginFromMap: (coord: { lat: number; lng: number }) => void })
+        .setOriginFromMap({ lat: 45.5, lng: -122.6 })
+      await wrapper.vm.$nextTick()
+      const card = wrapper.get('[data-testid="origin-card"]')
+      expect(card.find('svg').exists()).toBe(true)
+      expect(card.text()).not.toMatch(EMOJI)
+    })
+  })
+
+  describe('thumb-sized hit areas (SPA-494)', () => {
+    it.each(['pick-on-map', 'use-current-location', 'enter-coordinates'])('grows the %s icon button to 44px on a touch screen', (testid) => {
+      const wrapper = mount(IsochroneForm)
+      expect(wrapper.get(`[data-testid="${testid}"]`).classes()).toContain('pointer-coarse:size-11')
+    })
+
+    it('grows the place search to the icon buttons\' 44px on a touch screen, so the row lines up', () => {
+      const wrapper = mount(IsochroneForm)
+      expect(wrapper.get('[role="combobox"]').classes()).toContain('pointer-coarse:h-11')
+    })
+
+    it('makes each mode tile at least 44px tall', () => {
+      const wrapper = mount(IsochroneForm)
+      for (const mode of ['walk', 'bike', 'drive', 'transit']) {
+        const label = wrapper.get(`[data-testid="mode-${mode}"]`).element.closest('label')
+        expect(label?.classList.contains('min-h-11')).toBe(true)
+      }
+    })
+  })
+
+  // SPA-506: one way to choose a start shows at a time, and a chosen start is
+  // named on a card rather than left in four half-filled controls.
+  describe('the starting-point card', () => {
+    function card(wrapper: ReturnType<typeof mount>) {
+      return wrapper.find('[data-testid="origin-card"]')
+    }
+
+    function chooserShown(wrapper: ReturnType<typeof mount>): boolean {
+      return (wrapper.get('[data-testid="origin-chooser"]').element as HTMLElement).style.display !== 'none'
+    }
+
+    async function pickOnMap(wrapper: ReturnType<typeof mount>, coord: { lat: number; lng: number }) {
+      await wrapper.get('[data-testid="pick-on-map"]').trigger('click')
+      ;(wrapper.vm as unknown as { setOriginFromMap: (coord: { lat: number; lng: number }) => void })
+        .setOriginFromMap(coord)
+      await wrapper.vm.$nextTick()
+    }
+
+    function coordinatesShown(wrapper: ReturnType<typeof mount>): boolean {
+      return (wrapper.get('[data-testid="coordinates"]').element as HTMLElement).style.display !== 'none'
+    }
+
+    it('starts with the chooser and keeps the coordinates folded away', () => {
+      const wrapper = mount(IsochroneForm)
+      expect(card(wrapper).exists()).toBe(false)
+      expect(chooserShown(wrapper)).toBe(true)
+      expect(coordinatesShown(wrapper)).toBe(false)
+      expect(wrapper.get('[data-testid="coordinates"]').find('input[data-testid="lat"]').exists()).toBe(true)
+    })
+
+    it('opens the coordinates from a globe icon button in the starting-point row', async () => {
+      const wrapper = mount(IsochroneForm)
+      const toggle = wrapper.get('[data-testid="enter-coordinates"]')
+      const row = wrapper.get('[data-testid="pick-on-map"]').element.parentElement
+      expect(row?.contains(toggle.element)).toBe(true)
+      expect(toggle.attributes('type')).toBe('button')
+      expect(toggle.attributes('aria-label')).toBe('Enter coordinates')
+      expect(toggle.get('svg').attributes('aria-hidden')).toBe('true')
+      expect(toggle.attributes('aria-controls')).toBe(wrapper.get('[data-testid="coordinates"]').attributes('id'))
+      expect(toggle.attributes('aria-expanded')).toBe('false')
+
+      await toggle.trigger('click')
+      expect(toggle.attributes('aria-expanded')).toBe('true')
+      expect(coordinatesShown(wrapper)).toBe(true)
+
+      await toggle.trigger('click')
+      expect(coordinatesShown(wrapper)).toBe(false)
+    })
+
+    it('keeps typed coordinates when the fields are closed', async () => {
+      const wrapper = mount(IsochroneForm)
+      const toggle = wrapper.get('[data-testid="enter-coordinates"]')
+      await toggle.trigger('click')
+      await wrapper.get('input[data-testid="lat"]').setValue('45.5231')
+      await toggle.trigger('click')
+
+      expect((wrapper.get('input[data-testid="lat"]').element as HTMLInputElement).value).toBe('45.5231')
+    })
+
+    it('names an address chosen from search', async () => {
+      const wrapper = mount(IsochroneForm, {
+        global: { stubs: { AddressAutocomplete: AddressAutocompleteStub } },
+      })
+      const suggestion: GeocodingSuggestion = { label: 'Portland, OR, USA', lat: 45.5231, lng: -122.6784 }
+      await wrapper.findComponent({ name: 'AddressAutocomplete' }).vm.$emit('select', suggestion)
+
+      expect(chooserShown(wrapper)).toBe(false)
+      expect(wrapper.get('[data-testid="origin-name"]').text()).toBe('Portland, OR, USA')
+      expect(card(wrapper).text()).toContain('45.5231, -122.6784')
+    })
+
+    it('calls a map pick a dropped pin, without asking the geocoder for a name', async () => {
+      const wrapper = mount(IsochroneForm)
+      await pickOnMap(wrapper, { lat: 45.5231, lng: -122.6784 })
+
+      expect(wrapper.get('[data-testid="origin-name"]').text()).toBe('Dropped pin')
+      expect(reverseGeocode).not.toHaveBeenCalled()
+    })
+
+    it('names the visitor\'s location by its address when the geocoder has one, and as theirs when not', async () => {
+      vi.mocked(getCurrentPosition).mockResolvedValue({ lat: 51.5074, lng: -0.1278 })
+      vi.mocked(reverseGeocode).mockResolvedValueOnce({ label: 'London, England', lat: 51.5074, lng: -0.1278 })
+      const named = mount(IsochroneForm)
+      await named.get('[data-testid="use-current-location"]').trigger('click')
+      await flushPromises()
+      expect(named.get('[data-testid="origin-name"]').text()).toBe('London, England')
+
+      vi.mocked(reverseGeocode).mockResolvedValueOnce(null)
+      const unnamed = mount(IsochroneForm)
+      await unnamed.get('[data-testid="use-current-location"]').trigger('click')
+      await flushPromises()
+      expect(unnamed.get('[data-testid="origin-name"]').text()).toBe('Your location')
+    })
+
+    it('shows a start from a shared link as a card', () => {
+      const wrapper = mount(IsochroneForm, { props: { initial: { lat: 37.33821, lng: -121.88635 } } })
+      expect(wrapper.get('[data-testid="origin-name"]').text()).toBe('Starting point')
+      expect(chooserShown(wrapper)).toBe(false)
+    })
+
+    it('keeps the chooser open while coordinates are typed', async () => {
+      const wrapper = mount(IsochroneForm)
+      await wrapper.get('input[data-testid="lat"]').setValue('45.5231')
+      await wrapper.get('input[data-testid="lng"]').setValue('-122.6784')
+
+      expect(card(wrapper).exists()).toBe(false)
+      expect(chooserShown(wrapper)).toBe(true)
+    })
+
+    it('reopens the chooser on Change without dropping the pin', async () => {
+      const wrapper = mount(IsochroneForm)
+      await pickOnMap(wrapper, { lat: 45.5231, lng: -122.6784 })
+      const emitted = wrapper.emitted('origin-change')!.length
+
+      await wrapper.get('[data-testid="change-origin"]').trigger('click')
+
+      expect(chooserShown(wrapper)).toBe(true)
+      expect(card(wrapper).exists()).toBe(false)
+      expect(wrapper.emitted('origin-change')!.length).toBe(emitted)
+      expect((wrapper.get('button[type="submit"]').element as HTMLButtonElement).disabled).toBe(false)
+    })
+
+    it('goes back to the card when the visitor keeps the start after all', async () => {
+      const wrapper = mount(IsochroneForm)
+      await pickOnMap(wrapper, { lat: 45.5231, lng: -122.6784 })
+      await wrapper.get('[data-testid="change-origin"]').trigger('click')
+
+      await wrapper.get('[data-testid="keep-origin"]').trigger('click')
+
+      expect(wrapper.get('[data-testid="origin-name"]').text()).toBe('Dropped pin')
+    })
+
+    it('replaces the card with the new choice after Change', async () => {
+      const wrapper = mount(IsochroneForm)
+      await pickOnMap(wrapper, { lat: 45.5231, lng: -122.6784 })
+      await wrapper.get('[data-testid="change-origin"]').trigger('click')
+
+      await pickOnMap(wrapper, { lat: 37.3382, lng: -121.8863 })
+
+      expect(card(wrapper).text()).toContain('37.3382, -121.8863')
+      expect(wrapper.find('[data-testid="keep-origin"]').exists()).toBe(false)
+    })
+  })
+
+  describe('mode tiles', () => {
+    it('shows each mode as a tile with its emoji hidden from screen readers', () => {
+      const wrapper = mount(IsochroneForm)
+      const tiles = { walk: ['🚶', 'Walk'], bike: ['🚲', 'Bike'], drive: ['🚗', 'Drive'], transit: ['🚆', 'Transit'] }
+      for (const [mode, [icon, label]] of Object.entries(tiles)) {
+        const tile = wrapper.get(`[data-testid="mode-tile-${mode}"]`)
+        expect(tile.get('[aria-hidden="true"]').text()).toBe(icon)
+        expect(tile.text()).toContain(label)
+        expect(tile.get('input[type="radio"]').classes()).toContain('sr-only')
+      }
+    })
+
+    it('marks the chosen tile', async () => {
+      const wrapper = mount(IsochroneForm)
+      await wrapper.get('input[data-testid="mode-bike"]').trigger('change')
+      expect(wrapper.get('[data-testid="mode-tile-bike"]').classes()).toEqual(expect.arrayContaining(['border-coral', 'bg-coral/10', 'text-ink']))
+      expect(wrapper.get('[data-testid="mode-tile-walk"]').classes()).not.toContain('border-coral')
+    })
+  })
+
+  // SPA-501: a saved splash zone is a starting point, so choosing one fills
+  // the form with the question it answered.
+  describe('filled from a saved splash zone', () => {
+    function checked(wrapper: ReturnType<typeof mount>, testid: string): boolean {
+      return (wrapper.get(`input[data-testid="${testid}"]`).element as HTMLInputElement).checked
+    }
+
+    it('takes its starting point, travel time and mode, and moves the pin there', async () => {
+      const wrapper = mount(IsochroneForm)
+
+      wrapper.vm.fill({ lat: 34.0555, lng: -118.2341, duration: 120, mode: 'transit' })
+      await flushPromises()
+
+      expect((wrapper.get('[data-testid="lat"]').element as HTMLInputElement).value).toBe('34.0555')
+      expect((wrapper.get('[data-testid="lng"]').element as HTMLInputElement).value).toBe('-118.2341')
+      expect(checked(wrapper, 'duration-slider-option-120')).toBe(true)
+      expect(checked(wrapper, 'mode-transit')).toBe(true)
+      expect(wrapper.emitted('origin-change')!.at(-1)).toEqual([{ lat: 34.0555, lng: -118.2341 }])
+    })
+
+    it('shows a travel time the form does not offer as its own option, not rounded', async () => {
+      const wrapper = mount(IsochroneForm)
+
+      wrapper.vm.fill({ lat: 34.0555, lng: -118.2341, duration: 90, mode: 'transit' })
+      await flushPromises()
+
+      const options = wrapper.findAll('input[name="duration"]').map((o) => Number((o.element as HTMLInputElement).value))
+      expect(options).toEqual([45, 60, 75, 90, 120, 180, 240])
+      expect(checked(wrapper, 'duration-slider-option-90')).toBe(true)
+
+      await wrapper.find('form').trigger('submit')
+      expect(wrapper.emitted('submit')![0]).toEqual([{ lat: 34.0555, lng: -118.2341, duration: 90, mode: 'transit' }])
+    })
+
+    it('drops the extra option once a later one is on the list', async () => {
+      const wrapper = mount(IsochroneForm)
+
+      wrapper.vm.fill({ lat: 1, lng: 2, duration: 90, mode: 'walk' })
+      await flushPromises()
+      wrapper.vm.fill({ lat: 1, lng: 2, duration: 60, mode: 'walk' })
+      await flushPromises()
+
+      expect(wrapper.find('input[data-testid="duration-slider-option-90"]').exists()).toBe(false)
+    })
+  })
+
+  it('leaves the box and heading to its host when unframed', () => {
+    const framed = mount(IsochroneForm)
+    const bare = mount(IsochroneForm, { props: { framed: false } })
+
+    expect(framed.find('h2').text()).toBe('Plot a splash zone')
+    expect(framed.get('form').classes()).toContain('border')
+    expect(bare.find('h2').exists()).toBe(false)
+    expect(bare.get('form').classes()).not.toContain('border')
   })
 })

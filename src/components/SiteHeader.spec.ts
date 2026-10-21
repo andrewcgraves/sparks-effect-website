@@ -55,6 +55,7 @@ describe('SiteHeader', () => {
 
   it('links each primary page once its route exists, in a fixed order', async () => {
     const wrapper = await mountHeader([
+      { path: '/about', component: Blank },
       { path: '/how-it-works', component: Blank },
       { path: '/lines', component: Blank },
       { path: '/networks', component: Blank },
@@ -63,6 +64,7 @@ describe('SiteHeader', () => {
       ['Networks', '/networks'],
       ['Lines', '/lines'],
       ['How it works', '/how-it-works'],
+      ['About', '/about'],
     ])
   })
 
@@ -415,6 +417,7 @@ describe('SiteHeader', () => {
         { path: '/networks', component: Blank },
         { path: '/lines', component: Blank },
         { path: '/how-it-works', component: Blank },
+        { path: '/about', component: Blank },
       ],
       '/lines',
       document.body,
@@ -426,5 +429,15 @@ describe('SiteHeader', () => {
     await wrapper.get('[data-testid="site-menu-button"]').trigger('click')
     expect(await seriousA11yViolations(wrapper)).toEqual([])
     wrapper.unmount()
+  })
+
+  it('gives the wordmark a thumb-sized hit area without moving it (SPA-494)', async () => {
+    const wrapper = await mountHeader()
+    expect(wrapper.get('[data-testid="nav-home"]').classes()).toEqual(expect.arrayContaining(['pointer-coarse:py-3', 'pointer-coarse:-my-3']))
+  })
+
+  it('gives the Menu button a thumb-sized hit area without moving its text (SPA-494)', async () => {
+    const wrapper = await mountHeader()
+    expect(wrapper.get('[data-testid="site-menu-button"]').classes()).toEqual(expect.arrayContaining(['pointer-coarse:py-3', 'pointer-coarse:-my-3']))
   })
 })

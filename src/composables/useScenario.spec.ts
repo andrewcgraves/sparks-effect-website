@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { isReactive } from 'vue'
 import { flushPromises } from '@vue/test-utils'
 import { useScenario } from './useScenario'
 import type { ScenarioDetail } from '../api/scenarios'
@@ -13,6 +14,7 @@ const stubDetail: ScenarioDetail = {
   id: 's1',
   slug: 'ca-hsr',
   name: 'CA HSR',
+  subtext: 'Electrified · High-speed rail · Greenfield',
   description: 'California High-Speed Rail',
   status: 'active',
   routes: [
@@ -108,11 +110,37 @@ describe('useScenario', () => {
     expect(stations.value).toEqual(stubDetail.stations)
   })
 
+  // Deep reactivity would proxy every coordinate pair of every route, and the
+  // ridden-line maths walks them all on each plot (SPA-487).
+  it('does not make the routes or stations deeply reactive', async () => {
+    vi.mocked(fetchScenario).mockResolvedValueOnce(stubDetail)
+    const { routes, stations } = useScenario('ca-hsr')
+    await flushPromises()
+    expect(isReactive(routes.value[0])).toBe(false)
+    expect(isReactive(routes.value[0].geometry.coordinates)).toBe(false)
+    expect(isReactive(stations.value[0])).toBe(false)
+  })
+
   it('populates services after fetch resolves', async () => {
     vi.mocked(fetchScenario).mockResolvedValueOnce(stubDetail)
     const { services } = useScenario('ca-hsr')
     await flushPromises()
     expect(services.value).toEqual(stubDetail.services)
+  })
+
+  it('populates the subtext and description after fetch resolves', async () => {
+    vi.mocked(fetchScenario).mockResolvedValueOnce(stubDetail)
+    const { subtext, description } = useScenario('ca-hsr')
+    await flushPromises()
+    expect(subtext.value).toBe('Electrified · High-speed rail · Greenfield')
+    expect(description.value).toBe('California High-Speed Rail')
+  })
+
+  it('reads a missing subtext as empty', async () => {
+    vi.mocked(fetchScenario).mockResolvedValueOnce({ ...stubDetail, subtext: undefined })
+    const { subtext } = useScenario('ca-hsr')
+    await flushPromises()
+    expect(subtext.value).toBe('')
   })
 
   it('leaves refs empty when fetch rejects', async () => {

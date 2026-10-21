@@ -16,10 +16,19 @@ const props = defineProps<{
 defineEmits<{ remove: [pair: InterchangePair] }>()
 
 const rows = computed(() =>
-  props.pairs.map((pair) => {
+  props.pairs.map((pair, index) => {
     const a = resolveStop(pair.a, props.memberIds, props.services)
     const b = resolveStop(pair.b, props.memberIds, props.services)
-    return { pair, key: interchangePairKey(pair), a: a.label, b: b.label, missing: a.missing || b.missing }
+    return {
+      pair,
+      key: interchangePairKey(pair),
+      a: a.label,
+      b: b.label,
+      missing: a.missing || b.missing,
+      // Two pairs whose stops have both gone can read alike, so the position
+      // is what keeps each Remove button naming one pair and not two.
+      removeLabel: `Remove interchange ${index + 1}: ${a.label} and ${b.label}`,
+    }
   }),
 )
 
@@ -39,7 +48,7 @@ defineExpose({ focusHeading })
 <template>
   <p
     v-if="props.error"
-    class="font-body text-caption text-error"
+    class="t-error"
     role="alert"
     data-testid="interchange-error"
   >
@@ -62,14 +71,14 @@ defineExpose({ focusHeading })
       <li
         v-for="row in rows"
         :key="row.key"
-        class="font-body text-caption flex items-start justify-between gap-3 text-ink"
+        class="t-meta flex items-start justify-between gap-3 text-ink"
         data-testid="declared-interchange-row"
       >
         <span>
           {{ row.a }} and {{ row.b }}
           <span
             v-if="row.missing"
-            class="text-ink-muted italic"
+            class="t-note text-ink-muted"
             data-testid="declared-interchange-missing"
           >— no longer in this network</span>
         </span>
@@ -77,7 +86,7 @@ defineExpose({ focusHeading })
           type="button"
           :class="SECONDARY_BUTTON_CLASS"
           :disabled="props.busy"
-          :aria-label="`Remove interchange ${row.a} and ${row.b}`"
+          :aria-label="row.removeLabel"
           data-testid="remove-interchange"
           @click="$emit('remove', row.pair)"
         >

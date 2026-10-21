@@ -7,16 +7,36 @@ import { fetchMyScenarios } from '../api/authoring/scenarios'
 import { fetchMyRoutes } from '../api/authoring/routes'
 import { usedBySentence } from '../composables/useRouteDraft'
 import { formatKm } from '../routeGeometry'
-import { PRIMARY_BUTTON_CLASS } from '../components/buttonStyles'
+import { PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS } from '../components/buttonStyles'
+import { expiryDate, useHandovers } from '../composables/useHandovers'
+import type { IncomingHandover } from '../api/authoring/handovers'
 import { ACTION_LINK_CLASS, LIST_CARD_LINK_CLASS } from '../components/linkStyles'
 import AllLinesLink from '../components/AllLinesLink.vue'
 import ListSkeleton from '../components/ListSkeleton.vue'
+import Tag from '../components/Tag.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const auth = useAuthStore()
 
-const { items: services, loading: servicesLoading, error: servicesError } = useOwnedList(fetchMyServices)
+const {
+  items: services,
+  loading: servicesLoading,
+  error: servicesError,
+  reload: reloadServices,
+} = useOwnedList(fetchMyServices)
 const { items: scenarios, loading: scenariosLoading, error: scenariosError } = useOwnedList(fetchMyScenarios)
 const { items: routes, loading: routesLoading, error: routesError } = useOwnedList(fetchMyRoutes)
+
+const handovers = useHandovers()
+const { incoming, busy: handoverBusy, refusals } = handovers
+
+const handoverPending = computed(() => new Set(handovers.outgoing.value.map((handover) => handover.service_slug)))
+
+// The accepted line is the recipient's now, so their list is read again to
+// show it rather than having a row made up for it here.
+async function accept(handover: IncomingHandover): Promise<void> {
+  if (await handovers.accept(handover)) await reloadServices()
+}
 
 const LINE_DEFINITION = 'A line is a set of stops along a route, with a vehicle and a timetable.'
 const ROUTE_DEFINITION = 'A route is the shape a line runs along. Draw your own, or pick a curated one when you create a line.'
@@ -35,14 +55,70 @@ const nothingYet = computed(() =>
 <template>
   <main class="flex-1 p-(--page-padding)">
     <AllLinesLink />
-    <hgroup class="mt-8 flex flex-col gap-2">
-      <h1 class="font-display text-display text-ink-true">
-        My authoring
-      </h1>
-      <p class="font-body text-micro text-ink-muted italic uppercase">
-        Signed in as {{ auth.displayName ?? '…' }}
-      </p>
-    </hgroup>
+    <PageHeader
+      class="mt-8"
+      title="My authoring"
+      :subtitle="`Signed in as ${auth.displayName ?? '…'}`"
+    />
+
+    <section
+      v-if="incoming.length"
+      class="mt-8 rounded-(--radius-box) border border-coral bg-surface p-4"
+      aria-labelledby="incoming-handovers-heading"
+      data-testid="incoming-handovers"
+    >
+      <h2
+        id="incoming-handovers-heading"
+        class="font-display text-h3 text-ink-true"
+      >
+        Incoming transfers
+      </h2>
+      <ul class="mt-3 flex flex-col gap-3">
+        <li
+          v-for="handover in incoming"
+          :key="handover.id"
+          class="flex flex-col gap-2"
+          data-testid="incoming-handover"
+        >
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <p class="t-body flex flex-col text-ink">
+              {{ handover.service_name }}
+              <span class="t-meta text-ink-muted">
+                From {{ handover.from_name }} · Expires {{ expiryDate(handover) }}
+              </span>
+            </p>
+            <div class="flex gap-3">
+              <button
+                type="button"
+                :class="SECONDARY_BUTTON_CLASS"
+                :disabled="handoverBusy"
+                data-testid="decline-handover"
+                @click="handovers.decline(handover)"
+              >
+                Decline
+              </button>
+              <button
+                type="button"
+                :class="PRIMARY_BUTTON_CLASS"
+                :disabled="handoverBusy"
+                data-testid="accept-handover"
+                @click="accept(handover)"
+              >
+                Accept
+              </button>
+            </div>
+          </div>
+          <p
+            v-if="refusals[handover.id]"
+            class="t-error"
+            role="alert"
+            data-testid="handover-refusal"
+          >
+            {{ refusals[handover.id] }}
+          </p>
+        </li>
+      </ul>
+    </section>
 
     <section
       v-if="nothingYet"
@@ -52,7 +128,7 @@ const nothingYet = computed(() =>
       <h2 class="font-display text-h2 text-ink-true">
         Start by drawing a line
       </h2>
-      <p class="font-body text-body mt-3 text-ink-muted">
+      <p class="t-body mt-3 text-ink-muted">
         {{ LINE_DEFINITION }}
         A network combines lines so riders can change between them.
       </p>
@@ -90,7 +166,7 @@ const nothingYet = computed(() =>
         />
         <p
           v-else-if="servicesError"
-          class="font-body text-caption mt-3 text-error"
+          class="t-error mt-3"
           role="alert"
           data-testid="services-error"
         >
@@ -98,7 +174,7 @@ const nothingYet = computed(() =>
         </p>
         <p
           v-else-if="services.length === 0"
-          class="font-body text-caption mt-3 text-ink-muted italic"
+          class="t-note mt-3 text-ink-muted"
           data-testid="services-empty"
         >
           {{ LINE_DEFINITION }} You haven't created one yet.
@@ -117,7 +193,13 @@ const nothingYet = computed(() =>
               data-testid="service-link"
             >
               {{ service.name }}
-              <span class="text-micro text-ink-muted">{{ service.slug }}</span>
+              <span class="t-meta text-ink-muted">{{ service.slug }}</span>
+              <Tag
+                v-if="handoverPending.has(service.slug)"
+                tone="caution"
+                class="self-start"
+                data-testid="handover-pending"
+              >Transfer pending</Tag>
             </router-link>
           </li>
         </ul>
@@ -144,7 +226,7 @@ const nothingYet = computed(() =>
         />
         <p
           v-else-if="scenariosError"
-          class="font-body text-caption mt-3 text-error"
+          class="t-error mt-3"
           role="alert"
           data-testid="scenarios-error"
         >
@@ -157,13 +239,13 @@ const nothingYet = computed(() =>
         >
           <p
             v-if="hasLines"
-            class="font-body text-caption text-ink-muted italic"
+            class="t-note text-ink-muted"
           >
             Combine your lines into a network so riders can change between them.
           </p>
           <p
             v-else
-            class="font-body text-caption text-ink-muted italic"
+            class="t-note text-ink-muted"
           >
             A network combines lines so riders can change between them.
           </p>
@@ -190,7 +272,7 @@ const nothingYet = computed(() =>
               data-testid="scenario-link"
             >
               {{ scenario.name }}
-              <span class="text-micro text-ink-muted">{{ scenario.slug }}</span>
+              <span class="t-meta text-ink-muted">{{ scenario.slug }}</span>
             </router-link>
           </li>
         </ul>
@@ -217,7 +299,7 @@ const nothingYet = computed(() =>
         />
         <p
           v-else-if="routesError"
-          class="font-body text-caption mt-3 text-error"
+          class="t-error mt-3"
           role="alert"
           data-testid="routes-error"
         >
@@ -225,7 +307,7 @@ const nothingYet = computed(() =>
         </p>
         <p
           v-else-if="routes.length === 0"
-          class="font-body text-caption mt-3 text-ink-muted italic"
+          class="t-note mt-3 text-ink-muted"
           data-testid="routes-empty"
         >
           {{ ROUTE_DEFINITION }} You haven't drawn one yet.
@@ -244,7 +326,7 @@ const nothingYet = computed(() =>
               data-testid="route-link"
             >
               {{ route.name }}
-              <span class="text-micro text-ink-muted">
+              <span class="t-meta text-ink-muted">
                 {{ route.mode }}<template v-if="formatKm(route.length_m)"> · {{ formatKm(route.length_m) }}</template> · {{ usedBySentence(route.dependents) }}
               </span>
             </router-link>

@@ -1,13 +1,17 @@
 import { describe, it, expect, vi } from 'vitest'
 import type { Map } from 'maplibre-gl'
+import type { FeatureCollection } from 'geojson'
 import {
   useIsochroneLayer,
   isochroneLegend,
   isochroneEgressOpacity,
   isochroneOriginOpacity,
-  isochroneHighlightFilter,
+  isochroneHighlightData,
+  showIsochroneHighlight,
+  flattenEgress,
   egressStationSlugs,
   ISOCHRONE_SOURCE_ID,
+  ISOCHRONE_HIGHLIGHT_SOURCE_ID,
   ISOCHRONE_ORIGIN_LAYER_ID,
   ISOCHRONE_LAYER_ID,
   ISOCHRONE_HIGHLIGHT_LAYER_ID,
@@ -18,7 +22,7 @@ import {
   ISOCHRONE_ORIGIN_DIM_OPACITY,
 } from './useIsochroneLayer'
 import { THEME_TOKEN_FALLBACKS } from '../themeTokens'
-import { staticIsochroneResponse } from '../fixtures/isochrone'
+import { staticIsochroneResponse } from '../test/sampleIsochrone'
 
 function makeMockMap(): Pick<Map, 'addSource' | 'addLayer' | 'getLayer'> {
   return {
@@ -34,14 +38,34 @@ function addedLayer(map: Pick<Map, 'addLayer'>, id: string) {
 }
 
 describe('useIsochroneLayer', () => {
-  it('registers a geojson source with the fixture data', () => {
+  it('registers a geojson source with the fixture data, its station polygons merged', () => {
     const map = makeMockMap()
     useIsochroneLayer(map as Map, staticIsochroneResponse)
-    expect(map.addSource).toHaveBeenCalledOnce()
     expect(map.addSource).toHaveBeenCalledWith(ISOCHRONE_SOURCE_ID, {
       type: 'geojson',
-      data: staticIsochroneResponse,
+      data: flattenEgress(staticIsochroneResponse),
     })
+  })
+
+  it('registers an empty source of its own for the highlighted station', () => {
+    const map = makeMockMap()
+    useIsochroneLayer(map as Map, staticIsochroneResponse)
+    expect(map.addSource).toHaveBeenCalledWith(ISOCHRONE_HIGHLIGHT_SOURCE_ID, {
+      type: 'geojson',
+      data: { type: 'FeatureCollection', features: [] },
+    })
+  })
+
+  // SPA-524, SPA-526: one merged shape, so the GPU blends the core once, not once per station.
+  it('merges the station polygons into one egress shape', () => {
+    const map = makeMockMap()
+    useIsochroneLayer(map as Map, staticIsochroneResponse)
+    const data = (map.addSource as ReturnType<typeof vi.fn>).mock.calls
+      .find(([id]) => id === ISOCHRONE_SOURCE_ID)?.[1].data as FeatureCollection
+    const egress = data.features.filter((f) => f.properties?.['source'] === 'egress')
+    expect(egress).toHaveLength(1)
+    expect(egress[0]?.geometry.type).toBe('MultiPolygon')
+    expect(data.features.filter((f) => f.properties?.['source'] === 'origin')).toHaveLength(1)
   })
 
   // The fill is painted from feature properties, not from metadata.mode, so a
@@ -56,7 +80,7 @@ describe('useIsochroneLayer', () => {
     useIsochroneLayer(map as Map, transit)
     expect(map.addSource).toHaveBeenCalledWith(ISOCHRONE_SOURCE_ID, {
       type: 'geojson',
-      data: transit,
+      data: flattenEgress(transit),
     })
     expect(map.addLayer).toHaveBeenCalledWith(
       expect.objectContaining({ id: ISOCHRONE_ORIGIN_LAYER_ID, type: 'fill' }),
@@ -80,19 +104,16 @@ describe('useIsochroneLayer', () => {
 
   // A per-feature fill-opacity expression can't reorder features within one
   // layer, so promoting a highlighted station above its overlapping
-  // neighbours (SPA-211) needs a second, filtered layer painted on top.
+  // neighbours (SPA-211) needs a second layer painted on top. It reads from a
+  // source holding only that station: a filter on the full source rebuilt
+  // every splash-zone tile on each hover (SPA-524).
   describe('highlight layer', () => {
-    it('adds a second fill layer on the same source, filtered to match nothing initially', () => {
+    it('adds a second fill layer on the highlight source, with no filter to change', () => {
       const map = makeMockMap()
       useIsochroneLayer(map as Map, staticIsochroneResponse)
-      expect(map.addLayer).toHaveBeenCalledWith(
-        expect.objectContaining({
-          id: ISOCHRONE_HIGHLIGHT_LAYER_ID,
-          type: 'fill',
-          source: ISOCHRONE_SOURCE_ID,
-          filter: isochroneHighlightFilter(null),
-        }),
-      )
+      const fill = addedLayer(map, ISOCHRONE_HIGHLIGHT_LAYER_ID)
+      expect(fill).toMatchObject({ type: 'fill', source: ISOCHRONE_HIGHLIGHT_SOURCE_ID })
+      expect(fill.filter).toBeUndefined()
     })
 
     it('paints the highlight layer with the egress colour at the highlight opacity, not the base opacity', () => {
@@ -125,8 +146,7 @@ describe('useIsochroneLayer', () => {
       const outline = addedLayer(map, ISOCHRONE_HIGHLIGHT_OUTLINE_LAYER_ID)
       expect(outline).toMatchObject({
         type: 'line',
-        source: ISOCHRONE_SOURCE_ID,
-        filter: isochroneHighlightFilter(null),
+        source: ISOCHRONE_HIGHLIGHT_SOURCE_ID,
         paint: { 'line-color': '#222222', 'line-width': 2 },
       })
     })
@@ -176,41 +196,23 @@ describe('useIsochroneLayer', () => {
     expect(addedLayer(map, ISOCHRONE_LAYER_ID).paint['fill-color']).toBe('#222222')
   })
 
-  it('legend labels carry the same colours the fills are painted with', () => {
-    const legend = isochroneLegend({ origin: '#111111', egress: '#222222' })
-    expect(legend.map((e) => [e.source, e.color, e.swatch])).toEqual([
-      ['origin', '#111111', 'fill'],
-      ['egress', '#222222', 'fill'],
-    ])
+  it('names both reach areas in one row, since they share a colour', () => {
+    expect(isochroneLegend()).toEqual([{ source: 'origin', label: 'Reachable in time' }])
   })
 
-  it('names the unfinished stub in ink dashes, not the egress orange, only when a stub is on the map', () => {
-    expect(isochroneLegend({ origin: '#111111', egress: '#f28f29' }).map((e) => e.source)).toEqual([
-      'origin',
-      'egress',
-    ])
-
-    const legend = isochroneLegend({ origin: '#111111', egress: '#f28f29' }, { unfinished: true })
-    const unfinished = legend.find((e) => e.source === 'unfinished')
-    expect(unfinished).toEqual({
+  it('names the unfinished leg only when one is on the map', () => {
+    expect(isochroneLegend().map((e) => e.source)).not.toContain('unfinished')
+    expect(isochroneLegend({ unfinished: true }).find((e) => e.source === 'unfinished')).toEqual({
       source: 'unfinished',
-      label: 'Budget ran out here',
-      color: THEME_TOKEN_FALLBACKS['--color-ink'],
-      swatch: 'stub',
+      label: 'Travel time ran out here',
     })
-    expect(unfinished?.color).not.toBe('#f28f29')
   })
 
-  it('names the starter walk as one trip\'s first leg, in the origin colour, only when it is drawn', () => {
-    expect(isochroneLegend({ origin: '#111111', egress: '#222222' }).map((e) => e.source))
-      .not.toContain('starter')
-
-    const legend = isochroneLegend({ origin: '#111111', egress: '#222222' }, { starterWalk: true })
-    expect(legend.find((e) => e.source === 'starter')).toEqual({
+  it('names the starter walk as one trip\'s first leg, only when it is drawn', () => {
+    expect(isochroneLegend().map((e) => e.source)).not.toContain('starter')
+    expect(isochroneLegend({ starterWalk: true }).find((e) => e.source === 'starter')).toEqual({
       source: 'starter',
       label: 'First leg — nearest station',
-      color: '#111111',
-      swatch: 'walk',
     })
   })
 
@@ -296,13 +298,59 @@ describe('useIsochroneLayer', () => {
     })
   })
 
-  describe('isochroneHighlightFilter', () => {
-    it('matches no feature when nothing is highlighted', () => {
-      expect(isochroneHighlightFilter(null)).toEqual(['in', ['get', 'station_slug'], ['literal', []]])
+  describe('isochroneHighlightData', () => {
+    it('holds nothing when no station is highlighted', () => {
+      expect(isochroneHighlightData(staticIsochroneResponse, null).features).toEqual([])
     })
 
-    it('matches only the highlighted station', () => {
-      expect(isochroneHighlightFilter('sf')).toEqual(['==', ['get', 'station_slug'], 'sf'])
+    it('holds only the highlighted station\'s egress polygon', () => {
+      const { features } = isochroneHighlightData(staticIsochroneResponse, 'sf')
+      expect(features.length).toBeGreaterThan(0)
+      for (const f of features) expect(f.properties).toMatchObject({ source: 'egress', station_slug: 'sf' })
+    })
+  })
+
+  describe('showIsochroneHighlight', () => {
+    function attachedMap() {
+      const setData = vi.fn()
+      const map = { ...makeMockMap(), getSource: vi.fn().mockReturnValue({ setData }) }
+      useIsochroneLayer(map as unknown as Map, staticIsochroneResponse)
+      return { map: map as unknown as Map, setData }
+    }
+
+    it('puts the station\'s polygon in the highlight source', () => {
+      const { map, setData } = attachedMap()
+      showIsochroneHighlight(map, 'sf')
+      expect(setData).toHaveBeenCalledWith(isochroneHighlightData(staticIsochroneResponse, 'sf'))
+    })
+
+    // Every sync of the page's hover state calls through here; resending the
+    // same polygon would send the worker the same tile work again.
+    it('sends nothing when the highlighted station has not changed', () => {
+      const { map, setData } = attachedMap()
+      showIsochroneHighlight(map, 'sf')
+      showIsochroneHighlight(map, 'sf')
+      expect(setData).toHaveBeenCalledOnce()
+    })
+
+    it('does nothing on a map with no splash zone attached', () => {
+      const getSource = vi.fn()
+      showIsochroneHighlight({ getSource } as unknown as Map, 'sf')
+      expect(getSource).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('flattenEgress', () => {
+    it('keeps a plot with one egress polygon as it is', () => {
+      const one: FeatureCollection = {
+        type: 'FeatureCollection',
+        features: staticIsochroneResponse.features.filter((f) => f.properties.station_slug === 'sf' || f.properties.source === 'origin'),
+      }
+      expect(flattenEgress(one)).toBe(one)
+    })
+
+    it('keeps the plot\'s metadata', () => {
+      expect(flattenEgress(staticIsochroneResponse)).toMatchObject({ metadata: staticIsochroneResponse.metadata })
     })
   })
 

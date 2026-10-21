@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
+import { isReactive, nextTick, ref } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import { flushPromises } from '@vue/test-utils'
 import { ApiError, SessionExpiredError } from '../api/authoring/client'
@@ -7,6 +8,7 @@ import type { ChainResponse } from '../fixtures/isochrone'
 import { JobFailedError } from '../api/polling'
 import type { IsochroneProgress } from '../api/routingJobs'
 import { useAuthoredGraph } from './useAuthoredGraph'
+import { OFFLINE_REASON } from './useRoutingStatus'
 
 vi.mock('../analytics/index', () => ({
   trackIsochroneRequest: vi.fn(),
@@ -44,8 +46,8 @@ let isochrone: Mock<(
   onProgress?: (progress: IsochroneProgress) => void,
 ) => Promise<ChainResponse>>
 
-function subject(getSlug: () => string | null = () => 'ca-hsr') {
-  return useAuthoredGraph(getSlug, { compile, fetchGraph, isochrone })
+function subject(getSlug: () => string | null = () => 'ca-hsr', offline = () => false) {
+  return useAuthoredGraph(getSlug, { compile, fetchGraph, isochrone }, { offline })
 }
 
 function succeedingJobFetch(result: unknown) {
@@ -97,6 +99,20 @@ describe('useAuthoredGraph', () => {
       expect(compile).not.toHaveBeenCalled()
       expect(graph.value).toEqual(graphWithMerge)
       expect(graphFailed.value).toBe(false)
+    })
+
+    // A graph and a plot each carry geometry the ridden-line maths walks, and
+    // both are only ever replaced whole (SPA-487).
+    it('does not make the loaded graph or the plot deeply reactive', async () => {
+      fetchGraph.mockResolvedValue(graphWithMerge)
+      isochrone.mockResolvedValue(chain)
+      const { loadGraph, graph, handleIsochroneSubmit, isochroneData } = subject()
+
+      await loadGraph('ca-hsr')
+      await handleIsochroneSubmit(payload)
+
+      expect(isReactive(graph.value)).toBe(false)
+      expect(isReactive(isochroneData.value)).toBe(false)
     })
 
     // A 404 means this target has never compiled, which is a reason to compile,
@@ -186,7 +202,7 @@ describe('useAuthoredGraph', () => {
 
       await triggerCompile('ca-hsr')
 
-      expect(compileError.value).toBe("This line couldn't be compiled. Check its stops and timetable, then try again.")
+      expect(compileError.value).toBe("This line couldn't be compiled. Check its stops and frequency windows, then try again.")
       expect(graph.value).toBeNull()
     })
 
@@ -289,7 +305,7 @@ describe('useAuthoredGraph', () => {
       await handleIsochroneSubmit(payload)
 
       expect(isochrone).toHaveBeenCalledTimes(3)
-      expect(isochroneError.value).toBe('Failed to generate isochrone. Please try again.')
+      expect(isochroneError.value).toBe("Couldn't plot this splash zone. Please try again.")
       expect(isochroneLoading.value).toBe(false)
     })
 
@@ -301,7 +317,7 @@ describe('useAuthoredGraph', () => {
       await handleIsochroneSubmit(payload)
 
       expect(isochrone).toHaveBeenCalledTimes(1)
-      expect(isochroneError.value).toBe('Failed to generate isochrone. Please try again.')
+      expect(isochroneError.value).toBe("Couldn't plot this splash zone. Please try again.")
     })
 
     it('surfaces an error without recompiling on a non-stale failure', async () => {
@@ -311,7 +327,7 @@ describe('useAuthoredGraph', () => {
       await handleIsochroneSubmit(payload)
 
       expect(compile).not.toHaveBeenCalled()
-      expect(isochroneError.value).toBe('Failed to generate isochrone. Please try again.')
+      expect(isochroneError.value).toBe("Couldn't plot this splash zone. Please try again.")
     })
 
     it('fires trackIsochroneRequest on attempt with mode and budget', async () => {
@@ -333,35 +349,37 @@ describe('useAuthoredGraph', () => {
     })
   })
 
-  // SPA-230: a routing job the API gave up on — the isochrone service being
-  // down, chief among the reasons — carries its own reason, and that reason is
-  // what the user should see, on the authored pages the same as on the seeded
-  // one.
+  // SPA-230: a routing job the API gave up on — the routing service being
+  // down, chief among the reasons — carries its own reason. That reason is the
+  // API's or the worker's text, so the authored pages say the same product
+  // line the seeded one does, and the reason goes to the console.
   describe('a routing job the API failed', () => {
-    it('shows the API error text rather than the generic fallback', async () => {
-      isochrone.mockRejectedValue(
-        new JobFailedError(
-          'rj1',
-          "The isochrone service isn't responding right now. Please try again in a few minutes.",
-        ),
-      )
+    const ROUTING_FAILED =
+      "Routing couldn't finish this splash zone. Please try again, or try a different starting point."
+
+    beforeEach(() => {
+      vi.spyOn(console, 'warn').mockImplementation(() => {})
+    })
+
+    it('says routing could not finish, without the API error text', async () => {
+      const reason = "The routing service isn't responding right now. Please try again in a few minutes."
+      isochrone.mockRejectedValue(new JobFailedError('rj1', reason))
       const { handleIsochroneSubmit, isochroneError } = subject()
 
       await handleIsochroneSubmit(payload)
 
       expect(compile).not.toHaveBeenCalled()
-      expect(isochroneError.value).toBe(
-        "The isochrone service isn't responding right now. Please try again in a few minutes.",
-      )
+      expect(isochroneError.value).toBe(ROUTING_FAILED)
+      expect(console.warn).toHaveBeenCalledWith('[isochrone] routing job failed:', reason)
     })
 
-    it('falls back to the generic message when the API gave no reason', async () => {
+    it('says the same when the API gave no reason', async () => {
       isochrone.mockRejectedValue(new JobFailedError('rj1', ''))
       const { handleIsochroneSubmit, isochroneError } = subject()
 
       await handleIsochroneSubmit(payload)
 
-      expect(isochroneError.value).toBe('Failed to generate isochrone. Please try again.')
+      expect(isochroneError.value).toBe(ROUTING_FAILED)
     })
   })
 
@@ -468,7 +486,50 @@ describe('useAuthoredGraph', () => {
 
       expect(compile).not.toHaveBeenCalled()
       expect(isochroneError.value).toMatch(/busy/i)
-      expect(isochroneError.value).not.toBe('Failed to generate isochrone. Please try again.')
+      expect(isochroneError.value).not.toBe("Couldn't plot this splash zone. Please try again.")
+    })
+  })
+
+  // A worker that has gone quiet will never answer, so the page stops waiting
+  // out the job deadline the moment the status says so (SPA-503).
+  describe('when live routing goes offline', () => {
+    it('stops a plot in flight with the offline message and ignores its late answer', async () => {
+      const pending = deferred<ChainResponse>()
+      isochrone.mockReturnValueOnce(pending.promise)
+      const offline = ref(false)
+      const { handleIsochroneSubmit, isochroneData, isochroneError, isochroneLoading, isochroneFormLoading } =
+        subject(undefined, () => offline.value)
+
+      const plot = handleIsochroneSubmit(payload)
+      await flushPromises()
+      expect(isochroneLoading.value).toBe(true)
+
+      offline.value = true
+      await nextTick()
+
+      expect(isochroneLoading.value).toBe(false)
+      expect(isochroneFormLoading.value).toBe(false)
+      expect(isochroneError.value).toBe(OFFLINE_REASON)
+
+      pending.release(chain)
+      await plot
+      expect(isochroneData.value).toBeNull()
+      expect(isochroneError.value).toBe(OFFLINE_REASON)
+    })
+
+    it('changes nothing when no plot is in flight', async () => {
+      isochrone.mockResolvedValueOnce(chain)
+      const offline = ref(false)
+      const { handleIsochroneSubmit, isochroneData, isochroneError, isochroneLoading } =
+        subject(undefined, () => offline.value)
+      await handleIsochroneSubmit(payload)
+
+      offline.value = true
+      await nextTick()
+
+      expect(isochroneData.value).toEqual(chain)
+      expect(isochroneError.value).toBeNull()
+      expect(isochroneLoading.value).toBe(false)
     })
   })
 

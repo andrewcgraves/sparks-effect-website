@@ -179,7 +179,7 @@ describe('useScenarioDeletion', () => {
     await vi.waitFor(() => expect(pending.value).not.toBeNull())
     expect(pending.value).toMatchObject({
       title: "Delete 'CA HSR'?",
-      body: "Its compiled graph goes too. Its lines aren't deleted. This can't be undone.",
+      body: "Its builds go too. Its lines aren't deleted. This can't be undone.",
       confirmLabel: 'Delete network',
       destructive: true,
     })

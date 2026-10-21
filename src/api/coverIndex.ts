@@ -45,11 +45,12 @@ export async function fetchCoverIndex(): Promise<CoverIndex> {
 
   if (scenarios.status === 'fulfilled') {
     for (const scenario of scenarios.value) {
+      // The subtext, for the same reason as a service's below.
       cards.push({
         kind: 'scenario',
         slug: scenario.slug,
         name: scenario.name,
-        caption: scenario.description,
+        caption: scenario.subtext,
         to: `/scenario/${scenario.slug}`,
       })
     }

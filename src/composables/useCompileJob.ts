@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { ref, shallowRef } from 'vue'
 import { useJobsStore } from '../stores/jobs'
 import { latestAttempt } from './latestAttempt'
 import { newTraceId, traceHeaders } from '../api/traceId'
@@ -14,7 +14,9 @@ export function useCompileJob(
   const jobs = useJobsStore()
   const compiling = ref(false)
   const compileError = ref('')
-  const result = ref<TransitGraph | null>(null)
+  // Shallow: a compiled graph carries every route's geometry and is replaced
+  // whole, never edited (SPA-487).
+  const result = shallowRef<TransitGraph | null>(null)
   const { announce } = useAnnouncer()
 
   // A compile superseded mid-flight must not resurrect itself when it lands —

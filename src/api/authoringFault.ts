@@ -17,7 +17,7 @@ export const SESSION_EXPIRED_FAULT = 'Your session expired. Sign in to continue.
 export const UNREACHABLE_FAULT = "Couldn't reach the server. Your draft is saved; try again."
 
 const COMPILE_ADVICE: Record<AuthoringNoun, string> = {
-  service: 'Check its stops and timetable, then try again.',
+  service: 'Check its stops and frequency windows, then try again.',
   scenario: 'Check its lines and interchanges, then try again.',
   route: 'Check its points, then try again.',
 }
@@ -43,6 +43,7 @@ const ENTRY_NOUNS: Record<string, string> = {
 
 const WHOLE_FIELDS: Record<string, string> = {
   name: 'Name',
+  route_slug: 'Route',
   subtext: 'Subtext',
   description: 'Description',
   slug: 'Slug',
@@ -55,6 +56,10 @@ const WHOLE_FIELDS: Record<string, string> = {
   frequency_windows: 'Frequency windows',
   service_ids: 'Lines',
   interchange_pairs: 'Interchanges',
+  vehicle: 'Vehicle',
+  boarding_wait: 'Boarding wait',
+  'boarding_wait.policy': 'Boarding wait',
+  'boarding_wait.secs': 'Boarding wait seconds',
   'vehicle.max_speed_kmh': 'Top speed',
   'vehicle.acceleration_ms2': 'Acceleration',
   'vehicle.deceleration_ms2': 'Deceleration',
@@ -68,11 +73,19 @@ const MEMBER_WORDS: Record<string, string> = {
   name: 'name',
   lat: 'latitude',
   lng: 'longitude',
+  seq: 'position',
+  slug: 'identifier',
+  chainage_m: 'distance along the route',
+  offset_m: 'distance from the route',
   grade_pct: 'grade',
   curve_radius_m: 'curve radius',
   cant_mm: 'cant',
   a: 'first line',
   b: 'second line',
+  'a.service_id': 'first line',
+  'a.slug': 'first stop',
+  'b.service_id': 'second line',
+  'b.slug': 'second stop',
 }
 
 const RULE_PHRASES: Record<string, string> = {
@@ -123,17 +136,37 @@ function plainWords(segment: string): string {
   return segment.replace(/_(s|m|mm|kmh|ms2|pct)$/, '').replace(/_/g, ' ')
 }
 
-function fieldLabel({ field, index }: ValidationFault): string {
+// Every word comes from the maps above; `unnamed` is asked only for a segment
+// none of them has, so the guard spec can tell a mapped field from one that
+// only reads as words because plainWords tidied it.
+function describeField(
+  { field, index }: Pick<ValidationFault, 'field' | 'index'>,
+  unnamed: (segment: string) => string,
+): string {
   const [head, ...rest] = field.split('.')
   const member = rest.join('.')
-  const memberWord = member ? (MEMBER_WORDS[member] ?? plainWords(member)) : ''
+  const memberWord = () => (member ? (MEMBER_WORDS[member] ?? unnamed(member)) : '')
 
   // The API counts entries from zero; the forms number them from one.
   if (index !== undefined) {
-    const entry = `${ENTRY_NOUNS[head] ?? capitalise(plainWords(head))} ${index + 1}`
-    return memberWord ? `${entry}: ${memberWord}` : entry
+    const entry = `${ENTRY_NOUNS[head] ?? capitalise(unnamed(head))} ${index + 1}`
+    const word = memberWord()
+    return word ? `${entry}: ${word}` : entry
   }
-  return WHOLE_FIELDS[field] ?? capitalise(memberWord || plainWords(head))
+  return WHOLE_FIELDS[field] ?? capitalise(memberWord() || unnamed(head))
+}
+
+function fieldLabel(fault: ValidationFault): string {
+  return describeField(fault, plainWords)
+}
+
+export function unnamedFieldSegments(fault: Pick<ValidationFault, 'field' | 'index'>): string[] {
+  const unnamed: string[] = []
+  describeField(fault, (segment) => {
+    unnamed.push(segment)
+    return segment
+  })
+  return unnamed
 }
 
 function faultSentence(fault: ValidationFault): string {

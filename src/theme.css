@@ -9,12 +9,11 @@
   --color-coral: #e1665b;
   --color-error: #c2453b;
   --color-apricot: #ef9261;
-  --color-slate: #1e293b;
 
   --color-focus: var(--color-coral);
 
-  --color-data-origin: #1034b1;
-  --color-data-egress: #f28f29;
+  --color-data-origin: var(--color-coral);
+  --color-data-egress: var(--color-coral);
 
   --font-display: "Inter Variable", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
   --font-body: "Open Sans Variable", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
@@ -34,16 +33,13 @@
   --text-h3--letter-spacing: -0.01em;
   --text-h3--font-weight: 700;
 
-  --text-card-title: 24px;
-  --text-card-title--line-height: 1;
-  --text-card-title--letter-spacing: -0.01em;
-  --text-card-title--font-weight: 700;
-
   --text-lead: clamp(18px, 1.6vw, 21px);
   --text-lead--line-height: 1.6;
 
   --text-body: 16px;
   --text-body--line-height: 1.65;
+
+  --text-field: 14px;
 
   --text-caption: 13px;
   --text-caption--line-height: 1.5;
@@ -55,17 +51,173 @@
   --text-btn--letter-spacing: 0.06em;
   --text-btn--font-weight: 700;
 
+  --text-wordmark: 17px;
+  --text-wordmark--letter-spacing: -0.02em;
+  --text-wordmark--font-weight: 700;
+
   --radius-selector: 1rem;
   --radius-field: 0.25rem;
   --radius-box: 0.5rem;
 
   --shadow-panel: 0 1px 4px rgb(0 0 0 / 20%);
+  --shadow-bar: 0 -4px 12px rgb(0 0 0 / 6%);
+  --shadow-drop-above: 0 -3px 0 var(--color-coral);
+  --shadow-drop-below: 0 3px 0 var(--color-coral);
+}
+
+/* Text roles. Each sets the whole recipe except colour, which stays a separate
+   utility so hover:, aria-pressed: and disabled: variants keep working on it.
+   t-error is the one role whose colour is part of what it means. The inline
+   source emits every role even before a component uses it. */
+@source inline("t-{display,h2,h3,subhead,wordmark,lead,body,field,meta,note,error,eyebrow,action,tag}");
+
+@utility t-display {
+  font-family: var(--font-display);
+  font-size: var(--text-display);
+  line-height: var(--text-display--line-height);
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: var(--text-display--letter-spacing);
+  font-style: normal;
+}
+
+@utility t-h2 {
+  font-family: var(--font-display);
+  font-size: var(--text-h2);
+  line-height: var(--text-h2--line-height);
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: var(--text-h2--letter-spacing);
+  font-style: normal;
+}
+
+@utility t-h3 {
+  font-family: var(--font-display);
+  font-size: var(--text-h3);
+  line-height: var(--text-h3--line-height);
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: var(--text-h3--letter-spacing);
+  font-style: normal;
+}
+
+@utility t-subhead {
+  font-family: var(--font-display);
+  font-size: 16px;
+  line-height: 1.25;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: -0.01em;
+  font-style: normal;
+}
+
+@utility t-wordmark {
+  font-family: var(--font-display);
+  font-size: var(--text-wordmark);
+  line-height: 1.5;
+  font-weight: var(--text-wordmark--font-weight);
+  text-transform: none;
+  letter-spacing: var(--text-wordmark--letter-spacing);
+  font-style: normal;
+}
+
+@utility t-lead {
+  font-family: var(--font-body);
+  font-size: var(--text-lead);
+  line-height: var(--text-lead--line-height);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  font-style: normal;
+}
+
+@utility t-body {
+  font-family: var(--font-body);
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  font-style: normal;
+}
+
+/* Typed values sit inside italic uppercase labels, so upright, as-authored and
+   untracked are set explicitly rather than left to inherit. */
+@utility t-field {
+  font-family: var(--font-body);
+  font-size: var(--text-field);
+  line-height: 1.5;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  font-style: normal;
+}
+
+@utility t-meta {
+  font-family: var(--font-body);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  font-style: normal;
+}
+
+@utility t-note {
+  font-family: var(--font-body);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  font-style: italic;
+}
+
+@utility t-error {
+  font-family: var(--font-body);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  font-style: normal;
+  color: var(--color-error);
+}
+
+@utility t-eyebrow {
+  font-family: var(--font-body);
+  font-size: var(--text-micro);
+  line-height: 1.5;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: var(--text-micro--letter-spacing);
+  font-style: italic;
+}
+
+@utility t-action {
+  font-family: var(--font-display);
+  font-size: var(--text-btn);
+  line-height: 1.5;
+  font-weight: var(--text-btn--font-weight);
+  text-transform: uppercase;
+  letter-spacing: var(--text-btn--letter-spacing);
+  font-style: normal;
+}
+
+@utility t-tag {
+  font-family: var(--font-display);
+  font-size: var(--text-micro);
+  line-height: 1.5;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-style: normal;
 }
 
 :root {
   --page-gutter: clamp(16px, 7vw, 88px);
   --page-padding: 32px var(--page-gutter) 96px;
   --ease-smooth: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --focus-ring-width: 2px;
-  --focus-ring-offset: 3px;
+  --focus-ring-width: 1px;
+  --focus-ring-offset: 1px;
 }

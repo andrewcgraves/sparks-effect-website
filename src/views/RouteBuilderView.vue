@@ -151,14 +151,14 @@ watch(savedCount, () => toast('Changes saved'))
 
     <p
       v-if="editNotFound"
-      class="font-body text-body mt-3 text-ink-muted"
+      class="t-body mt-3 text-ink-muted"
       data-testid="route-not-found"
     >
       No route of yours matches "{{ slug }}".
     </p>
     <p
       v-else-if="editLoadFailed"
-      class="font-body text-body mt-3 text-ink-muted"
+      class="t-body mt-3 text-ink-muted"
       role="alert"
       data-testid="route-error"
     >
@@ -215,7 +215,7 @@ watch(savedCount, () => toast('Changes saved'))
               </select>
             </label>
           </div>
-          <label class="font-body text-caption mt-3 flex items-center gap-2 text-ink">
+          <label class="t-meta mt-3 flex items-center gap-2 text-ink">
             <input
               v-model="bidirectional"
               type="checkbox"
@@ -231,7 +231,7 @@ watch(savedCount, () => toast('Changes saved'))
           </h2>
           <p
             v-if="geometryLocked"
-            class="font-body text-caption mt-2 flex items-center gap-2 text-ink"
+            class="t-meta mt-2 flex items-center gap-2 text-ink"
             role="status"
             data-testid="geometry-locked"
           >
@@ -243,12 +243,12 @@ watch(savedCount, () => toast('Changes saved'))
           </p>
           <p
             v-else
-            class="font-body text-caption mt-2 text-ink-muted"
+            class="t-meta mt-2 text-ink-muted"
           >
             Import a GeoJSON line: a LineString, a Feature holding one, or a collection with exactly one.
           </p>
           <p
-            class="font-body text-caption mt-2 text-ink"
+            class="t-meta mt-2 text-ink"
             data-testid="route-stats"
           >
             {{ stats }}
@@ -292,7 +292,7 @@ watch(savedCount, () => toast('Changes saved'))
 
           <p
             v-if="importError"
-            class="font-body text-caption mt-2 text-error"
+            class="t-error mt-2"
             role="alert"
             data-testid="import-error"
           >
@@ -300,7 +300,7 @@ watch(savedCount, () => toast('Changes saved'))
           </p>
           <p
             v-else-if="importNote"
-            class="font-body text-caption mt-2 text-ink-muted"
+            class="t-meta mt-2 text-ink-muted"
             role="status"
             data-testid="import-note"
           >
@@ -325,7 +325,7 @@ watch(savedCount, () => toast('Changes saved'))
         <section class="rounded-(--radius-box) border border-border bg-surface p-4">
           <h2 class="font-display text-h3 text-ink-true">
             Description
-            <span class="font-body text-caption font-normal text-ink-muted">optional</span>
+            <span class="t-meta text-ink-muted">optional</span>
           </h2>
           <label :class="[FIELD_LABEL_CLASS, 'mt-3']">
             <span class="sr-only">Description</span>
@@ -340,12 +340,12 @@ watch(savedCount, () => toast('Changes saved'))
       </fieldset>
 
       <div
-        class="sticky bottom-0 z-20 flex flex-col gap-2 rounded-t-(--radius-box) border border-b-0 border-border bg-white/95 px-4 py-3 shadow-[0_-4px_12px_rgb(0_0_0/6%)] backdrop-blur"
+        class="sticky bottom-0 z-20 flex flex-col gap-2 rounded-t-(--radius-box) border border-b-0 border-border bg-white/92 px-4 py-3 shadow-(--shadow-bar) backdrop-blur"
         data-testid="save-bar"
       >
         <div class="flex flex-wrap items-center justify-between gap-3">
           <p
-            class="font-body text-caption flex items-center gap-2 text-ink"
+            class="t-meta flex items-center gap-2 text-ink"
             role="status"
             data-testid="save-status"
           >
@@ -367,7 +367,7 @@ watch(savedCount, () => toast('Changes saved'))
         </div>
         <p
           v-if="validationMessage"
-          class="font-body text-caption text-error"
+          class="t-error"
           role="alert"
           data-testid="validation-error"
         >
@@ -375,7 +375,7 @@ watch(savedCount, () => toast('Changes saved'))
         </p>
         <p
           v-if="submitError"
-          class="font-body text-caption text-error"
+          class="t-error"
           role="alert"
           data-testid="submit-error"
         >

@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { computed, ref, watch, nextTick, useId } from 'vue'
+import { TILE_CLASS, TILE_HEADING_CLASS } from './tileStyles'
+import { computed, inject, ref, watch, nextTick, useId } from 'vue'
 import SegmentedControl from './SegmentedControl.vue'
 import TooltipPanel from './TooltipPanel.vue'
-import { formatDuration, formatProgressPercent, formatTimeRemaining, laneWidthFor } from './timeRemaining'
+import StationDetail from './StationDetail.vue'
+import { formatDuration, formatTimeRemaining, laneWidthFor } from './timeRemaining'
 import type { TimeRemainingRow, TimeRemainingView } from './timeRemaining'
+import { PHONE_PANEL_SCROLLER, revealWithin } from './phonePanelScroll'
 
 const props = defineProps<{
   views: TimeRemainingView[]
@@ -26,6 +29,7 @@ const graphWidth = computed(() => Math.max(view.value?.laneCount ?? 1, 1) * lane
 const laneX = (lane: number): number => lane * laneWidth.value + laneWidth.value / 2
 
 const listEl = ref<HTMLElement | null>(null)
+const panelScroller = inject(PHONE_PANEL_SCROLLER, null)
 
 watch(() => props.views, () => { chosen.value = 0 }, { immediate: true })
 
@@ -49,9 +53,8 @@ function hasDetail(row: TimeRemainingRow): boolean {
 
 const labels = computed(() => new Map(rows.value.map((row) => [row.key, row.label])))
 
-function rideTerm(row: TimeRemainingRow): string {
-  const from = row.parentKey === null ? undefined : labels.value.get(row.parentKey)
-  return from ? `Rode in from ${from}` : 'Rode in'
+function rodeInFrom(row: TimeRemainingRow): string | null {
+  return (row.parentKey === null ? undefined : labels.value.get(row.parentKey)) ?? null
 }
 
 const anchor = ref<Element | null>(null)
@@ -63,15 +66,6 @@ function setAnchor(el?: Element | null): void {
 function activate(row: TimeRemainingRow, event: Event): void {
   setAnchor(event.currentTarget as Element | null)
   emit('activate', row.slug)
-}
-
-function reveal(row: Element): void {
-  const list = listEl.value
-  if (!list) return
-  const listRect = list.getBoundingClientRect()
-  const rowRect = row.getBoundingClientRect()
-  if (rowRect.top < listRect.top) list.scrollTop -= listRect.top - rowRect.top
-  else if (rowRect.bottom > listRect.bottom) list.scrollTop += rowRect.bottom - listRect.bottom
 }
 
 watch(
@@ -89,7 +83,7 @@ watch(
     const rows = listEl.value?.querySelectorAll('[data-station-slug]') ?? []
     for (const row of rows) {
       if (row.getAttribute('data-station-slug') === slug) {
-        reveal(row)
+        revealWithin(panelScroller?.value ?? listEl.value, row)
         // Measured after the scroll, so the box lands beside where the row
         // ended up rather than where it started.
         setAnchor(row)
@@ -102,13 +96,13 @@ watch(
 
 <template>
   <section
-    class="rounded-(--radius-box) border border-border bg-surface p-4"
+    :class="TILE_CLASS"
     :aria-labelledby="headingId"
     data-testid="time-remaining"
   >
     <h2
       :id="headingId"
-      class="font-display text-h3 text-ink-true"
+      :class="TILE_HEADING_CLASS"
     >
       Time remaining
     </h2>
@@ -127,7 +121,8 @@ watch(
 
     <ul
       ref="listEl"
-      class="mt-3 flex max-h-[26rem] list-none flex-col overflow-y-auto p-0"
+      class="mt-3 flex list-none flex-col p-0"
+      :class="panelScroller ? '' : 'max-h-[26rem] overflow-y-auto'"
     >
       <li
         v-for="row in rows"
@@ -178,12 +173,12 @@ watch(
         </div>
 
         <div class="min-w-0 flex-1 py-1">
-          <p class="font-body text-caption truncate text-ink">
+          <p class="t-meta truncate text-ink">
             {{ row.label }}
           </p>
           <p
             v-if="row.flag"
-            class="font-body text-micro text-ink-muted uppercase"
+            class="t-meta text-ink-muted"
             data-testid="time-remaining-flag"
           >
             {{ row.flag }}
@@ -191,7 +186,7 @@ watch(
           <p
             v-for="leg in row.detail.access ?? []"
             :key="leg.to"
-            class="font-body text-micro text-ink-muted"
+            class="t-meta text-ink-muted"
             data-testid="time-remaining-access"
           >
             {{ leg.flag ? `${leg.flag} to` : 'to' }} {{ leg.to }}, {{ formatDuration(leg.secs) }}
@@ -199,7 +194,7 @@ watch(
         </div>
 
         <p
-          class="font-body text-caption shrink-0 py-1 text-right tabular-nums text-ink-true"
+          class="t-meta shrink-0 py-1 text-right tabular-nums text-ink-true"
           data-testid="time-remaining-value"
         >
           {{ formatTimeRemaining(row.remainingSecs) }}
@@ -211,52 +206,10 @@ watch(
           :open="true"
           :anchor="anchor"
         >
-          <dl
-            class="font-body text-micro flex flex-col gap-0.5 text-ink-muted"
-            data-testid="time-remaining-detail"
-          >
-            <div v-if="row.detail.rideSecs !== undefined">
-              <dt class="inline">
-                {{ rideTerm(row) }}
-              </dt>
-              <dd class="ml-1 inline">
-                {{ formatDuration(row.detail.rideSecs) }}
-              </dd>
-            </div>
-            <div v-if="row.detail.arrivalSecs !== undefined">
-              <dt class="inline">
-                Arrived with
-              </dt>
-              <dd class="ml-1 inline">
-                {{ formatTimeRemaining(row.detail.arrivalSecs) }} left
-              </dd>
-            </div>
-            <div v-if="row.detail.dwellSecs !== undefined">
-              <dt class="inline">
-                Stopped here for
-              </dt>
-              <dd class="ml-1 inline">
-                {{ formatDuration(row.detail.dwellSecs) }}
-              </dd>
-            </div>
-            <div v-if="row.detail.transferFrom">
-              <dt class="inline">
-                Changed from
-              </dt>
-              <dd class="ml-1 inline">
-                {{ row.detail.transferFrom }}
-              </dd>
-            </div>
-            
-            <div v-if="row.detail.progressTo && row.detail.progressFraction !== undefined">
-              <dt class="inline">
-                Got {{ formatProgressPercent(row.detail.progressFraction) }} of the way toward
-              </dt>
-              <dd class="ml-1 inline">
-                {{ row.detail.progressTo }}
-              </dd>
-            </div>
-          </dl>
+          <StationDetail
+            :detail="row.detail"
+            :rode-in-from="rodeInFrom(row)"
+          />
         </TooltipPanel>
       </li>
     </ul>

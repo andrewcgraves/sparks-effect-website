@@ -5,14 +5,17 @@ import { latestAttempt } from '../composables/latestAttempt'
 import {
   fetchPrerenderedIsochrone,
   listPrerenderedIsochrones,
+  type PrerenderedIsochrone,
   type PrerenderedIsochroneSummary,
 } from '../api/prerenderedIsochrones'
-import type { ChainResponse } from '../fixtures/isochrone'
+import { modeLabel } from '../copy/modes'
+import { PRESSED_CHOICE_CLASS } from './buttonStyles'
+import Tag from './Tag.vue'
 
 const props = defineProps<{ slug: string; selectedId: string | null }>()
 
 const emit = defineEmits<{
-  select: [result: ChainResponse]
+  select: [entry: PrerenderedIsochrone]
   'update:selectedId': [id: string | null]
   available: [hasAny: boolean]
 }>()
@@ -30,8 +33,10 @@ const detailError = ref<string | null>(null)
 
 const attempt = latestAttempt()
 
+// The API calls an entry outdated once a line has joined or left the network,
+// or a member line has been edited, since it was plotted.
 const OUTDATED_HINT =
-  'Plotted before the network’s current routes and lines, so it may be out of date.'
+  'Plotted before this network’s lines last changed, so it may be out of date.'
 
 async function choose(entry: PrerenderedIsochroneSummary): Promise<void> {
   const mine = attempt.begin()
@@ -42,7 +47,7 @@ async function choose(entry: PrerenderedIsochroneSummary): Promise<void> {
     if (!attempt.isCurrent(mine)) return
     pendingId.value = null
     emit('update:selectedId', entry.id)
-    emit('select', detail.result)
+    emit('select', detail)
   } catch (e) {
     console.error(e)
     if (!attempt.isCurrent(mine)) return
@@ -51,49 +56,53 @@ async function choose(entry: PrerenderedIsochroneSummary): Promise<void> {
   }
 }
 
+// Labels are written to stand alone ("Fresno - 120 min by transit"), but each
+// tile already says the travel time and mode underneath, so a trailing
+// " - N min …" is dropped from the name rather than said twice.
+function placeName(entry: PrerenderedIsochroneSummary): string {
+  return entry.label.replace(/\s+-\s+\d+\s*min\b.*$/, '')
+}
+
 function summarise(entry: PrerenderedIsochroneSummary): string {
-  return `${entry.budget_mins} min · ${entry.mode}`
+  return `${entry.budget_mins} min · ${modeLabel(entry.mode)}`
 }
 </script>
 
 <template>
-  <section
+  <div
     v-if="items.length"
-    class="rounded-(--radius-box) border border-border bg-surface p-4"
     data-testid="prerendered-isochrones"
   >
-    <h2 class="font-display text-h3 text-ink-true">
-      Pre-rendered isochrones
-    </h2>
-
-    <ul class="mt-3 flex flex-col gap-2">
+    <ul class="grid grid-cols-2 gap-1.5">
       <li
         v-for="entry in items"
         :key="entry.id"
       >
         <button
           type="button"
-          class="group font-body text-body flex w-full cursor-pointer flex-col gap-1 rounded-(--radius-field) border border-border bg-white px-3 py-2 text-left text-ink transition-colors duration-200 ease-(--ease-smooth) hover:border-coral disabled:cursor-progress disabled:opacity-60 aria-pressed:border-coral aria-pressed:bg-coral aria-pressed:text-white"
+          class="t-field flex size-full cursor-pointer flex-col gap-0.5 rounded-(--radius-field) border border-border bg-white px-2.5 py-1.5 text-left leading-tight text-ink transition-colors duration-200 ease-(--ease-smooth) hover:border-coral disabled:cursor-progress disabled:opacity-60"
+          :class="PRESSED_CHOICE_CLASS"
           :disabled="pendingId === entry.id"
           :aria-busy="pendingId === entry.id"
           :aria-pressed="selectedId === entry.id"
+          :title="entry.label"
           data-testid="prerendered-entry"
           @click="choose(entry)"
         >
-          <span class="flex flex-wrap items-center gap-2">
-            {{ entry.label }}
-            <span
+          <span class="flex flex-wrap items-center gap-1">
+            {{ placeName(entry) }}
+            <Tag
               v-if="entry.outdated"
-              class="font-display text-micro rounded-(--radius-field) border border-apricot bg-apricot/15 px-1.5 py-0.5 text-ink uppercase group-aria-pressed:border-white/70 group-aria-pressed:bg-white/25 group-aria-pressed:text-white"
+              tone="caution"
               :title="OUTDATED_HINT"
               :aria-label="`Out of date — ${OUTDATED_HINT}`"
               data-testid="prerendered-outdated"
             >
               Out of date
-            </span>
+            </Tag>
           </span>
           <span
-            class="text-micro text-ink-muted uppercase group-aria-pressed:text-white/80"
+            class="t-meta text-ink-muted"
             data-testid="prerendered-entry-detail"
           >
             {{ pendingId === entry.id ? 'Loading…' : summarise(entry) }}
@@ -104,11 +113,11 @@ function summarise(entry: PrerenderedIsochroneSummary): string {
 
     <p
       v-if="detailError"
-      class="font-body text-caption mt-3 text-error"
+      class="t-error mt-3"
       role="alert"
       data-testid="prerendered-detail-error"
     >
       {{ detailError }}
     </p>
-  </section>
+  </div>
 </template>

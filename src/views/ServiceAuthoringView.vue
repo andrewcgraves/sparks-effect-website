@@ -13,12 +13,15 @@ import MapView from '../components/MapView.vue'
 import FieldSkeleton from '../components/FieldSkeleton.vue'
 import LoadingRegion from '../components/LoadingRegion.vue'
 import SkeletonShape from '../components/SkeletonShape.vue'
+import StatusDot from '../components/StatusDot.vue'
 import StopActionsMenu from '../components/StopActionsMenu.vue'
 import VehicleFields from '../components/VehicleFields.vue'
 import { PLACEMENT_TOGGLE_CLASS, PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS } from '../components/buttonStyles'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
 import { ACTION_LINK_CLASS } from '../components/linkStyles'
 import { STOP_PLACEMENT_CUE } from '../components/placementCues'
+import { UNNAMED_STOP } from '../copy/names'
+import PageHeader from '../components/PageHeader.vue'
 
 // One view for both writes. The form, the map, the snap preview and fault
 // attribution are the same whichever way a draft is headed; only the edges
@@ -33,6 +36,7 @@ const {
   editing,
   editNotFound,
   editLoadFailed,
+  handedOver,
   routeMissing,
   stops,
   frequencyWindows,
@@ -94,7 +98,7 @@ const trail = computed<Crumb[]>(() => [
     : [{ label: 'New line' }]),
 ])
 
-const SUBHEADING_CLASS = 'font-body text-caption font-bold text-ink'
+const SUBHEADING_CLASS = 't-subhead text-ink-true'
 
 const submitLabel = computed(() => (props.slug ? 'Save changes' : 'Create line'))
 
@@ -102,14 +106,7 @@ const submitLabel = computed(() => (props.slug ? 'Save changes' : 'Create line')
 // recompile landing and the navigation it starts.
 const locked = computed(() => submitting.value || compiling.value || !!compiledGraph.value)
 
-type SaveTone = 'quiet' | 'dirty' | 'busy' | 'error'
-
-const TONE_DOT_CLASS: Record<SaveTone, string> = {
-  quiet: 'bg-ink-faint',
-  dirty: 'bg-apricot',
-  busy: 'animate-pulse bg-coral',
-  error: 'bg-error',
-}
+type SaveTone = 'quiet' | 'caution' | 'busy' | 'error'
 
 // Described against the saved service, never against the copy in the browser,
 // which is kept on every keystroke and so is never behind. A failed recompile
@@ -121,7 +118,7 @@ const saveStatus = computed<{ label: string; note?: string; tone: SaveTone }>(()
     return { label: "Couldn't save", note: 'Your draft is still kept in this browser', tone: 'error' }
   }
   if (hasChanges.value) {
-    return { label: props.slug ? 'Unsaved changes' : 'Not created yet', note: 'Draft kept in this browser', tone: 'dirty' }
+    return { label: props.slug ? 'Unsaved changes' : 'Not created yet', note: 'Draft kept in this browser', tone: 'caution' }
   }
   return { label: props.slug ? 'No changes' : 'Nothing here yet', tone: 'quiet' }
 })
@@ -193,7 +190,7 @@ const { show: toast } = useToast()
 // is what keeps "Remove Fresno" naming one button and not two. Compared the
 // way a listener hears them, so "Stop 2" and "stop 2" count as the same name.
 const stopLabels = computed(() => {
-  const named = stops.value.map((stop, index) => stop.name.trim() || `Unnamed stop ${index + 1}`)
+  const named = stops.value.map((stop, index) => stop.name.trim() || `${UNNAMED_STOP} ${index + 1}`)
   const counts = new Map<string, number>()
   for (const label of named) {
     const key = label.toLowerCase()
@@ -251,7 +248,7 @@ async function announce(message: string): Promise<void> {
 // Named without the position its label may carry, which the move has just
 // made untrue.
 function announceMove(stop: DraftStop, to: number): void {
-  void announce(`${stop.name.trim() || 'Unnamed stop'} is now stop ${to + 1} of ${stops.value.length}`)
+  void announce(`${stop.name.trim() || UNNAMED_STOP} is now stop ${to + 1} of ${stops.value.length}`)
 }
 
 function handleMoveStop(index: number, direction: -1 | 1): void {
@@ -386,8 +383,8 @@ function stopRowClass(stop: DraftStop, index: number): string[] {
   else classes.push('bg-white')
   if (stop.id === draggingStopId.value) classes.push('opacity-50')
   const edge = dropEdge(stop, index)
-  if (edge === 'before') classes.push('shadow-[0_-3px_0_var(--color-coral)]')
-  if (edge === 'after') classes.push('shadow-[0_3px_0_var(--color-coral)]')
+  if (edge === 'before') classes.push('shadow-(--shadow-drop-above)')
+  if (edge === 'after') classes.push('shadow-(--shadow-drop-below)')
   return classes
 }
 
@@ -476,20 +473,40 @@ watch(createdSlug, (created) => {
 <template>
   <main class="flex-1 p-(--page-padding)">
     <BreadcrumbTrail :items="trail" />
-    <h1 class="mt-8 font-display text-display text-ink-true">
-      {{ slug ? 'Edit line' : 'New line' }}
-    </h1>
+    <PageHeader
+      class="mt-8"
+      :title="slug ? 'Edit line' : 'New line'"
+    />
 
+    <div
+      v-if="handedOver"
+      class="mt-3 flex flex-col items-start gap-3"
+    >
+      <p
+        class="t-body text-ink"
+        role="alert"
+        data-testid="service-handed-over"
+      >
+        This line now belongs to someone else. Your unsaved changes can't be saved.
+      </p>
+      <router-link
+        to="/authoring"
+        :class="ACTION_LINK_CLASS"
+        data-testid="back-to-authoring"
+      >
+        Back to My authoring
+      </router-link>
+    </div>
     <p
-      v-if="editNotFound"
-      class="font-body text-body mt-3 text-ink-muted"
+      v-else-if="editNotFound"
+      class="t-body mt-3 text-ink-muted"
       data-testid="service-not-found"
     >
       No line of yours matches "{{ slug }}".
     </p>
     <p
       v-else-if="editLoadFailed"
-      class="font-body text-body mt-3 text-ink-muted"
+      class="t-body mt-3 text-ink-muted"
       role="alert"
       data-testid="service-error"
     >
@@ -578,7 +595,7 @@ watch(createdSlug, (created) => {
             </LoadingRegion>
             <p
               v-else-if="routesError"
-              class="font-body text-caption mt-3 text-error"
+              class="t-error mt-3"
               role="alert"
               data-testid="routes-error"
             >
@@ -640,7 +657,7 @@ watch(createdSlug, (created) => {
             </div>
             <p
               v-if="routeMissing"
-              class="font-body text-caption mt-2 text-error"
+              class="t-error mt-2"
               role="alert"
               data-testid="route-missing"
             >
@@ -688,7 +705,7 @@ watch(createdSlug, (created) => {
             <p
               v-if="orderWarning"
               :id="orderWarningId"
-              class="font-body text-caption mt-2 text-error"
+              class="t-error mt-2"
               role="alert"
               data-testid="order-warning"
             >
@@ -703,7 +720,7 @@ watch(createdSlug, (created) => {
               <li
                 v-for="(stop, index) in stops"
                 :key="stop.id"
-                class="font-body text-caption rounded-(--radius-field) border px-2 py-1.5 text-ink"
+                class="t-meta rounded-(--radius-field) border px-2 py-1.5 text-ink"
                 :class="stopRowClass(stop, index)"
                 :aria-current="stop.id === selectedStopId ? 'true' : undefined"
                 data-testid="stop-row"
@@ -732,7 +749,7 @@ watch(createdSlug, (created) => {
                   >{{ index + 1 }}</span>
                   <input
                     :value="stop.name"
-                    class="min-w-0 flex-1 border-b border-transparent bg-transparent font-medium not-italic normal-case hover:border-border focus:border-border"
+                    class="t-field min-w-0 flex-1 border-b border-transparent bg-transparent hover:border-border focus:border-coral focus-visible:outline-none"
                     :aria-label="`Rename ${stopLabels[index]}`"
                     :data-testid="`stop-edit-name-${index}`"
                     type="text"
@@ -811,7 +828,7 @@ watch(createdSlug, (created) => {
             </ol>
             <p
               v-else
-              class="font-body text-caption mt-3 text-ink-muted"
+              class="t-note mt-3 text-ink-muted"
               data-testid="stops-empty"
             >
               No stops yet. Choose "Add stops by clicking the map" below, then click along the route.
@@ -819,14 +836,14 @@ watch(createdSlug, (created) => {
 
             <p
               v-if="previewLoading"
-              class="font-body text-caption mt-2 text-ink-muted italic"
+              class="t-note mt-2 text-ink-muted"
               data-testid="preview-loading"
             >
               Checking against the route…
             </p>
             <p
               v-if="previewError"
-              class="font-body text-caption mt-2 text-error"
+              class="t-error mt-2"
               role="alert"
               data-testid="preview-error"
             >
@@ -847,7 +864,7 @@ watch(createdSlug, (created) => {
               class="mt-3"
               data-testid="add-by-coordinates"
             >
-              <summary class="font-body text-caption cursor-pointer text-ink-muted hover:text-ink">
+              <summary class="t-meta cursor-pointer text-ink-muted hover:text-ink">
                 Add by coordinates
               </summary>
               <div class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-[2fr_1fr_1fr_auto]">
@@ -950,12 +967,12 @@ watch(createdSlug, (created) => {
               <li
                 v-for="(window, index) in frequencyWindows"
                 :key="window.id"
-                class="font-body text-caption flex items-center justify-between gap-2 rounded-(--radius-field) border border-border bg-white px-3 py-2 text-ink"
+                class="t-meta flex items-center justify-between gap-2 rounded-(--radius-field) border border-border bg-white px-3 py-2 text-ink"
               >
                 <span>{{ window.start_time }}–{{ window.end_time }}, every {{ Math.round(window.headway_s / 60) }} min</span>
                 <button
                   type="button"
-                  class="cursor-pointer px-1 text-ink-muted hover:text-coral"
+                  class="cursor-pointer px-1 text-ink-muted hover:text-ink"
                   :aria-label="`Remove the ${window.start_time}–${window.end_time} window`"
                   :data-testid="`frequency-remove-${index}`"
                   @click="removeFrequencyWindow(index)"
@@ -1008,7 +1025,7 @@ watch(createdSlug, (created) => {
           <section class="rounded-(--radius-box) border border-border bg-surface p-4">
             <h2 class="font-display text-h3 text-ink-true">
               Description
-              <span class="font-body text-caption font-normal text-ink-muted">optional</span>
+              <span class="t-meta text-ink-muted">optional</span>
             </h2>
             <label :class="[FIELD_LABEL_CLASS, 'mt-3']">
               <span class="sr-only">Description</span>
@@ -1024,7 +1041,7 @@ watch(createdSlug, (created) => {
         </fieldset>
 
         <div
-          class="sticky bottom-0 z-20 flex flex-col gap-2 rounded-t-(--radius-box) border border-b-0 border-border bg-white/95 px-4 py-3 shadow-[0_-4px_12px_rgb(0_0_0/6%)] backdrop-blur"
+          class="sticky bottom-0 z-20 flex flex-col gap-2 rounded-t-(--radius-box) border border-b-0 border-border bg-white/92 px-4 py-3 shadow-(--shadow-bar) backdrop-blur"
           data-testid="save-bar"
         >
           <div class="flex flex-wrap items-center justify-between gap-3">
@@ -1033,14 +1050,11 @@ watch(createdSlug, (created) => {
               class="flex flex-wrap items-center gap-x-3 gap-y-1"
             >
               <p
-                class="font-body text-caption flex items-center gap-2 text-error"
+                class="t-error flex items-center gap-2"
                 role="alert"
                 data-testid="compile-error"
               >
-                <span
-                  class="size-2 shrink-0 rounded-full bg-error"
-                  aria-hidden="true"
-                />
+                <StatusDot tone="error" />
                 Saved, but compiling failed: {{ compileError }}
               </p>
               <router-link
@@ -1053,15 +1067,11 @@ watch(createdSlug, (created) => {
             </div>
             <p
               v-else
-              class="font-body text-caption flex items-center gap-2 text-ink"
+              class="t-meta flex items-center gap-2 text-ink"
               role="status"
               data-testid="save-status"
             >
-              <span
-                class="size-2 shrink-0 rounded-full"
-                :class="TONE_DOT_CLASS[saveStatus.tone]"
-                aria-hidden="true"
-              />
+              <StatusDot :tone="saveStatus.tone" />
               {{ saveStatus.label }}<span
                 v-if="saveStatus.note"
                 class="text-ink-muted"
@@ -1092,7 +1102,7 @@ watch(createdSlug, (created) => {
 
           <p
             v-if="submitError"
-            class="font-body text-caption text-error"
+            class="t-error"
             role="alert"
             data-testid="submit-error"
           >

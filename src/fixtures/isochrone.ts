@@ -1,5 +1,4 @@
 import type { FeatureCollection, LineString, MultiPolygon, Polygon } from 'geojson'
-import sampleIsochroneResponse from './sample-isochrone-response.json'
 
 export interface JourneyLeg {
   from: string
@@ -70,8 +69,6 @@ export interface ChainResponse extends FeatureCollection<Polygon | MultiPolygon,
   metadata: ChainMetadata
 }
 
-export const staticIsochroneResponse = sampleIsochroneResponse as ChainResponse
-
 // Walks the nesting rather than assuming its depth: a contour comes back as a
 // Polygon when it is one piece and a MultiPolygon when denoising splits it into
 // several, and reading a MultiPolygon a ring at a time yields NaN corners —
@@ -122,14 +119,15 @@ export function isochroneBoundsCorners(
   ]
 }
 
-export const ISOCHRONE_BOUNDS = boundsFromFeatures(staticIsochroneResponse.features)
-
-export const ISOCHRONE_CENTER: [number, number] = [
-  (ISOCHRONE_BOUNDS[0] + ISOCHRONE_BOUNDS[2]) / 2,
-  (ISOCHRONE_BOUNDS[1] + ISOCHRONE_BOUNDS[3]) / 2,
+// The padded bounds of src/fixtures/sample-isochrone-response.json, written out
+// so the map chunk need not carry the response to compute them (SPA-493).
+// isochrone.spec.ts recomputes them from it.
+export const ISOCHRONE_BOUNDS_CORNERS: [[number, number], [number, number]] = [
+  [-122.447608, 36.93524],
+  [-121.48912, 37.837807],
 ]
 
-export const ISOCHRONE_BOUNDS_CORNERS: [[number, number], [number, number]] = [
-  [ISOCHRONE_BOUNDS[0], ISOCHRONE_BOUNDS[1]],
-  [ISOCHRONE_BOUNDS[2], ISOCHRONE_BOUNDS[3]],
+export const ISOCHRONE_CENTER: [number, number] = [
+  (ISOCHRONE_BOUNDS_CORNERS[0][0] + ISOCHRONE_BOUNDS_CORNERS[1][0]) / 2,
+  (ISOCHRONE_BOUNDS_CORNERS[0][1] + ISOCHRONE_BOUNDS_CORNERS[1][1]) / 2,
 ]
