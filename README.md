@@ -363,5 +363,4 @@ plugin, or anything loaded through `importScriptInWorkers`, would need
 - `middleware.ts` — Vercel Routing Middleware for link previews, carrying the security headers onto the pages it answers (above)
 - `api/` — Vercel Functions for `/robots.txt` and `/sitemap.xml` (above)
 - `src/` — Vue application source
-- `.github/workflows/ci.yml` — CI: a production-dependency `npm audit`, lint + test on every push/PR, then build and upload the `dist`
-  artifact
+- `.github/workflows/ci.yml` — CI: a production-dependency `npm audit`, lint + test on every push/PR, then build
