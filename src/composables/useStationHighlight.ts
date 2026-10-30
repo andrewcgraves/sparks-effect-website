@@ -14,7 +14,7 @@ export interface StationHighlightCallbacks {
   idleCursor: () => string
   egressSlugs: () => Set<string>
   activeSlug: () => string | null
-  remainingSecs: (slug: string) => number | null
+  elapsedSecs: (slug: string) => number | null
   stationName: (slug: string) => string
   onHover: (slug: string | null) => void
 }
@@ -91,7 +91,7 @@ export function useStationHighlight(map: Map, callbacks: StationHighlightCallbac
     } else if (shown) {
       popup
         .setLngLat(shown.lngLat)
-        .setDOMContent(stationTooltipContent(shown.name, callbacks.remainingSecs(shown.slug)))
+        .setDOMContent(stationTooltipContent(shown.name, callbacks.elapsedSecs(shown.slug)))
         .addTo(map)
     } else {
       popup.remove()

@@ -110,7 +110,7 @@ export function readPlot(metadata: ChainMetadata | null, graph: TimeRemainingGra
     budgetSecs: metadata.origin_budget_mins * 60,
     rodeNothing: metadata.reachable_stations.every((s) => !(s.legs ?? []).length),
     reached,
-    // The graph's number first, so the card and the map agree on a station.
+    // The graph's number first, so the card and the graph agree on a station.
     remainingSecs: (slug) => {
       const station = reached.get(slug)
       if (!station) return null

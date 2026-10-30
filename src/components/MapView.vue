@@ -21,6 +21,7 @@ import KeySwatch from './KeySwatch.vue'
 import { UNNAMED_STATION } from '../copy/names'
 import { reportError } from '../errorReporting'
 import { MAP_LOAD_TIMEOUT_MS } from './mapLoad'
+import { elapsedSecsBySlug } from './timeRemaining'
 
 const props = defineProps<{
   isochroneData: ChainResponse | null
@@ -35,7 +36,6 @@ const props = defineProps<{
   placementCue?: string
   centerOn?: LatLng | null
   activeStation?: string | null
-  remainingSecs?: (slug: string) => number | null
   label: string
   // For a phone page that gives the map the screen rather than a card.
   flush?: boolean
@@ -194,11 +194,13 @@ const { routeLayer, modules: plotModules } = splashZoneModules(
   isochroneColors,
 )
 
+const elapsedBySlug = computed(() => elapsedSecsBySlug(props.isochroneData?.metadata ?? null))
+
 const stationHighlight = stationHighlightModule({
   idleCursor,
   egressSlugs: () => egressStationSlugs(props.isochroneData),
   activeSlug: () => props.activeStation ?? null,
-  remainingSecs: (slug) => props.remainingSecs?.(slug) ?? null,
+  elapsedSecs: (slug) => elapsedBySlug.value(slug),
   stationName: (slug) => props.stations.find((s) => s.slug === slug)?.name ?? UNNAMED_STATION,
   onHover: (slug) => emit('station-hover', slug),
 })

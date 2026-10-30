@@ -44,7 +44,6 @@ import {
 import type { Route, Station, TravelTimes } from '../api/scenarios'
 import type { PrerenderedIsochrone } from '../api/prerenderedIsochrones'
 import type { ChainResponse } from '../fixtures/isochrone'
-import { formatTimeRemaining } from '../components/timeRemaining'
 import { busyRegion, visibleText } from '../test/loading'
 import { hopCells } from '../test/stationTimes'
 
@@ -689,14 +688,6 @@ describe('ScenarioView', () => {
 
       expect(stationRow(wrapper, 'San Francisco').findAll('[data-testid="station-time-stop-note"]').map((n) => n.text()))
         .toEqual(['Boarded here · 5m from starting point'])
-    })
-
-    it('hands the map the same time left the card shows', async () => {
-      const wrapper = await corridorPage()
-      const remainingSecs = wrapper.findComponent({ name: 'MapView' }).props('remainingSecs') as
-        (slug: string) => number | null
-
-      expect(formatTimeRemaining(remainingSecs('sj')!)).toBe(leftColumn(wrapper)[1])
     })
 
     it('raises a hovered station to the map and opens what its number hides', async () => {

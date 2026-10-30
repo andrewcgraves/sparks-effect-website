@@ -111,7 +111,7 @@ function capEvent(
 function setup(
   idleCursor = () => '',
   egressSlugs = () => new Set(['sf', 'gilroy']),
-  remainingSecs: (slug: string) => number | null = () => null,
+  elapsedSecs: (slug: string) => number | null = () => null,
   stationName: (slug: string) => string = (slug) => slug,
 ) {
   const mock = makeMockMap()
@@ -121,7 +121,7 @@ function setup(
     idleCursor,
     egressSlugs,
     activeSlug: () => active,
-    remainingSecs,
+    elapsedSecs,
     stationName,
     onHover,
   })
@@ -363,15 +363,15 @@ describe('useStationHighlight', () => {
     })
   })
 
-  describe('remaining time in the popup', () => {
-    it('names a reachable station and how much budget is left on leaving it', () => {
+  describe('time to get here in the popup', () => {
+    it('names a reachable station and how long it took to get there', () => {
       const { fire } = setup(undefined, undefined, (slug) => slug === 'sf' ? 2700 : null)
 
       fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))
 
       const node = popupNode()
       expect(node?.textContent).toContain('San Francisco')
-      expect(node?.textContent).toContain('45m left')
+      expect(node?.textContent).toContain('45m to get here')
       expect(node?.className).toContain(TOOLTIP_PANEL_CLASS.split(' ')[0])
       expect(Popup).toHaveBeenCalledWith(expect.objectContaining({
         className: TOOLTIP_MAP_POPUP_CLASS,
@@ -383,8 +383,8 @@ describe('useStationHighlight', () => {
 
       fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('sj', 'San Jose', -121.9, 37.3))
 
-      expect(popupNode()?.textContent).toContain('1h 30m left')
-      expect(popupNode()?.textContent).not.toContain('90m left')
+      expect(popupNode()?.textContent).toContain('1h 30m to get here')
+      expect(popupNode()?.textContent).not.toContain('90m')
     })
 
     it('stays name-only when the lookup has nothing for that slug', () => {
@@ -393,17 +393,17 @@ describe('useStationHighlight', () => {
       fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('sf', 'San Francisco', -122.41, 37.77))
 
       expect(popupNamed('San Francisco')).toBe(true)
-      expect(popupNode()?.textContent).not.toContain('left')
+      expect(popupNode()?.textContent).not.toContain('to get here')
       expect(popupNode()?.textContent).not.toContain('0m')
     })
 
-    it('prints 0m left when the rider leaves with nothing, so a finished trip is not an unreachable one', () => {
+    it('prints 0m to get here for a station at the starting point, so it is not an unreachable one', () => {
       const { fire } = setup(undefined, undefined, () => 0)
 
       fire('mouseenter', STATION_DOTS_LAYER_ID, stationEvent('gilroy', 'Gilroy', -121.57, 37.0))
 
       expect(popupNode()?.textContent).toContain('Gilroy')
-      expect(popupNode()?.textContent).toContain('0m left')
+      expect(popupNode()?.textContent).toContain('0m to get here')
     })
   })
 
