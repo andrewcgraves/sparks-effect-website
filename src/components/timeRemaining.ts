@@ -125,6 +125,20 @@ export function remainingSecsOf(station: ReachableStation): number {
   return station.remaining_secs ?? station.remaining_mins * 60
 }
 
+// Read from the time left on arrival, not on departure: the wait for an onward
+// train is spent after the rider has got here (SPA-538).
+export function elapsedSecsOf(station: ReachableStation, budgetMins: number): number {
+  return budgetMins * 60 - remainingSecsOf(station)
+}
+
+export function elapsedSecsBySlug(metadata: ChainMetadata | null): (slug: string) => number | null {
+  if (!metadata) return () => null
+  const bySlug = new Map(
+    metadata.reachable_stations.map((s) => [s.station_slug, elapsedSecsOf(s, metadata.origin_budget_mins)]),
+  )
+  return (slug) => bySlug.get(slug) ?? null
+}
+
 function accessSecsOf(station: ReachableStation): number {
   return station.access_secs ?? station.access_mins * 60
 }

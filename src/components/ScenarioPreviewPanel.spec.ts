@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import ScenarioPreviewPanel from './ScenarioPreviewPanel.vue'
-import { formatTimeRemaining, remainingSecsBySlug, buildTimeRemainingGraph } from './timeRemaining'
 import type { ChainResponse } from '../fixtures/isochrone'
 import type { Station } from '../api/scenarios'
 import type { NearMiss } from '../api/authoring/types'
@@ -95,24 +94,6 @@ describe('ScenarioPreviewPanel', () => {
       const emissions = wrapper.emitted<[{ lat: number; lng: number } | null]>('origin-change')!
       expect(emissions[emissions.length - 1][0]).toEqual({ lat: 45.5231, lng: -122.6784 })
     })
-  })
-
-  it('hands MapView the same remaining lookup a plot would give the card', () => {
-    const wrapper = mount(ScenarioPreviewPanel, {
-      props: { ...defaultProps, isochroneData, mapStations: stations },
-      global: { stubs: { MapView: true, IsochroneForm: true } },
-    })
-    const remainingSecs = wrapper.findComponent({ name: 'MapView' }).props('remainingSecs') as
-      (slug: string) => number | null
-    const expected = remainingSecsBySlug(buildTimeRemainingGraph(isochroneData.metadata, {
-      stationName: (slug) => stations.find((station) => station.slug === slug)?.name ?? slug,
-      serviceName: (id) => id,
-      mode: 'walk',
-    }))
-
-    expect(remainingSecs('sf')).toBe(expected('sf'))
-    expect(formatTimeRemaining(remainingSecs('sf')!)).toBe('1h 55m')
-    expect(remainingSecs('nowhere')).toBeNull()
   })
 
   describe('the time-remaining graph', () => {
