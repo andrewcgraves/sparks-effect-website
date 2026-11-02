@@ -1774,13 +1774,13 @@ describe('MapView', () => {
       expect(mockOn).toHaveBeenCalledWith('mouseenter', PROGRESS_CAP_HIT_LAYER_ID, expect.any(Function))
     })
 
-    it('adds remaining time to the popup when the page provides a lookup', async () => {
+    it('says in the popup how long the plot took to get to the station', async () => {
       mount(MapView, {
         props: {
           ...defaultProps,
           routes: [stubRoute],
           stations: [stubStation],
-          remainingSecs: (slug: string) => slug === stubStation.slug ? 2700 : null,
+          isochroneData: chainWith([{ station_slug: stubStation.slug, access_mins: 22, remaining_mins: 45 }]),
         },
       })
       await triggerMapLoad()
@@ -1789,7 +1789,53 @@ describe('MapView', () => {
 
       const node = mockPopupSetDOMContent.mock.calls[0]?.[0] as HTMLElement
       expect(node.textContent).toContain('San Francisco')
-      expect(node.textContent).toContain('45m left')
+      expect(node.textContent).toContain('45m to get here')
+      expect(node.textContent).not.toContain('left')
+    })
+
+    it('reads the time to get there from arrival, so the wait for an onward train is not counted', async () => {
+      mount(MapView, {
+        props: {
+          ...defaultProps,
+          routes: [stubRoute],
+          stations: [stubStation],
+          isochroneData: chainWith([
+            { station_slug: stubStation.slug, access_mins: 0, remaining_mins: 70, remaining_secs: 4200 },
+            {
+              station_slug: 'gilroy',
+              access_mins: 0,
+              remaining_mins: 40,
+              remaining_secs: 2400,
+              board_slug: stubStation.slug,
+              board_wait_secs: 600,
+              predecessor_slug: stubStation.slug,
+            },
+          ]),
+        },
+      })
+      await triggerMapLoad()
+
+      fireLayerEvent('mouseenter', STATION_DOTS_LAYER_ID, stationEvent(stubStation))
+
+      const node = mockPopupSetDOMContent.mock.calls[0]?.[0] as HTMLElement
+      expect(node.textContent).toContain('20m to get here')
+    })
+
+    it('names the station alone when the plot did not reach it', async () => {
+      mount(MapView, {
+        props: {
+          ...defaultProps,
+          routes: [stubRoute],
+          stations: [stubStation],
+          isochroneData: chainWith([{ station_slug: 'gilroy', access_mins: 22, remaining_mins: 45 }]),
+        },
+      })
+      await triggerMapLoad()
+
+      fireLayerEvent('mouseenter', STATION_DOTS_LAYER_ID, stationEvent(stubStation))
+
+      const node = mockPopupSetDOMContent.mock.calls[0]?.[0] as HTMLElement
+      expect(node.textContent).toBe('San Francisco')
     })
 
     it('promotes the active station\'s polygon above the rest via the dedicated highlight layer', async () => {

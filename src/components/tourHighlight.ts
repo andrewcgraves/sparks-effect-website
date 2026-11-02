@@ -17,7 +17,7 @@ import {
 } from '../composables/useRouteLayer'
 import { isochroneBoundsCorners } from '../fixtures/isochrone'
 import { reachedStation, stationNamed, type TourSample } from '../fixtures/tourSample'
-import { remainingSecsOf } from './timeRemaining'
+import { elapsedSecsOf } from './timeRemaining'
 import type { TourStepId } from './tourSteps'
 
 export const TOUR_PARTS = [
@@ -155,7 +155,7 @@ export type CalloutAnchor = CalloutSide | 'top-left' | 'top-right' | 'bottom-lef
 
 export type TourCallout =
   | { kind: 'text'; text: string; lngLat: LngLat; anchor: CalloutSide }
-  | { kind: 'station'; name: string; remainingSecs: number | null; lngLat: LngLat; anchor: CalloutSide }
+  | { kind: 'station'; name: string; elapsedSecs: number | null; lngLat: LngLat; anchor: CalloutSide }
   | { kind: 'progress'; stationName: string; fraction: number; rideSecs: number; lngLat: LngLat; anchor: CalloutSide }
 
 export function calloutFor(step: TourStepId, sample: TourSample): TourCallout {
@@ -167,7 +167,7 @@ export function calloutFor(step: TourStepId, sample: TourSample): TourCallout {
   const station = (slug: string, anchor: CalloutSide): TourCallout => ({
     kind: 'station',
     name: name(slug),
-    remainingSecs: remainingSecsOf(reachedStation(slug, sample)),
+    elapsedSecs: elapsedSecsOf(reachedStation(slug, sample), plot.metadata.origin_budget_mins),
     lngLat: stationAt(slug, sample),
     anchor,
   })

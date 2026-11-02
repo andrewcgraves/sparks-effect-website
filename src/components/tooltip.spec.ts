@@ -120,20 +120,20 @@ describe('tooltipContent', () => {
 })
 
 describe('stationTooltipContent', () => {
-  it('is the name alone when remaining is unknown', () => {
+  it('is the name alone when the time to get there is unknown', () => {
     const node = stationTooltipContent('San Francisco', null)
 
     expect(node.textContent).toBe('San Francisco')
     expect(node.className).toContain(TOOLTIP_PANEL_CLASS)
-    expect(node.textContent).not.toContain('left')
+    expect(node.textContent).not.toContain('to get here')
     expect(node.textContent).not.toContain('0m')
   })
 
-  it('adds the remaining line when seconds are known', () => {
+  it('adds how long it took to get there when seconds are known', () => {
     const node = stationTooltipContent('San Francisco', 2700)
 
     expect(node.textContent).toContain('San Francisco')
-    expect(node.textContent).toContain('45m left')
+    expect(node.textContent).toContain('45m to get here')
     expect(node.children[0].className).toContain('t-meta')
     expect(node.children[1].className).toContain('tabular-nums')
     expect(node.children[1].className).toContain('text-ink-muted')
@@ -142,14 +142,22 @@ describe('stationTooltipContent', () => {
   it('renders hours the way the card does, not as a pile of minutes', () => {
     const node = stationTooltipContent('San Jose', 5400)
 
-    expect(node.textContent).toContain('1h 30m left')
+    expect(node.textContent).toContain('1h 30m to get here')
     expect(node.textContent).not.toContain('90m')
   })
 
-  it('prints 0m left when the rider leaves with nothing', () => {
+  it('prints 0m to get here for a station at the starting point', () => {
     const node = stationTooltipContent('Gilroy', 0)
 
-    expect(node.textContent).toContain('0m left')
+    expect(node.textContent).toContain('0m to get here')
+  })
+
+  // Madera on a two-hour plot from Fresno: the card says 1h 49m left, rounded
+  // down, so the map rounds up and the two add back up to the travel time.
+  it('rounds up, so it and the time left still add up to the travel time', () => {
+    const node = stationTooltipContent('Madera', 7200 - 6541)
+
+    expect(node.textContent).toContain('11m to get here')
   })
 })
 

@@ -96,9 +96,9 @@ model in `stationsCard.ts`), in place of Time remaining and Time between
 stations (SPA-504). One group per route, stops in **line order** before and
 after a plot. Before a plot it is the timetable: run times between stops and a
 direction toggle where a route runs at different times each way. After a plot
-the order does not change; each stop gains its **time left** on arrival (the
-number the map shows for that station, or "—"), and the rail is drawn as the map
-draws a line — **ridden** in ink, **unridden** faint, **unfinished** dashed
+the order does not change; each stop gains its **time left** on arrival (or
+"—"; the map's hover says how long it took to get there instead, SPA-538), and
+the rail is drawn as the map draws a line — **ridden** in ink, **unridden** faint, **unfinished** dashed
 with how far it got ("50% of 15:00"). A ridden hop shows the run time in the
 direction ridden, marked ↑ or ↓. The stop boarded from the starting point reads
 "Boarded here"; a change of train reads "Changed from"; a station on several

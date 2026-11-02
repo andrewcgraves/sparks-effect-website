@@ -152,7 +152,7 @@ describe('TourMap', () => {
     expect(paintOf('isochrone-fill', 'fill-opacity')).toBe(0.2)
     expect(map.calls.fitBounds.at(-1)?.[1]).toMatchObject({ duration: 900 })
     expect(map.calls.flyTo).toHaveLength(0)
-    expect(map.markerElements.at(-1)?.textContent).toContain('12m left')
+    expect(map.markerElements.at(-1)?.textContent).toContain('1h 18m to get here')
     expect(map.markerElements.at(-1)?.getAttribute('aria-hidden')).toBe('true')
   })
 
@@ -220,7 +220,7 @@ describe('TourMap', () => {
     await w.setProps({ inset: { top: 0, right: 0, bottom: 0, left: 340 } })
     expect(map.calls.jumpTo).toHaveLength(1)
     expect(map.calls.cameraForBounds.at(-1)?.[1]).toMatchObject({ padding: { left: 364 } })
-    expect(map.markerElements.at(-1)?.textContent).toContain('12m left')
+    expect(map.markerElements.at(-1)?.textContent).toContain('1h 18m to get here')
   })
 
   it('labels a step only once the camera has arrived', async () => {
@@ -230,6 +230,6 @@ describe('TourMap', () => {
     const fit = map.calls.fitBounds
     await w.setProps({ step: step('ridden') })
     expect(fit).toHaveLength(1)
-    expect(map.markerElements.at(-1)?.textContent).toContain('59m left')
+    expect(map.markerElements.at(-1)?.textContent).toContain('31m to get here')
   })
 })

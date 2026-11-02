@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { enableAutoUnmount, mount, flushPromises } from '@vue/test-utils'
 import { computed, defineComponent, h, ref, type PropType, type Ref } from 'vue'
 import TimeRemaining from './TimeRemaining.vue'
-import { buildTimeRemainingGraph, formatTimeRemaining, lineByRoute, remainingSecsBySlug } from './timeRemaining'
+import { buildTimeRemainingGraph, lineByRoute } from './timeRemaining'
 import type { Route, Service, Station } from '../api/scenarios'
 import type { ChainResponse } from '../fixtures/isochrone'
 import { UNNAMED_LINE, UNNAMED_STATION } from '../copy/names'
@@ -55,7 +55,6 @@ const MapView = {
   name: 'MapView',
   props: {
     activeStation: { type: String as PropType<string | null>, default: null },
-    remainingSecs: { type: Function as PropType<(slug: string) => number | null>, required: true },
   },
   emits: ['station-hover'],
   setup: () => () => h('div'),
@@ -81,7 +80,6 @@ const Page = defineComponent({
       h('div', [
         h(MapView, {
           activeStation: active.value?.slug ?? null,
-          remainingSecs: remainingSecsBySlug(graph.value),
           onStationHover: (slug: string | null) => highlight(slug, true),
         }),
         graph.value.views.length
@@ -266,18 +264,6 @@ describe('TimeRemaining', () => {
     await wrapper.findAll('[data-testid="time-remaining-row"]')[2].trigger('mouseenter')
 
     expect(wrapper.findComponent({ name: 'MapView' }).props('activeStation')).toBe('sj')
-  })
-
-  it('hands the map the same remaining number the card shows for that station', async () => {
-    const wrapper = await plot(journeyIsochrone)
-    const remainingSecs = wrapper.findComponent({ name: 'MapView' }).props('remainingSecs') as
-      (slug: string) => number | null
-    const sf = wrapper.findAll('[data-testid="time-remaining-row"]')
-      .find((row) => row.attributes('data-station-slug') === 'sf')
-      ?.get('[data-testid="time-remaining-value"]').text()
-
-    expect(formatTimeRemaining(remainingSecs('sf')!)).toBe(sf)
-    expect(remainingSecs('nowhere')).toBeNull()
   })
 
   it('takes a station hovered on the map back and expands its row', async () => {

@@ -10,7 +10,7 @@ import RoutingStatusBanner from '../components/RoutingStatusBanner.vue'
 import StationsCard from '../components/StationsCard.vue'
 import TimeRemaining from '../components/TimeRemaining.vue'
 import { readPlot, stationLines, stationNames } from '../components/stationsCard'
-import { buildTimeRemainingGraph, lineByRoute, remainingSecsBySlug } from '../components/timeRemaining'
+import { buildTimeRemainingGraph, lineByRoute } from '../components/timeRemaining'
 import { ORIGIN_PICK_CUE } from '../components/placementCues'
 import { isochroneWaitMessage } from '../api/isochroneFault'
 import { useScenario } from '../composables/useScenario'
@@ -75,13 +75,7 @@ const timeRemaining = computed(() =>
   }),
 )
 
-const remainingBySlug = computed(() => remainingSecsBySlug(timeRemaining.value))
-
 const plotReading = computed(() => readPlot(isochroneData.value?.metadata ?? null, timeRemaining.value))
-
-function remainingSecs(slug: string): number | null {
-  return remainingBySlug.value(slug)
-}
 
 const selectedPrerenderedId = ref<string | null>(null)
 
@@ -161,7 +155,6 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
           :placement-armed="pickArmed"
           :placement-cue="ORIGIN_PICK_CUE"
           :active-station="activeStation?.slug ?? null"
-          :remaining-secs="remainingSecs"
           @map-click="onMapClick"
           @station-hover="highlight($event, true)"
         />
@@ -277,7 +270,6 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
           :placement-armed="pickArmed"
           :placement-cue="ORIGIN_PICK_CUE"
           :active-station="activeStation?.slug ?? null"
-          :remaining-secs="remainingSecs"
           @map-click="onMapClick"
           @station-hover="highlight($event, true)"
         />

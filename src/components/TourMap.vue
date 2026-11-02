@@ -46,7 +46,7 @@ const scope = effectScope()
 
 function calloutElement(c: TourCallout): HTMLElement {
   const content = c.kind === 'station'
-    ? stationTooltipContent(c.name, c.remainingSecs)
+    ? stationTooltipContent(c.name, c.elapsedSecs)
     : c.kind === 'progress'
       ? progressTooltipContent(c.fraction, c.stationName, c.rideSecs)
       : tooltipContent(c.text)

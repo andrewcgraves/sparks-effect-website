@@ -7,6 +7,7 @@ import {
   formatProgressPercent,
   formatTimeRemaining,
   remainingSecsBySlug,
+  elapsedSecsBySlug,
   wholeMinutes,
   laneWidthFor,
   shortLineName,
@@ -741,6 +742,37 @@ describe('remainingSecsBySlug', () => {
     const graph = build(INTERCHANGE)
     expect(graph.views[0].rows[0].slug).toBeNull()
     expect(remainingSecsBySlug(graph)('origin')).toBeNull()
+  })
+})
+
+describe('elapsedSecsBySlug', () => {
+  it('returns nothing without a plot', () => {
+    expect(elapsedSecsBySlug(null)('alpha')).toBeNull()
+  })
+
+  it('is the travel time less the time left on arrival', () => {
+    const lookup = elapsedSecsBySlug(metadata([
+      { station_slug: 'madera', access_mins: 0, remaining_mins: 109, remaining_secs: 6541 },
+    ]))
+    expect(lookup('madera')).toBe(659)
+  })
+
+  it('falls back to whole minutes when a result has no seconds', () => {
+    const lookup = elapsedSecsBySlug(metadata([{ station_slug: 'alpha', access_mins: 0, remaining_mins: 70 }], 90))
+    expect(lookup('alpha')).toBe(20 * 60)
+  })
+
+  it('does not count the wait for an onward train, which comes after getting here', () => {
+    const lookup = elapsedSecsBySlug(metadata([
+      { station_slug: 'alpha', access_mins: 0, remaining_mins: 100, remaining_secs: 6000 },
+      { station_slug: 'beta', access_mins: 0, remaining_mins: 60, remaining_secs: 3600, predecessor_slug: 'alpha', board_slug: 'alpha', board_wait_secs: 600 },
+    ]))
+    expect(lookup('alpha')).toBe(1200)
+    expect(lookup('beta')).toBe(3600)
+  })
+
+  it('returns nothing for a station the plot did not reach', () => {
+    expect(elapsedSecsBySlug(metadata([]))('nowhere')).toBeNull()
   })
 })
 

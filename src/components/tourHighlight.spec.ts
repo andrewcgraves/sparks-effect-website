@@ -91,13 +91,13 @@ describe('cameraBounds', () => {
 })
 
 describe('calloutFor', () => {
-  it('labels a station area with the minutes left, as hovering it would', () => {
+  it('labels a station area with how long it took to get there, as hovering it would', () => {
     const callout = calloutFor('egress', TOUR_SAMPLE)
-    expect(callout).toMatchObject({ kind: 'station', name: stationNamed('palmdale').name, remainingSecs: 745 })
+    expect(callout).toMatchObject({ kind: 'station', name: stationNamed('palmdale').name, elapsedSecs: 90 * 60 - 745 })
   })
 
-  it('labels a ridden-through station with its minutes left, as hovering it would', () => {
-    expect(calloutFor('ridden', TOUR_SAMPLE)).toMatchObject({ kind: 'station', remainingSecs: 3565 })
+  it('labels a ridden-through station with how long it took to get there, as hovering it would', () => {
+    expect(calloutFor('ridden', TOUR_SAMPLE)).toMatchObject({ kind: 'station', elapsedSecs: 90 * 60 - 3565 })
   })
 
   it('labels the unfinished ride with how far short it fell, as hovering its dot would', () => {
