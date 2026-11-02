@@ -497,9 +497,6 @@ onUnmounted(() => {
       class="absolute top-3 left-3 z-1 rounded-(--radius-field) bg-white/92 px-3 py-2.5 shadow-(--shadow-panel)"
       aria-label="Splash zone color key"
     >
-      <p class="t-eyebrow mb-1.5 text-ink-muted">
-        Splash zone key
-      </p>
       <ul class="m-0 flex list-none flex-col gap-1 p-0">
         <li
           v-for="entry in legend"
