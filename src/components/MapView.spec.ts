@@ -1193,6 +1193,13 @@ describe('MapView', () => {
     expect(legend.text()).not.toContain('Travel time ran out here')
   })
 
+  it('lists its swatches without a heading above them', () => {
+    const wrapper = mount(MapView, { props: defaultProps })
+    const legend = wrapper.get('[aria-label="Splash zone color key"]')
+    expect(legend.text()).not.toContain('Splash zone key')
+    expect(legend.find('.t-eyebrow').exists()).toBe(false)
+  })
+
   it('names the unfinished stub in the key only when the plot drew one', () => {
     const wrapper = mount(MapView, {
       props: {
