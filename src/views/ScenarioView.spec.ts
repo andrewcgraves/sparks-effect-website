@@ -16,7 +16,12 @@ vi.mock('../api/isochrone', async (importOriginal) => {
 
 const mockUseScenario = vi.fn()
 vi.mock('../composables/useScenario', () => ({
-  useScenario: (slug: string) => ({ subtext: ref(''), ...mockUseScenario(slug) }),
+  useScenario: (slug: string) => ({
+    subtext: ref(''),
+    callToActionLabel: ref(''),
+    callToActionUrl: ref(''),
+    ...mockUseScenario(slug),
+  }),
 }))
 
 vi.mock('../api/scenarios', async (importOriginal) => {
@@ -229,6 +234,30 @@ describe('ScenarioView', () => {
     const description = wrapper.get('[data-testid="scenario-description"]')
     expect(description.classes()).toContain('whitespace-pre-line')
     expect(description.element.textContent).toContain('Anaheim.\n\nSources')
+  })
+
+  it('puts the call to action under the description as a link that opens in a new tab', () => {
+    mockUseScenario.mockReturnValue({
+      name: ref('CA HSR'),
+      description: ref('Want to see it built faster?'),
+      callToActionLabel: ref('Sign here'),
+      callToActionUrl: ref('https://example.org/petition'),
+      routes: ref([]),
+      stations: ref(stubStations),
+      services: ref([]),
+      loading: ref(false),
+    })
+    const wrapper = mountScenarioView()
+    const link = wrapper.get('section [data-testid="scenario-call-to-action"]')
+    expect(link.text()).toBe('Sign here')
+    expect(link.attributes('href')).toBe('https://example.org/petition')
+    expect(link.attributes('target')).toBe('_blank')
+    expect(link.attributes('rel')).toBe('noopener noreferrer')
+  })
+
+  it('shows no call to action when the scenario has none', () => {
+    const wrapper = mountScenarioView()
+    expect(wrapper.find('[data-testid="scenario-call-to-action"]').exists()).toBe(false)
   })
 
   it('shows no subtext line when the scenario has none', () => {
@@ -1332,6 +1361,24 @@ describe('ScenarioView', () => {
         loading: ref(false),
       })
       expect(tabLabels(mountScenarioView())).toEqual(['Plot', 'Stations'])
+    })
+
+    it('puts the call to action in the About tab under the description', async () => {
+      mockUseScenario.mockReturnValue({
+        name: ref('CA HSR'),
+        description: ref('Want to see it built faster?'),
+        callToActionLabel: ref('Sign here'),
+        callToActionUrl: ref('https://example.org/petition'),
+        routes: ref([]),
+        stations: ref(stubStations),
+        services: ref([]),
+        loading: ref(false),
+      })
+      const wrapper = mountScenarioView()
+      await tabNamed(wrapper, 'About').trigger('click')
+      const link = wrapper.get('[data-testid="scenario-call-to-action"]')
+      expect(link.text()).toBe('Sign here')
+      expect(link.attributes('href')).toBe('https://example.org/petition')
     })
 
     it('puts the subtext behind the About tab too, keeping the tab for a scenario with only a subtext', async () => {

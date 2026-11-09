@@ -6,6 +6,8 @@ export function useScenario(slug: string) {
   const name = ref('')
   const subtext = ref('')
   const description = ref('')
+  const callToActionLabel = ref('')
+  const callToActionUrl = ref('')
   // Shallow because a network's routes carry tens of thousands of coordinate
   // pairs, and deep reactivity would put a proxy between every one of them and
   // the ridden-line maths that walks them on each plot (SPA-487). Only ever
@@ -19,10 +21,12 @@ export function useScenario(slug: string) {
     name.value = detail.name
     subtext.value = detail.subtext ?? ''
     description.value = detail.description
+    callToActionLabel.value = detail.call_to_action_label ?? ''
+    callToActionUrl.value = detail.call_to_action_url ?? ''
     routes.value = detail.routes
     stations.value = detail.stations
     services.value = detail.services
   }).catch(() => {}).finally(() => { loading.value = false })
 
-  return { name, subtext, description, routes, stations, services, loading }
+  return { name, subtext, description, callToActionLabel, callToActionUrl, routes, stations, services, loading }
 }

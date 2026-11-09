@@ -67,6 +67,8 @@ export interface ScenarioDetail {
   name: string
   subtext?: string
   description: string
+  call_to_action_label?: string
+  call_to_action_url?: string
   status: string
   routes: Route[]
   stations: Station[]

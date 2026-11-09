@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import IsochroneForm from '../IsochroneForm.vue'
+import CallToActionLink from '../components/CallToActionLink.vue'
 import CopyLinkButton from '../components/CopyLinkButton.vue'
 import MapView from '../components/MapView.vue'
 import { PLOT_WITHOUT_MAP } from '../components/mapLoad'
@@ -39,7 +40,17 @@ const { pickArmed, onMapClick, form: isochroneForm } = useOriginPick()
 const { status: routingStatus, offline } = useRoutingStatus()
 const hasExamples = ref<boolean | null>(null)
 
-const { name, subtext, description, routes, stations, services, loading: scenarioLoading } = useScenario(props.slug)
+const {
+  name,
+  subtext,
+  description,
+  callToActionLabel,
+  callToActionUrl,
+  routes,
+  stations,
+  services,
+  loading: scenarioLoading,
+} = useScenario(props.slug)
 
 usePageTitle(() => name.value)
 
@@ -228,6 +239,10 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
         >
           {{ description }}
         </p>
+        <CallToActionLink
+          :label="callToActionLabel"
+          :url="callToActionUrl"
+        />
       </template>
     </PhoneMapPage>
   </main>
@@ -341,6 +356,11 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
         >
           {{ description }}
         </p>
+        <CallToActionLink
+          class="mt-4"
+          :label="callToActionLabel"
+          :url="callToActionUrl"
+        />
       </section>
     </div>
   </main>
