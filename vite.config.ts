@@ -110,6 +110,11 @@ export default defineConfig(({ command, mode }) => {
   const uploadingSourceMaps = upload.length > 0
   return {
     plugins: [vue(), tailwindcss(), preconnectPlugin(apiBaseUrl, stadiaApiKey), linkPreviewPlugin(), ...upload],
+    // PROTOTYPE (SPA-462): `make prototype-embed` proxies /api to a remote API
+    // so the dev server can show real data without a local API. Throwaway.
+    server: process.env.PROTOTYPE_API_PROXY
+      ? { proxy: { '/api': { target: process.env.PROTOTYPE_API_PROXY, changeOrigin: true } } }
+      : undefined,
     build: {
       sourcemap: uploadingSourceMaps ? 'hidden' : false,
     },

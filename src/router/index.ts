@@ -11,6 +11,8 @@ declare module 'vue-router' {
     requiresAuth?: boolean
     requiresAdmin?: boolean
     title?: string
+    // PROTOTYPE (SPA-462): false hides the site header, footer and skip link.
+    chrome?: boolean
   }
 }
 
@@ -165,6 +167,21 @@ export const router = createRouter({
       name: 'attribution',
       component: () => import('../views/AttributionView.vue'),
       meta: { title: 'Attribution' },
+    },
+    // PROTOTYPE (SPA-462): embed route variants and a fake blog that frames
+    // them. Throwaway; see views/prototype/.
+    {
+      path: '/embed/scenario/:slug',
+      name: 'embed-scenario-prototype',
+      component: () => import('../views/prototype/EmbedScenarioPrototypeView.vue'),
+      props: true,
+      meta: { title: 'Embed', chrome: false },
+    },
+    {
+      path: '/prototype/embed-host',
+      name: 'embed-host-prototype',
+      component: () => import('../views/prototype/EmbedHostPrototypeView.vue'),
+      meta: { title: 'Embed host prototype', chrome: false },
     },
     {
       path: '/:pathMatch(.*)*',

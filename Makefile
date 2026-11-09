@@ -40,3 +40,8 @@ tour-fixture: install
 
 clean:
 	rm -rf node_modules dist
+
+# PROTOTYPE (SPA-462): the embed route against the staging API, proxied through
+# Vite so the browser sees one origin. Open /prototype/embed-host. Throwaway.
+prototype-embed: install
+	PROTOTYPE_API_PROXY=https://sparks-effect-api-staging.up.railway.app VITE_API_BASE_URL= npm run dev -- --host
