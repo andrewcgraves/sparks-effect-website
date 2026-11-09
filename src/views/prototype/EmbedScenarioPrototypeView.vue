@@ -25,7 +25,6 @@ import PrototypeSwitcher from '../../components/prototype/PrototypeSwitcher.vue'
 import { PLOT_WITHOUT_MAP } from '../../components/mapLoad'
 import { ORIGIN_PICK_CUE } from '../../components/placementCues'
 import { PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS, SELECTED_CHOICE_CLASS } from '../../components/buttonStyles'
-import { ACTION_LINK_CLASS } from '../../components/linkStyles'
 import { FIELD_INPUT_CLASS } from '../../components/fieldStyles'
 import { isochroneWaitMessage } from '../../api/isochroneFault'
 import { useScenario } from '../../composables/useScenario'
@@ -33,7 +32,7 @@ import { useIsochrone } from '../../composables/useIsochrone'
 import { useIsochroneQuery } from '../../composables/useIsochroneQuery'
 import { DEFAULT_DURATION, DEFAULT_MODE, DURATION_OPTIONS, type IsochronePayload } from '../../isochroneQuery'
 import { TRAVEL_MODES, type TravelMode } from '../../api/authoring/types'
-import { MODE_LABELS, MODE_TRIPS } from '../../copy/modes'
+import { MODE_LABELS } from '../../copy/modes'
 import type { PrerenderedIsochrone } from '../../api/prerenderedIsochrones'
 import type { GeocodingSuggestion } from '../../api/geocoding'
 import type { SnapCoord as LatLng } from '../../api/authoring/types'
@@ -54,7 +53,7 @@ const variant = computed(() => {
   return typeof v === 'string' && VARIANTS.some((x) => x.key === v) ? v : 'static'
 })
 
-const { name, subtext, routes, stations, loading: scenarioLoading } = useScenario(props.slug)
+const { routes, stations } = useScenario(props.slug)
 
 const {
   data: isochroneData,
@@ -175,16 +174,7 @@ function formatDuration(mins: number): string {
   return Number.isInteger(hrs) ? `${hrs} hr${hrs === 1 ? '' : 's'}` : `${hrs} hrs`
 }
 
-// --- Caption ----------------------------------------------------------------
-const caption = computed(() => {
-  if (isLoading.value) return 'Plotting…'
-  if (plotted.value && isochroneData.value) {
-    return `${plotted.value.duration} min ${MODE_TRIPS[plotted.value.mode]} from the pin`
-  }
-  if (pickArmed.value) return ORIGIN_PICK_CUE
-  return subtext.value
-})
-
+// --- Site link --------------------------------------------------------------
 const openHref = computed(() => {
   const url = new URL(`/scenario/${props.slug}`, window.location.origin)
   for (const key of ['at', 'mode', 'mins']) {
@@ -192,6 +182,12 @@ const openHref = computed(() => {
     if (typeof v === 'string') url.searchParams.set(key, v)
   }
   return url.toString()
+})
+
+// The production host is what a reader would see; the dev server's isn't.
+const openLabel = computed(() => {
+  const host = window.location.hostname
+  return host === 'localhost' || host === '127.0.0.1' ? 'sparks-effect.app' : host
 })
 
 // The same emoji the real form uses for its mode tiles.
@@ -362,34 +358,23 @@ const TILE_CLASS =
       </aside>
 
       <div class="relative min-w-0 flex-1">
-        <!-- Title card: floats over the map like the site's panels (radius-box,
-             panel shadow, no border). Wordmark type for the title, as the
-             phone map page uses over a flush map; the link is the site's
-             action-link style, not a boxed button. Leaves the top-right
-             control column (fullscreen, recenter) clear. -->
-        <header
-          class="absolute top-2.5 left-2.5 z-3 flex max-w-[calc(100%-66px)] items-center gap-4 rounded-(--radius-box) bg-white py-2 pr-3 pl-3 shadow-(--shadow-panel) @max-[480px]:flex-col @max-[480px]:items-start @max-[480px]:gap-1"
-          data-testid="embed-header"
+        <!-- No title, no caption: the host page already says what this is.
+             The way back to the site is a small URL at the bottom left,
+             mirroring MapLibre's credit at the bottom right. -->
+        <a
+          :href="openHref"
+          target="_blank"
+          rel="noopener"
+          class="absolute bottom-0 left-0 z-1 flex items-center gap-1 rounded-tr-(--radius-field) bg-white/80 px-1.5 text-[12px] leading-5 text-ink-muted hover:text-ink hover:underline"
+          data-testid="embed-site-link"
         >
-          <div class="flex w-full min-w-0 flex-col">
-            <span class="t-wordmark block max-w-full truncate text-ink-true">{{ scenarioLoading ? 'Loading…' : name }}</span>
-            <span class="t-meta block max-w-full truncate text-ink-muted">{{ caption }}</span>
-          </div>
-          <a
-            :href="openHref"
-            target="_blank"
-            rel="noopener"
-            :class="[ACTION_LINK_CLASS, 'flex shrink-0 items-center gap-1 whitespace-nowrap']"
-          >
-            <span class="@max-[480px]:hidden">Open on Sparks Effect</span>
-            <span class="hidden @max-[480px]:inline">Sparks Effect</span>
-            <svg
-              aria-hidden="true"
-              viewBox="0 0 24 24"
-              class="size-3 fill-none stroke-current stroke-[2.5]"
-            ><path d="M7 17 17 7M8 7h9v9" /></svg>
-          </a>
-        </header>
+          {{ openLabel }}
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            class="size-2.5 fill-none stroke-current stroke-[2.5]"
+          ><path d="M7 17 17 7M8 7h9v9" /></svg>
+        </a>
 
         <MapView
           label="Splash zone map"
@@ -412,14 +397,14 @@ const TILE_CLASS =
           <button
             v-if="!overlayOpen"
             type="button"
-            :class="[PRIMARY_BUTTON_CLASS, 'absolute top-[76px] left-2.5 z-2 flex items-center gap-2 shadow-(--shadow-panel) @max-[480px]:top-[100px]']"
+            :class="[PRIMARY_BUTTON_CLASS, 'absolute top-2.5 left-2.5 z-2 flex items-center gap-2 shadow-(--shadow-panel)']"
             @click="overlayOpen = true; pickArmed = false"
           >
             {{ pickArmed ? 'Click the map…' : isochroneData ? 'Plot another' : 'Plot a splash zone' }}
           </button>
           <div
             v-show="overlayOpen"
-            class="absolute top-[76px] left-2.5 z-2 flex max-h-[calc(100%-86px)] w-[320px] max-w-[calc(100%-20px)] flex-col overflow-y-auto rounded-(--radius-box) shadow-(--shadow-panel) @max-[480px]:top-[100px] @max-[480px]:max-h-[calc(100%-110px)] [&>section]:border-0"
+            class="absolute top-2.5 left-2.5 z-2 flex max-h-[calc(100%-44px)] w-[320px] max-w-[calc(100%-20px)] flex-col overflow-y-auto rounded-(--radius-box) shadow-(--shadow-panel) [&>section]:border-0"
             data-testid="embed-overlay"
           >
             <button
