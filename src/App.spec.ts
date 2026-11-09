@@ -124,6 +124,24 @@ describe('App routing', () => {
     expect(wrapper.find('[data-testid="toast-region"]').exists()).toBe(true)
   })
 
+  // Another site frames an embed and gives it its own heading; the site's
+  // header, footer and skip link would only be clutter in someone's post.
+  it('leaves the site chrome off an embed, keeping the dialog and toasts', async () => {
+    for (const path of ['/embed/scenario/ca-hsr', '/embed/services/northbound-express?controls=1']) {
+      await router.push(path)
+      const wrapper = mount(App, {
+        global: { plugins: [router], stubs: { EmbedScenarioView: true, EmbedServiceView: true } },
+      })
+      await flushPromises()
+      expect(wrapper.find('header').exists(), path).toBe(false)
+      expect(wrapper.find('footer').exists(), path).toBe(false)
+      expect(wrapper.find('[data-testid="skip-link"]').exists(), path).toBe(false)
+      expect(wrapper.find('[data-testid="confirm-dialog"]').exists(), path).toBe(true)
+      expect(wrapper.find('[data-testid="toast-region"]').exists(), path).toBe(true)
+      wrapper.unmount()
+    }
+  })
+
   it('ends the cover page with the one site footer', async () => {
     const wrapper = mount(App, { global: { plugins: [router] } })
     await flushPromises()

@@ -8,6 +8,7 @@ import { usePageTitle } from '../composables/usePageTitle'
 import AllLinesLink from '../components/AllLinesLink.vue'
 import { useIsochroneQuery } from '../composables/useIsochroneQuery'
 import CopyLinkButton from '../components/CopyLinkButton.vue'
+import CopyEmbedButton from '../components/CopyEmbedButton.vue'
 import ScenarioPreviewPanel from '../components/ScenarioPreviewPanel.vue'
 import ServiceStops from '../components/ServiceStops.vue'
 import TimeBetweenStations from '../components/TimeBetweenStations.vue'
@@ -18,6 +19,7 @@ import type { PhoneMapTab } from '../components/phoneMapTabs'
 import PageHeader from '../components/PageHeader.vue'
 
 const props = defineProps<{ slug: string }>()
+const embedTarget = { kind: 'services', slug: props.slug } as const
 
 const { offline: routingOffline } = useRoutingStatus()
 
@@ -148,7 +150,13 @@ void loadGraph(props.slug)
         @origin-change="onOriginChange"
       >
         <template #after-form>
-          <CopyLinkButton v-if="shareable" />
+          <div class="flex flex-wrap items-start gap-2">
+            <CopyLinkButton v-if="shareable" />
+            <CopyEmbedButton
+              :target="embedTarget"
+              :name="publication.name"
+            />
+          </div>
         </template>
         <template #panel-stops>
           <ServiceStops :stops="stops" />
@@ -197,7 +205,13 @@ void loadGraph(props.slug)
         @origin-change="onOriginChange"
       >
         <template #after-form>
-          <CopyLinkButton v-if="shareable" />
+          <div class="flex flex-wrap items-start gap-2">
+            <CopyLinkButton v-if="shareable" />
+            <CopyEmbedButton
+              :target="embedTarget"
+              :name="publication.name"
+            />
+          </div>
         </template>
       </ScenarioPreviewPanel>
 

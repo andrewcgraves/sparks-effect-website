@@ -3,6 +3,7 @@ import './style.css'
 import App from './App.vue'
 import { redirectAfterSessionExpiry, router } from './router'
 import { installStores } from './stores/install'
+import { isEmbedPath } from './embed/embedLinks'
 import { persistedSessionToken } from './stores/auth'
 import { configureSink } from './analytics/index'
 import { vercelSink } from './analytics/sinks'
@@ -22,7 +23,12 @@ if (faroUrl) {
   reportVueErrors(app)
 }
 
-installStores(app, { onSessionExpired: () => void redirectAfterSessionExpiry(router) })
+// An embed is framed by other sites and never navigates out of /embed/ (its
+// links open new tabs), so deciding once, here, holds for its whole life.
+installStores(app, {
+  onSessionExpired: () => void redirectAfterSessionExpiry(router),
+  anonymous: isEmbedPath(window.location.pathname),
+})
 app.use(router).mount('#app')
 
 // The Faro SDK is most of what the entry chunk would otherwise carry, so it

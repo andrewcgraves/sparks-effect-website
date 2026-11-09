@@ -11,6 +11,9 @@ declare module 'vue-router' {
     requiresAuth?: boolean
     requiresAdmin?: boolean
     title?: string
+    // false leaves off the site header, footer and skip link, for a page
+    // another site frames.
+    chrome?: boolean
   }
 }
 
@@ -165,6 +168,22 @@ export const router = createRouter({
       name: 'attribution',
       component: () => import('../views/AttributionView.vue'),
       meta: { title: 'Attribution' },
+    },
+    // Framed by other sites, so these paths and their query are a public
+    // contract once pasted into a post: they are not renamed.
+    {
+      path: '/embed/scenario/:slug',
+      name: 'embed-scenario',
+      component: () => import('../views/EmbedScenarioView.vue'),
+      props: true,
+      meta: { title: 'Splash zone map', chrome: false },
+    },
+    {
+      path: '/embed/services/:slug',
+      name: 'embed-service',
+      component: () => import('../views/EmbedServiceView.vue'),
+      props: true,
+      meta: { title: 'Splash zone map', chrome: false },
     },
     {
       path: '/:pathMatch(.*)*',

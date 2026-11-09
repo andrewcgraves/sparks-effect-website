@@ -355,6 +355,27 @@ describe('MapView', () => {
     )
   })
 
+  // SPA-462: an embed can be 300px tall, less than the site's fixed padding.
+  it('fits a small frame with padding to match it, rather than the site’s', async () => {
+    const width = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(320)
+    const height = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(300)
+    try {
+      const wrapper = mount(MapView, { props: defaultProps })
+      await triggerMapLoad()
+      mockFitBounds.mockClear()
+
+      await wrapper.setProps({ isochroneData: staticIsochroneResponse })
+
+      expect(mockFitBounds).toHaveBeenCalledWith(
+        ISOCHRONE_BOUNDS_CORNERS,
+        expect.objectContaining({ padding: { top: 30, bottom: 60, left: 48, right: 48 } }),
+      )
+    } finally {
+      width.mockRestore()
+      height.mockRestore()
+    }
+  })
+
   // SPA-320. A contour denoising split into pieces comes back as a MultiPolygon,
   // and the bounds walk used to read it a ring at a time and produce NaN corners
   // — which fitBounds rejects by throwing, out through this watcher, leaving the

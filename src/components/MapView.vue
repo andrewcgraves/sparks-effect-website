@@ -22,6 +22,7 @@ import { UNNAMED_STATION } from '../copy/names'
 import { reportError } from '../errorReporting'
 import { MAP_LOAD_TIMEOUT_MS } from './mapLoad'
 import { elapsedSecsBySlug } from './timeRemaining'
+import { mapFitPadding, type FitPadding } from './mapFitPadding'
 
 const props = defineProps<{
   isochroneData: ChainResponse | null
@@ -104,13 +105,15 @@ function failMap(kind: MapFailure, error: unknown): void {
   reportError(error, { map_failure: kind })
 }
 
-const MAP_FIT_PADDING = { top: 56, bottom: 112, left: 56, right: 56 }
+function fitPadding(): FitPadding {
+  return mapFitPadding(mapContainer.value?.clientWidth ?? 0, mapContainer.value?.clientHeight ?? 0)
+}
 
 function applyBoundsFit(corners: [[number, number], [number, number]]): boolean {
   if (!map) return false
   map.resize()
   map.fitBounds(corners, {
-    padding: MAP_FIT_PADDING,
+    padding: fitPadding(),
     duration: 0,
     maxZoom: 11,
   })
@@ -136,7 +139,7 @@ function recenterOnRoutes(): void {
   const corners = routeBoundsCorners(props.routes)
   if (!map || !corners) return
   map.fitBounds(corners, {
-    padding: MAP_FIT_PADDING,
+    padding: fitPadding(),
     duration: 800,
     maxZoom: 11,
   })
@@ -174,7 +177,7 @@ function fitMapToIsochrone(data: ChainResponse): void {
   // cannot be computed is a frame not applied, not a dead watcher.
   if (!corners.flat().every(Number.isFinite)) return
   map.fitBounds(corners, {
-    padding: MAP_FIT_PADDING,
+    padding: fitPadding(),
     duration: 800,
   })
   hasFittedToSegments = true

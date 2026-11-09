@@ -76,6 +76,17 @@ describe('PrerenderedIsochrones', () => {
     expect(listPrerenderedIsochrones).toHaveBeenCalledWith('ca-hsr')
   })
 
+  // An embed's chips sit in one row over the map, so a short frame keeps the map.
+  it('lays the entries out in one scrolling row when asked to', async () => {
+    vi.mocked(listPrerenderedIsochrones).mockResolvedValue([summary({ id: 'a' }), summary({ id: 'b' })])
+    const row = mount(PrerenderedIsochrones, { props: { slug: 'ca-hsr', selectedId: null, layout: 'row' } })
+    const grid = mountCard()
+    await flushPromises()
+    expect(row.get('ul').classes()).toEqual(expect.arrayContaining(['flex', 'overflow-x-auto']))
+    expect(row.get('ul').classes()).not.toContain('grid')
+    expect(grid.get('ul').classes()).toContain('grid')
+  })
+
   it('renders one button per entry, each labelled by its label', async () => {
     const wrapper = await mountLoaded([
       summary({ id: 'pre-1', label: 'Downtown SF, 30 min walk' }),

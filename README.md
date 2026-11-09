@@ -79,6 +79,10 @@ with ERESOLVE once we are on vue-router 5 (SPA-472). The component only calls
 `useRoute()`, which vue-router 5 keeps. Drop the override once a stable
 `@vercel/analytics` accepts `^5` (its canaries already do).
 
+An embed sends one `embed_load` event as it opens, carrying only the host of
+`document.referrer` (the page framing it), so we can see who embeds us. Embed
+views are page views too; filter `/embed/` out when counting visits to the site.
+
 Custom events (`track()`) are a Pro/Enterprise feature. On a Hobby project, set
 `VITE_VERCEL_CUSTOM_EVENTS=off` so `vercelSink` stops them locally instead of
 posting to an endpoint that will not keep them; page views are unaffected.
@@ -296,8 +300,9 @@ one-time step; nothing here does it.
 
 ## Security headers
 
-`vercel.json` sends these on every path (`/(.*)`), beside the `Cache-Control`
-rules — different keys, so the rules compose rather than compete:
+`vercel.json` sends these on every path but the embeds (`/((?!embed/).*)`),
+beside the `Cache-Control` rules — different keys, so the rules compose rather
+than compete:
 
 - `Content-Security-Policy-Report-Only` — scripts only from this origin, no
   inline or `eval`; styles may be inline (Tailwind, Vue `:style`, MapLibre);
@@ -313,6 +318,13 @@ rules — different keys, so the rules compose rather than compete:
 - `X-Frame-Options: DENY`. `frame-ancestors 'none'` is in the CSP too, but a
   Report-Only policy enforces nothing, `frame-ancestors` included, so this is
   what stops framing today.
+
+`/embed/(.*)` has a rule of its own, because Vercel cannot unset a header
+another matching rule set and `X-Frame-Options` has no "anyone" value. It
+repeats the headers above under the same CSP key, with `frame-ancestors *` and
+no `X-Frame-Options`, and adds `X-Robots-Tag: noindex` on every host. A drift
+test in `src/securityHeaders.spec.ts` holds the two CSPs to differing only in
+`frame-ancestors`, and the other headers to matching. See [Embeds](#embeds).
 
 The pages `middleware.ts` answers are responses it builds itself, and Vercel
 may not apply `vercel.json`'s headers to those. So the middleware copies the
@@ -340,7 +352,7 @@ environment, so the allowance would ship to production on promotion.
 
 After a clean week, enforce it: set `ENFORCING` to true in
 `src/securityHeaders.spec.ts` and rename the key to `Content-Security-Policy`
-in `vercel.json`. What guards the policy meanwhile:
+in both of `vercel.json`'s rules (the catch-all and `/embed/`). What guards the policy meanwhile:
 
 - `src/securityHeaders.spec.ts` fails CI when the map style URL's origin or the
   geocoder changes without the CSP following. It checks the style URL's
@@ -353,10 +365,42 @@ in `vercel.json`. What guards the policy meanwhile:
   enforced CSP silently blocking every API call. Local and CI builds skip it.
 
 Hosts still to add when they land: the error tracker's ingest host, plus its
-`report-uri` (SPA-380). An embeddable map for other sites (SPA-462) will need its own
-carve-out from `frame-ancestors` and `X-Frame-Options`. MapLibre's RTL text
+`report-uri` (SPA-380). MapLibre's RTL text
 plugin, or anything loaded through `importScriptInWorkers`, would need
 `script-src` changes if ever adopted.
+
+## Embeds
+
+A curated scenario or a published service can be framed by another site:
+
+```html
+<iframe src="https://sparks-effect.app/embed/scenario/ca-hsr?at=37.79549,-122.39374&mode=transit&mins=180"
+  width="100%" height="480" loading="lazy" style="border:0"
+  title="California High-Speed Rail splash zone on Sparks Effect"></iframe>
+```
+
+- `/embed/scenario/:slug` and `/embed/services/:slug` draw the map with no site
+  header, footer or title (`meta.chrome: false`), and a small
+  `sparks-effect.app ↗` link back to the full page with the same `at`, `mode`
+  and `mins`.
+- Without `controls`, the map plots what `at`, `mode` and `mins` name, or, with
+  no `at`, shows the line and a scenario's saved splash zones as a row of chips.
+  `controls=1` adds the site's plot panel, floating and minimizable.
+- "Copy embed code" on the scenario and service pages copies either snippet for
+  the host it is on, with the plot on screen.
+- These paths and parameters are a public contract once pasted into someone's
+  post: do not rename them.
+- A host page that runs JavaScript can drive an embed by changing the iframe's
+  `src`. There is no widget, package or `postMessage` API.
+- Anyone can frame these routes (`frame-ancestors *`), so they never act as the
+  visitor: `src/main.ts` boots an `/embed/` page with `installStores(app,
+  { anonymous: true })`, which sends no session token and restores none, and
+  `src/embed/embedImports.spec.ts` fails if an embed view's imports reach for
+  anything but the public reads. There is no per-site revocation short of
+  unpublishing; plots from the controls cost routing jobs (repeats are served
+  from the stored result, SPA-331), and tiles count against our Stadia domain.
+- "Use my location" needs `allow="geolocation"` on the iframe, which the
+  snippet leaves out, so in an embed that button reports that it can't locate.
 
 ## Project structure
 

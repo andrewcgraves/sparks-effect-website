@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import PlotPanel from './PlotPanel.vue'
 
-function mountPanel(props: { hasSaved: boolean | null; offline: boolean }) {
+function mountPanel(props: { hasSaved: boolean | null; offline: boolean; initialSource?: 'plot' | 'saved' }) {
   return mount(PlotPanel, {
     props,
     slots: {
@@ -39,6 +39,21 @@ describe('PlotPanel', () => {
     expect(labels).toEqual(['Plot your own', 'Saved splash zones'])
     expect(visible(wrapper, 'form')).toBe(true)
     expect(visible(wrapper, 'list')).toBe(false)
+  })
+
+  // An embed leads with what costs nothing and draws at once.
+  it('opens on the saved splash zones when asked to, one click from the form', async () => {
+    const wrapper = mountPanel({ hasSaved: true, offline: false, initialSource: 'saved' })
+    expect(visible(wrapper, 'list')).toBe(true)
+    expect(visible(wrapper, 'form')).toBe(false)
+
+    await wrapper.get('[data-testid="plot-source-option-plot"]').setValue(true)
+    expect(visible(wrapper, 'form')).toBe(true)
+  })
+
+  it('shows the form when asked to open on saved splash zones there are none of', () => {
+    const wrapper = mountPanel({ hasSaved: false, offline: false, initialSource: 'saved' })
+    expect(visible(wrapper, 'form')).toBe(true)
   })
 
   it('turns to the saved splash zones when routing goes offline, and stays there when it returns', async () => {
