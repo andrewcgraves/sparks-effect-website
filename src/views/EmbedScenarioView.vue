@@ -148,7 +148,7 @@ const siteHref = computed(() => fullPageHref(window.location.origin, { kind: 'sc
              there is anything to offer. Clear of the credit and site link. -->
         <div
           v-show="showExamples"
-          class="absolute inset-x-2.5 bottom-7 z-1 flex flex-col gap-1.5 rounded-(--radius-box) border border-border bg-white/95 p-2.5 shadow-(--shadow-panel)"
+          class="absolute inset-x-2.5 bottom-7 z-1 flex flex-col gap-1.5 rounded-(--radius-box) border border-border bg-white/92 p-2.5 shadow-(--shadow-panel)"
           data-testid="embed-examples"
         >
           <span class="t-eyebrow text-ink-muted">See what this line reaches</span>
@@ -162,7 +162,7 @@ const siteHref = computed(() => fullPageHref(window.location.origin, { kind: 'sc
         </div>
         <p
           v-if="fetchError"
-          class="t-error absolute inset-x-2.5 bottom-7 z-2 rounded-(--radius-field) bg-white/95 px-3 py-2 shadow-(--shadow-panel)"
+          class="t-error absolute inset-x-2.5 bottom-7 z-2 rounded-(--radius-field) bg-white/92 px-3 py-2 shadow-(--shadow-panel)"
           role="alert"
           data-testid="embed-plot-error"
         >

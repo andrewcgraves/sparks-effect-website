@@ -11,7 +11,7 @@ defineProps<{ href: string }>()
     :href="href"
     target="_blank"
     rel="noopener"
-    class="absolute bottom-0 left-0 z-1 flex items-center gap-1 rounded-tr-(--radius-field) bg-white/80 px-1.5 text-[12px] leading-5 text-ink-muted hover:text-ink hover:underline"
+    class="absolute bottom-0 left-0 z-1 flex items-center gap-1 t-meta rounded-tr-(--radius-field) bg-white/92 px-1.5 text-ink-muted hover:text-ink hover:underline"
     data-testid="embed-site-link"
   >
     sparks-effect.app

@@ -117,7 +117,7 @@ void loadGraph(props.slug)
 
       <p
         v-else-if="isochroneError"
-        class="t-error absolute inset-x-2.5 bottom-7 z-2 rounded-(--radius-field) bg-white/95 px-3 py-2 shadow-(--shadow-panel)"
+        class="t-error absolute inset-x-2.5 bottom-7 z-2 rounded-(--radius-field) bg-white/92 px-3 py-2 shadow-(--shadow-panel)"
         role="alert"
         data-testid="embed-plot-error"
       >
