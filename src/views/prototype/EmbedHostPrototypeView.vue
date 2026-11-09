@@ -12,6 +12,8 @@ const VARIANTS = [
   { key: 'static', name: 'Static, no controls' },
   { key: 'strip', name: 'Bottom control strip' },
   { key: 'panel', name: 'Side panel, real form' },
+  { key: 'overlay', name: 'Minimizable overlay panel' },
+  { key: 'wizard', name: 'Three questions above the map' },
 ]
 
 const route = useRoute()
