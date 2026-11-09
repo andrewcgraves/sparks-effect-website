@@ -195,6 +195,9 @@ export const router = createRouter({
 })
 
 router.beforeEach(async (to) => {
+  // Only a page these rules are about opens the auth store, which reads the
+  // persisted session: an embed, framed by any site, must not.
+  if (!to.meta.requiresAuth && !to.meta.requiresAdmin && to.name !== 'login') return
   const auth = useAuthStore()
 
   if (to.meta.requiresAuth && !auth.isAuthenticated) {

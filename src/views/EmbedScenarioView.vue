@@ -151,7 +151,7 @@ const siteHref = computed(() => fullPageHref(window.location.origin, { kind: 'sc
           class="absolute inset-x-2.5 bottom-7 z-1 flex flex-col gap-1.5 rounded-(--radius-box) border border-border bg-white/92 p-2.5 shadow-(--shadow-panel)"
           data-testid="embed-examples"
         >
-          <span class="t-eyebrow text-ink-muted">See what this line reaches</span>
+          <span class="t-eyebrow text-ink-muted">See what this network reaches</span>
           <PrerenderedIsochrones
             v-model:selected-id="selectedPrerenderedId"
             :slug="props.slug"

@@ -130,6 +130,7 @@ describe('App routing', () => {
   it('leaves the site chrome off an embed, keeping the dialog and toasts', async () => {
     // The embed's own reads never answer; only the frame around it is asked about.
     vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})))
+    const getItem = vi.spyOn(window.localStorage, 'getItem')
     for (const path of ['/embed/scenario/ca-hsr', '/embed/services/northbound-express?controls=1']) {
       await router.push(path)
       const wrapper = mount(App, { global: { plugins: [router], stubs: { MapView: true } } })
@@ -141,6 +142,9 @@ describe('App routing', () => {
       expect(wrapper.find('[data-testid="toast-region"]').exists(), path).toBe(true)
       wrapper.unmount()
     }
+    // Framed by any site, an embed never so much as reads the session.
+    expect(getItem).not.toHaveBeenCalledWith('sparks-effect.auth')
+    getItem.mockRestore()
     vi.unstubAllGlobals()
   })
 

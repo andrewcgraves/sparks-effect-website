@@ -19,12 +19,13 @@ export function installStores(app: App, options: InstallStoresOptions = {}): voi
   const pinia = createPinia()
   app.use(pinia)
 
-  const auth = useAuthStore(pinia)
+  // Before the auth store exists: creating it reads the persisted session.
   if (options.anonymous) {
     setAuthTokenProvider(() => null)
     setUnauthorizedHandler(null)
     return
   }
+  const auth = useAuthStore(pinia)
   setAuthTokenProvider(() => auth.token)
   setUnauthorizedHandler((sentToken) => {
     if (auth.token !== sentToken) return

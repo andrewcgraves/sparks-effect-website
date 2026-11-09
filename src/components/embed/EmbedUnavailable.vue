@@ -17,7 +17,7 @@ const home = `${window.location.origin}/`
         This splash zone isn’t available.
       </p>
       <p class="t-note text-ink-muted">
-        It may have been taken down, or the link may be mistyped.
+        The link may be mistyped, or what it showed may have been taken down. If it worked before, try again later.
       </p>
       <a
         :href="home"

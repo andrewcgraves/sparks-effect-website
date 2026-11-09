@@ -71,10 +71,13 @@ describe('installStores', () => {
     window.localStorage.setItem('sparks-effect.auth', JSON.stringify({ token: 'tok-1' }))
     vi.mocked(fetch).mockResolvedValue({ ok: true, status: 204 } as Response)
 
+    const getItem = vi.spyOn(window.localStorage, 'getItem')
     const app = createApp(Noop)
     installStores(app, { anonymous: true })
     app.mount(document.createElement('div'))
     await apiRequest('/api/scenarios/ca-hsr')
+
+    expect(getItem).not.toHaveBeenCalledWith('sparks-effect.auth')
 
     expect(fetch).toHaveBeenCalledOnce()
     expect(vi.mocked(fetch).mock.calls[0][0]).not.toContain('/api/auth/me')

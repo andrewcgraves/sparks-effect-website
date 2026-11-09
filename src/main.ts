@@ -25,9 +25,10 @@ if (faroUrl) {
 
 // An embed is framed by other sites and never navigates out of /embed/ (its
 // links open new tabs), so deciding once, here, holds for its whole life.
+const anonymous = isEmbedPath(window.location.pathname)
 installStores(app, {
   onSessionExpired: () => void redirectAfterSessionExpiry(router),
-  anonymous: isEmbedPath(window.location.pathname),
+  anonymous,
 })
 app.use(router).mount('#app')
 
@@ -41,7 +42,8 @@ if (faroUrl) {
       startErrorReporting(router, {
         collectorUrl: faroUrl,
         release: __BUILD_VERSION__,
-        sessionToken: persistedSessionToken,
+        // An embed never reads the session, so it has none to scrub.
+        sessionToken: anonymous ? () => null : persistedSessionToken,
       })
     })
     // With no tracker to hand them to (offline, a blocked or replaced chunk),
