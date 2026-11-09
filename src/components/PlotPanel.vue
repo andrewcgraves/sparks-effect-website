@@ -5,17 +5,22 @@ import SegmentedControl from './SegmentedControl.vue'
 
 type PlotSource = 'plot' | 'saved'
 
-const props = defineProps<{
-  hasSaved: boolean | null
-  offline: boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    hasSaved: boolean | null
+    offline: boolean
+    // PROTOTYPE (SPA-462): an embed opens on the saved splash zones first.
+    initialSource?: PlotSource
+  }>(),
+  { initialSource: 'plot' },
+)
 
 const SOURCE_LABELS: Record<PlotSource, string> = {
   plot: 'Plot your own',
   saved: 'Saved splash zones',
 }
 
-const source = ref<PlotSource>('plot')
+const source = ref<PlotSource>(props.initialSource)
 
 // With routing offline the saved splash zones are the only answer the panel
 // can give, so it turns to them, whether routing dropped before or after the

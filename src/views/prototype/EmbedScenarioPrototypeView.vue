@@ -25,6 +25,7 @@ import PrototypeSwitcher from '../../components/prototype/PrototypeSwitcher.vue'
 import { PLOT_WITHOUT_MAP } from '../../components/mapLoad'
 import { ORIGIN_PICK_CUE } from '../../components/placementCues'
 import { PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS, SELECTED_CHOICE_CLASS } from '../../components/buttonStyles'
+import { ACTION_LINK_CLASS } from '../../components/linkStyles'
 import { FIELD_INPUT_CLASS } from '../../components/fieldStyles'
 import { isochroneWaitMessage } from '../../api/isochroneFault'
 import { useScenario } from '../../composables/useScenario'
@@ -206,28 +207,6 @@ const TILE_CLASS =
     class="@container relative flex h-svh flex-col overflow-hidden bg-white text-ink"
     data-testid="embed-root"
   >
-    <!-- Caption bar -->
-    <header class="flex h-11 shrink-0 items-center justify-between gap-3 border-b border-border px-3">
-      <div class="flex min-w-0 flex-1 flex-col leading-tight">
-        <span class="t-subhead block max-w-full truncate text-ink-true">{{ scenarioLoading ? 'Loading…' : name }}</span>
-        <span class="t-meta block max-w-full truncate text-ink-muted">{{ caption }}</span>
-      </div>
-      <a
-        :href="openHref"
-        target="_blank"
-        rel="noopener"
-        class="font-display text-btn flex shrink-0 items-center gap-1.5 rounded-(--radius-field) border border-border px-2.5 py-1.5 uppercase hover:bg-surface"
-      >
-        <span class="@max-[480px]:hidden">Open on Sparks Effect</span>
-        <span class="hidden @max-[480px]:inline">Open</span>
-        <svg
-          aria-hidden="true"
-          viewBox="0 0 24 24"
-          class="size-3 fill-none stroke-current stroke-[2.5]"
-        ><path d="M7 17 17 7M8 7h9v9" /></svg>
-      </a>
-    </header>
-
     <!-- wizard variant: the three questions above the map -->
     <section
       v-if="variant === 'wizard'"
@@ -383,6 +362,35 @@ const TILE_CLASS =
       </aside>
 
       <div class="relative min-w-0 flex-1">
+        <!-- Title card: floats over the map like the site's panels (radius-box,
+             panel shadow, no border). Wordmark type for the title, as the
+             phone map page uses over a flush map; the link is the site's
+             action-link style, not a boxed button. Leaves the top-right
+             control column (fullscreen, recenter) clear. -->
+        <header
+          class="absolute top-2.5 left-2.5 z-3 flex max-w-[calc(100%-66px)] items-center gap-4 rounded-(--radius-box) bg-white py-2 pr-3 pl-3 shadow-(--shadow-panel) @max-[480px]:flex-col @max-[480px]:items-start @max-[480px]:gap-1"
+          data-testid="embed-header"
+        >
+          <div class="flex w-full min-w-0 flex-col">
+            <span class="t-wordmark block max-w-full truncate text-ink-true">{{ scenarioLoading ? 'Loading…' : name }}</span>
+            <span class="t-meta block max-w-full truncate text-ink-muted">{{ caption }}</span>
+          </div>
+          <a
+            :href="openHref"
+            target="_blank"
+            rel="noopener"
+            :class="[ACTION_LINK_CLASS, 'flex shrink-0 items-center gap-1 whitespace-nowrap']"
+          >
+            <span class="@max-[480px]:hidden">Open on Sparks Effect</span>
+            <span class="hidden @max-[480px]:inline">Sparks Effect</span>
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              class="size-3 fill-none stroke-current stroke-[2.5]"
+            ><path d="M7 17 17 7M8 7h9v9" /></svg>
+          </a>
+        </header>
+
         <MapView
           label="Splash zone map"
           :without-map="PLOT_WITHOUT_MAP"
@@ -404,14 +412,14 @@ const TILE_CLASS =
           <button
             v-if="!overlayOpen"
             type="button"
-            :class="[PRIMARY_BUTTON_CLASS, 'absolute top-2.5 left-2.5 z-2 flex items-center gap-2 shadow-(--shadow-panel)']"
+            :class="[PRIMARY_BUTTON_CLASS, 'absolute top-[76px] left-2.5 z-2 flex items-center gap-2 shadow-(--shadow-panel) @max-[480px]:top-[100px]']"
             @click="overlayOpen = true; pickArmed = false"
           >
             {{ pickArmed ? 'Click the map…' : isochroneData ? 'Plot another' : 'Plot a splash zone' }}
           </button>
           <div
             v-show="overlayOpen"
-            class="absolute top-2.5 left-2.5 z-2 flex max-h-[calc(100%-20px)] w-[320px] max-w-[calc(100%-20px)] flex-col overflow-y-auto rounded-(--radius-box) shadow-(--shadow-panel) [&>section]:border-0"
+            class="absolute top-[76px] left-2.5 z-2 flex max-h-[calc(100%-86px)] w-[320px] max-w-[calc(100%-20px)] flex-col overflow-y-auto rounded-(--radius-box) shadow-(--shadow-panel) @max-[480px]:top-[100px] @max-[480px]:max-h-[calc(100%-110px)] [&>section]:border-0"
             data-testid="embed-overlay"
           >
             <button
@@ -425,6 +433,7 @@ const TILE_CLASS =
             <PlotPanel
               :has-saved="hasExamples"
               :offline="false"
+              initial-source="saved"
             >
               <template #plot>
                 <IsochroneForm
@@ -624,7 +633,7 @@ const TILE_CLASS =
 
     <p
       v-if="fetchError"
-      class="t-error absolute inset-x-3 top-13 z-2 rounded-(--radius-field) bg-white/95 px-3 py-2 shadow-(--shadow-panel)"
+      class="t-error absolute inset-x-3 bottom-3 z-2 rounded-(--radius-field) bg-white/95 px-3 py-2 shadow-(--shadow-panel)"
       role="alert"
     >
       {{ fetchError }}
