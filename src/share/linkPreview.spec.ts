@@ -44,6 +44,15 @@ describe('renderPreview', () => {
     expect(html).toContain('src="/assets/index-abc123.js"')
   })
 
+  it('summarises a network by its description with each link reduced to its text', async () => {
+    const html = await renderPreview(new URL('https://www.example.app/scenario/ca-hsr'), Promise.resolve(SHELL), async () => ({
+      name: 'CA HSR',
+      description: 'Want it sooner? [Sign the petition](https://example.org/petition).',
+    }))
+
+    expect(meta(parse(html), 'og:description')).toBe('Want it sooner? Sign the petition.')
+  })
+
   it('describes a published service by its own name and description', async () => {
     const reads: string[] = []
     const html = await renderPreview(new URL('https://www.example.app/services/northbound-express?at=1,2'), Promise.resolve(SHELL), async (path) => {

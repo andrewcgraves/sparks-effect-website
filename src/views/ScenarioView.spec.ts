@@ -231,6 +231,29 @@ describe('ScenarioView', () => {
     expect(description.element.textContent).toContain('Anaheim.\n\nSources')
   })
 
+  it('links [text](https://...) inside the description, in a new tab, and nothing else', () => {
+    mockUseScenario.mockReturnValue({
+      name: ref('CA HSR'),
+      subtext: ref(''),
+      description: ref('Want it sooner? [Sign the petition](https://example.org/petition).\n\nNotes: [not a link](http://example.org).'),
+      routes: ref([]),
+      stations: ref(stubStations),
+      services: ref([]),
+      loading: ref(false),
+    })
+    const wrapper = mountScenarioView()
+    const description = wrapper.get('[data-testid="scenario-description"]')
+    const links = description.findAll('a')
+    expect(links).toHaveLength(1)
+    expect(links[0].text()).toBe('Sign the petition')
+    expect(links[0].attributes()).toMatchObject({
+      href: 'https://example.org/petition',
+      target: '_blank',
+      rel: 'noopener noreferrer',
+    })
+    expect(description.element.textContent).toContain('Want it sooner? Sign the petition.\n\nNotes: [not a link](http://example.org).')
+  })
+
   it('shows no subtext line when the scenario has none', () => {
     const wrapper = mountScenarioView()
     expect(wrapper.find('[data-testid="scenario-subtext"]').exists()).toBe(false)
