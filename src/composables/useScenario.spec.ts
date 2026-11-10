@@ -136,26 +136,6 @@ describe('useScenario', () => {
     expect(description.value).toBe('California High-Speed Rail')
   })
 
-  it('populates the call to action after fetch resolves', async () => {
-    vi.mocked(fetchScenario).mockResolvedValueOnce({
-      ...stubDetail,
-      call_to_action_label: 'Sign here',
-      call_to_action_url: 'https://example.org/petition',
-    })
-    const { callToActionLabel, callToActionUrl } = useScenario('ca-hsr')
-    await flushPromises()
-    expect(callToActionLabel.value).toBe('Sign here')
-    expect(callToActionUrl.value).toBe('https://example.org/petition')
-  })
-
-  it('reads a missing call to action as empty', async () => {
-    vi.mocked(fetchScenario).mockResolvedValueOnce(stubDetail)
-    const { callToActionLabel, callToActionUrl } = useScenario('ca-hsr')
-    await flushPromises()
-    expect(callToActionLabel.value).toBe('')
-    expect(callToActionUrl.value).toBe('')
-  })
-
   it('reads a missing subtext as empty', async () => {
     vi.mocked(fetchScenario).mockResolvedValueOnce({ ...stubDetail, subtext: undefined })
     const { subtext } = useScenario('ca-hsr')

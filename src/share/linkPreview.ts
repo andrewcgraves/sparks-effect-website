@@ -1,4 +1,5 @@
 import type { ApiRead } from './apiRead.js'
+import { plainDescription } from './descriptionLinks.js'
 import { escapeMarkup } from './escape.js'
 import { SITE_NAME, formatPageTitle } from './pageTitle.js'
 
@@ -73,7 +74,10 @@ interface PublicPage {
 const PUBLIC_PAGES = new Map<string, PublicPage>([
   ['scenario', {
     endpoint: (slug) => `/api/scenarios/${slug}`,
-    describe: (body) => nonEmptyText(body.description),
+    describe: (body) => {
+      const text = nonEmptyText(body.description)
+      return text && plainDescription(text)
+    },
   }],
   ['services', {
     endpoint: (slug) => `/api/services/${slug}/publication`,

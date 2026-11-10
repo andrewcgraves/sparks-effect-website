@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import IsochroneForm from '../IsochroneForm.vue'
-import CallToActionLink from '../components/CallToActionLink.vue'
 import CopyLinkButton from '../components/CopyLinkButton.vue'
+import ExternalLink from '../components/ExternalLink.vue'
 import MapView from '../components/MapView.vue'
 import { PLOT_WITHOUT_MAP } from '../components/mapLoad'
 import PlotPanel from '../components/PlotPanel.vue'
@@ -32,6 +32,7 @@ import { usePhoneMapTabs } from '../components/phoneMapTabs'
 import { useIsPhone } from '../composables/useIsPhone'
 import { UNNAMED_LINE, UNNAMED_STATION } from '../copy/names'
 import PageHeader from '../components/PageHeader.vue'
+import { descriptionParts } from '../share/descriptionLinks'
 
 const props = defineProps<{ slug: string }>()
 
@@ -40,17 +41,8 @@ const { pickArmed, onMapClick, form: isochroneForm } = useOriginPick()
 const { status: routingStatus, offline } = useRoutingStatus()
 const hasExamples = ref<boolean | null>(null)
 
-const {
-  name,
-  subtext,
-  description,
-  callToActionLabel,
-  callToActionUrl,
-  routes,
-  stations,
-  services,
-  loading: scenarioLoading,
-} = useScenario(props.slug)
+const { name, subtext, description, routes, stations, services, loading: scenarioLoading } = useScenario(props.slug)
+const descriptionPieces = computed(() => descriptionParts(description.value))
 
 usePageTitle(() => name.value)
 
@@ -237,12 +229,20 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
           class="t-body whitespace-pre-line text-ink-muted"
           data-testid="scenario-description"
         >
-          {{ description }}
+          <template
+            v-for="(piece, i) in descriptionPieces"
+            :key="i"
+          >
+            <ExternalLink
+              v-if="piece.href"
+              :href="piece.href"
+            >{{ piece.text }}</ExternalLink>
+            <span
+              v-else
+              v-text="piece.text"
+            />
+          </template>
         </p>
-        <CallToActionLink
-          :label="callToActionLabel"
-          :url="callToActionUrl"
-        />
       </template>
     </PhoneMapPage>
   </main>
@@ -354,13 +354,20 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
           class="t-body mt-3 whitespace-pre-line text-ink-muted"
           data-testid="scenario-description"
         >
-          {{ description }}
+          <template
+            v-for="(piece, i) in descriptionPieces"
+            :key="i"
+          >
+            <ExternalLink
+              v-if="piece.href"
+              :href="piece.href"
+            >{{ piece.text }}</ExternalLink>
+            <span
+              v-else
+              v-text="piece.text"
+            />
+          </template>
         </p>
-        <CallToActionLink
-          class="mt-4"
-          :label="callToActionLabel"
-          :url="callToActionUrl"
-        />
       </section>
     </div>
   </main>
