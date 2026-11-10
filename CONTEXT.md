@@ -68,6 +68,16 @@ The product-facing name for an isochrone — the area reachable from a starting
 point within a travel time. Used in every heading, button, map key and message a
 person reads; the code, the API and the analytics events say *isochrone*.
 
+## A network's description
+
+A curated network's description is plain text, with its paragraph breaks kept,
+and one piece of markup: `[link text](https://...)` is shown as a link that opens
+in a new tab, so a paragraph can point off the site in its own words (ca-hsr's
+petition, SPA-549). Only `https` links count; anything else is shown exactly as
+written. `descriptionParts` (`src/share/descriptionLinks.ts`) splits it, and a
+link preview's summary keeps only the link text. Authored lines and networks do
+not get links: their descriptions are shown exactly as typed.
+
 ## The phone map page
 
 Below `md` (Tailwind's 48rem) a map page — the network page and a published
