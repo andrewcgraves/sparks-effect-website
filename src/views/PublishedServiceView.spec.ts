@@ -326,6 +326,14 @@ describe('PublishedServiceView', () => {
     })
   })
 
+  it('offers the embed code to every visitor, beside the link', async () => {
+    const { wrapper } = await mountViewAt('/services/northbound-express')
+    await wrapper.get('[data-testid="copy-embed"]').trigger('click')
+    expect(wrapper.get('[data-testid="copy-embed-options"]').text())
+      .toContain('/embed/services/northbound-express?controls=1"')
+    expect(wrapper.get('[data-testid="copy-embed-options"]').text()).toContain('title="Northbound Express splash zone on Sparks Effect"')
+  })
+
   // SPA-429: a shared link is mostly opened on a phone, where the page is the
   // map with everything else behind the panel's tabs.
   describe('on a phone', () => {

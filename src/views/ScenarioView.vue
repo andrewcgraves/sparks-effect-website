@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import IsochroneForm from '../IsochroneForm.vue'
 import CopyLinkButton from '../components/CopyLinkButton.vue'
+import CopyEmbedButton from '../components/CopyEmbedButton.vue'
 import ExternalLink from '../components/ExternalLink.vue'
 import MapView from '../components/MapView.vue'
 import { PLOT_WITHOUT_MAP } from '../components/mapLoad'
@@ -35,6 +36,7 @@ import PageHeader from '../components/PageHeader.vue'
 import { descriptionParts } from '../share/descriptionLinks'
 
 const props = defineProps<{ slug: string }>()
+const embedTarget = { kind: 'scenario', slug: props.slug } as const
 
 const origin = ref<{ lat: number; lng: number } | null>(null)
 const { pickArmed, onMapClick, form: isochroneForm } = useOriginPick()
@@ -193,7 +195,13 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
             />
           </template>
         </PlotPanel>
-        <CopyLinkButton v-if="shareable" />
+        <div class="flex flex-wrap items-start gap-2">
+          <CopyLinkButton v-if="shareable" />
+          <CopyEmbedButton
+            :target="embedTarget"
+            :name="name"
+          />
+        </div>
       </template>
       <template #panel-results>
         <StationsCard
@@ -321,7 +329,13 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
             />
           </template>
         </PlotPanel>
-        <CopyLinkButton v-if="shareable" />
+        <div class="flex flex-wrap items-start gap-2">
+          <CopyLinkButton v-if="shareable" />
+          <CopyEmbedButton
+            :target="embedTarget"
+            :name="name"
+          />
+        </div>
         <StationsCard
           v-if="!travelTimesFailed"
           :lines="lines"

@@ -355,6 +355,27 @@ describe('MapView', () => {
     )
   })
 
+  // SPA-462: an embed can be 300px tall, less than the site's fixed padding.
+  it('fits a small frame with padding to match it, rather than the site’s', async () => {
+    const width = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(320)
+    const height = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(300)
+    try {
+      const wrapper = mount(MapView, { props: defaultProps })
+      await triggerMapLoad()
+      mockFitBounds.mockClear()
+
+      await wrapper.setProps({ isochroneData: staticIsochroneResponse })
+
+      expect(mockFitBounds).toHaveBeenCalledWith(
+        ISOCHRONE_BOUNDS_CORNERS,
+        expect.objectContaining({ padding: { top: 30, bottom: 60, left: 48, right: 48 } }),
+      )
+    } finally {
+      width.mockRestore()
+      height.mockRestore()
+    }
+  })
+
   // SPA-320. A contour denoising split into pieces comes back as a MultiPolygon,
   // and the bounds walk used to read it a ring at a time and produce NaN corners
   // — which fitBounds rejects by throwing, out through this watcher, leaving the
@@ -1929,5 +1950,52 @@ describe('MapView', () => {
       fireLayerEvent('mouseleave', STATION_DOTS_LAYER_ID, {})
       expect(mockCanvas.style.cursor).toBe('crosshair')
     })
+  })
+})
+
+describe('MapView credit additions', () => {
+  const credited = { slots: { attribution: '<a href="/x" data-testid="added">site</a>' } }
+
+  function withCreditControl(): void {
+    const build = vi.mocked(Map).getMockImplementation()!
+    vi.mocked(Map).mockImplementationOnce(function (this: Map, options) {
+      Reflect.apply(build, this, [options])
+      const credit = document.createElement('details')
+      credit.className = 'maplibregl-ctrl maplibregl-ctrl-attrib'
+      credit.append(Object.assign(document.createElement('div'), { className: 'maplibregl-ctrl-attrib-inner' }))
+      ;(options.container as HTMLElement).append(credit)
+      return this
+    })
+  }
+
+  it('keeps the credit unfolded when the page adds to it', () => {
+    vi.mocked(Map).mockClear()
+    mount(MapView, { props: defaultProps, ...credited })
+    expect(vi.mocked(Map)).toHaveBeenCalledWith(
+      expect.objectContaining({ attributionControl: expect.objectContaining({ compact: false }) }),
+    )
+  })
+
+  it('leaves the credit to fold as usual when the page adds nothing', () => {
+    vi.mocked(Map).mockClear()
+    mount(MapView, { props: defaultProps })
+    const options = vi.mocked(Map).mock.calls[0]![0]
+    expect(options.attributionControl).not.toHaveProperty('compact')
+  })
+
+  it("puts the page's addition inside the map's credit, after MapLibre's own list", async () => {
+    withCreditControl()
+    const wrapper = mount(MapView, { props: defaultProps, ...credited, attachTo: document.body })
+    await wrapper.vm.$nextTick()
+    const credit = document.querySelector('.maplibregl-ctrl-attrib')!
+    const added = credit.querySelector('[data-testid="map-credit-addition"]')!
+    expect(added.querySelector('[data-testid="added"]')).not.toBeNull()
+    expect(credit.querySelector('.maplibregl-ctrl-attrib-inner')!.nextElementSibling).toBe(added)
+    wrapper.unmount()
+  })
+
+  it('gives the addition a bubble of its own when there is no map credit to join', () => {
+    const wrapper = mount(MapView, { props: defaultProps, ...credited })
+    expect(wrapper.get('[data-testid="map-credit-addition"] [data-testid="added"]').text()).toBe('site')
   })
 })

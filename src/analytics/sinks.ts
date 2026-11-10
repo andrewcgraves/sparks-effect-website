@@ -36,6 +36,9 @@ export const vercelSink: AnalyticsSink = (event) => {
         status: event.status,
       })
       break
+    case 'embed_load':
+      track('embed_load', { embedder: event.embedder })
+      break
     case 'origin_search':
       // `query` is an address someone typed, so it stays in the browser: only
       // the non-identifying result count leaves.

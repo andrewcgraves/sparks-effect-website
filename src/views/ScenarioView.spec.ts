@@ -1167,6 +1167,22 @@ describe('ScenarioView', () => {
       expect(wrapper.find('[data-testid="copy-link"]').exists()).toBe(true)
     })
 
+    // SPA-462: an embed of the network is worth offering before anything is
+    // plotted; once something is, the snippet carries it.
+    it('offers the embed code to every visitor, with the plot once one is drawn', async () => {
+      vi.mocked(fetchIsochrone).mockResolvedValue(stubIsochrone)
+      const { wrapper } = await mountScenarioViewAt('/scenario/ca-hsr')
+      await wrapper.get('[data-testid="copy-embed"]').trigger('click')
+      expect(wrapper.get('[data-testid="copy-embed-options"]').text()).toContain('/embed/scenario/ca-hsr"')
+
+      await wrapper.findComponent({ name: 'IsochroneForm' }).vm.$emit('submit', {
+        lat: 37.71, lng: -122.41, duration: 45, mode: 'bike',
+      })
+      await flushPromises()
+      expect(wrapper.get('[data-testid="copy-embed-options"]').text())
+        .toContain('/embed/scenario/ca-hsr?at=37.71%2C-122.41&amp;mode=bike&amp;mins=45"')
+    })
+
     it('leaves the URL alone when the plot fails', async () => {
       vi.spyOn(console, 'error').mockImplementation(() => {})
       vi.mocked(fetchIsochrone).mockRejectedValue(new Error('API down'))

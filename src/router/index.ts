@@ -11,6 +11,9 @@ declare module 'vue-router' {
     requiresAuth?: boolean
     requiresAdmin?: boolean
     title?: string
+    // false leaves off the site header, footer and skip link, for a page
+    // another site frames.
+    chrome?: boolean
   }
 }
 
@@ -166,6 +169,22 @@ export const router = createRouter({
       component: () => import('../views/AttributionView.vue'),
       meta: { title: 'Attribution' },
     },
+    // Framed by other sites, so these paths and their query are a public
+    // contract once pasted into a post: they are not renamed.
+    {
+      path: '/embed/scenario/:slug',
+      name: 'embed-scenario',
+      component: () => import('../views/EmbedScenarioView.vue'),
+      props: true,
+      meta: { title: 'Splash zone map', chrome: false },
+    },
+    {
+      path: '/embed/services/:slug',
+      name: 'embed-service',
+      component: () => import('../views/EmbedServiceView.vue'),
+      props: true,
+      meta: { title: 'Splash zone map', chrome: false },
+    },
     {
       path: '/:pathMatch(.*)*',
       name: 'not-found',
@@ -176,6 +195,9 @@ export const router = createRouter({
 })
 
 router.beforeEach(async (to) => {
+  // Only a page these rules are about opens the auth store, which reads the
+  // persisted session: an embed, framed by any site, must not.
+  if (!to.meta.requiresAuth && !to.meta.requiresAdmin && to.name !== 'login') return
   const auth = useAuthStore()
 
   if (to.meta.requiresAuth && !auth.isAuthenticated) {

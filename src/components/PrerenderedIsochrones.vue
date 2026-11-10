@@ -12,7 +12,10 @@ import { modeLabel } from '../copy/modes'
 import { PRESSED_CHOICE_CLASS } from './buttonStyles'
 import Tag from './Tag.vue'
 
-const props = defineProps<{ slug: string; selectedId: string | null }>()
+const props = withDefaults(
+  defineProps<{ slug: string; selectedId: string | null; layout?: 'grid' | 'row' }>(),
+  { layout: 'grid' },
+)
 
 const emit = defineEmits<{
   select: [entry: PrerenderedIsochrone]
@@ -73,10 +76,11 @@ function summarise(entry: PrerenderedIsochroneSummary): string {
     v-if="items.length"
     data-testid="prerendered-isochrones"
   >
-    <ul class="grid grid-cols-2 gap-1.5">
+    <ul :class="layout === 'row' ? 'flex gap-1.5 overflow-x-auto pb-0.5' : 'grid grid-cols-2 gap-1.5'">
       <li
         v-for="entry in items"
         :key="entry.id"
+        :class="{ 'w-44 shrink-0': layout === 'row' }"
       >
         <button
           type="button"

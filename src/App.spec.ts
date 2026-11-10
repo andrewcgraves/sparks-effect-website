@@ -10,6 +10,7 @@ import { seriousA11yViolations } from './test/axe'
 
 vi.mock('./analytics/index', () => ({
   trackPageView: vi.fn(),
+  trackEmbedLoad: vi.fn(),
 }))
 
 describe('App routing', () => {
@@ -122,6 +123,29 @@ describe('App routing', () => {
     await flushPromises()
     expect(wrapper.find('[data-testid="confirm-dialog"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="toast-region"]').exists()).toBe(true)
+  })
+
+  // Another site frames an embed and gives it its own heading; the site's
+  // header, footer and skip link would only be clutter in someone's post.
+  it('leaves the site chrome off an embed, keeping the dialog and toasts', async () => {
+    // The embed's own reads never answer; only the frame around it is asked about.
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})))
+    const getItem = vi.spyOn(window.localStorage, 'getItem')
+    for (const path of ['/embed/scenario/ca-hsr', '/embed/services/northbound-express?controls=1']) {
+      await router.push(path)
+      const wrapper = mount(App, { global: { plugins: [router], stubs: { MapView: true } } })
+      await flushPromises()
+      expect(wrapper.find('header').exists(), path).toBe(false)
+      expect(wrapper.find('footer').exists(), path).toBe(false)
+      expect(wrapper.find('[data-testid="skip-link"]').exists(), path).toBe(false)
+      expect(wrapper.find('[data-testid="confirm-dialog"]').exists(), path).toBe(true)
+      expect(wrapper.find('[data-testid="toast-region"]').exists(), path).toBe(true)
+      wrapper.unmount()
+    }
+    // Framed by any site, an embed never so much as reads the session.
+    expect(getItem).not.toHaveBeenCalledWith('sparks-effect.auth')
+    getItem.mockRestore()
+    vi.unstubAllGlobals()
   })
 
   it('ends the cover page with the one site footer', async () => {

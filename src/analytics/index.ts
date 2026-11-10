@@ -1,3 +1,4 @@
+import { referrerHost } from './redact'
 import { consoleSink, noopSink } from './sinks'
 import type { AnalyticsSink } from './types'
 
@@ -25,4 +26,8 @@ export function trackIsochroneRequest(travelMode: string, durationMinutes: numbe
 
 export function trackIsochroneError(travelMode: string, durationMinutes: number, status: number | null): void {
   _sink({ type: 'isochrone_error', travelMode, durationMinutes, status })
+}
+
+export function trackEmbedLoad(referrer: string): void {
+  _sink({ type: 'embed_load', embedder: referrerHost(referrer) })
 }

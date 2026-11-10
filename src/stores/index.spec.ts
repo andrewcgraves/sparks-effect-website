@@ -65,6 +65,27 @@ describe('installStores', () => {
     app.unmount()
   })
 
+  // Another site frames an embed (frame-ancestors *), so nothing in it may
+  // act as the visitor: a framing page could otherwise drive their session.
+  it('keeps a persisted session out of an anonymous app entirely', async () => {
+    window.localStorage.setItem('sparks-effect.auth', JSON.stringify({ token: 'tok-1' }))
+    vi.mocked(fetch).mockResolvedValue({ ok: true, status: 204 } as Response)
+
+    const getItem = vi.spyOn(window.localStorage, 'getItem')
+    const app = createApp(Noop)
+    installStores(app, { anonymous: true })
+    app.mount(document.createElement('div'))
+    await apiRequest('/api/scenarios/ca-hsr')
+
+    expect(getItem).not.toHaveBeenCalledWith('sparks-effect.auth')
+
+    expect(fetch).toHaveBeenCalledOnce()
+    expect(vi.mocked(fetch).mock.calls[0][0]).not.toContain('/api/auth/me')
+    const headers = vi.mocked(fetch).mock.calls[0][1]?.headers as Headers
+    expect(headers.has('Authorization')).toBe(false)
+    app.unmount()
+  })
+
   it('stops sending the token after sign-out', async () => {
     const app = createApp(Noop)
     installStores(app)

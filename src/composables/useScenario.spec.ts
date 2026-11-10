@@ -96,6 +96,17 @@ describe('useScenario', () => {
     expect(loading.value).toBe(false)
   })
 
+  it('says the scenario failed to load, and only when it did', async () => {
+    vi.mocked(fetchScenario).mockRejectedValueOnce(new Error('404'))
+    const missing = useScenario('nope')
+    vi.mocked(fetchScenario).mockResolvedValueOnce(stubDetail)
+    const found = useScenario('ca-hsr')
+    expect(missing.failed.value).toBe(false)
+    await flushPromises()
+    expect(missing.failed.value).toBe(true)
+    expect(found.failed.value).toBe(false)
+  })
+
   it('populates routes after fetch resolves', async () => {
     vi.mocked(fetchScenario).mockResolvedValueOnce(stubDetail)
     const { routes } = useScenario('ca-hsr')

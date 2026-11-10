@@ -14,6 +14,7 @@ export function useScenario(slug: string) {
   const stations = shallowRef<Station[]>([])
   const services = ref<Service[]>([])
   const loading = ref(true)
+  const failed = ref(false)
 
   fetchScenario(slug).then((detail) => {
     name.value = detail.name
@@ -22,7 +23,7 @@ export function useScenario(slug: string) {
     routes.value = detail.routes
     stations.value = detail.stations
     services.value = detail.services
-  }).catch(() => {}).finally(() => { loading.value = false })
+  }).catch(() => { failed.value = true }).finally(() => { loading.value = false })
 
-  return { name, subtext, description, routes, stations, services, loading }
+  return { name, subtext, description, routes, stations, services, loading, failed }
 }
