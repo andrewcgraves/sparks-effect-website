@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, useSlots, watch } from 'vue'
 import { FullscreenControl, type Map } from 'maplibre-gl'
 import type { MapMouseEvent } from 'maplibre-gl'
-import { egressStationSlugs, isochroneLegend, resolveIsochroneColors } from '../composables/useIsochroneLayer'
+import { egressStationSlugs, resolveIsochroneColors } from '../composables/useIsochroneLayer'
 import { centerFromCorners, routeBoundsCorners } from '../composables/useRouteLayer'
-import { originWalkLine } from '../composables/useOriginWalkLayer'
 import { createSiteMap, splashZoneModules } from '../composables/siteMap'
 import { RAW_STOP_LAYER_ID, stopPreviewModule } from '../composables/useStopPreviewLayer'
 import type { StopPreviewPair } from '../composables/useStopPreviewLayer'
@@ -17,7 +16,7 @@ import type { Route, Station } from '../api/scenarios'
 import type { SnapCoord as LatLng } from '../api/authoring/types'
 import LoadingRegion from './LoadingRegion.vue'
 import SkeletonShape from './SkeletonShape.vue'
-import KeySwatch from './KeySwatch.vue'
+import SplashZoneKey from './SplashZoneKey.vue'
 import { UNNAMED_STATION } from '../copy/names'
 import { reportError } from '../errorReporting'
 import { MAP_LOAD_TIMEOUT_MS } from './mapLoad'
@@ -52,17 +51,13 @@ const emit = defineEmits<{
   'station-hover': [slug: string | null]
 }>()
 
+const slots = useSlots()
+const attributionTarget = ref<HTMLElement | null>(null)
+
 const ORIGIN_SNAP_ZOOM = 9
 const STOP_FOCUS_ZOOM = 12
 
 const isochroneColors = resolveIsochroneColors()
-const legend = computed(() =>
-  isochroneLegend({
-    unfinished: (props.isochroneData?.metadata.trip_progress?.length ?? 0) > 0,
-    starterWalk: originWalkLine(props.isochroneData) !== null,
-  }),
-)
-
 const mapContainer = ref<HTMLElement | null>(null)
 let map: Map | null = null
 let resizeObserver: ResizeObserver | null = null
@@ -324,13 +319,16 @@ onMounted(() => {
       // Fullscreen lifts this until it is left. A flush map is the whole phone
       // page, so it keeps direct gestures.
       cooperativeGestures: !props.flush,
-    })
+    // What a page adds to the credit has to stay readable, so the credit
+    // never folds behind ⓘ when there is something of the page's in it.
+    }, slots.attribution ? { compact: false } : {})
   } catch (error) {
     failMap('no-webgl', error)
     return
   }
 
   map.addControl(new FullscreenControl())
+  attributionTarget.value = mapContainer.value.querySelector<HTMLElement>('.maplibregl-ctrl-attrib')
 
   // Before load, an error is the style or a source failing to arrive, and the
   // map will not draw without it. After load it is a stray tile, which
@@ -395,6 +393,7 @@ onUnmounted(() => {
   // Modules first: they release what would outlive the map, and map.remove()
   // takes the sources, layers, and map-bound listeners with it.
   modules.detach()
+  attributionTarget.value = null
   map?.remove()
   map = null
 })
@@ -495,26 +494,31 @@ onUnmounted(() => {
       {{ placementCue }}
     </p>
     
-    <aside
-      v-if="!hideIsochroneLegend && !placementArmed && !mapFailure"
-      class="absolute top-3 left-3 z-1 rounded-(--radius-field) bg-white/92 px-3 py-2.5 shadow-(--shadow-panel)"
-      aria-label="Splash zone color key"
+    <!-- MapLibre rewrites the credit's inner list whenever a source changes,
+         so the page's part goes after it, inside the same bubble. -->
+    <Teleport
+      v-if="attributionTarget && !mapFailure"
+      :to="attributionTarget"
     >
-      <ul class="m-0 flex list-none flex-col gap-1 p-0">
-        <li
-          v-for="entry in legend"
-          :key="entry.source"
-          class="t-meta flex items-center gap-2 text-ink"
-        >
-          <KeySwatch
-            :kind="entry.source"
-            class="shrink-0"
-            :data-testid="`legend-swatch-${entry.source}`"
-          />
-          <span>{{ entry.label }}</span>
-        </li>
-      </ul>
-    </aside>
+      <span
+        class="map-credit-addition"
+        data-testid="map-credit-addition"
+      ><span aria-hidden="true"> | </span><slot name="attribution" /></span>
+    </Teleport>
+    <!-- No map, no credit to join: the page's part keeps a bubble of its own. -->
+    <div
+      v-else-if="slots.attribution"
+      class="absolute right-0 bottom-0 z-1 t-meta rounded-tl-(--radius-field) bg-white/92 px-1.5 map-credit-alone"
+      data-testid="map-credit-addition"
+    >
+      <slot name="attribution" />
+    </div>
+
+    <SplashZoneKey
+      v-if="!hideIsochroneLegend && !placementArmed && !mapFailure"
+      class="absolute top-3 left-3 z-1"
+      :isochrone-data="isochroneData"
+    />
   </div>
 </template>
 
@@ -556,7 +560,13 @@ onUnmounted(() => {
   font-size: var(--text-micro);
 }
 
-.map-frame :deep(.maplibregl-ctrl-attrib a) {
+/* The inner credit is a block MapLibre owns; what a page adds sits on its line. */
+.map-frame :deep(.maplibregl-ctrl-attrib:has(.map-credit-addition) .maplibregl-ctrl-attrib-inner) {
+  display: inline;
+}
+
+.map-frame :deep(.maplibregl-ctrl-attrib a),
+.map-credit-alone :deep(a) {
   color: var(--color-ink-muted);
 }
 

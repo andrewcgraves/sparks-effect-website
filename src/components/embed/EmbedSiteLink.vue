@@ -4,14 +4,14 @@ defineProps<{ href: string }>()
 
 <template>
   <!-- No title, no caption: the page framing the embed already says what it
-       is. The way back is this small link at the bottom left, mirroring the
-       map credit at the bottom right. Named for production on every host, as
-       a reader of someone's post would know the site. -->
+       is. The way back is this link, in the map's own credit line. Named for
+       production on every host, as a reader of someone's post would know the
+       site. -->
   <a
     :href="href"
     target="_blank"
     rel="noopener"
-    class="absolute bottom-0 left-0 z-1 flex items-center gap-1 t-meta rounded-tr-(--radius-field) bg-white/92 px-1.5 text-ink-muted hover:text-ink hover:underline"
+    class="inline-flex items-center gap-0.5 hover:text-ink hover:underline"
     data-testid="embed-site-link"
   >
     sparks-effect.app

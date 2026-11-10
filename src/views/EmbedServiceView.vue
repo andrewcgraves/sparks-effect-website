@@ -85,8 +85,11 @@ void loadGraph(props.slug)
         :placement-armed="pickArmed"
         :placement-cue="ORIGIN_PICK_CUE"
         @map-click="onMapClick"
-      />
-      <EmbedSiteLink :href="siteHref" />
+      >
+        <template #attribution>
+          <EmbedSiteLink :href="siteHref" />
+        </template>
+      </MapView>
 
       <EmbedPlotCard
         v-if="controls"

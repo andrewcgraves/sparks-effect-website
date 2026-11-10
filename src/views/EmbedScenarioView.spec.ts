@@ -24,6 +24,16 @@ import { fetchIsochrone } from '../api/isochrone'
 import { fetchPrerenderedIsochrone, listPrerenderedIsochrones } from '../api/prerenderedIsochrones'
 import { fetchRoutingStatus } from '../api/routingStatus'
 import { trackEmbedLoad } from '../analytics/index'
+import { defineComponent, h } from 'vue'
+import MapView from '../components/MapView.vue'
+
+// Keeps MapView's name and props for findComponent, and renders the credit
+// slot the embed puts its way back to the site in.
+const MapViewStub = defineComponent({
+  name: 'MapView',
+  props: MapView.props,
+  setup: (_, { slots }) => () => h('div', slots.attribution?.()),
+})
 
 enableAutoUnmount(afterEach)
 
@@ -71,7 +81,7 @@ async function mountAt(query = '', slug = 'ca-hsr') {
   const router = await testRouterAt(`/embed/scenario/${slug}${query}`)
   const wrapper = mount(EmbedScenarioView, {
     props: { slug },
-    global: { plugins: [router], stubs: { MapView: true } },
+    global: { plugins: [router], stubs: { MapView: MapViewStub } },
     attachTo: document.body,
   })
   await flushPromises()
@@ -180,6 +190,19 @@ describe('EmbedScenarioView, with controls', () => {
     expect(fetchIsochrone).toHaveBeenCalledOnce()
     expect(shown(wrapper, '[data-testid="plot-panel"]')).toBe(false)
     expect(wrapper.get('[data-testid="embed-plot-open"]').text()).toBe('Plot another')
+  })
+
+  it('shows the splash zone key under the pill once something is plotted', async () => {
+    const { wrapper } = await mountAt(`${PLOTTED}&controls=1`)
+    const key = wrapper.get('[data-testid="embed-plot-key"]')
+    expect(key.attributes('aria-label')).toBe('Splash zone color key')
+    expect(key.find('[data-testid="legend-swatch-origin"]').exists()).toBe(true)
+  })
+
+  it('shows no key under the pill before anything is plotted', async () => {
+    const { wrapper } = await mountAt('?controls=1')
+    await wrapper.get('[data-testid="embed-plot-minimize"]').trigger('click')
+    expect(wrapper.find('[data-testid="embed-plot-key"]').exists()).toBe(false)
   })
 
   it('minimizes once a saved splash zone is chosen', async () => {

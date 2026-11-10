@@ -21,6 +21,16 @@ vi.mock('../analytics/index', async (importOriginal) => ({
 import { fetchPublicationIsochrone, fetchServicePublication } from '../api/publications'
 import { fetchRoutingStatus } from '../api/routingStatus'
 import { trackEmbedLoad } from '../analytics/index'
+import { defineComponent, h } from 'vue'
+import MapView from '../components/MapView.vue'
+
+// Keeps MapView's name and props for findComponent, and renders the credit
+// slot the embed puts its way back to the site in.
+const MapViewStub = defineComponent({
+  name: 'MapView',
+  props: MapView.props,
+  setup: (_, { slots }) => () => h('div', slots.attribution?.()),
+})
 
 enableAutoUnmount(afterEach)
 
@@ -46,7 +56,7 @@ async function mountAt(query = '', slug = 'northbound-express') {
   const router = await testRouterAt(`/embed/services/${slug}${query}`)
   const wrapper = mount(EmbedServiceView, {
     props: { slug },
-    global: { plugins: [router], stubs: { MapView: true } },
+    global: { plugins: [router], stubs: { MapView: MapViewStub } },
     attachTo: document.body,
   })
   await flushPromises()

@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { nextTick, ref, useTemplateRef, watch } from 'vue'
-import { PRIMARY_BUTTON_CLASS } from '../buttonStyles'
+import type { ChainResponse } from '../../fixtures/isochrone'
+import SplashZoneKey from '../SplashZoneKey.vue'
 
 const props = defineProps<{
-  plot: object | null
+  plot: ChainResponse | null
   error: string | null
   pickArmed: boolean
   startOpen: boolean
@@ -37,16 +38,35 @@ async function minimize(): Promise<void> {
 </script>
 
 <template>
-  <button
+  <!-- Styled as one of the map's own controls, which on the flush map are
+       40px white buttons in the opposite corner, so the pill reads as part
+       of the map rather than a call to action laid over it. -->
+  <div
     v-if="!open"
-    ref="pill"
-    type="button"
-    :class="[PRIMARY_BUTTON_CLASS, 'absolute top-2.5 left-2.5 z-2 shadow-(--shadow-panel)']"
-    data-testid="embed-plot-open"
-    @click="open = true"
+    class="absolute top-2.5 left-2.5 z-2 flex max-w-[calc(100%-70px)] flex-col items-start gap-2.5"
   >
-    {{ plot ? 'Plot another' : 'Plot a splash zone' }}
-  </button>
+    <button
+      ref="pill"
+      type="button"
+      class="t-meta flex h-10 cursor-pointer items-center gap-2 rounded-(--radius-field) bg-white px-3 text-ink shadow-(--shadow-panel) hover:brightness-95"
+      data-testid="embed-plot-open"
+      @click="open = true"
+    >
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 20 20"
+        class="size-[18px] shrink-0 fill-none stroke-current stroke-[1.75]"
+      >
+        <path d="M5 8l5 5 5-5" />
+      </svg>
+      <span>{{ plot ? 'Plot another' : 'Plot a splash zone' }}</span>
+    </button>
+    <SplashZoneKey
+      v-if="plot"
+      :isochrone-data="plot"
+      data-testid="embed-plot-key"
+    />
+  </div>
   <!-- v-show, not v-if: the form keeps what was typed while minimized, and the
        saved list has to stay mounted to have loaded. -->
   <div
@@ -56,12 +76,18 @@ async function minimize(): Promise<void> {
   >
     <button
       type="button"
-      class="t-meta absolute top-3 right-3 z-1 cursor-pointer rounded-(--radius-field) px-2 py-1 text-ink-muted hover:bg-white"
+      class="absolute top-3 right-3 z-1 flex size-8 cursor-pointer items-center justify-center rounded-(--radius-field) text-ink-muted hover:bg-surface hover:text-ink"
       aria-label="Minimize the plot panel"
       data-testid="embed-plot-minimize"
       @click="minimize"
     >
-      ✕
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 20 20"
+        class="size-[18px] fill-none stroke-current stroke-[1.75]"
+      >
+        <path d="M5 12l5-5 5 5" />
+      </svg>
     </button>
     <div class="min-h-0 overflow-y-auto rounded-(--radius-box) [&>section]:border-0">
       <slot />
