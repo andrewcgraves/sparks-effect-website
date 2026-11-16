@@ -912,18 +912,34 @@ describe('ScenarioView', () => {
       expect(panels[0].find('form').classes()).not.toContain('border')
     })
 
-    it('opens on Plot your own, with the saved splash zones one switch away', async () => {
+    // SPA-555: most visitors start from a ready-made zone, so the page opens
+    // on them, with the form one switch away.
+    it('opens on Example travel zones, with Make your own one switch away', async () => {
       vi.mocked(listPrerenderedIsochrones).mockResolvedValue([prerendered])
       const wrapper = mountScenarioView('ca-hsr', { MapView: true })
       await flushPromises()
 
+      expect(wrapper.findAll('[data-testid="plot-source"] label').map((l) => l.text()))
+        .toEqual(['Example travel zones', 'Make your own'])
+      expect(shown(wrapper.get('[data-testid="plot-saved"]').element)).toBe(true)
+      expect(shown(wrapper.get('form').element)).toBe(false)
+
+      await wrapper.get('[data-testid="plot-source-option-plot"]').setValue(true)
+
       expect(shown(wrapper.get('form').element)).toBe(true)
       expect(shown(wrapper.get('[data-testid="plot-saved"]').element)).toBe(false)
+    })
 
-      await wrapper.get('[data-testid="plot-source-option-saved"]').setValue(true)
+    // A shared link is someone's own plot: opening on the examples would hide
+    // the starting point, mode and time it was made from.
+    it('opens on Make your own when a link names a starting point', async () => {
+      vi.mocked(listPrerenderedIsochrones).mockResolvedValue([prerendered])
+      vi.mocked(fetchIsochrone).mockResolvedValue(stubIsochrone)
+      const { wrapper } = await mountScenarioViewAt('/scenario/ca-hsr?at=37.71,-122.41&mode=transit&mins=120')
 
-      expect(shown(wrapper.get('form').element)).toBe(false)
-      expect(shown(wrapper.get('[data-testid="plot-saved"]').element)).toBe(true)
+      expect(shown(wrapper.get('form').element)).toBe(true)
+      expect(shown(wrapper.get('[data-testid="plot-saved"]').element)).toBe(false)
+      expect((wrapper.get('input[data-testid="lat"]').element as HTMLInputElement).value).toBe('37.71')
     })
 
     it('fills the form with the picked entry, and moves the pin to its starting point', async () => {

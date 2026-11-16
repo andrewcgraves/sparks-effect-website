@@ -116,7 +116,7 @@ function onPrerenderedSelect(entry: PrerenderedIsochrone) {
   showIsochrone(entry.result)
   void forgetIsochrone()
   // The form becomes the saved splash zone's question, so the pin moves to its
-  // starting point and Plot your own can adjust it from there.
+  // starting point and Make your own can adjust it from there.
   const mode = TRAVEL_MODES.find((m): m is TravelMode => m === entry.mode)
   if (!mode) return
   isochroneForm.value?.fill({ lat: entry.lat, lng: entry.lng, duration: entry.budget_mins, mode })
@@ -172,6 +172,7 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
         <PlotPanel
           :has-saved="hasExamples"
           :offline="offline"
+          :initial-source="linkedIsochrone.lat === undefined ? 'saved' : 'plot'"
         >
           <template #plot>
             <IsochroneForm
@@ -306,6 +307,7 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
         <PlotPanel
           :has-saved="hasExamples"
           :offline="offline"
+          :initial-source="linkedIsochrone.lat === undefined ? 'saved' : 'plot'"
         >
           <template #plot>
             <IsochroneForm
