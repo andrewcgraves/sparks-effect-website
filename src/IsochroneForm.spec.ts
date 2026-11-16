@@ -858,7 +858,7 @@ describe('IsochroneForm', () => {
     const framed = mount(IsochroneForm)
     const bare = mount(IsochroneForm, { props: { framed: false } })
 
-    expect(framed.find('h2').text()).toBe('Plot a splash zone')
+    expect(framed.find('h2').text()).toBe('See Your Travel Zone')
     expect(framed.get('form').classes()).toContain('border')
     expect(bare.find('h2').exists()).toBe(false)
     expect(bare.get('form').classes()).not.toContain('border')
