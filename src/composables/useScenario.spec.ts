@@ -147,6 +147,21 @@ describe('useScenario', () => {
     expect(description.value).toBe('California High-Speed Rail')
   })
 
+  it('reads the plot label, and a missing one as empty', async () => {
+    vi.mocked(fetchScenario).mockResolvedValueOnce({
+      ...stubDetail,
+      plot_label: 'Show a {minutes}-minute HSR ride and {mode}',
+    })
+    const first = useScenario('ca-hsr')
+    await flushPromises()
+    expect(first.plotLabel.value).toBe('Show a {minutes}-minute HSR ride and {mode}')
+
+    vi.mocked(fetchScenario).mockResolvedValueOnce(stubDetail)
+    const second = useScenario('ca-hsr')
+    await flushPromises()
+    expect(second.plotLabel.value).toBe('')
+  })
+
   it('reads a missing subtext as empty', async () => {
     vi.mocked(fetchScenario).mockResolvedValueOnce({ ...stubDetail, subtext: undefined })
     const { subtext } = useScenario('ca-hsr')

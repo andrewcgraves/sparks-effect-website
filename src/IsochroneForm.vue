@@ -14,7 +14,8 @@ import { getCurrentPosition } from './api/geolocation'
 import { trackModeToggle } from './analytics/index'
 import { TRAVEL_MODES, type TravelMode } from './api/authoring/types'
 import { DEFAULT_DURATION, DEFAULT_MODE, DURATION_OPTIONS, type IsochronePayload } from './isochroneQuery'
-import { MODE_LABELS, MODE_TRIPS } from './copy/modes'
+import { MODE_LABELS } from './copy/modes'
+import { formatPlotLabel } from './copy/plotLabel'
 import { OFFLINE_REASON } from './composables/useRoutingStatus'
 
 const MODE_ICONS: Record<TravelMode, string> = {
@@ -46,8 +47,9 @@ const props = withDefaults(
     offline?: boolean
     initial?: Partial<IsochronePayload>
     framed?: boolean
+    labelTemplate?: string
   }>(),
-  { error: null, loading: false, offline: false, initial: () => ({}), framed: true },
+  { error: null, loading: false, offline: false, initial: () => ({}), framed: true, labelTemplate: '' },
 )
 
 const emit = defineEmits<{
@@ -229,7 +231,7 @@ function onModeChange(newMode: TravelMode) {
 const submitLabel = computed(() => {
   if (props.loading) return 'Plotting…'
   if (!isValid.value) return 'Choose a starting point first'
-  return `Plot a ${duration.value}-min ${MODE_TRIPS[mode.value]}`
+  return formatPlotLabel(props.labelTemplate, duration.value, mode.value)
 })
 
 function handleSubmit() {

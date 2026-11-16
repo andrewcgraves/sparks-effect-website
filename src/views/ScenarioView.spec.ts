@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { enableAutoUnmount, mount, flushPromises } from '@vue/test-utils'
 import ScenarioView from './ScenarioView.vue'
+import IsochroneForm from '../IsochroneForm.vue'
 import { seriousA11yViolations } from '../test/axe'
 import { ref } from 'vue'
 import type { Router } from 'vue-router'
@@ -16,7 +17,7 @@ vi.mock('../api/isochrone', async (importOriginal) => {
 
 const mockUseScenario = vi.fn()
 vi.mock('../composables/useScenario', () => ({
-  useScenario: (slug: string) => ({ subtext: ref(''), ...mockUseScenario(slug) }),
+  useScenario: (slug: string) => ({ subtext: ref(''), plotLabel: ref(''), ...mockUseScenario(slug) }),
 }))
 
 vi.mock('../api/scenarios', async (importOriginal) => {
@@ -229,6 +230,20 @@ describe('ScenarioView', () => {
     const description = wrapper.get('[data-testid="scenario-description"]')
     expect(description.classes()).toContain('whitespace-pre-line')
     expect(description.element.textContent).toContain('Anaheim.\n\nSources')
+  })
+
+  it("hands the network's plot label to the plot form", () => {
+    mockUseScenario.mockReturnValue({
+      name: ref('CA HSR'),
+      plotLabel: ref('Show a {minutes}-minute HSR ride and {mode}'),
+      description: ref(''),
+      routes: ref([]),
+      stations: ref(stubStations),
+      services: ref([]),
+      loading: ref(false),
+    })
+    const wrapper = mountScenarioView()
+    expect(wrapper.getComponent(IsochroneForm).props('labelTemplate')).toBe('Show a {minutes}-minute HSR ride and {mode}')
   })
 
   it('links [text](https://...) inside the description, in a new tab, and nothing else', () => {

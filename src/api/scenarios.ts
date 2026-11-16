@@ -66,6 +66,7 @@ export interface ScenarioDetail {
   slug: string
   name: string
   subtext?: string
+  plot_label?: string
   description: string
   status: string
   routes: Route[]

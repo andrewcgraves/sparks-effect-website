@@ -357,6 +357,24 @@ describe('IsochroneForm', () => {
     expect(wrapper.get('button[type="submit"]').text()).toBe('Plot a 120-min transit trip')
   })
 
+  it("reads the network's own wording on the button when it sets one", async () => {
+    const wrapper = mount(IsochroneForm, {
+      props: { labelTemplate: 'Show a {minutes}-minute HSR ride and {mode}' },
+    })
+    expect(wrapper.get('button[type="submit"]').text()).toBe('Choose a starting point first')
+
+    await wrapper.find('input[data-testid="lat"]').setValue('37.7897')
+    await wrapper.find('input[data-testid="lng"]').setValue('-122.3972')
+    expect(wrapper.get('button[type="submit"]').text()).toBe('Show a 60-minute HSR ride and walk')
+
+    await wrapper.get('input[data-testid="mode-bike"]').trigger('change')
+    await wrapper.get('input[data-testid="duration-slider-option-120"]').trigger('change')
+    expect(wrapper.get('button[type="submit"]').text()).toBe('Show a 120-minute HSR ride and bike ride')
+
+    await wrapper.setProps({ loading: true })
+    expect(wrapper.get('button[type="submit"]').text()).toBe('Plotting…')
+  })
+
   it('renders the error prop under the submit button', () => {
     const wrapper = mount(IsochroneForm, {
       props: { error: "Couldn't plot this splash zone. Please try again." },

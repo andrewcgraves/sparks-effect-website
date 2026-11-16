@@ -31,7 +31,7 @@ const controls = route.query.controls === '1'
 
 trackEmbedLoad(document.referrer)
 
-const { routes, stations, failed } = useScenario(props.slug)
+const { routes, stations, plotLabel, failed } = useScenario(props.slug)
 const { offline } = useRoutingStatus()
 const { pickArmed, onMapClick, form: isochroneForm } = useOriginPick()
 
@@ -130,6 +130,7 @@ const siteHref = computed(() => fullPageHref(window.location.origin, { kind: 'sc
               :offline="offline"
               :initial="linkedIsochrone"
               :framed="false"
+              :label-template="plotLabel"
               @submit="submitIsochrone"
               @origin-change="origin = $event"
               @pick-armed="pickArmed = $event"

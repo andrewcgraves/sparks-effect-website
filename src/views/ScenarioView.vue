@@ -43,7 +43,7 @@ const { pickArmed, onMapClick, form: isochroneForm } = useOriginPick()
 const { status: routingStatus, offline } = useRoutingStatus()
 const hasExamples = ref<boolean | null>(null)
 
-const { name, subtext, description, routes, stations, services, loading: scenarioLoading } = useScenario(props.slug)
+const { name, subtext, plotLabel, description, routes, stations, services, loading: scenarioLoading } = useScenario(props.slug)
 const descriptionPieces = computed(() => descriptionParts(description.value))
 
 usePageTitle(() => name.value)
@@ -181,6 +181,7 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
               :offline="offline"
               :initial="linkedIsochrone"
               :framed="false"
+              :label-template="plotLabel"
               @submit="submitIsochrone"
               @origin-change="onOriginChange"
               @pick-armed="pickArmed = $event"
@@ -315,6 +316,7 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
               :offline="offline"
               :initial="linkedIsochrone"
               :framed="false"
+              :label-template="plotLabel"
               @submit="submitIsochrone"
               @origin-change="onOriginChange"
               @pick-armed="pickArmed = $event"
