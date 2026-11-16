@@ -256,7 +256,7 @@ function handleSubmit() {
       v-if="framed"
       class="font-display text-h3 text-ink-true"
     >
-      Plot a splash zone
+      See Your Travel Zone
     </h2>
 
     <div class="flex flex-col gap-1.5">

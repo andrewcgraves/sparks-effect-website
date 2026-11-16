@@ -59,7 +59,7 @@ async function minimize(): Promise<void> {
       >
         <path d="M5 8l5 5 5-5" />
       </svg>
-      <span>{{ plot ? 'Plot another' : 'Plot a splash zone' }}</span>
+      <span>{{ plot ? 'Plot another' : 'See Your Travel Zone' }}</span>
     </button>
     <SplashZoneKey
       v-if="plot"
