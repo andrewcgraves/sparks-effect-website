@@ -907,7 +907,7 @@ describe('ScenarioView', () => {
 
       const panels = wrapper.findAll('[data-testid="plot-panel"]')
       expect(panels).toHaveLength(1)
-      expect(panels[0].findAll('h2').map((h) => h.text())).toEqual(['Plot a splash zone'])
+      expect(panels[0].findAll('h2').map((h) => h.text())).toEqual(['See Your Travel Zone'])
       expect(panels[0].find('[data-testid="prerendered-isochrones"]').exists()).toBe(true)
       expect(panels[0].find('form').classes()).not.toContain('border')
     })

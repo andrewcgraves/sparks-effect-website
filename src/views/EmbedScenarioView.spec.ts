@@ -179,7 +179,7 @@ describe('EmbedScenarioView, with controls', () => {
 
     await wrapper.get('[data-testid="embed-plot-minimize"]').trigger('click')
     expect(shown(wrapper, '[data-testid="plot-panel"]')).toBe(false)
-    expect(wrapper.get('[data-testid="embed-plot-open"]').text()).toBe('Plot a splash zone')
+    expect(wrapper.get('[data-testid="embed-plot-open"]').text()).toBe('See Your Travel Zone')
 
     await wrapper.get('[data-testid="embed-plot-open"]').trigger('click')
     expect(shown(wrapper, '[data-testid="plot-panel"]')).toBe(true)

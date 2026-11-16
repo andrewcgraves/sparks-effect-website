@@ -39,7 +39,7 @@ watch(
     data-testid="plot-panel"
   >
     <h2 class="font-display text-h3 text-ink-true">
-      Plot a splash zone
+      See Your Travel Zone
     </h2>
 
     <SegmentedControl
