@@ -11,12 +11,12 @@ const props = withDefaults(
     offline: boolean
     initialSource?: PlotSource
   }>(),
-  { initialSource: 'plot' },
+  { initialSource: 'saved' },
 )
 
 const SOURCE_LABELS: Record<PlotSource, string> = {
-  plot: 'Plot your own',
-  saved: 'Saved splash zones',
+  saved: 'Example travel zones',
+  plot: 'Make your own',
 }
 
 const source = ref<PlotSource>(props.initialSource)
@@ -45,7 +45,7 @@ watch(
     <SegmentedControl
       v-if="hasSaved"
       v-model="source"
-      :options="['plot', 'saved'] as const"
+      :options="['saved', 'plot'] as const"
       :format-option="(value: PlotSource) => SOURCE_LABELS[value]"
       label="Plot a splash zone from"
       name="plot-source"

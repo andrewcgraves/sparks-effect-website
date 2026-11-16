@@ -32,18 +32,12 @@ describe('PlotPanel', () => {
     expect(wrapper.find('[data-testid="list"]').exists()).toBe(true)
   })
 
-  it('puts Plot your own first, and opens on it', () => {
+  // SPA-555: lead with what costs nothing and draws at once.
+  it('puts Example travel zones first, and opens on them, one click from the form', async () => {
     const wrapper = mountPanel({ hasSaved: true, offline: false })
 
     const labels = wrapper.findAll('[data-testid="plot-source"] label').map((l) => l.text())
-    expect(labels).toEqual(['Plot your own', 'Saved splash zones'])
-    expect(visible(wrapper, 'form')).toBe(true)
-    expect(visible(wrapper, 'list')).toBe(false)
-  })
-
-  // An embed leads with what costs nothing and draws at once.
-  it('opens on the saved splash zones when asked to, one click from the form', async () => {
-    const wrapper = mountPanel({ hasSaved: true, offline: false, initialSource: 'saved' })
+    expect(labels).toEqual(['Example travel zones', 'Make your own'])
     expect(visible(wrapper, 'list')).toBe(true)
     expect(visible(wrapper, 'form')).toBe(false)
 
@@ -51,13 +45,19 @@ describe('PlotPanel', () => {
     expect(visible(wrapper, 'form')).toBe(true)
   })
 
-  it('shows the form when asked to open on saved splash zones there are none of', () => {
-    const wrapper = mountPanel({ hasSaved: false, offline: false, initialSource: 'saved' })
+  it('opens on Make your own when asked to', () => {
+    const wrapper = mountPanel({ hasSaved: true, offline: false, initialSource: 'plot' })
+    expect(visible(wrapper, 'form')).toBe(true)
+    expect(visible(wrapper, 'list')).toBe(false)
+  })
+
+  it('shows the form when there are no saved splash zones to open on', () => {
+    const wrapper = mountPanel({ hasSaved: false, offline: false })
     expect(visible(wrapper, 'form')).toBe(true)
   })
 
   it('turns to the saved splash zones when routing goes offline, and stays there when it returns', async () => {
-    const wrapper = mountPanel({ hasSaved: true, offline: false })
+    const wrapper = mountPanel({ hasSaved: true, offline: false, initialSource: 'plot' })
 
     await wrapper.setProps({ offline: true })
     expect(visible(wrapper, 'list')).toBe(true)
@@ -67,7 +67,7 @@ describe('PlotPanel', () => {
   })
 
   it('turns to them too when the list arrives after routing has gone offline', async () => {
-    const wrapper = mountPanel({ hasSaved: null, offline: true })
+    const wrapper = mountPanel({ hasSaved: null, offline: true, initialSource: 'plot' })
 
     await wrapper.setProps({ hasSaved: true })
 
