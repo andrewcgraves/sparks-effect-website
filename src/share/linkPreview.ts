@@ -4,7 +4,7 @@ import { escapeMarkup } from './escape.js'
 import { SITE_NAME, formatPageTitle } from './pageTitle.js'
 
 const SITE_DESCRIPTION =
-  'Sparks Effect maps the "splash zone" reachable by walking, biking, transit, and driving from a hypothetical transit line.'
+  'Sparks Effect maps your travel zone: how far a new rail line could take you in the time you have, walking, biking, driving or riding transit to the station.'
 
 interface PageMeta {
   name: string | null
@@ -95,7 +95,7 @@ export const STATIC_PAGES: ReadonlyMap<string, PageMeta> = new Map<string, PageM
   ['/how-it-works', {
     name: 'How it works',
     description:
-      'How to read a splash zone, colour by colour, and what it assumes: door-to-door minutes, an 8 a.m. weekday start for transit, free-flowing roads.',
+      'How to read a travel zone, colour by colour, and what it assumes: door-to-door minutes, an 8 a.m. weekday start for transit, free-flowing roads.',
   }],
   ['/about', {
     name: 'About',

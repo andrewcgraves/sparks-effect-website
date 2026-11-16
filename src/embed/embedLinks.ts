@@ -54,6 +54,6 @@ export function embedSnippet({ origin, target, name, query, controls }: EmbedSni
   return (
     `<iframe src="${escapeMarkup(src)}"\n` +
     '  width="100%" height="480" loading="lazy" style="border:0"\n' +
-    `  title="${escapeMarkup(`${name} splash zone on Sparks Effect`)}"></iframe>`
+    `  title="${escapeMarkup(`${name} travel zone on Sparks Effect`)}"></iframe>`
   )
 }

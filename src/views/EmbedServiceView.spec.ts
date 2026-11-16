@@ -144,7 +144,7 @@ describe('EmbedServiceView, not available', () => {
   it('says so in the same card as a missing network', async () => {
     vi.mocked(fetchServicePublication).mockRejectedValue(new ApiError('GET failed: 404', 404))
     const { wrapper } = await mountAt('', 'a-draft')
-    expect(wrapper.get('[data-testid="embed-unavailable"]').text()).toContain('This splash zone isn’t available.')
+    expect(wrapper.get('[data-testid="embed-unavailable"]').text()).toContain('This travel zone isn’t available.')
     expect(wrapper.findComponent({ name: 'MapView' }).exists()).toBe(false)
   })
 })

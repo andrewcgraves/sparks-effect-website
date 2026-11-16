@@ -105,7 +105,7 @@ describe('useIsochrone', () => {
     vi.mocked(fetchIsochrone).mockRejectedValueOnce(new ApiError('boom', 500))
     const { data, error, loading, generate } = useIsochrone()
     await generate(request)
-    expect(error.value).toBe("Couldn't plot this splash zone. Please try again.")
+    expect(error.value).toBe("Couldn't plot this travel zone. Please try again.")
     expect(data.value).toBeNull()
     expect(loading.value).toBe(false)
   })
@@ -220,7 +220,7 @@ describe('useIsochrone', () => {
   // same place every other error shows, and the reason goes to the console.
   describe('a routing job the API failed', () => {
     const ROUTING_FAILED =
-      "Routing couldn't finish this splash zone. Please try again, or try a different starting point."
+      "Routing couldn't finish this travel zone. Please try again, or try a different starting point."
 
     it('says routing could not finish, without the API error text', async () => {
       vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -263,7 +263,7 @@ describe('useIsochrone', () => {
       await generate(request)
 
       expect(error.value).toMatch(/busy/i)
-      expect(error.value).not.toBe("Couldn't plot this splash zone. Please try again.")
+      expect(error.value).not.toBe("Couldn't plot this travel zone. Please try again.")
     })
   })
 
@@ -494,15 +494,15 @@ describe('useIsochrone', () => {
       const { generate } = useIsochrone()
 
       const promise = generate(request)
-      expect(announced()).toBe('Plotting splash zone…')
+      expect(announced()).toBe('Plotting travel zone…')
       await promise
-      expect(announced()).toBe('Splash zone ready: 2 stations reached')
+      expect(announced()).toBe('Travel zone ready: 2 stations reached')
     })
 
     it('says so when a ready-made splash zone is shown', () => {
       const { show } = useIsochrone()
       show(reachingTwo)
-      expect(announced()).toBe('Splash zone ready: 2 stations reached')
+      expect(announced()).toBe('Travel zone ready: 2 stations reached')
     })
 
     it('leaves a failure to the alert that shows it', async () => {
@@ -510,7 +510,7 @@ describe('useIsochrone', () => {
       vi.spyOn(console, 'error').mockImplementation(() => {})
       const { generate } = useIsochrone()
       await generate(request)
-      expect(announced()).toBe('Plotting splash zone…')
+      expect(announced()).toBe('Plotting travel zone…')
     })
   })
 })

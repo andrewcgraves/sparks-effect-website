@@ -47,7 +47,7 @@ watch(
       v-model="source"
       :options="['saved', 'plot'] as const"
       :format-option="(value: PlotSource) => SOURCE_LABELS[value]"
-      label="Plot a splash zone from"
+      label="Plot a travel zone from"
       name="plot-source"
       testid="plot-source"
       class="self-start"
@@ -65,7 +65,7 @@ watch(
         size="inline"
         data-testid="plot-unavailable"
       >
-        Plotting your own splash zone isn’t available right now.
+        Making your own travel zone isn’t available right now.
       </Notice>
       <div v-show="!(hasSaved && offline)">
         <slot name="plot" />

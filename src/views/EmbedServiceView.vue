@@ -72,7 +72,7 @@ void loadGraph(props.slug)
     <EmbedUnavailable v-if="unavailable" />
     <template v-else>
       <MapView
-        label="Splash zone map"
+        label="Travel zone map"
         :without-map="PLOT_WITHOUT_MAP"
         flush
         hide-isochrone-legend

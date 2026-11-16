@@ -30,8 +30,8 @@ describe('progress announcements', () => {
   })
 
   it('says how many stations a splash zone reaches', () => {
-    expect(splashZoneReadyMessage(reaching(23))).toBe('Splash zone ready: 23 stations reached')
-    expect(splashZoneReadyMessage(reaching(1))).toBe('Splash zone ready: 1 station reached')
-    expect(splashZoneReadyMessage(reaching(0))).toBe('Splash zone ready: no stations reached')
+    expect(splashZoneReadyMessage(reaching(23))).toBe('Travel zone ready: 23 stations reached')
+    expect(splashZoneReadyMessage(reaching(1))).toBe('Travel zone ready: 1 station reached')
+    expect(splashZoneReadyMessage(reaching(0))).toBe('Travel zone ready: no stations reached')
   })
 })

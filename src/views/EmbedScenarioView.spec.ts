@@ -195,7 +195,7 @@ describe('EmbedScenarioView, with controls', () => {
   it('shows the splash zone key under the pill once something is plotted', async () => {
     const { wrapper } = await mountAt(`${PLOTTED}&controls=1`)
     const key = wrapper.get('[data-testid="embed-plot-key"]')
-    expect(key.attributes('aria-label')).toBe('Splash zone color key')
+    expect(key.attributes('aria-label')).toBe('Travel zone color key')
     expect(key.find('[data-testid="legend-swatch-origin"]').exists()).toBe(true)
   })
 
@@ -249,7 +249,7 @@ describe('EmbedScenarioView, not available', () => {
     const { wrapper } = await mountAt('', 'nope')
 
     const card = wrapper.get('[data-testid="embed-unavailable"]')
-    expect(card.text()).toContain('This splash zone isn’t available.')
+    expect(card.text()).toContain('This travel zone isn’t available.')
     expect(wrapper.findComponent({ name: 'MapView' }).exists()).toBe(false)
     const home = card.get('a')
     expect(home.attributes('href')).toBe(`${window.location.origin}/`)

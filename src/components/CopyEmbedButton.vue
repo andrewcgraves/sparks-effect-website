@@ -85,7 +85,7 @@ async function copy(snippet: string): Promise<void> {
         >{{ option.snippet }}</pre>
       </div>
       <p class="t-note text-ink-muted">
-        Transit splash zones make better embeds than walking ones, which stretch along the whole line.
+        Transit travel zones make better embeds than walking ones, which stretch along the whole line.
       </p>
     </div>
   </div>

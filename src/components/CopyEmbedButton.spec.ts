@@ -59,7 +59,7 @@ describe('CopyEmbedButton', () => {
     expect(writeText).toHaveBeenCalledWith(
       `<iframe src="${window.location.origin}/embed/scenario/ca-hsr?at=37.3382%2C-121.8863&amp;mode=transit&amp;mins=60"\n` +
       '  width="100%" height="480" loading="lazy" style="border:0"\n' +
-      '  title="California High-Speed Rail splash zone on Sparks Effect"></iframe>',
+      '  title="California High-Speed Rail travel zone on Sparks Effect"></iframe>',
     )
     expect(hosts.toasts()).toEqual(['Embed code copied'])
   })

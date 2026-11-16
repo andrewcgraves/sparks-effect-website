@@ -1,7 +1,7 @@
 # sparks-effect-website
 
-Vue (Vite) frontend for the Sparks Effect isochrone map — visualizing "splash zones" reachable by
-walking, biking, transit, and driving from an imaginary transit line, talking to a Go API proxy.
+Vue (Vite) frontend for the Sparks Effect isochrone map — visualizing "travel zones" reachable by
+walking, biking, transit, and driving with a new rail line as part of the trip, talking to a Go API proxy.
 
 ## Branching and releases
 
@@ -376,7 +376,7 @@ A curated scenario or a published service can be framed by another site:
 ```html
 <iframe src="https://sparks-effect.app/embed/scenario/ca-hsr?at=37.79549,-122.39374&mode=transit&mins=180"
   width="100%" height="480" loading="lazy" style="border:0"
-  title="California High-Speed Rail splash zone on Sparks Effect"></iframe>
+  title="California High-Speed Rail travel zone on Sparks Effect"></iframe>
 ```
 
 - `/embed/scenario/:slug` and `/embed/services/:slug` draw the map with no site
@@ -384,7 +384,7 @@ A curated scenario or a published service can be framed by another site:
   `sparks-effect.app ↗` link back to the full page with the same `at`, `mode`
   and `mins`.
 - Without `controls`, the map plots what `at`, `mode` and `mins` name, or, with
-  no `at`, shows the line and a scenario's saved splash zones as a row of chips.
+  no `at`, shows the line and a scenario's example travel zones as a row of chips.
   `controls=1` adds the site's plot panel, floating and minimizable.
 - "Copy embed code" on the scenario and service pages copies either snippet for
   the host it is on, with the plot on screen.

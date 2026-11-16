@@ -305,7 +305,7 @@ describe('useAuthoredGraph', () => {
       await handleIsochroneSubmit(payload)
 
       expect(isochrone).toHaveBeenCalledTimes(3)
-      expect(isochroneError.value).toBe("Couldn't plot this splash zone. Please try again.")
+      expect(isochroneError.value).toBe("Couldn't plot this travel zone. Please try again.")
       expect(isochroneLoading.value).toBe(false)
     })
 
@@ -317,7 +317,7 @@ describe('useAuthoredGraph', () => {
       await handleIsochroneSubmit(payload)
 
       expect(isochrone).toHaveBeenCalledTimes(1)
-      expect(isochroneError.value).toBe("Couldn't plot this splash zone. Please try again.")
+      expect(isochroneError.value).toBe("Couldn't plot this travel zone. Please try again.")
     })
 
     it('surfaces an error without recompiling on a non-stale failure', async () => {
@@ -327,7 +327,7 @@ describe('useAuthoredGraph', () => {
       await handleIsochroneSubmit(payload)
 
       expect(compile).not.toHaveBeenCalled()
-      expect(isochroneError.value).toBe("Couldn't plot this splash zone. Please try again.")
+      expect(isochroneError.value).toBe("Couldn't plot this travel zone. Please try again.")
     })
 
     it('fires trackIsochroneRequest on attempt with mode and budget', async () => {
@@ -355,7 +355,7 @@ describe('useAuthoredGraph', () => {
   // line the seeded one does, and the reason goes to the console.
   describe('a routing job the API failed', () => {
     const ROUTING_FAILED =
-      "Routing couldn't finish this splash zone. Please try again, or try a different starting point."
+      "Routing couldn't finish this travel zone. Please try again, or try a different starting point."
 
     beforeEach(() => {
       vi.spyOn(console, 'warn').mockImplementation(() => {})
@@ -486,7 +486,7 @@ describe('useAuthoredGraph', () => {
 
       expect(compile).not.toHaveBeenCalled()
       expect(isochroneError.value).toMatch(/busy/i)
-      expect(isochroneError.value).not.toBe("Couldn't plot this splash zone. Please try again.")
+      expect(isochroneError.value).not.toBe("Couldn't plot this travel zone. Please try again.")
     })
   })
 
@@ -806,10 +806,10 @@ describe('useAuthoredGraph', () => {
       const { handleIsochroneSubmit } = subject()
 
       const promise = handleIsochroneSubmit(payload)
-      expect(announced()).toBe('Plotting splash zone…')
+      expect(announced()).toBe('Plotting travel zone…')
       plotted.release(chain)
       await promise
-      expect(announced()).toBe('Splash zone ready: no stations reached')
+      expect(announced()).toBe('Travel zone ready: no stations reached')
     })
   })
 })

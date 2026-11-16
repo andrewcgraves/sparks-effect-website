@@ -235,7 +235,7 @@ onUnmounted(() => {
     data-testid="tour-map"
   >
     <figcaption class="sr-only">
-      A splash zone: {{ sample.budget_mins }} minutes by Transit from {{ sample.start.label }}, on the
+      A travel zone: {{ sample.budget_mins }} minutes by Transit from {{ sample.start.label }}, on the
       California High-Speed Rail network. Each step that follows says what is highlighted.
     </figcaption>
     <div

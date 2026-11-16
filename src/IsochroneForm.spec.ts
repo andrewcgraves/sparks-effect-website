@@ -377,17 +377,17 @@ describe('IsochroneForm', () => {
 
   it('renders the error prop under the submit button', () => {
     const wrapper = mount(IsochroneForm, {
-      props: { error: "Couldn't plot this splash zone. Please try again." },
+      props: { error: "Couldn't plot this travel zone. Please try again." },
     })
     const error = wrapper.find('[data-testid="fetch-error"]')
     expect(error.exists()).toBe(true)
-    expect(error.text()).toBe("Couldn't plot this splash zone. Please try again.")
+    expect(error.text()).toBe("Couldn't plot this travel zone. Please try again.")
     expect(error.attributes('role')).toBe('alert')
   })
 
   it('clears the displayed error when a field is edited', async () => {
     const wrapper = mount(IsochroneForm, {
-      props: { error: "Couldn't plot this splash zone. Please try again." },
+      props: { error: "Couldn't plot this travel zone. Please try again." },
     })
     expect(wrapper.find('[data-testid="fetch-error"]').exists()).toBe(true)
     await wrapper.find('input[data-testid="lat"]').setValue('51.5074')

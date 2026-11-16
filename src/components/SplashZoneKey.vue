@@ -18,7 +18,7 @@ const legend = computed(() =>
 <template>
   <aside
     class="rounded-(--radius-field) bg-white/92 px-3 py-2.5 shadow-(--shadow-panel)"
-    aria-label="Splash zone color key"
+    aria-label="Travel zone color key"
   >
     <ul class="m-0 flex list-none flex-col gap-1 p-0">
       <li

@@ -176,14 +176,14 @@ export const router = createRouter({
       name: 'embed-scenario',
       component: () => import('../views/EmbedScenarioView.vue'),
       props: true,
-      meta: { title: 'Splash zone map', chrome: false },
+      meta: { title: 'Travel zone map', chrome: false },
     },
     {
       path: '/embed/services/:slug',
       name: 'embed-service',
       component: () => import('../views/EmbedServiceView.vue'),
       props: true,
-      meta: { title: 'Splash zone map', chrome: false },
+      meta: { title: 'Travel zone map', chrome: false },
     },
     {
       path: '/:pathMatch(.*)*',

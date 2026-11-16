@@ -58,7 +58,7 @@ onUnmounted(() => resize?.disconnect())
   <section
     ref="tour"
     class="relative w-full"
-    aria-label="Tour of a splash zone"
+    aria-label="Tour of a travel zone"
   >
     <div class="h-[50svh] border-y border-border bg-surface lg:h-[min(75svh,44rem)]">
       <TourMap

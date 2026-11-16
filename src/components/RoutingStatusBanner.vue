@@ -15,8 +15,8 @@ const offlineMessage = computed(() => {
   // says there is nothing to offer: either could be contradicted a moment later.
   if (props.hasExamples === null) return OFFLINE
   return props.hasExamples
-    ? `${OFFLINE} Here are some saved splash zones.`
-    : `${OFFLINE} New splash zones can’t be plotted until it’s back.`
+    ? `${OFFLINE} Here are some example travel zones.`
+    : `${OFFLINE} New travel zones can’t be plotted until it’s back.`
 })
 </script>
 

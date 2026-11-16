@@ -31,14 +31,14 @@ not renamed to match, and URLs are tidied separately (SPA-456).
 | **Line** | service | Everywhere a person reads about one stopping pattern: the cover page, a published line's page, authoring ("My lines", "+ New line", "Line name", "Delete line"), publication status, admin's published list, and errors and confirmations about one |
 | **Network** | scenario | A set of lines, curated or authored: the cover page, the network page, authoring ("My networks", "+ New network", "Network name"), the network builder's list of member lines, and errors and confirmations about one |
 | **Route** | route | The geometry a line runs along. Seen mostly by authors — picking a route for a line, stops sitting on or off the route — though public route pages exist (`/routes/:slug`, in the sitemap and link previews). Never use it for a line or a network, and never say *alignment* or *track* in copy |
-| **Splash zone** | isochrone | See [Splash zone](#splash-zone) |
+| **Travel zone** | isochrone | See [Travel zone](#travel-zone) |
 | **Transfer** | handover | Moving a line to another author: "Transfer…" on a line's page, "Incoming transfers" and the "Transfer pending" badge on My authoring, and the confirms and toasts about one. The API reserves *transfer* for a rider changing service, but copy never uses it that way (a rider's change reads "Changed from"), so the product word is free. Code, test ids and API calls say *handover* |
 | **Stop** | stop | A place *on a line*: what an author adds, names, orders and snaps ("Click the map to add a stop", "A line needs at least two stops"), a published line's Stops list, a dwell hint ("Longer than most stops"), and a count of a line's calls even where the places are stations (the Stations card's "3 stops · 1 h 11 min"). The API defines a stop as *a service calling at a place*, not a place; on the authored model each stop also carries its own name and coordinate, and that is what an author edits |
 | **Station** | station / node | A place *a rider reaches*: rows of the time-remaining graph, the network page's Stations card, the map's station dots and hover, "Time between stations", "The nearest station is about …", the map key's "From station". Never "station stop" |
 | **Travel time** | budget (`budget_mins`) | How long the visitor gives a plot: the form's "Travel time", "raise the travel time", the map key's "Travel time ran out here". *Budget* stays in code and in the worker's vocabulary |
 | **Starting point** | origin | Where a plot starts: "Pick starting point on map", "Click the map to set the starting point", the time-remaining graph's top row, the map key's "From starting point". *Pin* only for the map marker itself; *origin* never in copy |
-| **Saved splash zones** | prerendered isochrone | The ready-made plots a network page offers in its one plot panel, behind the "Example travel zones" side of its switch, which the panel opens on ("Make your own" is the other, and is where a shared link opens). Choosing one draws it and fills the form with its starting point, travel time and mode. Never *pre-rendered* or *curated* in copy |
-| **Plot** | generate / enqueue | The one verb for making a splash zone: "Plot splash zone", "Plotting…". The plot panel's heading and the embed's open button read "See Your Travel Zone" instead, in title case |
+| **Example travel zones** | prerendered isochrone | The ready-made plots a network page offers in its one plot panel, behind the "Example travel zones" side of its switch, which the panel opens on ("Make your own" is the other, and is where a shared link opens). Choosing one draws it and fills the form with its starting point, travel time and mode. Never *saved*, *pre-rendered* or *curated* in copy |
+| **Plot** | generate / enqueue | The one verb for making a travel zone: "Plot a 30-min walk", "Plotting travel zone…", "Plotting…". A network may word its own plot button (its `plot_label`, ca-hsr's "Show a 30-minute HSR ride and walk"). The plot panel's heading and the embed's open button read "See Your Travel Zone" instead, in title case |
 | **Build** | compile job / compiled graph | What compiling produces. *Compile* and *Recompile* stay as the author's actions ("Compiling this line…", "Recompile"); the result is "this line's latest build", never *compiled graph* |
 | **Headway** / **every N min** | headway (`headway_s`), frequency window | Authors may read *headway* and *frequency window* on the authoring form ("Headway (min)", "Half the headway"). Anywhere else a gap between departures reads "every N min" |
 | **Walk**, **Bike**, **Drive**, **Transit** | `walk`, `bike`, `drive`, `transit` | The travel-mode labels, held once in `MODE_LABELS` (`src/copy/modes.ts`) with the matching trip nouns ("bike ride", "transit trip"). Never the raw lowercase mode. A route's own mode (`rail`, `metro`, …) is a different thing, shown only to authors |
@@ -62,11 +62,15 @@ named through `authoringFault.ts`'s field maps, and a spec walks every field of
 *Line* also names a drawn stroke on the route map ("The three states of a line",
 below). That is a word for developers about drawing, not copy.
 
-## Splash zone
+## Travel zone
 
 The product-facing name for an isochrone — the area reachable from a starting
-point within a travel time. Used in every heading, button, map key and message a
-person reads; the code, the API and the analytics events say *isochrone*.
+point within a travel time, the "colored-in area" of ca-hsr's description. Used
+in every heading, button, map key and message a person reads; the code, the API
+and the analytics events say *isochrone*. It replaced *splash zone* in copy
+(SPA-554, SPA-555 and the cover page after them); identifiers that still say
+splash zone (`SplashZoneKey`, `PLOTTING_SPLASH_ZONE`, `splashZoneModules`) were
+left as they are, like every other identifier this table does not rename.
 
 ## A network's description
 
@@ -89,7 +93,7 @@ and **short** (room to aim), and arming tap-to-pick shortens it. The panel is
 the page's one scroller: a card that caps and scrolls its own list elsewhere
 lets the panel scroll it here (`PHONE_PANEL_SCROLLER`), so one swipe runs the
 panel's whole length (SPA-508). Every phone
-map page has a **Plot** tab (the splash-zone form and whatever plots with it)
+map page has a **Plot** tab (the travel-zone form and whatever plots with it)
 and a **Results** tab (the time-remaining graph), disabled until a plot reaches
 a station; the page adds its own after them — About on the network page, Stops
 and About on a line's page, Interchanges where stops did not connect. The

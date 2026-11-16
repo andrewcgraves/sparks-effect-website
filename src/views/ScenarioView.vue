@@ -148,7 +148,7 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
     >
       <template #map>
         <MapView
-          label="Splash zone map"
+          label="Travel zone map"
           :without-map="PLOT_WITHOUT_MAP"
           flush
           :origin="origin"
@@ -284,7 +284,7 @@ const { tabs: phoneTabs, tab: phoneTab } = usePhoneMapTabs({
     <div class="mt-8 grid grid-cols-1 items-start gap-4 lg:grid-cols-[2fr_1fr] lg:grid-rows-[auto_1fr]">
       <div class="h-[70vh] lg:col-start-1 lg:row-start-1">
         <MapView
-          label="Splash zone map"
+          label="Travel zone map"
           :without-map="PLOT_WITHOUT_MAP"
           :origin="origin"
           :isochrone-data="isochroneData"

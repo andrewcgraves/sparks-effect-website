@@ -410,7 +410,7 @@ describe('ScenarioView', () => {
     await flushPromises()
     expect(wrapper.findComponent({ name: 'MapView' }).props('loading')).toBe(false)
     expect(wrapper.findComponent({ name: 'IsochroneForm' }).props('error')).toBe(
-      "Couldn't plot this splash zone. Please try again.",
+      "Couldn't plot this travel zone. Please try again.",
     )
   })
 
@@ -1071,7 +1071,7 @@ describe('ScenarioView', () => {
       const wrapper = await mountWithOrigin()
 
       expect(wrapper.get('[data-testid="routing-status"]').text())
-        .toBe('Live routing is offline right now. Here are some saved splash zones.')
+        .toBe('Live routing is offline right now. Here are some example travel zones.')
       expect(shown(wrapper.get('[data-testid="plot-saved"]').element)).toBe(true)
       expect(shown(wrapper.get('[data-testid="plot-own"]').element)).toBe(false)
 
@@ -1111,7 +1111,7 @@ describe('ScenarioView', () => {
       answerList([saved])
       await flushPromises()
       expect(wrapper.get('[data-testid="routing-status"]').text())
-        .toBe('Live routing is offline right now. Here are some saved splash zones.')
+        .toBe('Live routing is offline right now. Here are some example travel zones.')
     })
 
     it('only explains, without promising examples, for a network that ships none', async () => {

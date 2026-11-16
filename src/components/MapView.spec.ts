@@ -268,8 +268,8 @@ describe('MapView', () => {
   })
 
   it('takes the name its page gives it', () => {
-    const wrapper = mount(MapView, { props: { ...defaultProps, label: 'Splash zone map' } })
-    expect(wrapper.get('[role="region"]').attributes('aria-label')).toBe('Splash zone map')
+    const wrapper = mount(MapView, { props: { ...defaultProps, label: 'Travel zone map' } })
+    expect(wrapper.get('[role="region"]').attributes('aria-label')).toBe('Travel zone map')
   })
 
   it('is a framed card with room for a stacked page by default', () => {
@@ -545,7 +545,7 @@ describe('MapView', () => {
       expect(reports).toHaveLength(1)
       expect(reports[0].context).toMatchObject({ map_failure: 'no-webgl' })
       expect(mockOn).not.toHaveBeenCalled()
-      expect(wrapper.find('[aria-label="Splash zone color key"]').exists()).toBe(false)
+      expect(wrapper.find('[aria-label="Travel zone color key"]').exists()).toBe(false)
     })
 
     it('says the map could not load when an error arrives before load', async () => {
@@ -633,12 +633,12 @@ describe('MapView', () => {
         throw new Error('WebGL2 is required to display this map')
       })
       const wrapper = mount(MapView, {
-        props: { ...defaultProps, withoutMap: 'You can still plot a splash zone and read the results.' },
+        props: { ...defaultProps, withoutMap: 'You can still plot a travel zone and read the results.' },
       })
       await wrapper.vm.$nextTick()
 
       expect(wrapper.get('[data-testid="map-failed"]').text()).toBe(
-        "This browser can't draw the map. You can still plot a splash zone and read the results.",
+        "This browser can't draw the map. You can still plot a travel zone and read the results.",
       )
     })
 
@@ -1207,7 +1207,7 @@ describe('MapView', () => {
 
   it('renders one color key row for the splash zone', () => {
     const wrapper = mount(MapView, { props: defaultProps })
-    const legend = wrapper.get('[aria-label="Splash zone color key"]')
+    const legend = wrapper.get('[aria-label="Travel zone color key"]')
     expect(legend.text()).toContain('Reachable in time')
     expect(legend.findAll('[data-testid^="legend-swatch-"]')).toHaveLength(1)
     expect(legend.text()).not.toContain('From station')
@@ -1216,7 +1216,7 @@ describe('MapView', () => {
 
   it('lists its swatches without a heading above them', () => {
     const wrapper = mount(MapView, { props: defaultProps })
-    const legend = wrapper.get('[aria-label="Splash zone color key"]')
+    const legend = wrapper.get('[aria-label="Travel zone color key"]')
     expect(legend.text()).not.toContain('Splash zone key')
     expect(legend.find('.t-eyebrow').exists()).toBe(false)
   })
@@ -1245,7 +1245,7 @@ describe('MapView', () => {
         },
       },
     })
-    const legend = wrapper.get('[aria-label="Splash zone color key"]')
+    const legend = wrapper.get('[aria-label="Travel zone color key"]')
     expect(legend.text()).toContain('Travel time ran out here')
 
     // Ink dashes stopping on a bare ink dot, as the stub is drawn on the map.
@@ -1261,7 +1261,7 @@ describe('MapView', () => {
   // route the rider was being sent down.
   it('names the starter walk in the key as the first leg, in the origin colour', () => {
     const wrapper = mount(MapView, { props: { ...defaultProps, isochroneData: walkedToStub } })
-    const legend = wrapper.get('[aria-label="Splash zone color key"]')
+    const legend = wrapper.get('[aria-label="Travel zone color key"]')
     expect(legend.text()).toContain('First leg — nearest station')
 
     // Origin-blue dashes from the origin pin's coral to a ringed station dot, so
@@ -1275,7 +1275,7 @@ describe('MapView', () => {
 
   it('leaves the starter walk out of the key when there is no walk to draw', () => {
     const noWalk = mount(MapView, { props: { ...defaultProps, isochroneData: chainWith(walkedToStub.metadata.reachable_stations) } })
-    expect(noWalk.get('[aria-label="Splash zone color key"]').text()).not.toContain('First leg')
+    expect(noWalk.get('[aria-label="Travel zone color key"]').text()).not.toContain('First leg')
 
     // A walk naming a station the plot does not list is not drawn either.
     const contradicted = mount(MapView, {
@@ -1284,12 +1284,12 @@ describe('MapView', () => {
         isochroneData: chainWith(walkedToStub.metadata.reachable_stations, { ...routedToStub, station_slug: 'nowhere' }),
       },
     })
-    expect(contradicted.get('[aria-label="Splash zone color key"]').text()).not.toContain('First leg')
+    expect(contradicted.get('[aria-label="Travel zone color key"]').text()).not.toContain('First leg')
   })
 
   it('hides the isochrone legend when hideIsochroneLegend is set', () => {
     const wrapper = mount(MapView, { props: { ...defaultProps, hideIsochroneLegend: true } })
-    expect(wrapper.find('[aria-label="Splash zone color key"]').exists()).toBe(false)
+    expect(wrapper.find('[aria-label="Travel zone color key"]').exists()).toBe(false)
   })
 
   it('adds a fullscreen control so the map can be expanded', () => {
@@ -1537,10 +1537,10 @@ describe('MapView', () => {
       const wrapper = mount(MapView, { props: { ...defaultProps, placementArmed: true, placementCue: 'Click the map to set the starting point — Esc to cancel' } })
       await triggerMapLoad()
 
-      expect(wrapper.find('[aria-label="Splash zone color key"]').exists()).toBe(false)
+      expect(wrapper.find('[aria-label="Travel zone color key"]').exists()).toBe(false)
 
       await wrapper.setProps({ placementArmed: false })
-      expect(wrapper.find('[aria-label="Splash zone color key"]').exists()).toBe(true)
+      expect(wrapper.find('[aria-label="Travel zone color key"]').exists()).toBe(true)
     })
 
     it('does not place a stop when an armed click lands on an existing pin', async () => {

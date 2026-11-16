@@ -35,9 +35,9 @@ fetchCoverIndex()
         class="max-w-[560px]"
         data-testid="cover-lede"
       >
-        A splash zone is everywhere you can reach from one spot within a set travel time, on foot,
-        by bike, by car, or by riding a hypothetical transit line. Pick a line or network below,
-        then choose where to start.
+        How far could a new rail line take you? Pick a line or network below and choose your
+        starting point. The colored-in area is your travel zone: everywhere you can get in the time
+        you have, whether you walk, bike, drive or ride local transit to the station.
       </p>
       <router-link
         to="/how-it-works"

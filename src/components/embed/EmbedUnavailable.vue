@@ -14,7 +14,7 @@ const home = `${window.location.origin}/`
       data-testid="embed-unavailable"
     >
       <p class="t-subhead text-ink-true">
-        This splash zone isn’t available.
+        This travel zone isn’t available.
       </p>
       <p class="t-note text-ink-muted">
         The link may be mistyped, or what it showed may have been taken down. If it worked before, try again later.

@@ -14,7 +14,7 @@ Deps install automatically via `make install`; targets depend on it.
 
 ## Domain vocabulary
 
-[`CONTEXT.md`](CONTEXT.md) defines this repository's own words — splash zone, the
+[`CONTEXT.md`](CONTEXT.md) defines this repository's own words — travel zone, the
 route map's ridden / unridden / unfinished line states, and the time-remaining
 graph's view / row / lane / through / fork. Shared domain vocabulary (scenario,
 service, station, node, edge, dwell, boarding wait, mode vs costing, the error
@@ -23,7 +23,7 @@ codes, the job statuses) is defined once in
 and chain vocabulary in
 [sparks-effect-routing-worker's](https://github.com/andrewcgraves/sparks-effect-routing-worker/blob/main/CONTEXT.md).
 Use those words; do not mint synonyms. Visitor copy follows the Product
-vocabulary table in `CONTEXT.md`: product words (line, network, route, splash
+vocabulary table in `CONTEXT.md`: product words (line, network, route, travel
 zone) in anything a person reads, domain words in identifiers, test ids, router
 names, URLs and API fields.
 

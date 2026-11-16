@@ -20,7 +20,7 @@ describe('embedSnippet', () => {
       .toBe(
         '<iframe src="https://sparks-effect.app/embed/scenario/ca-hsr?at=37.79549%2C-122.39374&amp;mode=transit&amp;mins=180"\n' +
         '  width="100%" height="480" loading="lazy" style="border:0"\n' +
-        '  title="California HSR splash zone on Sparks Effect"></iframe>',
+        '  title="California HSR travel zone on Sparks Effect"></iframe>',
       )
   })
 
@@ -43,7 +43,7 @@ describe('embedSnippet', () => {
 
   it('keeps a name from breaking out of the title', () => {
     const snippet = embedSnippet({ origin: 'https://sparks-effect.app', target: SCENARIO, name: 'A "B" & <C>', query: {}, controls: false })
-    expect(snippet).toContain('title="A &quot;B&quot; &amp; &lt;C&gt; splash zone on Sparks Effect"')
+    expect(snippet).toContain('title="A &quot;B&quot; &amp; &lt;C&gt; travel zone on Sparks Effect"')
   })
 })
 
