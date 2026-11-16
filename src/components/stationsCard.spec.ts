@@ -126,6 +126,18 @@ describe('stationLines', () => {
     expect(hsr.stops).toEqual(['sf', 'sj', 'fresno', 'bfd', 'palmdale'])
   })
 
+  // The HSR Nonstop's sf → los-angeles run (SPA-534) shares the route with the
+  // hops it runs past; chained in served order it put Los Angeles on the line
+  // twice (SPA-557).
+  it.each([
+    ['last', [...segments, { from: 'sf', to: 'palmdale', run_seconds: 7000, route_id: 'hsr' }]],
+    ['first', [{ from: 'sf', to: 'palmdale', run_seconds: 7000, route_id: 'hsr' }, ...segments]],
+  ])('leaves a run past stations already on the line out of its stops, served %s', (_, served) => {
+    const [line] = stationLines(served, routes, name)
+    expect(line.stops).toEqual(['sf', 'sj', 'fresno', 'bfd', 'palmdale'])
+    expect(line.hops.map((hop) => hop.seconds)).toEqual([900, 3000, 1500, 1800])
+  })
+
   it('names a line no route is on after its two ends', () => {
     const [line] = stationLines([{ from: 'sf', to: 'sj', run_seconds: 900 }], [], name)
     expect(line.label).toBe('San Francisco – San Jose')

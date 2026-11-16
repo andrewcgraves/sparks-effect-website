@@ -55,6 +55,30 @@ export function stationNames(stations: Station[]): (slug: string) => string {
   return (slug) => names.get(slug) ?? UNNAMED_STATION
 }
 
+// A run whose end the route's other runs already reach from its start: the
+// HSR Nonstop's sf → los-angeles (SPA-534) is a timing between two stops on
+// the line, not a hop of it. Chained in, it put Los Angeles on the line twice
+// (SPA-557). A run served twice with the same ends is not a way past itself.
+function runsPast(segment: SegmentTime, segments: SegmentTime[]): boolean {
+  const onward = new Map<string, string[]>()
+  for (const hop of segments) {
+    if (hop.from === segment.from && hop.to === segment.to) continue
+    onward.set(hop.from, [...(onward.get(hop.from) ?? []), hop.to])
+  }
+  const seen = new Set<string>()
+  const queue = [segment.from]
+  while (queue.length) {
+    for (const to of onward.get(queue.pop()!) ?? []) {
+      if (to === segment.to) return true
+      if (!seen.has(to)) {
+        seen.add(to)
+        queue.push(to)
+      }
+    }
+  }
+  return false
+}
+
 // One line per route, in the order the routes first appear, so the card reads
 // in the order the API served it. Segments from an API that reports no
 // route_id all land in one line, the pre-SPA-245 behaviour.
@@ -69,7 +93,8 @@ export function stationLines(
     if (hops) hops.push(segment)
     else byRoute.set(segment.route_id, [segment])
   }
-  return Array.from(byRoute, ([routeId, hops]) => {
+  return Array.from(byRoute, ([routeId, served]) => {
+    const hops = served.filter((hop) => !runsPast(hop, served))
     const stops = [hops[0].from, ...hops.map((hop) => hop.to)]
     return {
       key: routeId ?? 'seeded',
