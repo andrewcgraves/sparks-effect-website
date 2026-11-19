@@ -100,8 +100,11 @@ describe('AttributionView', () => {
   it('names every agency whose schedules the routing graph holds, linked to its feed, with the generation they came from', async () => {
     const paragraph = (await mountView()).get('[data-testid="all-agencies"]')
     expect(paragraph.text().replace(/\s+/g, ' ')).toContain(
-      `Schedules from these agencies, found through the Mobility Database (generation ${GENERATION}, fetched ${MANIFEST_DATE}):`,
+      `We also route on schedules from ${TRANSIT_AGENCIES.length} agencies, found through the Mobility Database (generation ${GENERATION}, fetched ${MANIFEST_DATE}).`,
     )
+    // The list is long, so it starts collapsed behind a disclosure.
+    expect(paragraph.get('details').attributes('open')).toBeUndefined()
+    expect(paragraph.get('summary').text()).toBe(`Show all ${TRANSIT_AGENCIES.length} agencies`)
     const links = paragraph.findAll('a').map((a) => [a.text(), a.attributes('href')])
     expect(links[0]).toEqual(['Mobility Database', 'https://mobilitydatabase.org'])
     expect(links.slice(1)).toEqual(TRANSIT_AGENCIES.map(({ name, href }) => [name, href]))

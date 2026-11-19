@@ -49,8 +49,6 @@ const CC_BY_4_FEEDS = inProse([
   { name: 'Bellflower Bus', href: 'https://gtfs.remix.com/CalITP.zip' },
   { name: 'The Santa Cruzer', href: 'https://www.pinpointavl.com/santacruzer.zip' },
 ], ', ')
-
-const ALL_AGENCIES = inProse(TRANSIT_AGENCIES, ' and ')
 </script>
 
 <!-- The wording below is what SPA-419 found each licence to require. Change a
@@ -153,18 +151,27 @@ const ALL_AGENCIES = inProse(TRANSIT_AGENCIES, ' and ')
       <li>Schedule data provided by LA Metro.</li>
       <li>Route and schedule data provided by permission of San Joaquin RTD.</li>
     </ul>
-    <p
-      :class="PROSE_P_CLASS"
-      data-testid="all-agencies"
-    >
-      Schedules from these agencies, found through the
-      <ExternalLink href="https://mobilitydatabase.org">Mobility Database</ExternalLink>
-      (generation {{ GENERATION }}, fetched {{ MANIFEST_DATE }}):
-      <span
-        v-for="agency in ALL_AGENCIES"
-        :key="agency.name"
-      ><ExternalLink :href="agency.href">{{ agency.name }}</ExternalLink>{{ agency.after }}</span>.
-    </p>
+    <div data-testid="all-agencies">
+      <p :class="PROSE_P_CLASS">
+        We also route on schedules from {{ TRANSIT_AGENCIES.length }} agencies, found through the
+        <ExternalLink href="https://mobilitydatabase.org">Mobility Database</ExternalLink>
+        (generation {{ GENERATION }}, fetched {{ MANIFEST_DATE }}).
+      </p>
+      <details class="mt-2">
+        <summary class="t-meta cursor-pointer text-ink-muted">
+          Show all {{ TRANSIT_AGENCIES.length }} agencies
+        </summary>
+        <ul class="t-meta mt-2 gap-x-6 text-ink-muted sm:columns-2">
+          <li
+            v-for="agency in TRANSIT_AGENCIES"
+            :key="agency.name"
+            class="break-inside-avoid py-0.5"
+          >
+            <ExternalLink :href="agency.href">{{ agency.name }}</ExternalLink>
+          </li>
+        </ul>
+      </details>
+    </div>
 
     <h2
       id="address-search"
