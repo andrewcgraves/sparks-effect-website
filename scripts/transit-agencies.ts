@@ -2,8 +2,14 @@
 // credits, from the serving generation's gtfs-manifest.csv. Rerun it whenever
 // `make cycle-tiles` moves production to a new generation:
 //
-//   kubectl -n sparks-effect exec deploy/valhalla -c valhalla -- \
+//   railway ssh --project sparks-effect --environment production \
+//     --service valhalla -- \
 //     cat /custom_files/<generation>/gtfs-manifest.csv > gtfs-manifest.csv
+//
+// <generation> is `path_extension` in kustomize-config's .railway/railway.ts.
+// Read it from `valhalla`, the service serving that generation: valhalla-build
+// deletes its copy once the tarball is in the bucket. `railway ssh` needs an
+// SSH key (`ssh-keygen -t ed25519`), which it registers on first use.
 //   make transit-agencies MANIFEST=gtfs-manifest.csv GENERATION=<generation>
 //
 // The manifest does not record which generation it belongs to, so that is the

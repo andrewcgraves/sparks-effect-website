@@ -12,7 +12,7 @@ import { CONTACT_EMAIL, CONTACT_MAILTO, SOURCE_URL } from '../legal/contact'
 import { GENERATION, MANIFEST_DATE, TRANSIT_AGENCIES } from '../legal/transitAgencies'
 import { resolveTileCredit } from '../mapStyle'
 
-const UPDATED = '2026-10-15'
+const UPDATED = '2026-11-18'
 
 const tileCredit = resolveTileCredit()
 

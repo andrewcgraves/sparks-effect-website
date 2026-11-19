@@ -41,7 +41,7 @@ tour-fixture: install
 # Regenerates the attribution page's agency list (src/legal/transitAgencies.ts)
 # from a generation's gtfs-manifest.csv. Run it whenever `make cycle-tiles`
 # moves production to a new generation; scripts/transit-agencies.ts has the
-# kubectl command that exports the manifest.
+# railway ssh command that exports the manifest.
 transit-agencies: install
 	npm run attribution:agencies -- "$(MANIFEST)" "$(GENERATION)"
 
