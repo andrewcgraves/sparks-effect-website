@@ -15,7 +15,7 @@ export interface TourStep {
   camera: TourCamera
 }
 
-type KeySource = 'origin' | 'egress' | 'starter' | 'unfinished'
+type KeySource = 'starter' | 'unfinished'
 
 const KEY = Object.fromEntries(
   // The key's own labels, so a step and the map it explains never name the
@@ -44,7 +44,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   },
   {
     id: 'origin-reach',
-    name: KEY.origin,
+    name: 'From starting point',
     swatch: 'origin',
     caption: 'Everywhere you could get without the line, by walking, biking, driving or local transit.',
     lit: ['origin-fill', 'origin-marker'],
@@ -54,13 +54,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: 'ridden',
     name: 'Ridden',
     swatch: 'ridden',
-    caption: 'The parts of the line a trip rides. Orange stations are reached in time; white ones aren’t.',
+    caption: 'The parts of the line a trip rides. Coral stations are reached in time; white ones aren’t.',
     lit: ['ridden-line', 'station-dots'],
     camera: 'regional',
   },
   {
     id: 'egress',
-    name: KEY.egress,
+    name: 'From station',
     swatch: 'egress',
     caption: `Where you could go after getting off, in the time left. ${stationNamed('palmdale').name} is reached with ${palmdaleMins} minutes to spare, so its area is small.`,
     lit: ['egress-fill', 'station-dots'],

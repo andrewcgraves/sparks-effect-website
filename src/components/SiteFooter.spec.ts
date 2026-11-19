@@ -76,16 +76,21 @@ describe('SiteFooter', () => {
       { path: '/attribution', component: Blank },
       { path: '/privacy', component: Blank },
       { path: '/terms', component: Blank },
-      { path: '/how-it-works', component: Blank },
+      { path: '/about', component: Blank },
     ])
     const links = wrapper.findAll('[data-testid="footer-links"] a')
     expect(links.map((link) => [link.text(), link.attributes('href')])).toEqual([
-      ['How it works', '/how-it-works'],
+      ['About', '/about'],
       ['Privacy', '/privacy'],
       ['Terms', '/terms'],
       ['Attribution', '/attribution'],
       ['Report a problem', '/report'],
     ])
+  })
+
+  it('leaves How it works to the header (SPA-525)', () => {
+    const wrapper = mountFooter([{ path: '/how-it-works', component: Blank }])
+    expect(wrapper.findAll('[data-testid="footer-links"] a')).toHaveLength(0)
   })
 
   it('links only the pages whose routes exist', () => {
@@ -101,6 +106,15 @@ describe('SiteFooter', () => {
     ])
     for (const link of wrapper.findAll('[data-testid="footer-links"] a')) {
       expect(link.classes()).toEqual(expect.arrayContaining(['pointer-coarse:py-3', 'pointer-coarse:-my-3']))
+    }
+  })
+
+  it('hovers every credit link to ink like the page links, not left without a hover (SPA-519)', () => {
+    const wrapper = mountFooter([{ path: '/attribution', component: Blank }])
+    const credits = wrapper.findAll('p a')
+    expect(credits.length).toBeGreaterThanOrEqual(6)
+    for (const link of credits) {
+      expect(link.classes()).toEqual(expect.arrayContaining(['underline', 'hover:text-ink', 'hover:decoration-2']))
     }
   })
 })

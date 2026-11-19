@@ -16,7 +16,7 @@ defineEmits<{ delete: [] }>()
     <summary :class="[ACTION_LINK_CLASS, 'list-none']">
       More
     </summary>
-    <div class="absolute right-0 z-10 mt-2 rounded-(--radius-box) border border-border bg-surface p-2 shadow-sm">
+    <div class="absolute right-0 z-10 mt-2 rounded-(--radius-box) border border-border bg-surface p-2 shadow-(--shadow-panel)">
       <button
         type="button"
         :class="[DESTRUCTIVE_BUTTON_CLASS, 'whitespace-nowrap']"

@@ -3,4 +3,4 @@
 // network silently drops the tile host is not left watching a skeleton.
 export const MAP_LOAD_TIMEOUT_MS = 20_000
 
-export const PLOT_WITHOUT_MAP = 'You can still plot a splash zone and read the results.'
+export const PLOT_WITHOUT_MAP = 'You can still plot a travel zone and read the results.'

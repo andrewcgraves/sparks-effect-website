@@ -74,11 +74,12 @@ describe('CoverPage', () => {
     expect(wrapper.get('[data-testid="cover-how-it-works"]').attributes('href')).toBe('/how-it-works')
   })
 
-  it('says what a splash zone is and what to do, without calling itself temporary', async () => {
+  it('says what a travel zone is and what to do, without calling itself temporary', async () => {
     vi.mocked(fetchCoverIndex).mockResolvedValue(index([]))
     const { wrapper } = await mountCover()
     const lede = wrapper.get('[data-testid="cover-lede"]').text()
-    expect(lede).toContain('splash zone')
+    expect(lede).toContain('travel zone')
+    expect(lede).not.toMatch(/splash zone/i)
     expect(lede).toContain('Pick a line or network below')
     expect(lede).not.toMatch(/temporary/i)
     expect(lede).not.toMatch(/isochrone/i)

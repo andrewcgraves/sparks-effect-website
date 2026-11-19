@@ -62,7 +62,7 @@ export function tooltipStyle(placement: TooltipPlacement): Record<string, string
 
 export function tooltipContent(text: string): HTMLElement {
   const node = document.createElement('div')
-  node.className = `${TOOLTIP_PANEL_CLASS} font-body text-caption text-ink`
+  node.className = `${TOOLTIP_PANEL_CLASS} t-meta text-ink`
   node.textContent = text
   return node
 }
@@ -80,20 +80,22 @@ export function progressTooltipContent(
   return tooltipContent(progressTooltipText(fraction, stationName, rideSecs))
 }
 
-export function stationTooltipContent(name: string, remainingSecs: number | null): HTMLElement {
+export function stationTooltipContent(name: string, elapsedSecs: number | null): HTMLElement {
   const node = document.createElement('div')
   node.className = TOOLTIP_PANEL_CLASS
 
   const title = document.createElement('p')
-  title.className = 'font-body text-caption text-ink'
+  title.className = 't-meta text-ink'
   title.textContent = name
   node.append(title)
 
-  if (remainingSecs !== null) {
-    const remaining = document.createElement('p')
-    remaining.className = 'font-body text-micro tabular-nums text-ink-muted'
-    remaining.textContent = `${formatTimeRemaining(remainingSecs)} left`
-    node.append(remaining)
+  if (elapsedSecs !== null) {
+    const elapsed = document.createElement('p')
+    elapsed.className = 't-meta tabular-nums text-ink-muted'
+    // Rounded up where the card rounds the time left down, so the two still
+    // add up to the travel time: 11m to get here, 1h 49m left of 2h.
+    elapsed.textContent = `${formatTimeRemaining(Math.ceil(elapsedSecs / 60) * 60)} to get here`
+    node.append(elapsed)
   }
 
   return node

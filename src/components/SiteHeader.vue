@@ -13,13 +13,14 @@ const NAV_PAGES = [
   { label: 'Networks', path: '/networks' },
   { label: 'Lines', path: '/lines' },
   { label: 'How it works', path: '/how-it-works' },
+  { label: 'About', path: '/about' },
 ]
 
 const PRIMARY_LINK_CLASS =
   `${ACTION_LINK_BASE_CLASS} flex h-full items-center border-b-2 border-transparent aria-[current=page]:border-coral aria-[current=page]:text-ink`
 
 const SHEET_LINK_CLASS =
-  'font-display text-btn block w-full cursor-pointer py-3 text-left text-ink uppercase transition-colors duration-200 ease-(--ease-smooth) hover:text-coral aria-[current=page]:text-coral'
+  'font-display text-btn block w-full cursor-pointer py-3 text-left text-ink uppercase underline-offset-4 transition-colors duration-200 ease-(--ease-smooth) hover:underline aria-[current=page]:underline aria-[current=page]:decoration-coral aria-[current=page]:decoration-2'
 
 const auth = useAuthStore()
 const route = useRoute()
@@ -84,7 +85,7 @@ onBeforeUnmount(() => wide?.removeEventListener('change', onWideChange))
     <div class="flex h-full items-center gap-8">
       <RouterLink
         to="/"
-        :class="`${HIT_AREA_CLASS} font-display text-[17px] font-bold tracking-tight text-ink-true`"
+        :class="`${HIT_AREA_CLASS} t-wordmark text-ink-true`"
         data-testid="nav-home"
       >
         Sparks Effect
@@ -157,7 +158,7 @@ onBeforeUnmount(() => wide?.removeEventListener('change', onWideChange))
         v-if="auth.isAuthenticated"
         class="py-2"
       >
-        <p class="font-body text-caption truncate pt-2 text-ink-muted">
+        <p class="t-meta truncate pt-2 text-ink-muted">
           {{ accountLabel }}
         </p>
         <nav aria-label="Account">

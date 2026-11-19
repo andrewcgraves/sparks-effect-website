@@ -7,6 +7,9 @@ export interface InstallStoresOptions {
   // Called after local auth state is cleared; the app uses it to send the user
   // to sign in, which keeps the stores free of the router.
   onSessionExpired?: () => void
+  // For an app that must never act as the visitor — an embed another site
+  // frames: no request carries the session, and none is restored.
+  anonymous?: boolean
 }
 
 // Only a 401 for the token still in force expires the session: once the first
@@ -16,6 +19,12 @@ export function installStores(app: App, options: InstallStoresOptions = {}): voi
   const pinia = createPinia()
   app.use(pinia)
 
+  // Before the auth store exists: creating it reads the persisted session.
+  if (options.anonymous) {
+    setAuthTokenProvider(() => null)
+    setUnauthorizedHandler(null)
+    return
+  }
   const auth = useAuthStore(pinia)
   setAuthTokenProvider(() => auth.token)
   setUnauthorizedHandler((sentToken) => {

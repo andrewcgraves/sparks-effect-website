@@ -55,6 +55,7 @@ describe('SiteHeader', () => {
 
   it('links each primary page once its route exists, in a fixed order', async () => {
     const wrapper = await mountHeader([
+      { path: '/about', component: Blank },
       { path: '/how-it-works', component: Blank },
       { path: '/lines', component: Blank },
       { path: '/networks', component: Blank },
@@ -63,6 +64,7 @@ describe('SiteHeader', () => {
       ['Networks', '/networks'],
       ['Lines', '/lines'],
       ['How it works', '/how-it-works'],
+      ['About', '/about'],
     ])
   })
 
@@ -415,6 +417,7 @@ describe('SiteHeader', () => {
         { path: '/networks', component: Blank },
         { path: '/lines', component: Blank },
         { path: '/how-it-works', component: Blank },
+        { path: '/about', component: Blank },
       ],
       '/lines',
       document.body,

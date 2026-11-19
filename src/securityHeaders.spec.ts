@@ -6,6 +6,8 @@ import { resolve } from 'node:path'
 import { resolveTilePreconnectOrigin } from './tileHost'
 import { fetchSuggestions, lookupPlace, reverseGeocode } from './api/geocoding'
 import {
+  CATCH_ALL_SOURCE,
+  EMBED_SOURCE,
   SECURITY_HEADER_KEYS,
   apiOriginMissingFromCsp,
   cspDirectives as parseCsp,
@@ -16,10 +18,15 @@ const vercelConfig = JSON.parse(readFileSync(resolve(process.cwd(), 'vercel.json
   headers: VercelHeaderRule[]
 }
 
-const catchAll = vercelConfig.headers.find((rule) => rule.source === '/(.*)')
+const catchAll = vercelConfig.headers.find((rule) => rule.source === CATCH_ALL_SOURCE)
+const embed = vercelConfig.headers.find((rule) => rule.source === EMBED_SOURCE)
+
+function ruleHeader(rule: VercelHeaderRule | undefined, key: string): string | undefined {
+  return rule?.headers.find((h) => h.key.toLowerCase() === key.toLowerCase())?.value
+}
 
 function header(key: string): string | undefined {
-  return catchAll?.headers.find((h) => h.key.toLowerCase() === key.toLowerCase())?.value
+  return ruleHeader(catchAll, key)
 }
 
 // Report-Only until a clean week on staging; then this flips to true and
@@ -106,10 +113,44 @@ describe('vercel.json security headers', () => {
   })
 })
 
+// The embed routes are the one place a foreign page may frame the site, and
+// Vercel cannot unset a header another matching rule set — so the catch-all
+// stops matching them and this rule repeats its headers. These keep the copy
+// from drifting.
+describe('vercel.json embed headers', () => {
+  const withoutFrameAncestors = (policy: string | undefined) =>
+    [...parseCsp(policy ?? '')].filter(([name]) => name !== 'frame-ancestors')
+
+  it('keeps the catch-all off the embed routes and the embed rule on nothing else', () => {
+    expect(embed).toBeDefined()
+    expect(CATCH_ALL_SOURCE).toBe('/((?!embed/).*)')
+    expect(EMBED_SOURCE).toBe('/embed/(.*)')
+  })
+
+  it('lets any page frame an embed, and only an embed', () => {
+    expect(parseCsp(ruleHeader(embed, CSP_KEY) ?? '').get('frame-ancestors')).toEqual(['*'])
+    expect(ruleHeader(embed, 'X-Frame-Options')).toBeUndefined()
+    expect(cspDirectives().get('frame-ancestors')).toEqual(["'none'"])
+    expect(header('X-Frame-Options')).toBe('DENY')
+  })
+
+  it('sends the same CSP as everywhere else but for frame-ancestors, under the same key', () => {
+    expect(ruleHeader(embed, OTHER_CSP_KEY)).toBeUndefined()
+    expect(withoutFrameAncestors(ruleHeader(embed, CSP_KEY))).toEqual(withoutFrameAncestors(header(CSP_KEY)))
+  })
+
+  it('sends every other catch-all header unchanged, and asks not to be indexed', () => {
+    const others = (rule: VercelHeaderRule | undefined) =>
+      (rule?.headers ?? []).filter(({ key }) => !/^(content-security-policy(-report-only)?|x-frame-options|x-robots-tag)$/i.test(key))
+    expect(others(embed)).toEqual(others(catchAll))
+    expect(ruleHeader(embed, 'X-Robots-Tag')).toBe('noindex')
+  })
+})
+
 describe('apiOriginMissingFromCsp', () => {
   const rules = (key: string, policy: string): VercelHeaderRule[] => [
     { source: '/assets/(.*)', headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }] },
-    { source: '/(.*)', headers: [{ key, value: policy }] },
+    { source: CATCH_ALL_SOURCE, headers: [{ key, value: policy }] },
   ]
 
   it('passes both API hosts vercel.json names', () => {

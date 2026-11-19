@@ -19,6 +19,7 @@ import { AUTHORING_CRUMB, type Crumb } from '../components/crumbs'
 import { PRIMARY_BUTTON_CLASS } from '../components/buttonStyles'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
 import { ACTION_LINK_CLASS } from '../components/linkStyles'
+import PageHeader from '../components/PageHeader.vue'
 
 // One view for both writes, as with services: only the heading, the button,
 // where the form's state lives and where a save ends up differ.
@@ -229,20 +230,21 @@ async function handleSave(): Promise<void> {
 <template>
   <main class="flex-1 p-(--page-padding)">
     <BreadcrumbTrail :items="trail" />
-    <h1 class="mt-8 font-display text-display text-ink-true">
-      {{ slug ? 'Edit network' : 'New network' }}
-    </h1>
+    <PageHeader
+      class="mt-8"
+      :title="slug ? 'Edit network' : 'New network'"
+    />
 
     <p
       v-if="editNotFound"
-      class="font-body text-body mt-3 text-ink-muted"
+      class="t-body mt-3 text-ink-muted"
       data-testid="scenario-not-found"
     >
       No network of yours matches "{{ slug }}".
     </p>
     <p
       v-else-if="editLoadFailed"
-      class="font-body text-body mt-3 text-ink-muted"
+      class="t-body mt-3 text-ink-muted"
       role="alert"
       data-testid="scenario-error"
     >
@@ -265,14 +267,14 @@ async function handleSave(): Promise<void> {
     >
       <p
         v-if="compiling || compiledGraph"
-        class="font-body text-caption text-ink-muted italic"
+        class="t-note text-ink-muted"
         data-testid="compiling-status"
       >
         Saved. Compiling this network…
       </p>
       <p
         v-else-if="compileError"
-        class="font-body text-caption text-coral"
+        class="t-error"
         role="alert"
         data-testid="compile-error"
       >
@@ -326,7 +328,7 @@ async function handleSave(): Promise<void> {
         />
         <p
           v-else-if="servicesError"
-          class="font-body text-caption mt-2 text-error"
+          class="t-error mt-2"
           role="alert"
           data-testid="services-error"
         >
@@ -337,7 +339,7 @@ async function handleSave(): Promise<void> {
           class="mt-2 flex flex-col items-start gap-3"
           data-testid="services-empty"
         >
-          <p class="font-body text-caption text-ink-muted italic">
+          <p class="t-note text-ink-muted">
             A network is made of lines, and you haven't created one yet.
           </p>
           <router-link
@@ -357,7 +359,7 @@ async function handleSave(): Promise<void> {
             v-for="service in services"
             :key="service.id"
           >
-            <label class="font-body text-body flex cursor-pointer items-center gap-2 rounded-(--radius-field) border border-border bg-white px-3 py-2 text-ink">
+            <label class="t-body flex cursor-pointer items-center gap-2 rounded-(--radius-field) border border-border bg-white px-3 py-2 text-ink">
               <input
                 type="checkbox"
                 :checked="isSelected(service.id)"
@@ -370,7 +372,7 @@ async function handleSave(): Promise<void> {
         </ul>
         <p
           v-if="droppedPairCount"
-          class="font-body text-caption mt-3 text-ink-muted italic"
+          class="t-note mt-3 text-ink-muted"
           data-testid="dropped-interchanges"
         >
           Saving also removes {{ droppedPairCount === 1 ? 'an interchange' : `${droppedPairCount} interchanges` }}
@@ -418,7 +420,7 @@ async function handleSave(): Promise<void> {
         <p
           v-if="showBoardingWaitError"
           id="boarding-wait-error"
-          class="font-body text-caption text-error"
+          class="t-error"
           role="alert"
           data-testid="boarding-wait-error"
         >
@@ -426,7 +428,7 @@ async function handleSave(): Promise<void> {
         </p>
         <p
           id="boarding-wait-hint"
-          class="font-body text-caption text-ink-muted italic"
+          class="t-note text-ink-muted"
           data-testid="boarding-wait-note"
         >
           Charged once, when a trip first boards — not again at each change. A line with its own boarding wait keeps it.
@@ -444,7 +446,7 @@ async function handleSave(): Promise<void> {
 
       <p
         v-if="submitError"
-        class="font-body text-caption text-error"
+        class="t-error"
         role="alert"
         data-testid="submit-error"
       >

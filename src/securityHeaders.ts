@@ -20,8 +20,14 @@ export interface VercelHeaderRule {
   headers: { key: string; value: string }[]
 }
 
+// Vercel cannot unset a header that another matching rule set, and
+// X-Frame-Options has no "anyone" value, so the catch-all steps around the
+// embed routes and the embed rule carries its own copy of the headers.
+export const CATCH_ALL_SOURCE = '/((?!embed/).*)'
+export const EMBED_SOURCE = '/embed/(.*)'
+
 export function catchAllCsp(rules: VercelHeaderRule[]): string | undefined {
-  const catchAll = rules.find((rule) => rule.source === '/(.*)')
+  const catchAll = rules.find((rule) => rule.source === CATCH_ALL_SOURCE)
   return catchAll?.headers.find((h) => /^content-security-policy(-report-only)?$/i.test(h.key))?.value
 }
 

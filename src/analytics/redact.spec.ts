@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { describe, expect, it } from 'vitest'
-import { redactPath, redactUrl } from './redact'
+import { redactPath, redactUrl, referrerHost } from './redact'
 
 describe('redactPath', () => {
   it('drops the token from a set-password link', () => {
@@ -34,5 +34,16 @@ describe('redactUrl', () => {
 
   it('returns an unparseable URL unchanged', () => {
     expect(redactUrl('not a url')).toBe('not a url')
+  })
+})
+
+describe('referrerHost', () => {
+  it('names the page that sent the visitor by its host alone', () => {
+    expect(referrerHost('https://blog.example.org/posts/hsr?utm=x#top')).toBe('blog.example.org')
+  })
+
+  it('has no host for a visit with no referrer, or one it cannot read', () => {
+    expect(referrerHost('')).toBeNull()
+    expect(referrerHost('not a url')).toBeNull()
   })
 })

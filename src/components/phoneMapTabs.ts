@@ -38,17 +38,21 @@ export function tabForKey(tabs: readonly PhoneMapTab[], current: string, key: st
 export function usePhoneMapTabs(options: {
   plot: () => unknown
   results: () => boolean
+  resultsLabel?: string
   extra: () => PhoneMapTab[]
 }): { tabs: ComputedRef<PhoneMapTab[]>; tab: Ref<string> } {
   const tabs = computed<PhoneMapTab[]>(() => [
     { key: 'plot', label: 'Plot' },
-    { key: 'results', label: 'Results', disabled: !options.results() },
+    { key: 'results', label: options.resultsLabel ?? 'Results', disabled: !options.results() },
     ...options.extra(),
   ])
   const tab = ref('plot')
 
-  watch(options.plot, (plot) => {
+  watch(options.plot, (plot, previous) => {
     if (plot && options.results()) tab.value = 'results'
+    // A results tab that outlives its plot (the network page's Stations tab
+    // also holds the timetable) would still hide the form's explanation.
+    else if (!plot && previous && tab.value === 'results') tab.value = 'plot'
   })
 
   watch(tabs, (current) => {

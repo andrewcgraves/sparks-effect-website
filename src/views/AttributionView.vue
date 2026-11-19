@@ -93,7 +93,7 @@ const ALL_AGENCIES = inProse(TRANSIT_AGENCIES, ' and ')
       Street network
     </h2>
     <p :class="PROSE_P_CLASS">
-      Splash zones are computed over a Derivative Database of OpenStreetMap, licensed under the
+      Travel zones are computed over a Derivative Database of OpenStreetMap, licensed under the
       <ExternalLink :href="ODBL">ODbL</ExternalLink>, with time zones from
       <ExternalLink href="https://github.com/evansiroky/timezone-boundary-builder">timezone-boundary-builder</ExternalLink>
       (ODbL). How it is built is available free on request from

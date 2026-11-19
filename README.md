@@ -1,7 +1,7 @@
 # sparks-effect-website
 
-Vue (Vite) frontend for the Sparks Effect isochrone map — visualizing "splash zones" reachable by
-walking, biking, transit, and driving from an imaginary transit line, talking to a Go API proxy.
+Vue (Vite) frontend for the Sparks Effect isochrone map — visualizing "travel zones" reachable by
+walking, biking, transit, and driving with a new rail line as part of the trip, talking to a Go API proxy.
 
 ## Branching and releases
 
@@ -45,6 +45,16 @@ Each target installs dependencies automatically if needed, so `make test`, `make
 and `make run` all work from a clean checkout. `make dev-workflow` is the target to run for an
 end-to-end check (e.g. from an agent or pre-push hook) since it doesn't start a long-running server.
 
+## Styling
+
+Text uses one of the `t-*` roles in [`src/theme.css`](src/theme.css) (`t-body`, `t-field`,
+`t-meta` and so on), with a separate colour utility. Colours, radii and shadows use the
+tokens in the same file, e.g. `rounded-(--radius-field)` or `shadow-(--shadow-panel)`, and
+`bg-white/92` is the one translucent overlay. [`src/designScheme.spec.ts`](src/designScheme.spec.ts)
+enforces this. A raw size, radius, shadow, weight, tint or hex colour anywhere in `src`
+fails the test. Hex is allowed only in the few files it names, where MapLibre paint or an SVG
+fill needs a literal colour. To change the scheme, change `theme.css`.
+
 ## Analytics
 
 Page views come from `<Analytics />` (`@vercel/analytics/vue`, mounted in
@@ -69,6 +79,10 @@ with ERESOLVE once we are on vue-router 5 (SPA-472). The component only calls
 `useRoute()`, which vue-router 5 keeps. Drop the override once a stable
 `@vercel/analytics` accepts `^5` (its canaries already do).
 
+An embed sends one `embed_load` event as it opens, carrying only the host of
+`document.referrer` (the page framing it), so we can see who embeds us. Embed
+views are page views too; filter `/embed/` out when counting visits to the site.
+
 Custom events (`track()`) are a Pro/Enterprise feature. On a Hobby project, set
 `VITE_VERCEL_CUSTOM_EVENTS=off` so `vercelSink` stops them locally instead of
 posting to an endpoint that will not keep them; page views are unaffected.
@@ -79,6 +93,11 @@ Errors go to Grafana Cloud Frontend Observability through the Faro Web SDK
 (`src/errorReporting/`, SPA-380), next to the API's error reports. Like
 analytics, this only switches on in a production build, and only when
 `VITE_FARO_URL` is set. Dev keeps errors in the console.
+
+The SDK is imported after the app mounts, so first render does not wait on it
+(SPA-493). Until it starts, reports, uncaught errors and unhandled rejections
+are queued and handed to it when it does; if its chunk fails to load, the queue
+is dropped.
 
 What is reported:
 
@@ -172,6 +191,11 @@ constant; bump it whenever that page's copy changes, since the date is the
 only thing that tells a reader the text moved. The one address all three ask
 people to write to is `CONTACT_EMAIL` in `src/legal/contact.ts`.
 
+`/about` (SPA-525) sits on the same shell: where the name comes from, what the
+site is for, who builds and maintains Sparks Effect, Californians for Electric Rail's own description of
+itself (quoted word for word from calelectricrail.org/about, so re-check it
+there before editing), and their website and Bluesky.
+
 `/how-it-works` sits on the same shell and is dated the same way. It explains
 where the numbers come from but leaves every credit to `/attribution`. Its
 tour (`src/components/MapTour.vue`) draws a real plot, 90 minutes by Transit
@@ -207,22 +231,25 @@ the copy:
   alterations") are still offered on request. Both become API-served once the
   API exposes generation metadata.
 
-The map itself credits 511 ("Data provided by 511.org", which 511's agreement
-wants next to the data), links `/attribution` as "Data sources" and keeps
-MapLibre's own credit (`MAP_CREDITS` in `MapView.vue`). The style's TileJSON
-adds the tile host, OpenMapTiles and OpenStreetMap on its own. The footer
-repeats the OSM, ODbL, tile, 511 and Stadia credits on every page.
+The map itself credits only OpenStreetMap (`MAP_CREDITS` in
+`src/composables/siteMap.ts`, SPA-507). `createSiteMap` loads the style through
+`withoutSourceCredits`, which blanks each source's `attribution` so the tile
+host, OpenMapTiles and OpenStreetMap entries in the style's TileJSON don't show.
+Every provider credit (511, San Joaquin RTD, the tile host, OpenMapTiles,
+Stadia, MapLibre) lives in the footer and on `/attribution` instead, even where
+SPA-419 found a licence asking for a credit next to the data.
 
 ## Link previews
 
 Link-unfurl crawlers (Slackbot, Discordbot, iMessage, …) run no JavaScript, so a
 shared link's title and description have to be in the HTML. `middleware.ts` is
 Vercel Routing Middleware for the public pages only — `/`, `/how-it-works`,
-`/scenario/:slug`, `/services/:slug`, `/routes/:slug`. It fetches the
+`/about`, `/scenario/:slug`, `/services/:slug`, `/routes/:slug`. It fetches the
 deployment's own `/index.html` and the page's public read (both within 1.5 s,
 side by side), and splices that page's `<title>`, `description`, `og:*` and
-`twitter:card` tags into the head. `/how-it-works` reads nothing: its card is
-fixed copy. The tag building lives in `src/share/linkPreview.ts`.
+`twitter:card` tags into the head. `/how-it-works` and `/about` read nothing:
+their cards are fixed copy (`STATIC_PAGES`). The tag building lives in
+`src/share/linkPreview.ts`.
 
 - `og:url` comes from the request's host, never the build, so a build promoted
   from staging names production.
@@ -277,8 +304,9 @@ one-time step; nothing here does it.
 
 ## Security headers
 
-`vercel.json` sends these on every path (`/(.*)`), beside the `Cache-Control`
-rules — different keys, so the rules compose rather than compete:
+`vercel.json` sends these on every path but the embeds (`/((?!embed/).*)`),
+beside the `Cache-Control` rules — different keys, so the rules compose rather
+than compete:
 
 - `Content-Security-Policy-Report-Only` — scripts only from this origin, no
   inline or `eval`; styles may be inline (Tailwind, Vue `:style`, MapLibre);
@@ -294,6 +322,13 @@ rules — different keys, so the rules compose rather than compete:
 - `X-Frame-Options: DENY`. `frame-ancestors 'none'` is in the CSP too, but a
   Report-Only policy enforces nothing, `frame-ancestors` included, so this is
   what stops framing today.
+
+`/embed/(.*)` has a rule of its own, because Vercel cannot unset a header
+another matching rule set and `X-Frame-Options` has no "anyone" value. It
+repeats the headers above under the same CSP key, with `frame-ancestors *` and
+no `X-Frame-Options`, and adds `X-Robots-Tag: noindex` on every host. A drift
+test in `src/securityHeaders.spec.ts` holds the two CSPs to differing only in
+`frame-ancestors`, and the other headers to matching. See [Embeds](#embeds).
 
 The pages `middleware.ts` answers are responses it builds itself, and Vercel
 may not apply `vercel.json`'s headers to those. So the middleware copies the
@@ -321,7 +356,7 @@ environment, so the allowance would ship to production on promotion.
 
 After a clean week, enforce it: set `ENFORCING` to true in
 `src/securityHeaders.spec.ts` and rename the key to `Content-Security-Policy`
-in `vercel.json`. What guards the policy meanwhile:
+in both of `vercel.json`'s rules (the catch-all and `/embed/`). What guards the policy meanwhile:
 
 - `src/securityHeaders.spec.ts` fails CI when the map style URL's origin or the
   geocoder changes without the CSP following. It checks the style URL's
@@ -334,15 +369,46 @@ in `vercel.json`. What guards the policy meanwhile:
   enforced CSP silently blocking every API call. Local and CI builds skip it.
 
 Hosts still to add when they land: the error tracker's ingest host, plus its
-`report-uri` (SPA-380). An embeddable map for other sites (SPA-462) will need its own
-carve-out from `frame-ancestors` and `X-Frame-Options`. MapLibre's RTL text
+`report-uri` (SPA-380). MapLibre's RTL text
 plugin, or anything loaded through `importScriptInWorkers`, would need
 `script-src` changes if ever adopted.
+
+## Embeds
+
+A curated scenario or a published service can be framed by another site:
+
+```html
+<iframe src="https://sparks-effect.app/embed/scenario/ca-hsr?at=37.79549,-122.39374&mode=transit&mins=180"
+  width="100%" height="480" loading="lazy" style="border:0"
+  title="California High-Speed Rail travel zone on Sparks Effect"></iframe>
+```
+
+- `/embed/scenario/:slug` and `/embed/services/:slug` draw the map with no site
+  header, footer or title (`meta.chrome: false`), and a small
+  `sparks-effect.app ↗` link back to the full page with the same `at`, `mode`
+  and `mins`.
+- Without `controls`, the map plots what `at`, `mode` and `mins` name, or, with
+  no `at`, shows the line and a scenario's example travel zones as a row of chips.
+  `controls=1` adds the site's plot panel, floating and minimizable.
+- "Copy embed code" on the scenario and service pages copies either snippet for
+  the host it is on, with the plot on screen.
+- These paths and parameters are a public contract once pasted into someone's
+  post: do not rename them.
+- A host page that runs JavaScript can drive an embed by changing the iframe's
+  `src`. There is no widget, package or `postMessage` API.
+- Anyone can frame these routes (`frame-ancestors *`), so they never act as the
+  visitor: `src/main.ts` boots an `/embed/` page with `installStores(app,
+  { anonymous: true })`, which sends no session token and restores none, and
+  `src/embed/embedImports.spec.ts` fails if an embed view's imports reach for
+  anything but the public reads. There is no per-site revocation short of
+  unpublishing; plots from the controls cost routing jobs (repeats are served
+  from the stored result, SPA-331), and tiles count against our Stadia domain.
+- "Use my location" needs `allow="geolocation"` on the iframe, which the
+  snippet leaves out, so in an embed that button reports that it can't locate.
 
 ## Project structure
 
 - `middleware.ts` — Vercel Routing Middleware for link previews, carrying the security headers onto the pages it answers (above)
 - `api/` — Vercel Functions for `/robots.txt` and `/sitemap.xml` (above)
 - `src/` — Vue application source
-- `.github/workflows/ci.yml` — CI: a production-dependency `npm audit`, lint + test on every push/PR, then build and upload the `dist`
-  artifact
+- `.github/workflows/ci.yml` — CI: a production-dependency `npm audit`, lint + test on every push/PR, then build

@@ -1,5 +1,7 @@
 import type { ChainMetadata, JourneyLeg, ReachableStation, TripProgress } from '../fixtures/isochrone'
 import { MODE_LABELS, modeLabel } from '../copy/modes'
+import { UNNAMED_LINE } from '../copy/names'
+import type { Route, Service } from '../api/scenarios'
 
 export const ORIGIN_KEY = 'origin'
 
@@ -94,6 +96,22 @@ export function shortLineName(name: string): string {
   return head || name
 }
 
+export function lineByRoute(
+  services: Pick<Service, 'id' | 'name' | 'route_id'>[],
+  routes: Pick<Route, 'id' | 'name'>[],
+): (serviceID: string) => { key: string; label: string } {
+  return (id) => {
+    // Lines that share a route share a tab. A curated network names the route
+    // what riders call the line ("Brightline West — Palmdale to Las Vegas"), so
+    // its short name is the tab's line name; a line on no route uses its own.
+    const service = services.find((s) => s.id === id)
+    const route = service?.route_id ? routes.find((r) => r.id === service.route_id) : undefined
+    return route
+      ? { key: route.id, label: shortLineName(route.name) }
+      : { key: id, label: service?.name ?? UNNAMED_LINE }
+  }
+}
+
 export function laneWidthFor(laneCount: number): number {
   return Math.min(MAX_LANE_PX, Math.max(MIN_LANE_PX, Math.floor(GRAPH_COLUMN_PX / laneCount)))
 }
@@ -105,6 +123,20 @@ function lastLeg(station: ReachableStation): JourneyLeg | null {
 
 export function remainingSecsOf(station: ReachableStation): number {
   return station.remaining_secs ?? station.remaining_mins * 60
+}
+
+// Read from the time left on arrival, not on departure: the wait for an onward
+// train is spent after the rider has got here (SPA-538).
+export function elapsedSecsOf(station: ReachableStation, budgetMins: number): number {
+  return budgetMins * 60 - remainingSecsOf(station)
+}
+
+export function elapsedSecsBySlug(metadata: ChainMetadata | null): (slug: string) => number | null {
+  if (!metadata) return () => null
+  const bySlug = new Map(
+    metadata.reachable_stations.map((s) => [s.station_slug, elapsedSecsOf(s, metadata.origin_budget_mins)]),
+  )
+  return (slug) => bySlug.get(slug) ?? null
 }
 
 function accessSecsOf(station: ReachableStation): number {

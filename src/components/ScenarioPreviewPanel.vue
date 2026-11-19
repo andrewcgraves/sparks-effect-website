@@ -9,7 +9,7 @@ import RoutingStatusBanner from './RoutingStatusBanner.vue'
 import TimeRemaining from './TimeRemaining.vue'
 import { ORIGIN_PICK_CUE } from './placementCues'
 import { usePhoneMapTabs, type PhoneMapTab } from './phoneMapTabs'
-import { buildTimeRemainingGraph, remainingSecsBySlug } from './timeRemaining'
+import { buildTimeRemainingGraph } from './timeRemaining'
 import { useOriginPick } from '../composables/useOriginPick'
 import { useRoutingStatus } from '../composables/useRoutingStatus'
 import type { InterchangePair, NearMiss, Service, StopCluster, StopIdentity } from '../api/authoring/types'
@@ -59,16 +59,10 @@ const timeRemaining = computed(() =>
   }),
 )
 
-const remainingBySlug = computed(() => remainingSecsBySlug(timeRemaining.value))
-
 const activeStation = ref<{ slug: string; fromMap: boolean } | null>(null)
 
 function highlight(slug: string | null, fromMap: boolean): void {
   activeStation.value = slug ? { slug, fromMap } : null
-}
-
-function remainingSecs(slug: string): number | null {
-  return remainingBySlug.value(slug)
 }
 
 const hasInterchanges = computed(
@@ -95,7 +89,7 @@ const { tabs: allPhoneTabs, tab: phoneTab } = usePhoneMapTabs({
   >
     <template #map>
       <MapView
-        label="Splash zone map"
+        label="Travel zone map"
         :without-map="PLOT_WITHOUT_MAP"
         flush
         :origin="props.origin"
@@ -107,7 +101,6 @@ const { tabs: allPhoneTabs, tab: phoneTab } = usePhoneMapTabs({
         :placement-armed="pickArmed"
         :placement-cue="ORIGIN_PICK_CUE"
         :active-station="activeStation?.slug ?? null"
-        :remaining-secs="remainingSecs"
         @map-click="onMapClick"
         @station-hover="highlight($event, true)"
       />
@@ -127,7 +120,7 @@ const { tabs: allPhoneTabs, tab: phoneTab } = usePhoneMapTabs({
       <slot name="after-form" />
       <p
         v-if="props.statusNote"
-        class="font-body text-caption text-ink-muted italic"
+        class="t-note text-ink-muted"
         role="status"
         data-testid="recompiling-status"
       >
@@ -171,7 +164,7 @@ const { tabs: allPhoneTabs, tab: phoneTab } = usePhoneMapTabs({
   >
     <div class="h-[70vh]">
       <MapView
-        label="Splash zone map"
+        label="Travel zone map"
         :without-map="PLOT_WITHOUT_MAP"
         :origin="props.origin"
         :isochrone-data="props.isochroneData"
@@ -182,7 +175,6 @@ const { tabs: allPhoneTabs, tab: phoneTab } = usePhoneMapTabs({
         :placement-armed="pickArmed"
         :placement-cue="ORIGIN_PICK_CUE"
         :active-station="activeStation?.slug ?? null"
-        :remaining-secs="remainingSecs"
         @map-click="onMapClick"
         @station-hover="highlight($event, true)"
       />
@@ -203,7 +195,7 @@ const { tabs: allPhoneTabs, tab: phoneTab } = usePhoneMapTabs({
       <slot name="after-form" />
       <p
         v-if="props.statusNote"
-        class="font-body text-caption text-ink-muted italic"
+        class="t-note text-ink-muted"
         role="status"
         data-testid="recompiling-status"
       >

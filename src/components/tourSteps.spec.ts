@@ -24,9 +24,12 @@ describe('TOUR_STEPS', () => {
 
   it('names each step as the map key does', () => {
     expect(step('starter-walk').name).toBe(key.starter)
-    expect(step('origin-reach').name).toBe(key.origin)
-    expect(step('egress').name).toBe(key.egress)
     expect(step('unfinished').caption).toContain(key.unfinished)
+  })
+
+  it('names the two reach areas the key draws as one', () => {
+    expect(step('origin-reach').name).toBe('From starting point')
+    expect(step('egress').name).toBe('From station')
   })
 
   it('lights only parts the tour map can dim', () => {

@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest'
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { STATIC_PAGES } from './share/linkPreview'
 
 interface Condition {
   type: string
@@ -152,6 +153,32 @@ describe('vercel.json headers', () => {
     expect(headersFor('/robots.txt', PRODUCTION)['cache-control']).toBeUndefined()
     expect(headersFor('/sitemap.xml', PRODUCTION)['cache-control']).toBeUndefined()
     expect(headersFor('/login', PRODUCTION)['cache-control']).toBe('no-cache')
+  })
+
+  it('leaves caching to the middleware on every page with a fixed-copy preview', () => {
+    for (const path of STATIC_PAGES.keys()) expect(headersFor(path, PRODUCTION)['cache-control'], path).toBeUndefined()
+  })
+
+  it('lets a foreign page frame an embed, and nothing else on the site', () => {
+    for (const host of [PRODUCTION, ...NOT_PRODUCTION]) {
+      for (const path of ['/embed/scenario/ca-hsr', '/embed/services/northbound-express']) {
+        const headers = headersFor(path, host)
+        expect(headers['x-frame-options'], `${host}${path}`).toBeUndefined()
+        expect(headers['content-security-policy-report-only'] ?? headers['content-security-policy'], `${host}${path}`)
+          .toMatch(/frame-ancestors \*$/)
+        expect(headers['x-robots-tag'], `${host}${path}`).toBe('noindex')
+      }
+      for (const path of ['/', '/scenario/ca-hsr', '/services/northbound-express', '/embedded', '/login']) {
+        const headers = headersFor(path, host)
+        expect(headers['x-frame-options'], `${host}${path}`).toBe('DENY')
+        expect(headers['content-security-policy-report-only'] ?? headers['content-security-policy'], `${host}${path}`)
+          .toMatch(/frame-ancestors 'none'$/)
+      }
+    }
+  })
+
+  it('serves the shell for an embed', () => {
+    expect(rewrite('/embed/scenario/ca-hsr')).toBe('/index.html')
   })
 
   it('tells crawlers not to index anything served on staging, a preview or a vercel.app alias', () => {

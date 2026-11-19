@@ -11,7 +11,7 @@ defineProps<{ stops: string[] }>()
       <li
         v-for="(name, index) in stops"
         :key="index"
-        class="font-body text-caption text-ink"
+        class="t-meta text-ink"
         data-testid="service-stop-row"
       >
         {{ index + 1 }}. {{ name }}

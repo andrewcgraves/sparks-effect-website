@@ -96,6 +96,17 @@ describe('useScenario', () => {
     expect(loading.value).toBe(false)
   })
 
+  it('says the scenario failed to load, and only when it did', async () => {
+    vi.mocked(fetchScenario).mockRejectedValueOnce(new Error('404'))
+    const missing = useScenario('nope')
+    vi.mocked(fetchScenario).mockResolvedValueOnce(stubDetail)
+    const found = useScenario('ca-hsr')
+    expect(missing.failed.value).toBe(false)
+    await flushPromises()
+    expect(missing.failed.value).toBe(true)
+    expect(found.failed.value).toBe(false)
+  })
+
   it('populates routes after fetch resolves', async () => {
     vi.mocked(fetchScenario).mockResolvedValueOnce(stubDetail)
     const { routes } = useScenario('ca-hsr')
@@ -134,6 +145,21 @@ describe('useScenario', () => {
     await flushPromises()
     expect(subtext.value).toBe('Electrified · High-speed rail · Greenfield')
     expect(description.value).toBe('California High-Speed Rail')
+  })
+
+  it('reads the plot label, and a missing one as empty', async () => {
+    vi.mocked(fetchScenario).mockResolvedValueOnce({
+      ...stubDetail,
+      plot_label: 'Show a {minutes}-minute HSR ride and {mode}',
+    })
+    const first = useScenario('ca-hsr')
+    await flushPromises()
+    expect(first.plotLabel.value).toBe('Show a {minutes}-minute HSR ride and {mode}')
+
+    vi.mocked(fetchScenario).mockResolvedValueOnce(stubDetail)
+    const second = useScenario('ca-hsr')
+    await flushPromises()
+    expect(second.plotLabel.value).toBe('')
   })
 
   it('reads a missing subtext as empty', async () => {

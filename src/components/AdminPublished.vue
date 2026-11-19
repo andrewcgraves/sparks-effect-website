@@ -89,13 +89,13 @@ async function unpublish(service: PublishedServiceSummary): Promise<void> {
 
     <p
       v-if="loading"
-      class="font-body text-caption mt-4 text-ink-muted italic"
+      class="t-note mt-4 text-ink-muted"
     >
       Loading…
     </p>
     <p
       v-else-if="loadFailed && services.length === 0"
-      class="font-body text-caption mt-4 text-error"
+      class="t-error mt-4"
       role="alert"
       data-testid="published-error"
     >
@@ -103,7 +103,7 @@ async function unpublish(service: PublishedServiceSummary): Promise<void> {
     </p>
     <p
       v-else-if="services.length === 0"
-      class="font-body text-caption mt-4 text-ink-muted italic"
+      class="t-note mt-4 text-ink-muted"
       data-testid="published-empty"
     >
       Nothing is published.
@@ -116,9 +116,9 @@ async function unpublish(service: PublishedServiceSummary): Promise<void> {
           class="flex flex-wrap items-center justify-between gap-3 border-t border-border py-2"
           :data-testid="`published-row-${service.slug}`"
         >
-          <div class="font-body text-caption flex min-w-0 flex-col text-ink">
+          <div class="t-meta flex min-w-0 flex-col text-ink">
             {{ service.name }}
-            <span class="text-micro break-all text-ink-muted">{{ service.slug }}</span>
+            <span class="t-meta break-all text-ink-muted">{{ service.slug }}</span>
           </div>
           <div class="flex items-center gap-3">
             <RouterLink

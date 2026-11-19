@@ -58,7 +58,7 @@ onUnmounted(() => resize?.disconnect())
   <section
     ref="tour"
     class="relative w-full"
-    aria-label="Tour of a splash zone"
+    aria-label="Tour of a travel zone"
   >
     <div class="h-[50svh] border-y border-border bg-surface lg:h-[min(75svh,44rem)]">
       <TourMap
@@ -78,7 +78,7 @@ onUnmounted(() => resize?.disconnect())
       ]"
       data-testid="map-tour-card"
     >
-      <p class="font-body text-micro m-0 text-ink-muted">
+      <p class="t-meta m-0 text-ink-muted">
         Step {{ active + 1 }} of {{ TOUR_STEPS.length }}
       </p>
       <!-- Every step shares one cell, the ones not shown kept invisible, so
@@ -103,7 +103,7 @@ onUnmounted(() => resize?.disconnect())
             />
             {{ step.name }}
           </h3>
-          <p class="font-body text-body mt-2 mb-0 text-ink-muted">
+          <p class="t-body mt-2 mb-0 text-ink-muted">
             {{ step.caption }}
           </p>
         </div>

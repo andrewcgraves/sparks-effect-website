@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import middleware from './middleware.js'
+import middleware, { config } from './middleware.js'
+import { STATIC_PAGES } from './src/share/linkPreview.js'
 
 const SHELL = `<!doctype html>
 <html lang="en">
@@ -44,6 +45,10 @@ describe('middleware', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
     vi.unstubAllEnvs()
+  })
+
+  it('runs on every page with a fixed-copy preview, or the crawler never sees its card', () => {
+    for (const path of STATIC_PAGES.keys()) expect(config.matcher, path).toContain(path)
   })
 
   it('carries the shell response security headers onto the page it builds', async () => {

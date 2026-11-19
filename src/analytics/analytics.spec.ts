@@ -2,7 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { consoleSink, noopSink, vercelSink } from './sinks'
-import { configureSink, trackIsochroneError, trackIsochroneRequest, trackModeToggle, trackOriginSearch, trackPageView } from './index'
+import { configureSink, trackEmbedLoad, trackIsochroneError, trackIsochroneRequest, trackModeToggle, trackOriginSearch, trackPageView } from './index'
 import type { AnalyticsEvent } from './types'
 
 vi.mock('@vercel/analytics', () => ({
@@ -63,6 +63,11 @@ describe('vercelSink', () => {
     expect(track).toHaveBeenCalledWith('origin_search', { resultCount: 3 })
   })
 
+  it('maps embed_load to a track call naming the embedding site', () => {
+    vercelSink({ type: 'embed_load', embedder: 'blog.example.org' })
+    expect(track).toHaveBeenCalledWith('embed_load', { embedder: 'blog.example.org' })
+  })
+
   it('sends no custom events when they are turned off for the plan', () => {
     vi.stubEnv('VITE_VERCEL_CUSTOM_EVENTS', 'off')
     vercelSink({ type: 'mode_toggle', mode: 'transit' })
@@ -121,6 +126,15 @@ describe('analytics helpers', () => {
   it('trackIsochroneError emits a null status for connectivity failures', () => {
     trackIsochroneError('driving', 60, null)
     expect(captured).toEqual([{ type: 'isochrone_error', travelMode: 'driving', durationMinutes: 60, status: null }])
+  })
+
+  it('trackEmbedLoad emits an embed_load event carrying only the referrer’s host', () => {
+    trackEmbedLoad('https://blog.example.org/posts/hsr?ref=newsletter')
+    trackEmbedLoad('')
+    expect(captured).toEqual([
+      { type: 'embed_load', embedder: 'blog.example.org' },
+      { type: 'embed_load', embedder: null },
+    ])
   })
 
   it('multiple events accumulate in order', () => {

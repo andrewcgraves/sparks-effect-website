@@ -25,7 +25,7 @@ const NAME_WIDTHS = ['w-1/2', 'w-2/3', 'w-2/5']
         <SkeletonShape :class="NAME_WIDTHS[(index - 1) % NAME_WIDTHS.length]" />
         <SkeletonShape
           v-if="props.caption"
-          class="text-micro w-1/4"
+          class="t-meta w-1/4"
         />
       </li>
     </ul>

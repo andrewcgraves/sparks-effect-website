@@ -6,14 +6,14 @@ const props = withDefaults(defineProps<{ rows?: number }>(), { rows: 1 })
 
 <template>
   <div
-    class="font-body text-micro flex flex-col gap-1"
+    class="t-eyebrow flex flex-col gap-1"
     data-testid="field-skeleton"
   >
     <SkeletonShape class="w-24" />
     <!-- A field is `rows` lines of 14px text plus py-1.5 and a 1px border. -->
     <SkeletonShape
       shape="block"
-      class="rounded-(--radius-field) text-[14px]"
+      class="t-field rounded-(--radius-field)"
       :style="{ height: `calc(${props.rows}lh + 14px)` }"
     />
   </div>

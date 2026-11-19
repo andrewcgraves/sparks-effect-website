@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import StatusDot from './StatusDot.vue'
+
 defineProps<{
   help: string
   warning?: string
@@ -8,21 +10,18 @@ defineProps<{
 
 <template>
   <p
-    class="font-body text-caption text-ink-muted"
+    class="t-note text-ink-muted"
     :data-testid="`${testid}-help`"
   >
     {{ help }}
   </p>
   <p
     v-if="warning"
-    class="font-body text-caption flex items-center gap-2 text-ink"
+    class="t-meta flex items-center gap-2 text-ink"
     role="status"
     :data-testid="`${testid}-warning`"
   >
-    <span
-      class="size-2 shrink-0 rounded-full bg-apricot"
-      aria-hidden="true"
-    />
+    <StatusDot tone="caution" />
     {{ warning }}
   </p>
 </template>

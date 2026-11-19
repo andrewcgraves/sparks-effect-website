@@ -1,9 +1,10 @@
 import type { ApiRead } from './apiRead.js'
+import { plainDescription } from './descriptionLinks.js'
 import { escapeMarkup } from './escape.js'
 import { SITE_NAME, formatPageTitle } from './pageTitle.js'
 
 const SITE_DESCRIPTION =
-  'Sparks Effect maps the "splash zone" reachable by walking, biking, transit, and driving from a hypothetical transit line.'
+  'Sparks Effect maps your travel zone: how far a new rail line could take you in the time you have, walking, biking, driving or riding transit to the station.'
 
 interface PageMeta {
   name: string | null
@@ -73,7 +74,10 @@ interface PublicPage {
 const PUBLIC_PAGES = new Map<string, PublicPage>([
   ['scenario', {
     endpoint: (slug) => `/api/scenarios/${slug}`,
-    describe: (body) => nonEmptyText(body.description),
+    describe: (body) => {
+      const text = nonEmptyText(body.description)
+      return text && plainDescription(text)
+    },
   }],
   ['services', {
     endpoint: (slug) => `/api/services/${slug}/publication`,
@@ -91,7 +95,11 @@ export const STATIC_PAGES: ReadonlyMap<string, PageMeta> = new Map<string, PageM
   ['/how-it-works', {
     name: 'How it works',
     description:
-      'How to read a splash zone, colour by colour, and what it assumes: door-to-door minutes, an 8 a.m. weekday start for transit, free-flowing roads.',
+      'How to read a travel zone, colour by colour, and what it assumes: door-to-door minutes, an 8 a.m. weekday start for transit, free-flowing roads.',
+  }],
+  ['/about', {
+    name: 'About',
+    description: `Who builds ${SITE_NAME}: Californians for Electric Rail, with volunteers keeping it running.`,
   }],
 ])
 

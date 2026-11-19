@@ -1,8 +1,9 @@
 // @vitest-environment node
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { isReactive } from 'vue'
+import { isReactive, nextTick, ref } from 'vue'
 import { useIsochrone } from './useIsochrone'
+import { OFFLINE_REASON } from './useRoutingStatus'
 import type { IsochroneRequest } from '../api/isochrone'
 import { ApiError } from '../api/authoring/client'
 import { JobFailedError } from '../api/polling'
@@ -104,7 +105,7 @@ describe('useIsochrone', () => {
     vi.mocked(fetchIsochrone).mockRejectedValueOnce(new ApiError('boom', 500))
     const { data, error, loading, generate } = useIsochrone()
     await generate(request)
-    expect(error.value).toBe("Couldn't plot this splash zone. Please try again.")
+    expect(error.value).toBe("Couldn't plot this travel zone. Please try again.")
     expect(data.value).toBeNull()
     expect(loading.value).toBe(false)
   })
@@ -219,7 +220,7 @@ describe('useIsochrone', () => {
   // same place every other error shows, and the reason goes to the console.
   describe('a routing job the API failed', () => {
     const ROUTING_FAILED =
-      "Routing couldn't finish this splash zone. Please try again, or try a different starting point."
+      "Routing couldn't finish this travel zone. Please try again, or try a different starting point."
 
     it('says routing could not finish, without the API error text', async () => {
       vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -262,7 +263,7 @@ describe('useIsochrone', () => {
       await generate(request)
 
       expect(error.value).toMatch(/busy/i)
-      expect(error.value).not.toBe("Couldn't plot this splash zone. Please try again.")
+      expect(error.value).not.toBe("Couldn't plot this travel zone. Please try again.")
     })
   })
 
@@ -363,6 +364,48 @@ describe('useIsochrone', () => {
     })
   })
 
+  // SPA-503: a worker gone quiet will never answer, so the page stops waiting
+  // out the job deadline the moment the status says so.
+  describe('when live routing goes offline', () => {
+    it('stops a plot in flight with the offline message and ignores its late answer', async () => {
+      let resolveFetch!: (value: ChainResponse) => void
+      vi.mocked(fetchIsochrone).mockReturnValueOnce(
+        new Promise<ChainResponse>((res) => { resolveFetch = res }),
+      )
+      const offline = ref(false)
+      const { data, loading, error, progress, generate } = useIsochrone(() => [], { offline: () => offline.value })
+
+      const plot = generate(request)
+      expect(loading.value).toBe(true)
+
+      offline.value = true
+      await nextTick()
+
+      expect(loading.value).toBe(false)
+      expect(progress.value).toBeNull()
+      expect(error.value).toBe(OFFLINE_REASON)
+
+      resolveFetch(stubResponse)
+      await plot
+      expect(data.value).toBeNull()
+      expect(error.value).toBe(OFFLINE_REASON)
+    })
+
+    it('changes nothing when no plot is in flight', async () => {
+      vi.mocked(fetchIsochrone).mockResolvedValueOnce(stubResponse)
+      const offline = ref(false)
+      const { data, loading, error, generate } = useIsochrone(() => [], { offline: () => offline.value })
+      await generate(request)
+
+      offline.value = true
+      await nextTick()
+
+      expect(data.value).toEqual(stubResponse)
+      expect(error.value).toBeNull()
+      expect(loading.value).toBe(false)
+    })
+  })
+
   // SPA-467: the overlay tells the visitor where they are in the queue, so the
   // latest poll has to reach the page — and only the current plot's polls.
   describe('progress', () => {
@@ -451,15 +494,15 @@ describe('useIsochrone', () => {
       const { generate } = useIsochrone()
 
       const promise = generate(request)
-      expect(announced()).toBe('Plotting splash zone…')
+      expect(announced()).toBe('Plotting travel zone…')
       await promise
-      expect(announced()).toBe('Splash zone ready: 2 stations reached')
+      expect(announced()).toBe('Travel zone ready: 2 stations reached')
     })
 
     it('says so when a ready-made splash zone is shown', () => {
       const { show } = useIsochrone()
       show(reachingTwo)
-      expect(announced()).toBe('Splash zone ready: 2 stations reached')
+      expect(announced()).toBe('Travel zone ready: 2 stations reached')
     })
 
     it('leaves a failure to the alert that shows it', async () => {
@@ -467,7 +510,7 @@ describe('useIsochrone', () => {
       vi.spyOn(console, 'error').mockImplementation(() => {})
       const { generate } = useIsochrone()
       await generate(request)
-      expect(announced()).toBe('Plotting splash zone…')
+      expect(announced()).toBe('Plotting travel zone…')
     })
   })
 })

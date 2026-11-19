@@ -13,7 +13,7 @@ const paint = keySwatchPaint()
 <template>
   <span
     v-if="kind === 'origin' || kind === 'egress'"
-    class="inline-block h-3.5 w-7 rounded-[3px] opacity-85"
+    class="inline-block h-3.5 w-7 rounded-(--radius-field) opacity-85"
     :style="{ backgroundColor: kind === 'origin' ? paint.origin : paint.egress }"
     aria-hidden="true"
   />

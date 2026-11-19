@@ -6,6 +6,7 @@ import { ApiError } from '../api/authoring'
 import { SESSION_EXPIRED_FAULT } from '../api/authoringFault'
 import { PRIMARY_BUTTON_CLASS } from '../components/buttonStyles'
 import { FIELD_INPUT_CLASS, FIELD_LABEL_CLASS } from '../components/fieldStyles'
+import PageHeader from '../components/PageHeader.vue'
 
 const email = ref('')
 const password = ref('')
@@ -57,16 +58,14 @@ async function handleSubmit() {
 <template>
   <main class="flex-1 p-(--page-padding)">
     <div class="mx-auto flex max-w-[360px] flex-col gap-2">
-      <h1 class="font-display text-display text-ink-true">
-        Sign in
-      </h1>
-      <p class="font-body text-micro text-ink-muted italic uppercase">
-        Invite-only · accounts are provisioned by an admin
-      </p>
+      <PageHeader
+        title="Sign in"
+        subtitle="Invite-only · accounts are provisioned by an admin"
+      />
 
       <p
         v-if="auth.sessionExpired"
-        class="font-body text-caption text-error mt-4"
+        class="t-error mt-4"
         role="status"
         data-testid="session-expired"
       >
@@ -109,7 +108,7 @@ async function handleSubmit() {
 
         <p
           v-if="error"
-          class="font-body text-caption text-error"
+          class="t-error"
           role="alert"
           data-testid="login-error"
         >

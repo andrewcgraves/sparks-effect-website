@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { boundsFromFeatures, isochroneBoundsCorners, staticIsochroneResponse } from './isochrone'
+import {
+  ISOCHRONE_BOUNDS_CORNERS,
+  ISOCHRONE_CENTER,
+  boundsFromFeatures,
+  isochroneBoundsCorners,
+} from './isochrone'
 import type { ChainResponse } from './isochrone'
+import { staticIsochroneResponse } from '../test/sampleIsochrone'
 
 type Contour = ChainResponse['features'][number]
 
@@ -85,5 +91,17 @@ describe('isochroneBoundsCorners', () => {
       [-118.2, 34.6],
       [-118.1, 34.7],
     ])
+  })
+})
+
+describe('the default camera', () => {
+  it('frames the sample response it was computed from', () => {
+    const [[minLng, minLat], [maxLng, maxLat]] = isochroneBoundsCorners(staticIsochroneResponse.features)
+    expect(ISOCHRONE_BOUNDS_CORNERS[0][0]).toBeCloseTo(minLng, 10)
+    expect(ISOCHRONE_BOUNDS_CORNERS[0][1]).toBeCloseTo(minLat, 10)
+    expect(ISOCHRONE_BOUNDS_CORNERS[1][0]).toBeCloseTo(maxLng, 10)
+    expect(ISOCHRONE_BOUNDS_CORNERS[1][1]).toBeCloseTo(maxLat, 10)
+    expect(ISOCHRONE_CENTER[0]).toBeCloseTo((minLng + maxLng) / 2, 10)
+    expect(ISOCHRONE_CENTER[1]).toBeCloseTo((minLat + maxLat) / 2, 10)
   })
 })

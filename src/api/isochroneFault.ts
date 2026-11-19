@@ -6,7 +6,7 @@ import { JobFailedError } from './polling'
 import { backlogFullError, type IsochroneProgress } from './routingJobs'
 import type { Station } from './scenarios'
 
-const GENERIC_FAULT = "Couldn't plot this splash zone. Please try again."
+const GENERIC_FAULT = "Couldn't plot this travel zone. Please try again."
 
 // Said for every failed routing job, whatever its reason: the reason is the
 // API's or the worker's own text, in their words ("compile: service …
@@ -14,7 +14,7 @@ const GENERIC_FAULT = "Couldn't plot this splash zone. Please try again."
 // prints it. A routing service that is down passes; a start it cannot route
 // from does not, and the page cannot tell which this was, so it offers both.
 const ROUTING_FAILED_FAULT =
-  "Routing couldn't finish this splash zone. Please try again, or try a different starting point."
+  "Routing couldn't finish this travel zone. Please try again, or try a different starting point."
 
 function httpStatus(err: unknown): number | null {
   if (err instanceof ApiError) return err.status

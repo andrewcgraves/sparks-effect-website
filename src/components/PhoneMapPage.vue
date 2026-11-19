@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, useId, watch } from 'vue'
+import { provide, ref, useId, watch } from 'vue'
 import LoadingRegion from './LoadingRegion.vue'
 import SkeletonShape from './SkeletonShape.vue'
 import { ACTION_LINK_CLASS } from './linkStyles'
 import { tabForKey, type PhoneMapTab } from './phoneMapTabs'
+import { PHONE_PANEL_SCROLLER } from './phonePanelScroll'
 
 const props = defineProps<{
   title: string
@@ -15,6 +16,9 @@ const tab = defineModel<string>('tab', { required: true })
 
 const id = useId()
 const panelId = `${id}-panel`
+
+const scroller = ref<HTMLElement | null>(null)
+provide(PHONE_PANEL_SCROLLER, scroller)
 
 function tabId(key: string): string {
   return `${id}-tab-${key}`
@@ -58,13 +62,13 @@ function onListKeydown(event: KeyboardEvent): void {
     <header class="flex h-12 shrink-0 items-center gap-3 border-b border-border px-4">
       <h1
         v-if="props.title"
-        class="font-display min-w-0 flex-1 truncate text-[17px] font-bold text-ink-true"
+        class="t-wordmark min-w-0 flex-1 truncate text-ink-true"
       >
         {{ props.title }}
       </h1>
       <LoadingRegion
         v-else
-        class="font-display min-w-0 flex-1 text-[17px]"
+        class="t-wordmark min-w-0 flex-1"
       >
         <SkeletonShape class="w-40" />
       </LoadingRegion>
@@ -111,8 +115,8 @@ function onListKeydown(event: KeyboardEvent): void {
           :aria-controls="tabpanelId(entry.key)"
           :tabindex="tab === entry.key ? 0 : -1"
           :disabled="entry.disabled"
-          class="font-display text-btn relative min-h-11 flex-1 cursor-pointer py-3 uppercase transition-colors duration-200 ease-(--ease-smooth) hover:text-coral disabled:cursor-not-allowed disabled:opacity-35"
-          :class="tab === entry.key ? 'text-coral' : 'text-ink-muted'"
+          class="font-display text-btn relative min-h-11 flex-1 cursor-pointer py-3 uppercase transition-colors duration-200 ease-(--ease-smooth) underline-offset-4 hover:text-ink hover:underline disabled:cursor-not-allowed disabled:opacity-35"
+          :class="tab === entry.key ? 'text-ink' : 'text-ink-muted'"
           @click="choose(entry.key)"
         >
           {{ entry.label }}
@@ -124,7 +128,11 @@ function onListKeydown(event: KeyboardEvent): void {
         </button>
       </div>
 
-      <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
+      <div
+        ref="scroller"
+        class="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4"
+        data-testid="phone-panel-scroller"
+      >
         <!-- v-show, not v-if: the plot form keeps what was typed when the
              visitor flips to the results and back. -->
         <div

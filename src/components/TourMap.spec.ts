@@ -54,6 +54,7 @@ vi.mock('maplibre-gl', () => ({
     this['remove'] = map.remove
     this['touchZoomRotate'] = { disableRotation: vi.fn() }
     this['keyboard'] = { disableRotation: vi.fn() }
+    this['setStyle'] = vi.fn()
   }),
   Marker: vi.fn().mockImplementation(function (this: Record<string, unknown>, options?: { element?: HTMLElement }) {
     if (options?.element) map.markerElements.push(options.element)
@@ -135,7 +136,7 @@ describe('TourMap', () => {
     expect(map.layers).toContain(ISOCHRONE_ORIGIN_LAYER_ID)
     expect(map.layers).toContain('trip-progress-cap')
     expect(paintOf(ISOCHRONE_ORIGIN_LAYER_ID, 'fill-opacity-transition')).toEqual({ duration: 300, delay: 0 })
-    expect(paintOf(ISOCHRONE_ORIGIN_LAYER_ID, 'fill-opacity')).toBe(0.35)
+    expect(paintOf(ISOCHRONE_ORIGIN_LAYER_ID, 'fill-opacity')).toBe(0.2)
   })
 
   it('keeps the ridden legs lit over the network when the network is the point', async () => {
@@ -148,10 +149,10 @@ describe('TourMap', () => {
     const w = await loadedMap()
     await w.setProps({ step: step('egress') })
     expect(paintOf(ISOCHRONE_ORIGIN_LAYER_ID, 'fill-opacity')).toBe(0.12)
-    expect(paintOf('isochrone-fill', 'fill-opacity')).toBe(0.35)
+    expect(paintOf('isochrone-fill', 'fill-opacity')).toBe(0.2)
     expect(map.calls.fitBounds.at(-1)?.[1]).toMatchObject({ duration: 900 })
     expect(map.calls.flyTo).toHaveLength(0)
-    expect(map.markerElements.at(-1)?.textContent).toContain('12m left')
+    expect(map.markerElements.at(-1)?.textContent).toContain('1h 18m to get here')
     expect(map.markerElements.at(-1)?.getAttribute('aria-hidden')).toBe('true')
   })
 
@@ -166,7 +167,7 @@ describe('TourMap', () => {
   it('puts everything back when no step is chosen', async () => {
     const w = await loadedMap('egress')
     await w.setProps({ step: null })
-    expect(paintOf(ISOCHRONE_ORIGIN_LAYER_ID, 'fill-opacity')).toBe(0.35)
+    expect(paintOf(ISOCHRONE_ORIGIN_LAYER_ID, 'fill-opacity')).toBe(0.2)
     expect(paintOf('route-line', 'line-opacity')).toBe(1)
     expect(map.markerRemove).toHaveBeenCalled()
   })
@@ -219,7 +220,7 @@ describe('TourMap', () => {
     await w.setProps({ inset: { top: 0, right: 0, bottom: 0, left: 340 } })
     expect(map.calls.jumpTo).toHaveLength(1)
     expect(map.calls.cameraForBounds.at(-1)?.[1]).toMatchObject({ padding: { left: 364 } })
-    expect(map.markerElements.at(-1)?.textContent).toContain('12m left')
+    expect(map.markerElements.at(-1)?.textContent).toContain('1h 18m to get here')
   })
 
   it('labels a step only once the camera has arrived', async () => {
@@ -229,6 +230,6 @@ describe('TourMap', () => {
     const fit = map.calls.fitBounds
     await w.setProps({ step: step('ridden') })
     expect(fit).toHaveLength(1)
-    expect(map.markerElements.at(-1)?.textContent).toContain('59m left')
+    expect(map.markerElements.at(-1)?.textContent).toContain('31m to get here')
   })
 })

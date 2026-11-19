@@ -10,6 +10,8 @@ import type { IncomingHandover } from '../api/authoring/handovers'
 import { ACTION_LINK_CLASS, LIST_CARD_LINK_CLASS } from '../components/linkStyles'
 import AllLinesLink from '../components/AllLinesLink.vue'
 import ListSkeleton from '../components/ListSkeleton.vue'
+import Tag from '../components/Tag.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const auth = useAuthStore()
 
@@ -48,14 +50,11 @@ const nothingYet = computed(() =>
 <template>
   <main class="flex-1 p-(--page-padding)">
     <AllLinesLink />
-    <hgroup class="mt-8 flex flex-col gap-2">
-      <h1 class="font-display text-display text-ink-true">
-        My authoring
-      </h1>
-      <p class="font-body text-micro text-ink-muted italic uppercase">
-        Signed in as {{ auth.displayName ?? '…' }}
-      </p>
-    </hgroup>
+    <PageHeader
+      class="mt-8"
+      title="My authoring"
+      :subtitle="`Signed in as ${auth.displayName ?? '…'}`"
+    />
 
     <section
       v-if="incoming.length"
@@ -77,9 +76,9 @@ const nothingYet = computed(() =>
           data-testid="incoming-handover"
         >
           <div class="flex flex-wrap items-center justify-between gap-3">
-            <p class="font-body text-body flex flex-col text-ink">
+            <p class="t-body flex flex-col text-ink">
               {{ handover.service_name }}
-              <span class="text-caption text-ink-muted">
+              <span class="t-meta text-ink-muted">
                 From {{ handover.from_name }} · Expires {{ expiryDate(handover) }}
               </span>
             </p>
@@ -106,7 +105,7 @@ const nothingYet = computed(() =>
           </div>
           <p
             v-if="refusals[handover.id]"
-            class="font-body text-caption text-error"
+            class="t-error"
             role="alert"
             data-testid="handover-refusal"
           >
@@ -124,7 +123,7 @@ const nothingYet = computed(() =>
       <h2 class="font-display text-h2 text-ink-true">
         Start by drawing a line
       </h2>
-      <p class="font-body text-body mt-3 text-ink-muted">
+      <p class="t-body mt-3 text-ink-muted">
         {{ LINE_DEFINITION }}
         A network combines lines so riders can change between them.
       </p>
@@ -162,7 +161,7 @@ const nothingYet = computed(() =>
         />
         <p
           v-else-if="servicesError"
-          class="font-body text-caption mt-3 text-error"
+          class="t-error mt-3"
           role="alert"
           data-testid="services-error"
         >
@@ -170,7 +169,7 @@ const nothingYet = computed(() =>
         </p>
         <p
           v-else-if="services.length === 0"
-          class="font-body text-caption mt-3 text-ink-muted italic"
+          class="t-note mt-3 text-ink-muted"
           data-testid="services-empty"
         >
           {{ LINE_DEFINITION }} You haven't created one yet.
@@ -189,12 +188,13 @@ const nothingYet = computed(() =>
               data-testid="service-link"
             >
               {{ service.name }}
-              <span class="text-micro text-ink-muted">{{ service.slug }}</span>
-              <span
+              <span class="t-meta text-ink-muted">{{ service.slug }}</span>
+              <Tag
                 v-if="handoverPending.has(service.slug)"
-                class="font-body text-micro self-start rounded-(--radius-field) border border-apricot px-1.5 text-ink uppercase"
+                tone="caution"
+                class="self-start"
                 data-testid="handover-pending"
-              >Transfer pending</span>
+              >Transfer pending</Tag>
             </router-link>
           </li>
         </ul>
@@ -221,7 +221,7 @@ const nothingYet = computed(() =>
         />
         <p
           v-else-if="scenariosError"
-          class="font-body text-caption mt-3 text-error"
+          class="t-error mt-3"
           role="alert"
           data-testid="scenarios-error"
         >
@@ -234,13 +234,13 @@ const nothingYet = computed(() =>
         >
           <p
             v-if="hasLines"
-            class="font-body text-caption text-ink-muted italic"
+            class="t-note text-ink-muted"
           >
             Combine your lines into a network so riders can change between them.
           </p>
           <p
             v-else
-            class="font-body text-caption text-ink-muted italic"
+            class="t-note text-ink-muted"
           >
             A network combines lines so riders can change between them.
           </p>
@@ -267,7 +267,7 @@ const nothingYet = computed(() =>
               data-testid="scenario-link"
             >
               {{ scenario.name }}
-              <span class="text-micro text-ink-muted">{{ scenario.slug }}</span>
+              <span class="t-meta text-ink-muted">{{ scenario.slug }}</span>
             </router-link>
           </li>
         </ul>

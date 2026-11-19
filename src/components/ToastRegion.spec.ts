@@ -147,9 +147,9 @@ describe('ToastRegion', () => {
     })
 
     it('says the same words again when they are announced again', async () => {
-      await announce('Splash zone ready: 3 stations reached')
+      await announce('Travel zone ready: 3 stations reached')
       const first = region().get('p').element
-      await announce('Splash zone ready: 3 stations reached')
+      await announce('Travel zone ready: 3 stations reached')
       expect(region().get('p').element).not.toBe(first)
     })
 

@@ -37,11 +37,20 @@ describe('renderPreview', () => {
     expect(meta(doc, 'og:type')).toBe('website')
     expect(meta(doc, 'og:url')).toBe('https://staging.example.app/')
     expect(meta(doc, 'twitter:card')).toBe('summary')
-    expect(meta(doc, 'og:description')).toMatch(/splash zone/)
+    expect(meta(doc, 'og:description')).toMatch(/travel zone/)
     expect(meta(doc, 'description')).toBe(meta(doc, 'og:description'))
     expect(doc.querySelectorAll('title')).toHaveLength(1)
     expect(doc.querySelector('meta[property="og:image"]')).toBeNull()
     expect(html).toContain('src="/assets/index-abc123.js"')
+  })
+
+  it('summarises a network by its description with each link reduced to its text', async () => {
+    const html = await renderPreview(new URL('https://www.example.app/scenario/ca-hsr'), Promise.resolve(SHELL), async () => ({
+      name: 'CA HSR',
+      description: 'Want it sooner? [Sign the petition](https://example.org/petition).',
+    }))
+
+    expect(meta(parse(html), 'og:description')).toBe('Want it sooner? Sign the petition.')
   })
 
   it('describes a published service by its own name and description', async () => {
@@ -69,7 +78,7 @@ describe('renderPreview', () => {
     const doc = parse(html)
     expect(doc.title).toBe('How it works · Sparks Effect')
     expect(meta(doc, 'og:title')).toBe('How it works')
-    expect(meta(doc, 'og:description')).toMatch(/splash zone/)
+    expect(meta(doc, 'og:description')).toMatch(/travel zone/)
     // The clock is Transit's alone; walking, biking and driving ignore it.
     expect(meta(doc, 'og:description')).toMatch(/8 a\.m\. weekday start for transit/)
     expect(meta(doc, 'og:description')!.length).toBeLessThanOrEqual(200)
@@ -263,7 +272,7 @@ describe('withDefaultPreview', () => {
     expect(doc.title).toBe('Sparks Effect')
     expect(doc.querySelectorAll('title')).toHaveLength(1)
     expect(meta(doc, 'og:title')).toBe('Sparks Effect')
-    expect(meta(doc, 'og:description')).toMatch(/splash zone/)
+    expect(meta(doc, 'og:description')).toMatch(/travel zone/)
     expect(meta(doc, 'twitter:card')).toBe('summary')
     expect(meta(doc, 'og:url')).toBeNull()
     expect(canonical(doc)).toBeNull()

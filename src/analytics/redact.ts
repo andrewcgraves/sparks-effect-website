@@ -19,3 +19,14 @@ export function redactUrl(url: string): string {
   parsed.searchParams.delete('token')
   return parsed.toString()
 }
+
+// An embed learns who frames it from the referrer, which can be a full URL
+// with anything in its path and query; only the host is kept.
+export function referrerHost(referrer: string): string | null {
+  if (!referrer) return null
+  try {
+    return new URL(redactUrl(referrer)).hostname || null
+  } catch {
+    return null
+  }
+}

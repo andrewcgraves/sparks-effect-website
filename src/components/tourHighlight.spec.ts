@@ -26,14 +26,14 @@ const area = ([[w, s], [e, n]]: [[number, number], [number, number]]) => (e - w)
 describe('tourPaint', () => {
   it('paints every part as the live map does when nothing is singled out', () => {
     const paint = tourPaint(null)
-    expect(valueOf(paint, ISOCHRONE_ORIGIN_LAYER_ID, 'fill-opacity')).toBe(0.35)
-    expect(valueOf(paint, ISOCHRONE_LAYER_ID, 'fill-opacity')).toBe(0.35)
+    expect(valueOf(paint, ISOCHRONE_ORIGIN_LAYER_ID, 'fill-opacity')).toBe(0.2)
+    expect(valueOf(paint, ISOCHRONE_LAYER_ID, 'fill-opacity')).toBe(0.2)
     for (const p of paint.filter((p) => !p.property.startsWith('fill'))) expect(p.value).toBe(1)
   })
 
-  it('dims everything but the lit parts, the fills as far as a station highlight dims them', () => {
+  it('dims everything but the lit parts, the fills to their own dim opacities', () => {
     const paint = tourPaint(['egress-fill'])
-    expect(valueOf(paint, ISOCHRONE_LAYER_ID, 'fill-opacity')).toBe(0.35)
+    expect(valueOf(paint, ISOCHRONE_LAYER_ID, 'fill-opacity')).toBe(0.2)
     expect(valueOf(paint, ISOCHRONE_ORIGIN_LAYER_ID, 'fill-opacity')).toBe(0.12)
     expect(valueOf(paint, ROUTE_LINE_LAYER_ID, 'line-opacity')).toBe(TOUR_DIM_OPACITY)
     expect(valueOf(paint, STATION_DOTS_LAYER_ID, 'circle-opacity')).toBe(TOUR_DIM_OPACITY)
@@ -52,7 +52,7 @@ describe('tourPaint', () => {
     const paint = tourPaint(['origin-walk', 'origin-marker'], 'start')
     expect(valueOf(paint, ISOCHRONE_ORIGIN_LAYER_ID, 'fill-opacity')).toBe(0)
     expect(valueOf(paint, ISOCHRONE_LAYER_ID, 'fill-opacity')).toBe(0)
-    expect(valueOf(tourPaint(['origin-fill'], 'start'), ISOCHRONE_ORIGIN_LAYER_ID, 'fill-opacity')).toBe(0.35)
+    expect(valueOf(tourPaint(['origin-fill'], 'start'), ISOCHRONE_ORIGIN_LAYER_ID, 'fill-opacity')).toBe(0.2)
   })
 
   it('only touches layers the map stacks', () => {
@@ -91,13 +91,13 @@ describe('cameraBounds', () => {
 })
 
 describe('calloutFor', () => {
-  it('labels a station area with the minutes left, as hovering it would', () => {
+  it('labels a station area with how long it took to get there, as hovering it would', () => {
     const callout = calloutFor('egress', TOUR_SAMPLE)
-    expect(callout).toMatchObject({ kind: 'station', name: stationNamed('palmdale').name, remainingSecs: 745 })
+    expect(callout).toMatchObject({ kind: 'station', name: stationNamed('palmdale').name, elapsedSecs: 90 * 60 - 745 })
   })
 
-  it('labels a ridden-through station with its minutes left, as hovering it would', () => {
-    expect(calloutFor('ridden', TOUR_SAMPLE)).toMatchObject({ kind: 'station', remainingSecs: 3565 })
+  it('labels a ridden-through station with how long it took to get there, as hovering it would', () => {
+    expect(calloutFor('ridden', TOUR_SAMPLE)).toMatchObject({ kind: 'station', elapsedSecs: 90 * 60 - 3565 })
   })
 
   it('labels the unfinished ride with how far short it fell, as hovering its dot would', () => {

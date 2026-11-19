@@ -3,10 +3,12 @@ import { computed } from 'vue'
 import { fetchPublicationIsochrone, fetchServicePublication } from '../api/publications'
 import { isochroneWaitMessage } from '../api/isochroneFault'
 import { useAuthoredGraph } from '../composables/useAuthoredGraph'
+import { useRoutingStatus } from '../composables/useRoutingStatus'
 import { usePageTitle } from '../composables/usePageTitle'
 import AllLinesLink from '../components/AllLinesLink.vue'
 import { useIsochroneQuery } from '../composables/useIsochroneQuery'
 import CopyLinkButton from '../components/CopyLinkButton.vue'
+import CopyEmbedButton from '../components/CopyEmbedButton.vue'
 import ScenarioPreviewPanel from '../components/ScenarioPreviewPanel.vue'
 import ServiceStops from '../components/ServiceStops.vue'
 import TimeBetweenStations from '../components/TimeBetweenStations.vue'
@@ -14,8 +16,12 @@ import PageSkeleton from '../components/PageSkeleton.vue'
 import { graphStationTimeGroups } from '../components/stationTimes'
 import { useIsPhone } from '../composables/useIsPhone'
 import type { PhoneMapTab } from '../components/phoneMapTabs'
+import PageHeader from '../components/PageHeader.vue'
 
 const props = defineProps<{ slug: string }>()
+const embedTarget = { kind: 'services', slug: props.slug } as const
+
+const { offline: routingOffline } = useRoutingStatus()
 
 // A pinned target: no `compile`, so nothing on this page can compile — the
 // reader has no session to compile with, and the publication's graph cannot go
@@ -41,7 +47,7 @@ const {
 } = useAuthoredGraph(() => props.slug, {
   fetchGraph: fetchServicePublication,
   isochrone: fetchPublicationIsochrone,
-})
+}, { offline: () => routingOffline.value })
 
 // Unpublished and unknown are one 404, here as in the API, and the not-found
 // copy keeps it that way: saying which would tell a stranger that a draft sits
@@ -106,11 +112,9 @@ void loadGraph(props.slug)
     />
 
     <template v-else-if="graphNotFound">
-      <h1 class="font-display text-display text-ink-true">
-        Line not found
-      </h1>
+      <PageHeader title="Line not found" />
       <p
-        class="font-body text-body mt-3 text-ink-muted"
+        class="t-body mt-3 text-ink-muted"
         data-testid="service-not-found"
       >
         No published line lives at "{{ props.slug }}".
@@ -118,11 +122,9 @@ void loadGraph(props.slug)
     </template>
 
     <template v-else-if="graphFailed">
-      <h1 class="font-display text-display text-ink-true">
-        Something went wrong
-      </h1>
+      <PageHeader title="Something went wrong" />
       <p
-        class="font-body text-body mt-3 text-ink-muted"
+        class="t-body mt-3 text-ink-muted"
         role="alert"
         data-testid="service-error"
       >
@@ -148,7 +150,13 @@ void loadGraph(props.slug)
         @origin-change="onOriginChange"
       >
         <template #after-form>
-          <CopyLinkButton v-if="shareable" />
+          <div class="flex flex-wrap items-start gap-2">
+            <CopyLinkButton v-if="shareable" />
+            <CopyEmbedButton
+              :target="embedTarget"
+              :name="publication.name"
+            />
+          </div>
         </template>
         <template #panel-stops>
           <ServiceStops :stops="stops" />
@@ -157,14 +165,14 @@ void loadGraph(props.slug)
         <template #panel-about>
           <p
             v-if="publication.subtext"
-            class="font-body text-micro text-ink-muted italic uppercase"
+            class="t-meta text-ink-muted"
             data-testid="service-subtext"
           >
             {{ publication.subtext }}
           </p>
           <p
             v-if="publication.description"
-            class="font-body text-body whitespace-pre-line text-ink-muted"
+            class="t-body whitespace-pre-line text-ink-muted"
             data-testid="service-description"
           >
             {{ publication.description }}
@@ -174,18 +182,12 @@ void loadGraph(props.slug)
     </template>
 
     <template v-else-if="publication">
-      <hgroup class="flex max-w-[720px] flex-col gap-2">
-        <h1 class="font-display text-display text-ink-true">
-          {{ publication.name }}
-        </h1>
-        <p
-          v-if="publication.subtext"
-          class="font-body text-micro text-ink-muted italic uppercase"
-          data-testid="service-subtext"
-        >
-          {{ publication.subtext }}
-        </p>
-      </hgroup>
+      <PageHeader
+        class="max-w-[720px]"
+        :title="publication.name"
+        :subtitle="publication.subtext"
+        subtitle-testid="service-subtext"
+      />
 
       <ScenarioPreviewPanel
         :origin="origin"
@@ -203,7 +205,13 @@ void loadGraph(props.slug)
         @origin-change="onOriginChange"
       >
         <template #after-form>
-          <CopyLinkButton v-if="shareable" />
+          <div class="flex flex-wrap items-start gap-2">
+            <CopyLinkButton v-if="shareable" />
+            <CopyEmbedButton
+              :target="embedTarget"
+              :name="publication.name"
+            />
+          </div>
         </template>
       </ScenarioPreviewPanel>
 
@@ -220,7 +228,7 @@ void loadGraph(props.slug)
           Description
         </h2>
         <p
-          class="font-body text-body mt-3 whitespace-pre-line text-ink-muted"
+          class="t-body mt-3 whitespace-pre-line text-ink-muted"
           data-testid="service-description"
         >
           {{ publication.description }}

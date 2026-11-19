@@ -61,7 +61,7 @@ function formatMeters(total: number): string {
       <li
         v-for="row in nearMissRows"
         :key="row.key"
-        class="font-body text-caption flex flex-col items-start gap-2 text-ink"
+        class="t-meta flex flex-col items-start gap-2 text-ink"
         data-testid="near-miss-row"
       >
         <span>
@@ -71,7 +71,7 @@ function formatMeters(total: number): string {
         </span>
         <template v-if="props.interchangePairs && row.declared">
           <span
-            class="text-ink-muted italic"
+            class="t-note text-ink-muted"
             data-testid="near-miss-declared"
           >Declared — not in the latest build yet</span>
           <button
@@ -88,7 +88,7 @@ function formatMeters(total: number): string {
         <template v-else-if="props.interchangePairs">
           <span
             v-if="row.gone"
-            class="text-ink-muted italic"
+            class="t-note text-ink-muted"
             data-testid="near-miss-gone"
           >A stop is no longer in this network</span>
           <button
@@ -119,7 +119,7 @@ function formatMeters(total: number): string {
       <li
         v-for="cluster in props.realisedClusters"
         :key="cluster.key"
-        class="font-body text-caption text-ink"
+        class="t-meta text-ink"
         data-testid="realised-cluster-row"
       >
         {{ cluster.names.join(', ') }}

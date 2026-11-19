@@ -32,10 +32,14 @@ describe('SegmentedControl', () => {
     expect((wrapper.find('input[data-testid="duration-slider-option-60"]').element as HTMLInputElement).checked).toBe(false)
   })
 
-  it('marks the option matching modelValue as selected', () => {
+  it('marks the option matching modelValue with the coral border and tint under ink text', () => {
     const wrapper = mount(SegmentedControl, { props: { modelValue: 120, options, label: 'Travel time', testid: 'duration-slider' } })
-    expect(wrapper.find('input[data-testid="duration-slider-option-120"]').element.parentElement?.className).toContain('bg-coral')
-    expect(wrapper.find('input[data-testid="duration-slider-option-60"]').element.parentElement?.className).not.toContain('bg-coral')
+    const selected = wrapper.find('input[data-testid="duration-slider-option-120"]').element.parentElement!.classList
+    const other = wrapper.find('input[data-testid="duration-slider-option-60"]').element.parentElement!.classList
+    expect([...selected]).toEqual(expect.arrayContaining(['border', 'border-coral', 'bg-coral/10', 'text-ink']))
+    expect(selected).not.toContain('text-white')
+    expect([...other]).toEqual(expect.arrayContaining(['border', 'border-transparent']))
+    expect(other).not.toContain('bg-coral/10')
   })
 
   it('emits update:modelValue with the selected option when a segment is chosen', async () => {
