@@ -3,14 +3,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   BACKLOG_FULL_CODE,
-  backlogFullError,
   enqueueIsochrone,
   fetchRoutingJob,
   ISOCHRONE_DEADLINE_MS,
+  ROUTING_JOB_STALE_AFTER_MS,
+  RoutingBusyError,
+  routingBusyWait,
   type IsochroneParams,
   type RoutingJob,
 } from './routingJobs'
-import { JobFailedError } from './polling'
+import { JobFailedError, JobTimedOutError } from './polling'
 import { ApiError } from './authoring/client'
 import type { ChainResponse } from '../fixtures/isochrone'
 
@@ -165,17 +167,53 @@ describe('enqueueIsochrone', () => {
     await settled
   })
 
+  // Past the deadline the job has waited longer than the API's own stale
+  // limit, so the reason is the queue, not the job: it rejects as busy.
   it('gives up at the deadline rather than polling a queued job forever', async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(enqueued())
       .mockResolvedValue(polled({ status: 'queued' }))
 
     const promise = enqueueIsochrone('/api/isochrone', params)
-    const settled = expect(promise).rejects.toThrow(/timed out/)
+    const settled = expect(promise).rejects.toBeInstanceOf(RoutingBusyError)
 
     await vi.advanceTimersByTimeAsync(ISOCHRONE_DEADLINE_MS + 1000)
 
     await settled
+  })
+
+  // The API fails a job unfinished 90 seconds after it was created; one that
+  // fails that late waited out the queue rather than being refused.
+  it('rejects as busy when the job fails after waiting out the stale limit', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(enqueued())
+      .mockImplementation(async () =>
+        Date.now() - start >= ROUTING_JOB_STALE_AFTER_MS
+          ? polled({ status: 'failed', error: 'stale' })
+          : polled({ status: 'queued', queue_position: 40 }),
+      )
+    const start = Date.now()
+
+    const promise = enqueueIsochrone('/api/isochrone', params)
+    const settled = expect(promise).rejects.toBeInstanceOf(RoutingBusyError)
+
+    await vi.advanceTimersByTimeAsync(ROUTING_JOB_STALE_AFTER_MS + 1000)
+
+    await settled
+  })
+
+  it('reports how long the visitor has waited with each poll', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(enqueued())
+      .mockResolvedValueOnce(polled({ status: 'queued', queue_position: 3 }))
+      .mockResolvedValueOnce(polled({ status: 'succeeded', result: stubChain }))
+    const onProgress = vi.fn()
+
+    const promise = enqueueIsochrone('/api/isochrone', params, onProgress)
+    await vi.advanceTimersByTimeAsync(1000)
+    await promise
+
+    expect(onProgress.mock.calls.map(([progress]) => progress.waitedMs)).toEqual([0, 1000])
   })
 
   // The deadline covers the whole request, so time spent waiting on the enqueue
@@ -190,7 +228,7 @@ describe('enqueueIsochrone', () => {
       .mockResolvedValue(polled({ status: 'queued' }))
 
     const promise = enqueueIsochrone('/api/isochrone', params)
-    const settled = expect(promise).rejects.toThrow(/timed out/)
+    const settled = expect(promise).rejects.toBeInstanceOf(RoutingBusyError)
 
     await vi.advanceTimersByTimeAsync(0)
 
@@ -241,12 +279,12 @@ describe('enqueueIsochrone', () => {
     for (let i = 0; i < 5; i++) await vi.advanceTimersByTimeAsync(1000)
     await promise
 
-    expect(onProgress.mock.calls.map(([progress]) => progress)).toEqual([
+    expect(onProgress.mock.calls.map(([{ status, queue_position }]) => ({ status, queue_position }))).toEqual([
       { status: 'queued', queue_position: 2 },
       { status: 'queued', queue_position: 1 },
-      { status: 'queued' },
-      { status: 'running' },
-      { status: 'succeeded' },
+      { status: 'queued', queue_position: undefined },
+      { status: 'running', queue_position: undefined },
+      { status: 'succeeded', queue_position: undefined },
     ])
   })
 
@@ -266,48 +304,35 @@ describe('enqueueIsochrone', () => {
   })
 })
 
-describe('backlogFullError', () => {
-  it('reads a refused enqueue and returns a message saying to try again', () => {
-    const err = new ApiError('POST /api/isochrone failed: 429', 429, BACKLOG_FULL_CODE)
-
-    const message = backlogFullError(err)
-
-    expect(message).toMatch(/busy/i)
-    expect(message).toMatch(/again/i)
-  })
-
+describe('routingBusyWait', () => {
   // SPA-467: the API says how long the backlog will take to clear, so a refused
-  // visitor is told when to come back rather than "in a few moments".
-  it('quotes the Retry-After seconds when the refusal carries them', () => {
+  // visitor is told when to come back.
+  it('quotes the Retry-After seconds when a backlog_full refusal carries them', () => {
     const refused = (retryAfterS: number) =>
       new ApiError('POST /api/isochrone failed: 429', 429, BACKLOG_FULL_CODE, undefined, retryAfterS)
 
-    expect(backlogFullError(refused(30))).toBe(
-      'Routing is busy right now. Please try again in 30 seconds.',
-    )
-    expect(backlogFullError(refused(1))).toBe(
-      'Routing is busy right now. Please try again in 1 second.',
-    )
+    expect(routingBusyWait(refused(30))).toBe('30 seconds')
+    expect(routingBusyWait(refused(1))).toBe('1 second')
   })
 
-  it('keeps the unquantified copy when the refusal carries no Retry-After', () => {
-    const err = new ApiError('POST /api/isochrone failed: 429', 429, BACKLOG_FULL_CODE)
-
-    expect(backlogFullError(err)).toBe(
-      'Routing is busy right now. Please try again in a few moments.',
+  it('says a few minutes for a refusal without Retry-After or a job given up on', () => {
+    expect(routingBusyWait(new ApiError('POST /api/isochrone failed: 429', 429, BACKLOG_FULL_CODE))).toBe(
+      'a few minutes',
     )
+    expect(routingBusyWait(new RoutingBusyError(new JobTimedOutError('rj1', 120_000)))).toBe('a few minutes')
   })
 
   it('returns null for anything else, so a caller can chain it', () => {
-    expect(backlogFullError(new ApiError('nope', 500))).toBeNull()
-    expect(backlogFullError(new ApiError('nope', 422, 'origin_out_of_range'))).toBeNull()
-    expect(backlogFullError(new Error('offline'))).toBeNull()
-    expect(backlogFullError(null)).toBeNull()
+    expect(routingBusyWait(new ApiError('nope', 500))).toBeNull()
+    expect(routingBusyWait(new ApiError('nope', 422, 'origin_out_of_range'))).toBeNull()
+    expect(routingBusyWait(new JobFailedError('rj1', 'no route'))).toBeNull()
+    expect(routingBusyWait(new Error('offline'))).toBeNull()
+    expect(routingBusyWait(null)).toBeNull()
   })
 
   // A bare 429 with no code could be an edge rate limiter or a proxy in front
   // of the API — a different situation, and not one this message describes.
   it('returns null for a 429 that does not carry the code', () => {
-    expect(backlogFullError(new ApiError('POST /api/isochrone failed: 429', 429))).toBeNull()
+    expect(routingBusyWait(new ApiError('POST /api/isochrone failed: 429', 429))).toBeNull()
   })
 })

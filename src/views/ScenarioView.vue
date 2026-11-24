@@ -63,7 +63,10 @@ const {
   progress: isochroneProgress,
   generate,
   show: showIsochrone,
-} = useIsochrone(() => stations.value, { offline: () => offline.value })
+} = useIsochrone(() => stations.value, {
+  offline: () => offline.value,
+  hasExamples: () => hasExamples.value === true,
+})
 
 const activeStation = ref<{ slug: string; fromMap: boolean } | null>(null)
 

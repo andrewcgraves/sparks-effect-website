@@ -11,11 +11,14 @@ import { PLOTTING_SPLASH_ZONE, splashZoneReadyMessage } from './progressAnnounce
 
 export interface IsochroneOptions {
   offline?: () => boolean
+  // Whether the page offers example travel zones, so a busy fault can point
+  // at them.
+  hasExamples?: () => boolean
 }
 
 export function useIsochrone(
   getStations: () => Station[] = () => [],
-  { offline = () => false }: IsochroneOptions = {},
+  { offline = () => false, hasExamples = () => false }: IsochroneOptions = {},
 ) {
   // Shallow for the same reason as useScenario's routes (SPA-487): a plot is
   // replaced whole, never edited.
@@ -62,7 +65,9 @@ export function useIsochrone(
       }
     } catch (e) {
       console.error(e)
-      if (attempts.isCurrent(attempt)) error.value = isochroneFault(e, request.mode, request.budget_mins)
+      if (attempts.isCurrent(attempt)) error.value = isochroneFault(e, request.mode, request.budget_mins, {
+          hasExamples: hasExamples(),
+        })
     } finally {
       if (attempts.isCurrent(attempt)) {
         loading.value = false

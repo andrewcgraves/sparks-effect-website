@@ -2,7 +2,8 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from './authoring/client'
-import { JobFailedError } from './polling'
+import { JobFailedError, JobTimedOutError } from './polling'
+import { RoutingBusyError } from './routingJobs'
 import type { Station } from './scenarios'
 
 vi.mock('../analytics/index', () => ({
@@ -27,6 +28,7 @@ const sanFrancisco: Station = {
 const GENERIC = "Couldn't plot this travel zone. Please try again."
 const ROUTING_FAILED =
   "Routing couldn't finish this travel zone. Please try again, or try a different starting point."
+const BUSY = 'Lots of people are plotting travel zones right now. Please try again in a few minutes.'
 
 describe('isochroneFault', () => {
   beforeEach(() => {
@@ -70,10 +72,42 @@ describe('isochroneFault', () => {
     expect(message).not.toContain('try again')
   })
 
-  it('says the service is busy for a backlog_full refusal', () => {
-    const message = isochroneFault(new ApiError('busy', 429, 'backlog_full'), 'walk', 30)
-    expect(message).toMatch(/busy/i)
-    expect(message).not.toBe(GENERIC)
+  it('says the site is busy for a backlog_full refusal', () => {
+    expect(isochroneFault(new ApiError('busy', 429, 'backlog_full'), 'walk', 30)).toBe(BUSY)
+  })
+
+  // SPA-467: the API says how long the backlog will take to clear, so a refused
+  // visitor is told when to come back rather than "in a few minutes".
+  it('quotes the Retry-After seconds when a backlog_full refusal carries them', () => {
+    const refused = new ApiError('busy', 429, 'backlog_full', undefined, 30)
+    expect(isochroneFault(refused, 'walk', 30)).toBe(
+      'Lots of people are plotting travel zones right now. Please try again in 30 seconds.',
+    )
+  })
+
+  // A bare 429 with no code could be an edge rate limiter or a proxy in front
+  // of the API — a different situation, and not one this message describes.
+  it('does not call a 429 without the backlog_full code busy', () => {
+    expect(isochroneFault(new ApiError('busy', 429), 'walk', 30)).toBe(GENERIC)
+  })
+
+  it('says the site is busy, not that routing failed, for a job given up on in the queue', () => {
+    const busy = new RoutingBusyError(new JobFailedError('rj1', 'stale'))
+    expect(isochroneFault(busy, 'walk', 30)).toBe(BUSY)
+    expect(isochroneFault(new RoutingBusyError(new JobTimedOutError('rj1', 120_000)), 'walk', 30)).toBe(BUSY)
+  })
+
+  it('points at the example travel zones when the page has them', () => {
+    const busy = new RoutingBusyError(new JobFailedError('rj1', 'stale'))
+    expect(isochroneFault(busy, 'walk', 30, { hasExamples: true })).toBe(
+      'Lots of people are plotting travel zones right now. Please try again in a few minutes, or open one of the example travel zones.',
+    )
+  })
+
+  it('leaves a quick job failure as a routing failure', () => {
+    expect(isochroneFault(new JobFailedError('rj1', 'no route'), 'walk', 30, { hasExamples: true })).toBe(
+      ROUTING_FAILED,
+    )
   })
 
   it('falls back for an unclassified failure', () => {
@@ -146,6 +180,18 @@ describe('isochroneWaitMessage', () => {
     [{ status: 'running' }, 'Plotting…'],
   ] as const)('words %o as %s', (progress, message) => {
     expect(isochroneWaitMessage(progress)).toBe(message)
+  })
+
+  // A long queue is told as one before the job is given up on, so the visitor
+  // knows to wait rather than reload.
+  it('says the site is busy once a queued job has waited 30 seconds', () => {
+    const busy = 'Lots of people are plotting right now, so this may take a minute…'
+    expect(isochroneWaitMessage({ status: 'queued', queue_position: 12, waitedMs: 30_000 })).toBe(busy)
+    expect(isochroneWaitMessage({ status: 'queued', waitedMs: 45_000 })).toBe(busy)
+    expect(isochroneWaitMessage({ status: 'queued', queue_position: 12, waitedMs: 29_000 })).toBe(
+      'Waiting — 12 ahead of you',
+    )
+    expect(isochroneWaitMessage({ status: 'running', waitedMs: 60_000 })).toBe('Plotting…')
   })
 
   it('says Waiting… before the first poll has answered', () => {

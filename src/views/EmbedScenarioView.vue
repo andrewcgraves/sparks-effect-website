@@ -46,7 +46,10 @@ const {
   progress: isochroneProgress,
   generate,
   show: showIsochrone,
-} = useIsochrone(() => stations.value, { offline: () => offline.value })
+} = useIsochrone(() => stations.value, {
+  offline: () => offline.value,
+  hasExamples: () => hasExamples.value === true,
+})
 
 async function plot(payload: IsochronePayload): Promise<void> {
   selectedPrerenderedId.value = null

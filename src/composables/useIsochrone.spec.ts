@@ -262,8 +262,23 @@ describe('useIsochrone', () => {
 
       await generate(request)
 
-      expect(error.value).toMatch(/busy/i)
-      expect(error.value).not.toBe("Couldn't plot this travel zone. Please try again.")
+      expect(error.value).toBe(
+        'Lots of people are plotting travel zones right now. Please try again in a few minutes.',
+      )
+    })
+
+    // A page with example travel zones has something to offer now: they are
+    // already plotted, so they never wait on the queue.
+    it('points at the example travel zones when the page has them', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+      vi.mocked(fetchIsochrone).mockRejectedValueOnce(new ApiError('busy', 429, 'backlog_full'))
+      const { error, generate } = useIsochrone(() => [], { hasExamples: () => true })
+
+      await generate(request)
+
+      expect(error.value).toBe(
+        'Lots of people are plotting travel zones right now. Please try again in a few minutes, or open one of the example travel zones.',
+      )
     })
   })
 

@@ -1,7 +1,7 @@
 import { ApiError, apiRequest } from './authoring/client'
 import { secondsPhrase } from './authoringFault'
 import type { TravelMode } from './authoring/types'
-import { pollUntilSucceeded, type JobStatus } from './polling'
+import { JobFailedError, JobTimedOutError, pollUntilSucceeded, type JobStatus } from './polling'
 import { newTraceId, traceHeaders } from './traceId'
 import type { ChainResponse } from '../fixtures/isochrone'
 
@@ -24,7 +24,11 @@ export interface RoutingJob extends IsochroneParams {
   updated_at?: string
 }
 
-export type IsochroneProgress = Pick<RoutingJob, 'status' | 'queue_position'>
+export type IsochroneProgress = Pick<RoutingJob, 'status' | 'queue_position'> & {
+  // How long this visitor has been waiting, enqueue included, so the wait
+  // message can say the site is busy before the job gives up.
+  waitedMs?: number
+}
 
 export type IsochroneProgressListener = (progress: IsochroneProgress) => void
 
@@ -32,12 +36,33 @@ const POLL_INTERVAL_MS = 1000
 
 export const ISOCHRONE_DEADLINE_MS = 120_000
 
+// The API fails any job still unfinished this long after it was created
+// (RoutingJobStaleAfter in sparks-effect-api). A job that fails, or runs out
+// the page's own deadline, after waiting this long was not refused for its
+// starting point: the queue was too long to reach it.
+export const ROUTING_JOB_STALE_AFTER_MS = 90_000
+
+// A job still queued after this long is waiting on a busy queue, and the
+// visitor hears so while there is still time for it to finish.
+export const BUSY_HINT_AFTER_MS = 30_000
+
 export const BACKLOG_FULL_CODE = 'backlog_full'
 
-export function backlogFullError(err: unknown): string | null {
+export class RoutingBusyError extends Error {
+  constructor(cause: Error) {
+    super(`Routing is busy: ${cause.message}`)
+    this.name = 'RoutingBusyError'
+  }
+}
+
+// Busy either way: the API refused the enqueue because its backlog is full
+// (SPA-219), or the job sat in the queue until it was given up on. Returns how
+// long to tell the visitor to wait — the API's Retry-After when the refusal
+// carries one (SPA-467) — or null when the error is not routing being busy.
+export function routingBusyWait(err: unknown): string | null {
+  if (err instanceof RoutingBusyError) return 'a few minutes'
   if (!(err instanceof ApiError) || err.code !== BACKLOG_FULL_CODE) return null
-  const wait = err.retryAfterS === undefined ? 'a few moments' : secondsPhrase(err.retryAfterS)
-  return `Routing is busy right now. Please try again in ${wait}.`
+  return err.retryAfterS === undefined ? 'a few minutes' : secondsPhrase(err.retryAfterS)
 }
 
 export function fetchRoutingJob(id: string, init?: RequestInit): Promise<RoutingJob> {
@@ -67,14 +92,27 @@ async function awaitIsochrone(
   traceId: string,
   onProgress?: IsochroneProgressListener,
 ): Promise<ChainResponse> {
-  const succeeded = await pollUntilSucceeded(
-    jobId,
-    (id) => fetchRoutingJob(id, { headers: traceHeaders(traceId) }),
-    {
-      intervalMs: POLL_INTERVAL_MS,
-      timeoutMs: ISOCHRONE_DEADLINE_MS - (Date.now() - startedAt),
-      onStatus: (job) => onProgress?.({ status: job.status, queue_position: job.queue_position }),
-    },
-  )
-  return succeeded.result
+  try {
+    const succeeded = await pollUntilSucceeded(
+      jobId,
+      (id) => fetchRoutingJob(id, { headers: traceHeaders(traceId) }),
+      {
+        intervalMs: POLL_INTERVAL_MS,
+        timeoutMs: ISOCHRONE_DEADLINE_MS - (Date.now() - startedAt),
+        onStatus: (job) =>
+          onProgress?.({
+            status: job.status,
+            queue_position: job.queue_position,
+            waitedMs: Date.now() - startedAt,
+          }),
+      },
+    )
+    return succeeded.result
+  } catch (err) {
+    const gaveUp = err instanceof JobFailedError || err instanceof JobTimedOutError
+    if (gaveUp && Date.now() - startedAt >= ROUTING_JOB_STALE_AFTER_MS) {
+      throw new RoutingBusyError(err)
+    }
+    throw err
+  }
 }

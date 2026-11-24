@@ -485,7 +485,7 @@ describe('useAuthoredGraph', () => {
       await handleIsochroneSubmit(payload)
 
       expect(compile).not.toHaveBeenCalled()
-      expect(isochroneError.value).toMatch(/busy/i)
+      expect(isochroneError.value).toMatch(/plotting travel zones right now/)
       expect(isochroneError.value).not.toBe("Couldn't plot this travel zone. Please try again.")
     })
   })

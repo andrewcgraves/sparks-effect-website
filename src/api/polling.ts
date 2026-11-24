@@ -24,6 +24,13 @@ export class JobFailedError extends Error {
   }
 }
 
+export class JobTimedOutError extends Error {
+  constructor(jobId: string, timeoutMs: number) {
+    super(`Job ${jobId} timed out after ${timeoutMs}ms`)
+    this.name = 'JobTimedOutError'
+  }
+}
+
 function delay(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     if (signal?.aborted) {
@@ -70,7 +77,7 @@ export async function pollUntilSucceeded<T extends PollableJob>(
     }
 
     if (Date.now() >= deadline) {
-      throw new Error(`Job ${jobId} timed out after ${timeoutMs}ms`)
+      throw new JobTimedOutError(jobId, timeoutMs)
     }
 
     await delay(intervalMs, signal)
