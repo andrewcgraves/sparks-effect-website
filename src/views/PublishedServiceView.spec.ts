@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
+import { useAuthStore } from '../stores/auth'
 import type { Router } from 'vue-router'
 import { testRouter, testRouterAt } from '../test/router'
 import { ApiError } from '../api/authoring/client'
@@ -93,6 +94,7 @@ describe('PublishedServiceView', () => {
   const fetchSpy = vi.fn()
 
   beforeEach(() => {
+    window.localStorage.clear()
     setActivePinia(createPinia())
     vi.mocked(fetchServicePublication).mockReset().mockResolvedValue(publication)
     vi.mocked(fetchPublicationIsochrone).mockReset().mockResolvedValue(plot)
@@ -326,12 +328,19 @@ describe('PublishedServiceView', () => {
     })
   })
 
-  it('offers the embed code to every visitor, beside the link', async () => {
+  // SPA-563: only to a signed-in account until embeds launch to everyone.
+  it('offers the embed code to a signed-in account, beside the link', async () => {
+    useAuthStore().signIn('tok-1', { id: 'u1', email: 'a@example.com' })
     const { wrapper } = await mountViewAt('/services/northbound-express')
     await wrapper.get('[data-testid="copy-embed"]').trigger('click')
     expect(wrapper.get('[data-testid="copy-embed-options"]').text())
       .toContain('/embed/services/northbound-express?controls=1"')
     expect(wrapper.get('[data-testid="copy-embed-options"]').text()).toContain('title="Northbound Express travel zone on Sparks Effect"')
+  })
+
+  it('keeps the embed code from a visitor who is not signed in', async () => {
+    const { wrapper } = await mountViewAt('/services/northbound-express')
+    expect(wrapper.find('[data-testid="copy-embed"]').exists()).toBe(false)
   })
 
   // SPA-429: a shared link is mostly opened on a phone, where the page is the

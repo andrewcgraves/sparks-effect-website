@@ -2,6 +2,7 @@
 import { computed, ref, useId } from 'vue'
 import { useRoute } from 'vue-router'
 import { useToast } from '../composables/useToast'
+import { useAuthStore } from '../stores/auth'
 import { embedSnippet, type EmbedTarget } from '../embed/embedLinks'
 import { SECONDARY_BUTTON_CLASS } from './buttonStyles'
 import { copyText } from './clipboard'
@@ -9,6 +10,7 @@ import { copyText } from './clipboard'
 const props = defineProps<{ target: EmbedTarget; name: string }>()
 
 const route = useRoute()
+const auth = useAuthStore()
 const { show: toast } = useToast()
 const open = ref(false)
 const optionsId = useId()
@@ -39,8 +41,13 @@ async function copy(snippet: string): Promise<void> {
 
 <template>
   <!-- contents: the toggle sits in its parent's row beside "Copy link", and
-       the snippets take a row of their own beneath both. -->
-  <div class="contents">
+       the snippets take a row of their own beneath both.
+       SPA-563: offered to signed-in accounts only until embeds launch to
+       everyone; the /embed pages themselves stay open. -->
+  <div
+    v-if="auth.isAuthenticated"
+    class="contents"
+  >
     <button
       type="button"
       :class="SECONDARY_BUTTON_CLASS"

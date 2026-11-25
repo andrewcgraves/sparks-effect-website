@@ -387,7 +387,8 @@ A curated scenario or a published service can be framed by another site:
   no `at`, shows the line and a scenario's example travel zones as a row of chips.
   `controls=1` adds the site's plot panel, floating and minimizable.
 - "Copy embed code" on the scenario and service pages copies either snippet for
-  the host it is on, with the plot on screen.
+  the host it is on, with the plot on screen. Until embeds launch to everyone it
+  shows only to signed-in accounts (SPA-563); the `/embed/` routes stay open.
 - These paths and parameters are a public contract once pasted into someone's
   post: do not rename them.
 - A host page that runs JavaScript can drive an embed by changing the iframe's

@@ -1,6 +1,8 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { enableAutoUnmount, mount, flushPromises } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
 import ScenarioView from './ScenarioView.vue'
+import { useAuthStore } from '../stores/auth'
 import IsochroneForm from '../IsochroneForm.vue'
 import { seriousA11yViolations } from '../test/axe'
 import { ref } from 'vue'
@@ -126,6 +128,8 @@ enableAutoUnmount(afterEach)
 
 describe('ScenarioView', () => {
   beforeEach(() => {
+    window.localStorage.clear()
+    setActivePinia(createPinia())
     vi.mocked(fetchRoutingStatus).mockReset().mockResolvedValue('ok')
     vi.mocked(fetchIsochrone).mockClear()
     vi.mocked(fetchScenarioTravelTimes).mockReset().mockResolvedValue(stubTravelTimes)
@@ -1199,9 +1203,11 @@ describe('ScenarioView', () => {
     })
 
     // SPA-462: an embed of the network is worth offering before anything is
-    // plotted; once something is, the snippet carries it.
-    it('offers the embed code to every visitor, with the plot once one is drawn', async () => {
+    // plotted; once something is, the snippet carries it. SPA-563: only to a
+    // signed-in account until embeds launch to everyone.
+    it('offers the embed code to a signed-in account, with the plot once one is drawn', async () => {
       vi.mocked(fetchIsochrone).mockResolvedValue(stubIsochrone)
+      useAuthStore().signIn('tok-1', { id: 'u1', email: 'a@example.com' })
       const { wrapper } = await mountScenarioViewAt('/scenario/ca-hsr')
       await wrapper.get('[data-testid="copy-embed"]').trigger('click')
       expect(wrapper.get('[data-testid="copy-embed-options"]').text()).toContain('/embed/scenario/ca-hsr"')
@@ -1212,6 +1218,11 @@ describe('ScenarioView', () => {
       await flushPromises()
       expect(wrapper.get('[data-testid="copy-embed-options"]').text())
         .toContain('/embed/scenario/ca-hsr?at=37.71%2C-122.41&amp;mode=bike&amp;mins=45"')
+    })
+
+    it('keeps the embed code from a visitor who is not signed in', async () => {
+      const { wrapper } = await mountScenarioViewAt('/scenario/ca-hsr')
+      expect(wrapper.find('[data-testid="copy-embed"]').exists()).toBe(false)
     })
 
     it('leaves the URL alone when the plot fails', async () => {
